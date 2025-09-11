@@ -10,6 +10,11 @@
         settings: [
             { name: "title", display_name: "Title", type: "text" },
             { name: "data", display_name: "Data (array, { y: array }, or { timestamps, series })", type: "calculated" },
+            // Optional helpers for better UX: a chosen datasource name and channel indices
+            // These let config UIs (like uplot.UI.js) drive labels/colors without relying on parsing the 'data' expression
+            { name: "datasource", display_name: "Datasource (auto from UI)", type: "text" },
+            { name: "channelIndices", display_name: "Channels (auto from UI)", type: "text" },
+            { name: "seriesDefs", display_name: "Series (managed by series controller)", type: "text" },
             { name: "duration", display_name: "Display Duration (ms)", type: "number", default_value: 20000 },
             { name: "refreshRate", display_name: "Refresh Rate (ms)", type: "number", default_value: 1000 },
             { name: "yLabel", display_name: "Y Axis Label", type: "text", default_value: "Value" },
@@ -26,6 +31,7 @@
 class OwnTechPlotUPlot {
         constructor(settings) {
             this.settings = settings;
+            // Simple container for the plot only; series are managed by an external controller
             this.container = $('<div class="w-100 h-100 overflow-auto"></div>');
             this.plot = null;
             this.seriesCount = 0;
@@ -34,13 +40,22 @@ class OwnTechPlotUPlot {
             this.lastRender = 0;
             this._resizeObs = null;
             this._resizeRAF = 0;
+            this.pullTimer = null;
+            this.localMode = false; // when true, we poll values ourselves
+            this.seriesDefs = this._parseSeriesDefs((typeof settings.seriesDefs === 'function' ? settings.seriesDefs() : settings.seriesDefs));
 
             this.ipc = window.require?.('electron')?.ipcRenderer;
             this.headersByDs = {};
             this.colorsByDs = {};
             this.dsMap = [];
-            this.datasourceName = '';
-            this.channelIndices = [];
+            this.datasourceName = (typeof settings.datasource === 'function' ? settings.datasource() : settings.datasource) || '';
+            // channelIndices may come as array or JSON string; normalize to array of ints
+            const chFromSettings = (typeof settings.channelIndices === 'function' ? settings.channelIndices() : settings.channelIndices);
+            this.channelIndices = Array.isArray(chFromSettings)
+                ? chFromSettings.map(x => parseInt(x, 10)).filter(n => Number.isFinite(n))
+                : (typeof chFromSettings === 'string' && chFromSettings.trim().startsWith('[')
+                    ? (function () { try { return JSON.parse(chFromSettings).map(x => parseInt(x, 10)).filter(n => Number.isFinite(n)); } catch { return []; } })()
+                    : []);
             this.lastHeaderCheck = 0;
             this._configHandler = () => this._maybeUpdateHeaders(true);
             freeboard.on && freeboard.on('config_updated', this._configHandler);
@@ -48,10 +63,16 @@ class OwnTechPlotUPlot {
         }
 
         _detectDatasource() {
-            this.datasourceName = '';
-            this.channelIndices = [];
+            // Prefer explicit settings when present; otherwise try to infer from the 'data' expression
+            this.datasourceName = (typeof this.settings.datasource === 'function' ? this.settings.datasource() : this.settings.datasource) || '';
+            const chFromSettings = (typeof this.settings.channelIndices === 'function' ? this.settings.channelIndices() : this.settings.channelIndices);
+            this.channelIndices = Array.isArray(chFromSettings)
+                ? chFromSettings.map(x => parseInt(x, 10)).filter(n => Number.isFinite(n))
+                : (typeof chFromSettings === 'string' && chFromSettings.trim().startsWith('[')
+                    ? (function () { try { return JSON.parse(chFromSettings).map(x => parseInt(x, 10)).filter(n => Number.isFinite(n)); } catch { return []; } })()
+                    : []);
             this.dsMap = [];
-            if (typeof this.settings.data === 'string') {
+            if (!this.datasourceName && typeof this.settings.data === 'string') {
                 const pattern = /datasources\["([^"\]]+)"\]\["y(\d+)"\]/g;
                 let m;
                 while ((m = pattern.exec(this.settings.data)) !== null) {
@@ -144,6 +165,10 @@ class OwnTechPlotUPlot {
         }
 
         _getSeriesLabel(idx) {
+            if (Array.isArray(this.seriesDefs) && this.seriesDefs.length) {
+                const def = this.seriesDefs[idx];
+                if (def && def.label) return def.label;
+            }
             const mapping = this.dsMap[idx] || {};
             const ds = mapping.ds ?? this.datasourceName;
             const chIdx = mapping.idx ?? this.channelIndices[idx] ?? idx;
@@ -166,6 +191,9 @@ class OwnTechPlotUPlot {
             this._initPlot();
             this._maybeUpdateHeaders(true);
             this._bindResize();
+            // If seriesDefs present, start local streaming
+            this.localMode = Array.isArray(this.seriesDefs) && this.seriesDefs.length > 0;
+            if (this.localMode) this._restartPullTimer();
         }
 
         _initPlot(series = null) {
@@ -294,7 +322,20 @@ class OwnTechPlotUPlot {
             const titleChanged = newSettings.title !== this.settings.title;
 
             this.settings = newSettings;
+            // Update helper fields from settings first, then infer from data if still missing
+            this.datasourceName = (typeof newSettings.datasource === 'function' ? newSettings.datasource() : newSettings.datasource) || '';
+            const chFromSettings = (typeof newSettings.channelIndices === 'function' ? newSettings.channelIndices() : newSettings.channelIndices);
+            this.channelIndices = Array.isArray(chFromSettings)
+                ? chFromSettings.map(x => parseInt(x, 10)).filter(n => Number.isFinite(n))
+                : (typeof chFromSettings === 'string' && chFromSettings.trim().startsWith('[')
+                    ? (function () { try { return JSON.parse(chFromSettings).map(x => parseInt(x, 10)).filter(n => Number.isFinite(n)); } catch { return []; } })()
+                    : []);
             this._detectDatasource();
+            // Parse externally managed series
+            const newDefs = this._parseSeriesDefs((typeof newSettings.seriesDefs === 'function' ? newSettings.seriesDefs() : newSettings.seriesDefs));
+            const defsChanged = !_.isEqual(newDefs, this.seriesDefs);
+            this.seriesDefs = newDefs;
+            this.localMode = Array.isArray(this.seriesDefs) && this.seriesDefs.length > 0;
             this._maybeUpdateHeaders(true);
 
             if (needsReset && this.plot) {
@@ -310,10 +351,18 @@ class OwnTechPlotUPlot {
             }
             if (rateChanged) {
                 this.lastRender = 0;
+                if (this.localMode) this._restartPullTimer();
+            }
+            if (defsChanged) {
+                // Rebuild datasets to match new series
+                this.seriesCount = this.seriesDefs.length;
+                this._resetPlot();
+                if (this.localMode) this._restartPullTimer();
             }
         }
 
         onCalculatedValueChanged(settingName, newValue) {
+            if (this.localMode) return; // ignore external data when using local seriesDefs
             this._maybeUpdateHeaders();
             if (!newValue) return;
 
@@ -346,6 +395,7 @@ class OwnTechPlotUPlot {
                 this.plot.destroy();
                 this.plot = null;
             }
+            if (this.pullTimer) { clearInterval(this.pullTimer); this.pullTimer = null; }
             if (this._resizeObs) {
                 try { this._resizeObs.disconnect(); } catch {}
                 this._resizeObs = null;
@@ -363,6 +413,385 @@ class OwnTechPlotUPlot {
 
         getHeight() {
             return 6;
+        }
+
+        _parseSeriesDefs(val) {
+            let arr = [];
+            try {
+                if (Array.isArray(val)) arr = val;
+                else if (typeof val === 'string' && val.trim().startsWith('[')) arr = JSON.parse(val);
+            } catch {}
+            if (!Array.isArray(arr)) return [];
+            // Normalize entries
+            const norm = arr.map(d => {
+                const a = d?.a || {};
+                const b = d?.b || null;
+                const out = {
+                    label: d?.label || '',
+                    op: d?.op || 'identity',
+                    param: Number(d?.param) || 0,
+                    a: {
+                        ds: a.ds || '',
+                        type: a.type || this._getDatasourceType(a.ds) || '',
+                        device: a.device || null,
+                        var: a.var
+                    }
+                };
+                if (b) {
+                    out.b = {
+                        ds: b.ds || '',
+                        type: b.type || this._getDatasourceType(b.ds) || '',
+                        device: b.device || null,
+                        var: b.var
+                    };
+                }
+                return out;
+            });
+            return norm;
+        }
+
+        // ===== Custom variable selection UI =====
+        _refreshDatasourceOptions() {
+            const live = freeboard.getLiveModel?.();
+            if (!live || typeof live.datasources !== 'function') return;
+            const list = live.datasources();
+            const current = this.selection.ds || this.datasourceName || '';
+            this.dsSelect.empty();
+            list.forEach(ds => {
+                try {
+                    const t = ds.type && ds.type();
+                    if (t === 'serialport_datasource' || t === 'fast_frame_datasource' || t === 'can_datasource') {
+                        const name = ds.name();
+                        this.dsSelect.append(`<option value="${name}">${name}</option>`);
+                    }
+                } catch {}
+            });
+            if (current && this.dsSelect.find(`option[value='${current}']`).length === 0) this.dsSelect.append(`<option value="${current}">${current}</option>`);
+            if (current) this.dsSelect.val(current);
+
+            // Mirror options into secondary datasource selector
+            const selectedB = this.dsSelectB.val();
+            this.dsSelectB.empty();
+            this.dsSelect.children().each((_, opt) => {
+                this.dsSelectB.append($(opt).clone());
+            });
+            if (selectedB && this.dsSelectB.find(`option[value='${selectedB}']`).length) this.dsSelectB.val(selectedB);
+            this._onDatasourceChange();
+        }
+
+        async _onDatasourceChange() {
+            const ds = this.dsSelect.val();
+            const type = this._getDatasourceType(ds);
+            this.selection.ds = ds;
+            this.selection.type = type;
+            const isCAN = type === 'can_datasource';
+            this.devSelect.toggle(isCAN);
+            if (isCAN) await this._populateDevices();
+            await this._populateVariables();
+        }
+
+        async _onDatasourceChangeB() {
+            const ds = this.dsSelectB.val();
+            const type = this._getDatasourceType(ds);
+            const showDevB = (this.opSelect.val() === 'mulvar') && (type === 'can_datasource');
+            this.devSelectB.toggle(showDevB);
+            if (type === 'can_datasource') await this._populateDevicesB();
+            await this._populateVariablesB();
+        }
+
+        async _populateDevices() {
+            if (!this.ipc) return;
+            try {
+                const dsSettings = freeboard.getDatasourceSettings(this.selection.ds) || {};
+                const channel = dsSettings.channel || 'can0';
+                try { await this.ipc.invoke('can-aggregate-start', { channel }); } catch {}
+                const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
+                const nodes = snap?.nodes || {};
+                const keys = Object.keys(nodes).sort();
+                this.devSelect.empty();
+                keys.forEach(k => this.devSelect.append(`<option value="${k}">${k}</option>`));
+                if (!this.selection.device && keys.length) this.selection.device = keys[0];
+                if (this.selection.device) this.devSelect.val(this.selection.device);
+            } catch {}
+        }
+
+        async _populateVariables() {
+            const ds = this.selection.ds;
+            const type = this.selection.type;
+            this.varSelect.empty();
+            if (!ds) return;
+            if (type === 'fast_frame_datasource' || type === 'serialport_datasource') {
+                const headers = await this._fetchHeaders(ds);
+                let count = headers.length;
+                if (!count) {
+                    // probe channel count
+                    try {
+                        const dsSettings = freeboard.getDatasourceSettings(ds) || {};
+                        const path = dsSettings.portPath || ds;
+                        if (type === 'fast_frame_datasource') {
+                            const dataset = await this.ipc.invoke('get-fast-dataset', { path });
+                            if (dataset && Array.isArray(dataset.series)) count = dataset.series.length;
+                        } else {
+                            const arr = await this.ipc.invoke('get-serial-buffer', { path });
+                            if (Array.isArray(arr)) count = arr.length;
+                        }
+                    } catch {}
+                }
+                for (let i = 0; i < count; i++) {
+                    const label = headers[i] || `Channel ${i + 1}`;
+                    this.varSelect.append(`<option value="${i}">${label}</option>`);
+                }
+            } else if (type === 'can_datasource') {
+                if (!this.ipc) return;
+                try {
+                    const dsSettings = freeboard.getDatasourceSettings(ds) || {};
+                    const channel = dsSettings.channel || 'can0';
+                    const dev = this.devSelect.val() || this.selection.device;
+                    this.selection.device = dev;
+                    const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
+                    const flat = snap?.nodes?.[dev]?.flat || {};
+                    const entries = Object.keys(flat).sort();
+                    entries.forEach(p => {
+                        const leaf = p.includes('/') ? p.split('/').pop() : p;
+                        this.varSelect.append(`<option value="${p}">${leaf}</option>`);
+                    });
+                } catch {}
+            }
+        }
+
+        async _populateDevicesB() {
+            if (!this.ipc) return;
+            try {
+                const dsSettings = freeboard.getDatasourceSettings(this.dsSelectB.val()) || {};
+                const channel = dsSettings.channel || 'can0';
+                try { await this.ipc.invoke('can-aggregate-start', { channel }); } catch {}
+                const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
+                const nodes = snap?.nodes || {};
+                const keys = Object.keys(nodes).sort();
+                this.devSelectB.empty();
+                keys.forEach(k => this.devSelectB.append(`<option value="${k}">${k}</option>`));
+            } catch {}
+        }
+
+        async _populateVariablesB() {
+            const ds = this.dsSelectB.val();
+            const type = this._getDatasourceType(ds);
+            this.varSelectB.empty();
+            if (!ds) return;
+            if (type === 'fast_frame_datasource' || type === 'serialport_datasource') {
+                const headers = await this._fetchHeaders(ds);
+                let count = headers.length;
+                if (!count) {
+                    try {
+                        const dsSettings = freeboard.getDatasourceSettings(ds) || {};
+                        const path = dsSettings.portPath || ds;
+                        if (type === 'fast_frame_datasource') {
+                            const dataset = await this.ipc.invoke('get-fast-dataset', { path });
+                            if (dataset && Array.isArray(dataset.series)) count = dataset.series.length;
+                        } else {
+                            const arr = await this.ipc.invoke('get-serial-buffer', { path });
+                            if (Array.isArray(arr)) count = arr.length;
+                        }
+                    } catch {}
+                }
+                for (let i = 0; i < count; i++) {
+                    const label = headers[i] || `Channel ${i + 1}`;
+                    this.varSelectB.append(`<option value="${i}">${label}</option>`);
+                }
+            } else if (type === 'can_datasource') {
+                if (!this.ipc) return;
+                try {
+                    const dsSettings = freeboard.getDatasourceSettings(ds) || {};
+                    const channel = dsSettings.channel || 'can0';
+                    const dev = this.devSelectB.val();
+                    const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
+                    const flat = snap?.nodes?.[dev]?.flat || {};
+                    const entries = Object.keys(flat).sort();
+                    entries.forEach(p => {
+                        const leaf = p.includes('/') ? p.split('/').pop() : p;
+                        this.varSelectB.append(`<option value="${p}">${leaf}</option>`);
+                    });
+                } catch {}
+            }
+        }
+
+        _transform(op, param, x) {
+            const v = Number(x);
+            if (!isFinite(v)) return null;
+            switch (op) {
+                case 'negate': return -v;
+                case 'abs': return Math.abs(v);
+                case 'scale': return v * (Number(param) || 0);
+                case 'offset': return v + (Number(param) || 0);
+                default: return v;
+            }
+        }
+
+        _applySelectionFromUI() {
+            const ds = this.dsSelect.val();
+            if (!ds) return;
+            const type = this._getDatasourceType(ds);
+            const op = this.opSelect.val() || 'identity';
+            const param = this.paramInput.is(':visible') ? (parseFloat(this.paramInput.val()) || 0) : 0;
+            let label = this.varSelect.find('option:selected').text() || 'Series';
+            if (op === 'negate') label = `-${label}`;
+            else if (op === 'abs') label = `abs(${label})`;
+            else if (op === 'scale') label = `${label} * ${param}`;
+            else if (op === 'offset') label = `${label} + ${param}`;
+            else if (op === 'mulvar') {
+                const dsB = this.dsSelectB.val();
+                const typeB = this._getDatasourceType(dsB);
+                const varBLabel = this.varSelectB.find('option:selected').text() || 'y';
+                label = `${label} × ${varBLabel}`;
+                this.selectionB = {
+                    ds: dsB,
+                    type: typeB,
+                    device: (typeB === 'can_datasource') ? this.devSelectB.val() : null,
+                    var: (typeB === 'can_datasource') ? this.varSelectB.val() : parseInt(this.varSelectB.val(), 10)
+                };
+            } else {
+                this.selectionB = null;
+            }
+
+            this.selection = {
+                type,
+                ds,
+                device: (type === 'can_datasource') ? (this.devSelect.val() || this.selection.device) : null,
+                var: (type === 'can_datasource') ? this.varSelect.val() : parseInt(this.varSelect.val(), 10),
+                op,
+                param
+            };
+
+            // Reset plot to single series with custom label
+            this.seriesCount = 1;
+            if (this.plot) { this.plot.destroy(); this.plot = null; }
+            this.dataBuffer = [[], []];
+            const color = this._getSeriesColor(0);
+            const series = [{ label: 'Time' }, { label, stroke: color }];
+            this._initPlot(series);
+
+            // Switch to local polling mode
+            this.localMode = true;
+            this._restartPullTimer();
+        }
+
+        _restartPullTimer() {
+            if (this.pullTimer) { clearInterval(this.pullTimer); this.pullTimer = null; }
+            const interval = parseInt(this.settings.refreshRate) || 1000;
+            this.pullTimer = setInterval(() => this._pollOnce(), Math.max(50, interval));
+            // Kick an immediate poll
+            this._pollOnce();
+        }
+
+        async _pollOnce() {
+            if (Array.isArray(this.seriesDefs) && this.seriesDefs.length) {
+                // Streaming multiple series via instantaneous sampling
+                const yvals = [];
+                for (const def of this.seriesDefs) {
+                    try {
+                        const A = def.a || {};
+                        const op = def.op || 'identity';
+                        if (op === 'mulvar' && def.b) {
+                            const yA = await this._readInstantValue(A);
+                            const yB = await this._readInstantValue(def.b);
+                            yvals.push((Number(yA) || 0) * (Number(yB) || 0));
+                        } else {
+                            const raw = await this._readInstantValue(A);
+                            yvals.push(this._transform(op, def.param, raw));
+                        }
+                    } catch {
+                        yvals.push(null);
+                    }
+                }
+                // Remove nulls -> use 0 or skip? Use 0 by default to keep graph stable
+                const clean = yvals.map(v => (isFinite(v) ? v : 0));
+                if (!this.plot || this.seriesCount !== clean.length) {
+                    this.seriesCount = clean.length;
+                    this._resetPlot();
+                }
+                this._updatePlotData(clean);
+                return;
+            }
+            const sel = this.selection;
+            if (!sel || !sel.ds) return;
+            try {
+                if (sel.op === 'mulvar' && this.selectionB && this.selectionB.ds) {
+                    // Multiply two variables (possibly across datasources/types)
+                    const A = sel; const B = this.selectionB;
+                    if (A.type === 'fast_frame_datasource' && B.type === 'fast_frame_datasource' && A.ds === B.ds) {
+                        const dsSettings = freeboard.getDatasourceSettings(A.ds) || {};
+                        const path = dsSettings.portPath || A.ds;
+                        const data = await this.ipc.invoke('get-fast-dataset', { path });
+                        if (!data || !Array.isArray(data.timestamps) || !Array.isArray(data.series)) return;
+                        const ia = Number(A.var), ib = Number(B.var);
+                        if (!Array.isArray(data.series[ia]) || !Array.isArray(data.series[ib])) return;
+                        const len = Math.min(data.series[ia].length, data.series[ib].length);
+                        const out = new Array(len);
+                        for (let i = 0; i < len; i++) out[i] = (Number(data.series[ia][i]) || 0) * (Number(data.series[ib][i]) || 0);
+                        const ts = data.timestamps.slice(-len);
+                        this._setFullDataset({ timestamps: ts, series: [out] });
+                    } else {
+                        // Instantaneous sampling across arbitrary sources
+                        const yA = await this._readInstantValue(A);
+                        const yB = await this._readInstantValue(B);
+                        if (yA != null && yB != null) this._updatePlotData([yA * yB]);
+                    }
+                } else if (sel.type === 'fast_frame_datasource') {
+                    const dsSettings = freeboard.getDatasourceSettings(sel.ds) || {};
+                    const path = dsSettings.portPath || sel.ds;
+                    const data = await this.ipc.invoke('get-fast-dataset', { path });
+                    if (!data || !Array.isArray(data.timestamps) || !Array.isArray(data.series)) return;
+                    const idx = Number(sel.var);
+                    if (!Number.isFinite(idx) || !Array.isArray(data.series[idx])) return;
+                    const transformed = data.series[idx].map(v => this._transform(sel.op, sel.param, v));
+                    this._setFullDataset({ timestamps: data.timestamps, series: [transformed] });
+                } else if (sel.type === 'serialport_datasource') {
+                    const dsSettings = freeboard.getDatasourceSettings(sel.ds) || {};
+                    const path = dsSettings.portPath || sel.ds;
+                    const arr = await this.ipc.invoke('get-serial-buffer', { path });
+                    const idx = Number(sel.var);
+                    const val = Array.isArray(arr) ? arr[idx] : null;
+                    const y = this._transform(sel.op, sel.param, val);
+                    if (y != null) this._updatePlotData([y]);
+                } else if (sel.type === 'can_datasource') {
+                    const dsSettings = freeboard.getDatasourceSettings(sel.ds) || {};
+                    const channel = dsSettings.channel || 'can0';
+                    const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
+                    const flat = snap?.nodes?.[sel.device]?.flat || {};
+                    const val = flat[sel.var];
+                    const y = this._transform(sel.op, sel.param, val);
+                    if (y != null) this._updatePlotData([y]);
+                }
+            } catch (e) {
+                // ignore transient polling errors
+            }
+        }
+
+        async _readInstantValue(s) {
+            if (!s || !s.ds) return null;
+            if (s.type === 'serialport_datasource') {
+                const dsSettings = freeboard.getDatasourceSettings(s.ds) || {};
+                const path = dsSettings.portPath || s.ds;
+                const arr = await this.ipc.invoke('get-serial-buffer', { path });
+                const idx = Number(s.var);
+                const val = Array.isArray(arr) ? arr[idx] : null;
+                return Number(val);
+            } else if (s.type === 'fast_frame_datasource') {
+                const dsSettings = freeboard.getDatasourceSettings(s.ds) || {};
+                const path = dsSettings.portPath || s.ds;
+                const data = await this.ipc.invoke('get-fast-dataset', { path });
+                const idx = Number(s.var);
+                const arr = (data && Array.isArray(data.series) && Array.isArray(data.series[idx])) ? data.series[idx] : [];
+                return arr.length ? Number(arr[arr.length - 1]) : null;
+            } else if (s.type === 'can_datasource') {
+                const dsSettings = freeboard.getDatasourceSettings(s.ds) || {};
+                const channel = dsSettings.channel || 'can0';
+                const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
+                const flat = snap?.nodes?.[s.device]?.flat || {};
+                const val = flat[s.var];
+                return Number(val);
+            }
+            return null;
         }
 
         // Compute smart defaults and/or apply manual Y range

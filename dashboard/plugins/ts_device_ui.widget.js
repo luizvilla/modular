@@ -46,9 +46,28 @@
       </summary>`);
 
     if (hasChildren || hasValues || hasRecords) {
-      const det = $('<details open class="border rounded px-2 py-1"></details>');
+      // Default collapsed; restore expansion state if saved
+      const det = $('<details class="border rounded px-2 py-1"></details>');
       det.append(summary);
       const body = $('<div class="ms-2 mt-1"></div>');
+
+      // Persist expansion state per node path when available
+      const thisPath = node?.path || '';
+      if (thisPath && ctx && ctx.addr != null) {
+        const expanded = !!(ctx?.uiState?.expandedPaths && ctx.uiState.expandedPaths[thisPath] === true);
+        if (expanded) det.prop('open', true);
+        det.attr('data-path', thisPath);
+        det.on('toggle', () => {
+          const isOpen = det.prop('open') === true;
+          saveUiExpansion(ctx.addr, thisPath, isOpen);
+          try {
+            ctx.uiState = ctx.uiState || {};
+            ctx.uiState.expandedPaths = ctx.uiState.expandedPaths || {};
+            if (isOpen) ctx.uiState.expandedPaths[thisPath] = true;
+            else delete ctx.uiState.expandedPaths[thisPath];
+          } catch {}
+        });
+      }
 
       if (hasValues) {
         const tbl = $('<div class="mb-1"></div>');
@@ -393,6 +412,19 @@
     } catch { return false; }
   }
 
+  function saveUiExpansion(addr, pathStr, expanded) {
+    try {
+      if (!pathStr) return false;
+      const tree = readTreeForAddr(addr);
+      if (!tree || !tree.root) return false;
+      tree.root._ui = tree.root._ui || {};
+      tree.root._ui.expandedPaths = tree.root._ui.expandedPaths || {};
+      if (expanded) tree.root._ui.expandedPaths[pathStr] = true;
+      else delete tree.root._ui.expandedPaths[pathStr];
+      return writeTreeForAddr(addr, tree);
+    } catch { return false; }
+  }
+
   function findNodeByPathInTreeRoot(root, pathStr) {
     if (!root || !pathStr) return null;
     const segs = String(pathStr).split('/').filter(Boolean);
@@ -440,6 +472,8 @@
     const btnRefresh = $('<button class="btn btn-secondary btn-sm">Reload</button>');
     const btnToggleReporting = $('<button class="btn btn-outline-success btn-sm">Enable reporting</button>');
     const btnScanBuild = $('<button class="btn btn-primary btn-sm">Scan + Build</button>');
+    const btnExpandAll = $('<button class="btn btn-outline-secondary btn-sm">Expand all</button>');
+    const btnCollapseAll = $('<button class="btn btn-outline-secondary btn-sm">Collapse all</button>');
     const filter = $('<input type="text" class="form-control form-control-sm" placeholder="Filter..." style="max-width: 240px;">');
     const status = $('<div class="small text-muted"></div>');
     const contentWrap = $('<div class="flex-fill" style="min-height:0; overflow:auto;"></div>');
@@ -451,6 +485,8 @@
       devSelect,
       btnRefresh,
       btnScanBuild,
+      btnExpandAll,
+      btnCollapseAll,
       btnToggleReporting,
       filter
     );
@@ -546,6 +582,29 @@
       updateReportingButton(addr, tree);
     }
 
+    function setAllExpanded(open) {
+      const want = !!open;
+      try {
+        content.find('details').prop('open', want);
+        // Persist for nodes we know the path of
+        const addrVal = parseInt(devSelect.val(), 10);
+        if (addrVal) {
+          const tree = readTreeForAddr(addrVal);
+          if (tree && tree.root) {
+            tree.root._ui = tree.root._ui || {};
+            tree.root._ui.expandedPaths = tree.root._ui.expandedPaths || {};
+            const map = tree.root._ui.expandedPaths;
+            content.find('details[data-path]').each((_, el) => {
+              const p = el.getAttribute ? el.getAttribute('data-path') : $(el).attr('data-path');
+              if (!p) return;
+              if (want) map[p] = true; else delete map[p];
+            });
+            writeTreeForAddr(addrVal, tree);
+          }
+        }
+      } catch {}
+    }
+
     this.render = function (container) {
       const $container = $(container);
       // Ensure the widget itself fills its parent; scrolling happens in contentWrap
@@ -587,6 +646,9 @@
           setReportingButtonState(prevEnabled);
         }
       });
+
+      btnExpandAll.on('click', () => setAllExpanded(true));
+      btnCollapseAll.on('click', () => setAllExpanded(false));
 
       devSelect.on('change', renderSelected);
       filter.on('input', renderSelected);
