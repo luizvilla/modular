@@ -11,6 +11,7 @@ const { scanNodes: scanCanNodes } = require('./js/scan');
 const { CanBroadcastAggregator } = require('./js/can_broadcast_aggregator');
 const { exploreId } = require('./js/query_nodes');
 const { flashCanFirmware } = require('./js/thingset_dfu_can');
+const { ThingSetSerialShell } = require('./js/thingset_serial_shell');
 
 let mainWindow; // reference to the main BrowserWindow
 
@@ -45,6 +46,15 @@ const MAX_TERMINAL_LINES = 200;
 
 function dsKey(path, type = 'serialport_datasource') {
     return `${path}||${type}`;
+}
+
+function decodeEolToken(token) {
+    if (!token || typeof token !== 'string') return '\n';
+    let out = token;
+    out = out.replace(/\\r/g, '\r');
+    out = out.replace(/\\n/g, '\n');
+    out = out.replace(/\\t/g, '\t');
+    return out;
 }
 
 
@@ -246,7 +256,7 @@ ipcMain.handle("open-serial-port", async (event, { path, baudRate, separator, eo
         }
 
 	currentSettings.separator = separator || ":";
-  currentSettings.eol = eol ? JSON.parse(`"${eol}"`) : "\n";
+    currentSettings.eol = decodeEolToken(eol);
 
 	const port = new SerialPort({
 		path,
@@ -346,6 +356,180 @@ ipcMain.handle('set-serial-colors', (_event, { path, colors, type = 'serialport_
     if (!Array.isArray(colors)) colors = [];
     colorBuffers.set(dsKey(path, type), colors);
     return 'ok';
+});
+
+ipcMain.handle('ts-serial-tree', async (_event, { port, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!port) throw new Error('port required');
+    emitActivity({ id: `serial:${port}:tree`, title: port, state: 'start', label: 'ThingSet serial tree' });
+    const existingPort = openPorts.get(port) || null;
+    const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+    const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
+    try {
+        await shell.open();
+        await shell.enterThingSet();
+        const root = await shell.buildTree();
+        const nodeUid = await shell.readNodeUid();
+        const nodeName = await shell.readNodeName();
+        const nodeAddr = await shell.readNodeAddr();
+        const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
+        let savedTreePath = null;
+        if (Number.isInteger(nodeAddr) && root) {
+            try {
+                const dir = ensureThingsetDir();
+                const hex = nodeAddr.toString(16).toUpperCase().padStart(2, '0');
+                const payload = {
+                    node_uid: nodeUid || null,
+                    address: `0x${hex}`,
+                    root,
+                };
+                if (nodeName) payload.node_name = nodeName;
+                const treePath = path.join(dir, `node_${hex}_tree.json`);
+                await fs.promises.writeFile(treePath, JSON.stringify(payload, null, 2), 'utf8');
+                savedTreePath = treePath;
+
+                if (nodeUid) {
+                    const mappingPath = path.join(dir, 'nodes.json');
+                    let mapping = {};
+                    try {
+                        const txt = await fs.promises.readFile(mappingPath, 'utf8');
+                        mapping = JSON.parse(txt) || {};
+                    } catch {}
+                    mapping[String(nodeAddr)] = nodeUid;
+                    const ordered = Object.keys(mapping)
+                        .filter((k) => Number.isFinite(Number(k)))
+                        .sort((a, b) => Number(a) - Number(b))
+                        .reduce((acc, key) => { acc[key] = mapping[key]; return acc; }, {});
+                    for (const [key, value] of Object.entries(mapping)) {
+                        if (!Number.isFinite(Number(key))) ordered[key] = value;
+                    }
+                    await fs.promises.writeFile(mappingPath, JSON.stringify(ordered, null, 2), 'utf8');
+                }
+            } catch (persistErr) {
+                console.warn('Failed to persist ThingSet serial tree:', persistErr?.message || persistErr);
+            }
+        }
+        emitActivity({ id: `serial:${port}:tree`, title: port, state: 'done', label: 'ThingSet serial tree', detail: addressHex || 'n/a' });
+        return {
+            node_uid: nodeUid,
+            node_name: nodeName,
+            address_hex: addressHex,
+            node_addr: nodeAddr,
+            root,
+            saved_tree_path: savedTreePath,
+        };
+    } catch (err) {
+        emitActivity({ id: `serial:${port}:tree`, title: port, state: 'error', label: 'ThingSet serial tree', detail: err?.message || String(err) });
+        throw err;
+    } finally {
+        try { await shell.close(); } catch {}
+    }
+});
+
+function coerceOutputValue(raw) {
+    if (raw === null || raw === undefined) return raw;
+    if (typeof raw === 'string') {
+        const txt = raw.trim();
+        if (!txt) return '';
+        if (/^(true|false|null)$/i.test(txt)) {
+            try { return JSON.parse(txt.toLowerCase()); } catch { return txt; }
+        }
+        if ((txt.startsWith('{') && txt.endsWith('}')) || (txt.startsWith('[') && txt.endsWith(']')) || (txt.startsWith('"') && txt.endsWith('"'))) {
+            try { return JSON.parse(txt); } catch { return txt; }
+        }
+        if (/^0x[0-9a-f]+$/i.test(txt)) {
+            try { return Number.parseInt(txt, 16); } catch { return txt; }
+        }
+        const num = Number(txt);
+        if (!Number.isNaN(num)) return num;
+        return txt;
+    }
+    return raw;
+}
+
+ipcMain.handle('ts-serial-set-value', async (_event, { port, path: targetPath, value, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!port) throw new Error('port required');
+    if (!targetPath) throw new Error('path required');
+    const existingPort = openPorts.get(port) || null;
+    const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+    const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
+    try {
+        await shell.open();
+        await shell.enterThingSet();
+        const coerced = coerceOutputValue(value);
+        const resp = await shell.setValue(targetPath, coerced);
+        let readBack = null;
+        try {
+            const read = await shell.getValue(targetPath);
+            if (read.ok) readBack = read.value;
+        } catch {}
+        return { ok: resp.ok, raw: resp.raw, readBack };
+    } finally {
+        try { await shell.close(); } catch {}
+    }
+});
+
+ipcMain.handle('ts-serial-get-value', async (_event, { port, path: targetPath, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!port) throw new Error('port required');
+    if (!targetPath) throw new Error('path required');
+    const existingPort = openPorts.get(port) || null;
+    const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+    const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
+    try {
+        await shell.open();
+        await shell.enterThingSet();
+        const resp = await shell.getValue(targetPath);
+        return { ok: resp.ok, value: resp.value };
+    } finally {
+        try { await shell.close(); } catch {}
+    }
+});
+
+ipcMain.handle('ts-serial-create', async (_event, { port, path: targetPath, value = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!port) throw new Error('port required');
+    if (!targetPath) throw new Error('path required');
+    const existingPort = openPorts.get(port) || null;
+    const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+    const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
+    try {
+        await shell.open();
+        await shell.enterThingSet();
+        const resp = await shell.create(targetPath, value);
+        return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
+    } finally {
+        try { await shell.close(); } catch {}
+    }
+});
+
+ipcMain.handle('ts-serial-delete', async (_event, { port, path: targetPath, value = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!port) throw new Error('port required');
+    if (!targetPath) throw new Error('path required');
+    const existingPort = openPorts.get(port) || null;
+    const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+    const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
+    try {
+        await shell.open();
+        await shell.enterThingSet();
+        const resp = await shell.deleteValue(targetPath, value);
+        return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
+    } finally {
+        try { await shell.close(); } catch {}
+    }
+});
+
+ipcMain.handle('ts-serial-exec', async (_event, { port, path: targetPath, args = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!port) throw new Error('port required');
+    if (!targetPath) throw new Error('path required');
+    const existingPort = openPorts.get(port) || null;
+    const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+    const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
+    try {
+        await shell.open();
+        await shell.enterThingSet();
+        const resp = await shell.exec(targetPath, args);
+        return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
+    } finally {
+        try { await shell.close(); } catch {}
+    }
 });
 
 // ❌ Close port
