@@ -35,7 +35,8 @@ function formatId(num) {
   if (num == null || Number.isNaN(num)) return null;
   const n = Number(num);
   if (!Number.isFinite(n)) return null;
-  return '0x' + n.toString(16).toUpperCase();
+  const hex = n.toString(16).toUpperCase();
+  return '0x' + hex.padStart(Math.max(2, hex.length), '0');
 }
 
 function parseIntMaybe(value) {
@@ -98,6 +99,20 @@ function parseScalarText(text) {
   return { kind: 'str', value: v };
 }
 
+function parseTokenValue(token) {
+  if (token == null) return null;
+  if (typeof token !== 'string') return token;
+  const trimmed = token.trim();
+  if (!trimmed) return '';
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  if ((first === '{' && last === '}') || (first === '[' && last === ']') || (first === '"' && last === '"')) {
+    try { return JSON.parse(trimmed); } catch (e) { /* fall back to scalar parsing */ }
+  }
+  const parsed = parseScalarText(trimmed);
+  return parsed?.value ?? token;
+}
+
 class ThingSetSerialShell {
   constructor({ path, baudRate = 115200, usePrefix = false, commandPrefix = null, verbose = false, existingPort = null } = {}) {
     if (!path && !existingPort) throw new Error('Serial path required');
@@ -119,6 +134,7 @@ class ThingSetSerialShell {
     this.prompt = null;
     this._onData = this._onData.bind(this);
     this._listening = false;
+    this._lastProbeOk = false;
   }
 
   _dbg(msg) {
@@ -277,12 +293,19 @@ class ThingSetSerialShell {
     const statusMatch = text.match(/:([0-9A-Fa-f]{2})(?:\s|$)/);
     const statusHex = statusMatch ? statusMatch[1].toUpperCase() : null;
     const status = statusHex != null ? Number.parseInt(statusHex, 16) : null;
-    const json = this._extractJson(text);
+    let json = this._extractJson(text);
     let scalarToken = null;
     const tokenMatch = text.match(/:[0-9A-Fa-f]{2,}\s+(.*)/);
     if (tokenMatch) {
       const token = tokenMatch[1].trim().split(/\r?\n/)[0].trim();
       if (token) scalarToken = token;
+    }
+    if (json == null && scalarToken != null) {
+      const parsed = parseTokenValue(scalarToken);
+      if (parsed !== null && parsed !== undefined && parsed !== scalarToken) {
+        json = parsed;
+        if (typeof parsed !== 'string' || parsed !== scalarToken.trim()) scalarToken = null;
+      }
     }
     return { text, status, statusHex, json, scalarToken };
   }
@@ -377,6 +400,7 @@ class ThingSetSerialShell {
   }
 
   async enterThingSet() {
+    this._lastProbeOk = false;
     this.readBuffer = Buffer.alloc(0);
     this.prompt = null;
     if (typeof this.port.flush === 'function') {
@@ -409,19 +433,24 @@ class ThingSetSerialShell {
       } catch {}
     }
 
+    const markSuccess = () => {
+      this._lastProbeOk = true;
+      return true;
+    };
+
     const tryProbe = async () => {
       try {
         const out1 = await this.sendCommand('?', 1200);
-        if (this._extractJson(out1.toString('utf8')) != null) return true;
+        if (this._extractJson(out1.toString('utf8')) != null) return markSuccess();
       } catch {}
       try {
         const out2 = await this.sendCommand('ls /', 1200);
-        if (this._extractJson(out2.toString('utf8')) != null) return true;
+        if (this._extractJson(out2.toString('utf8')) != null) return markSuccess();
       } catch {}
       try {
         await this.sendCommand('select thingset', 1200);
         const out3 = await this.sendCommand('?', 1200);
-        if (this._extractJson(out3.toString('utf8')) != null) return true;
+        if (this._extractJson(out3.toString('utf8')) != null) return markSuccess();
       } catch {}
       return false;
     };
@@ -465,7 +494,7 @@ class ThingSetSerialShell {
     if (!response) return null;
     if (!this._isSuccessStatus(response.statusHex) && !response.json && !response.scalarToken) return null;
     if (response.json !== null && response.json !== undefined) return response.json;
-    if (response.scalarToken) return response.scalarToken;
+    if (response.scalarToken) return parseTokenValue(response.scalarToken);
     return null;
   }
 
@@ -488,7 +517,9 @@ class ThingSetSerialShell {
           nodes.push({ path: p, name, is_group: true, kind: '' });
         }
         for (const rawName of names) {
-          const name = String(rawName);
+          const trimmed = String(rawName).trim();
+          if (!trimmed) continue;
+          const name = trimmed;
           const childPath = joinPath(p, name);
           if (name && ['w', 's', 'r', 'x'].includes(name[0])) {
             nodes.push({ path: childPath, name, is_group: false, kind: name[0] });
@@ -505,7 +536,9 @@ class ThingSetSerialShell {
           nodes.push({ path: p, name, is_group: true, kind: '' });
         }
         for (const key of Object.keys(fetched)) {
-          const name = String(key);
+          const trimmed = String(key).trim();
+          if (!trimmed) continue;
+          const name = trimmed;
           const childPath = joinPath(p, name);
           if (name && ['w', 's', 'r', 'x'].includes(name[0])) {
             nodes.push({ path: childPath, name, is_group: false, kind: name[0] });
@@ -523,6 +556,7 @@ class ThingSetSerialShell {
         }
       } else {
         const name = p.split('/').filter(Boolean).pop() || '';
+        if (!name) return;
         const kind = name ? name[0] : '';
         nodes.push({ path: p, name, is_group: false, kind });
       }
@@ -784,6 +818,10 @@ class ThingSetSerialShell {
       }
     }
     return candidate;
+  }
+
+  probeSucceeded() {
+    return !!this._lastProbeOk;
   }
 }
 

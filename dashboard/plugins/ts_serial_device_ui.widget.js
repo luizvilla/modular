@@ -193,9 +193,10 @@
     const list = live.datasources();
     const current = this.settings.datasource || '';
     const options = [];
+    const allowed = new Set(['serialport_datasource', 'thingset_serial_datasource']);
     list.forEach((ds) => {
       try {
-        if (ds.type && ds.type() === 'serialport_datasource') {
+        if (ds.type && allowed.has(ds.type())) {
           options.push(ds.name());
         }
       } catch {}

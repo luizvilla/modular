@@ -96,6 +96,9 @@ class CanBroadcastAggregator {
       nodes: {}, // addrHex -> { ts, lastCount, groups: { [groupIdHex]: { [idHex]: val } }, flat: { [path|idHex]: val } }
     };
     this.idToPath = new Map(); // addrNum -> Map<number,string>
+    this.addrUidCache = new Map(); // addrNum -> { uid, source: 'tree'|'nodes', version: number }
+    this.nodesJsonCache = { mtimeMs: 0, data: {} };
+    this.nodesJsonCacheCheckedAt = 0;
     this.busOnMessage = this.onMessage.bind(this);
   }
 
@@ -113,12 +116,78 @@ class CanBroadcastAggregator {
     if (this.idToPath.has(addr)) return;
     try {
       const file = path.join(process.cwd(), 'thingset', `node_${(addr).toString(16).toUpperCase().padStart(2, '0')}_tree.json`);
-      const txt = await fs.promises.readFile(file, 'utf8');
+      const [stat, txt] = await Promise.all([
+        fs.promises.stat(file),
+        fs.promises.readFile(file, 'utf8'),
+      ]);
       const json = JSON.parse(txt);
       this.idToPath.set(addr, buildIdToPathMap(json));
+      const uid = json?.node_uid || json?.root?.node_uid;
+      if (uid != null) {
+        this.addrUidCache.set(addr, { uid: String(uid), source: 'tree', version: stat.mtimeMs });
+      }
     } catch {
       this.idToPath.set(addr, new Map());
     }
+  }
+
+  async _loadNodesMapping(force = false) {
+    const now = Date.now();
+    if (!force && now - this.nodesJsonCacheCheckedAt < 1000) {
+      return this.nodesJsonCache.data || {};
+    }
+    this.nodesJsonCacheCheckedAt = now;
+    const file = path.join(process.cwd(), 'thingset', 'nodes.json');
+    try {
+      const stat = await fs.promises.stat(file);
+      if (!this.nodesJsonCache || this.nodesJsonCache.mtimeMs !== stat.mtimeMs) {
+        const txt = await fs.promises.readFile(file, 'utf8');
+        const data = JSON.parse(txt || '{}');
+        this.nodesJsonCache = { mtimeMs: stat.mtimeMs, data: data || {} };
+        // Drop cache entries sourced from nodes.json so they can refresh
+        for (const [addr, entry] of this.addrUidCache.entries()) {
+          if (entry && entry.source === 'nodes') this.addrUidCache.delete(addr);
+        }
+      }
+    } catch {
+      this.nodesJsonCache = { mtimeMs: 0, data: {} };
+      for (const [addr, entry] of this.addrUidCache.entries()) {
+        if (entry && entry.source === 'nodes') this.addrUidCache.delete(addr);
+      }
+    }
+    return this.nodesJsonCache.data || {};
+  }
+
+  async resolveNodeUid(addr) {
+    let cached = this.addrUidCache.get(addr);
+    let mapping = null;
+    if (cached && cached.source === 'tree') {
+      return cached.uid;
+    }
+    if (!cached || cached.source === 'nodes') {
+      mapping = await this._loadNodesMapping(true);
+      cached = this.addrUidCache.get(addr);
+      if (cached && cached.source === 'tree') {
+        return cached.uid;
+      }
+      if (cached && cached.source === 'nodes' && cached.version === this.nodesJsonCache.mtimeMs) {
+        return cached.uid;
+      }
+    }
+
+    if (!mapping) mapping = await this._loadNodesMapping();
+    let candidate = mapping[String(addr)];
+    if (candidate == null) {
+      const hexKey = `0x${(addr >>> 0).toString(16).toUpperCase()}`;
+      candidate = mapping[hexKey];
+    }
+    if (candidate != null) {
+      const uid = String(candidate);
+      this.addrUidCache.set(addr, { uid, source: 'nodes', version: this.nodesJsonCache.mtimeMs });
+      return uid;
+    }
+    this.addrUidCache.set(addr, { uid: null, source: 'nodes', version: this.nodesJsonCache.mtimeMs });
+    return null;
   }
 
   start() {
@@ -245,9 +314,12 @@ class CanBroadcastAggregator {
     const addrHex = hexAddr(addr);
     await this.ensureMappingFor(addr);
     const map = this.idToPath.get(addr);
+    const nodeUid = await this.resolveNodeUid(addr);
 
     if (!this.snap.nodes[addrHex]) {
-      this.snap.nodes[addrHex] = { ts: Date.now(), lastCount: 0, groups: {}, flat: {} };
+      this.snap.nodes[addrHex] = { ts: Date.now(), lastCount: 0, groups: {}, flat: {}, node_uid: nodeUid || null };
+    } else if (nodeUid && !this.snap.nodes[addrHex].node_uid) {
+      this.snap.nodes[addrHex].node_uid = nodeUid;
     }
     const nodeEntry = this.snap.nodes[addrHex];
 

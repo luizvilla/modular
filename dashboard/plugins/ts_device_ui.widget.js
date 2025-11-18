@@ -109,6 +109,7 @@
                   if (cre && cre.status >= 0x80 && cre.status < 0xA0) {
                     btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
                     saveUiSubscription(ctx.addr, fullPath, true);
+                    emitSubscriptionEvent(ctx.addr, fullPath, true);
                   } else {
                     btn.text('subscribe');
                   }
@@ -122,6 +123,7 @@
                   if (del && del.status >= 0x80 && del.status < 0xA0) {
                     btn.data('subscribed', false).text('subscribe').toggleClass('btn-outline-danger btn-outline-primary');
                     saveUiSubscription(ctx.addr, fullPath, false);
+                    emitSubscriptionEvent(ctx.addr, fullPath, false);
                   } else {
                     btn.text('unsubscribe');
                   }
@@ -244,6 +246,7 @@
               if (cre && cre.status >= 0x80 && cre.status < 0xA0) {
                 btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
                 saveUiSubscription(ctx.addr, fullPath, true);
+                emitSubscriptionEvent(ctx.addr, fullPath, true);
               } else {
                 btn.text('subscribe');
               }
@@ -257,6 +260,7 @@
               if (del && del.status >= 0x80 && del.status < 0xA0) {
                 btn.data('subscribed', false).text('subscribe').toggleClass('btn-outline-danger btn-outline-primary');
                 saveUiSubscription(ctx.addr, fullPath, false);
+                emitSubscriptionEvent(ctx.addr, fullPath, false);
               } else {
                 btn.text('unsubscribe');
               }
@@ -410,6 +414,15 @@
       else delete tree.root._ui.subscriptions[fullPath];
       return writeTreeForAddr(addr, tree);
     } catch { return false; }
+  }
+
+  function emitSubscriptionEvent(addr, fullPath, subscribed) {
+    if (addr == null || !fullPath) return;
+    try {
+      window.dispatchEvent(new CustomEvent('thingset-subscriptions-updated', {
+        detail: { addr, path: fullPath, subscribed: !!subscribed }
+      }));
+    } catch {}
   }
 
   function saveUiExpansion(addr, pathStr, expanded) {

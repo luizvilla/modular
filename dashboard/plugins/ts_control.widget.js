@@ -17,6 +17,7 @@
       const addr = parseInt(addrStr, 10); if (!Number.isFinite(addr)) continue;
       byAddr.set(addr, { addr, uid });
     }
+    const hasMapping = byAddr.size > 0;
 
     // node_XX_tree.json files (ensure we include any device with a tree)
     try {
@@ -27,11 +28,31 @@
         const hex = m[1];
         const addr = parseInt(hex, 16);
         if (!Number.isFinite(addr)) continue;
+        if (hasMapping && !byAddr.has(addr)) {
+          // If nodes.json is authoritative, skip stray tree files from prior scans
+          continue;
+        }
         const tree = readJsonSafe(path.join(dir, f)) || {};
-        const uid = tree.node_uid || (byAddr.get(addr)?.uid);
+        const prev = byAddr.get(addr) || { addr, uid: null };
+        const uid = tree.node_uid || prev.uid;
         byAddr.set(addr, { addr, uid });
       }
     } catch {}
+
+    // If nodes.json was empty, fall back to whatever trees we parsed
+    if (!hasMapping && byAddr.size === 0) {
+      try {
+        const files = fs.readdirSync(dir).filter(f => /^node_[0-9A-Fa-f]{2}_tree\.json$/.test(f));
+        for (const f of files) {
+          const hex = f.match(/^node_([0-9A-Fa-f]{2})_tree\.json$/)?.[1];
+          if (!hex) continue;
+          const addr = parseInt(hex, 16);
+          if (!Number.isFinite(addr) || byAddr.has(addr)) continue;
+          const tree = readJsonSafe(path.join(dir, f)) || {};
+          byAddr.set(addr, { addr, uid: tree.node_uid || null });
+        }
+      } catch {}
+    }
 
     const out = [...byAddr.values()];
     out.sort((a, b) => a.addr - b.addr);

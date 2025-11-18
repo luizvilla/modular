@@ -9,18 +9,27 @@ const cbor = require('cbor');
 const { createBus } = require('./can_adapter');
 const { makeCanId, recvIsoTpResponse } = require('./ts_can_utils');
 
-const foundNodes = {};
 const FF_TIMEOUT_QUICK = 20; // ms overall for FF+CFs (match Python)
 const FRAME_TIMEOUT = 30;    // ms (CF-to-CF)
 
 async function scanNodes(channel = 'can0') {
+  const foundNodes = {};
   const bus = await createBus({ channel });
   // Build GET pNodeID request (binary): [0x01, 0x18, 0x1D]
   const payload = Buffer.from([0x01, 0x18, 0x1D]);
   const isotpSF = Buffer.concat([Buffer.from([payload.length & 0x0F]), payload]);
 
   console.log('🔍 Scanning CAN bus for ThingSet nodes...');
+  const outDir = path.join(process.cwd(), 'thingset');
   try {
+    // Reset thingset directory so stale trees/mappings don't accumulate
+    try {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    } catch (err) {
+      console.warn('⚠️ Failed to clean thingset directory:', err?.message || err);
+    }
+    fs.mkdirSync(outDir, { recursive: true });
+
     for (let addr = 1; addr < 0xFE; addr++) {
       const reqId = makeCanId(addr, 0xEF);
       await bus.send({ arbitration_id: reqId, data: isotpSF, is_extended_id: true });
@@ -44,7 +53,6 @@ async function scanNodes(channel = 'can0') {
       await new Promise((r) => setTimeout(r, 10));
     }
 
-    const outDir = path.join(process.cwd(), 'thingset');
     fs.mkdirSync(outDir, { recursive: true });
     const outPath = path.join(outDir, 'nodes.json');
     fs.writeFileSync(outPath, JSON.stringify(foundNodes, null, 2), 'utf8');

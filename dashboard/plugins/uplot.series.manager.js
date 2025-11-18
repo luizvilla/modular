@@ -15,18 +15,26 @@
       this.ipc = window.require?.('electron')?.ipcRenderer;
       this.container = $('<div class="h-100 overflow-auto p-2 d-flex flex-column gap-2"></div>');
       this.controls = {};
+      this._cleanupFns = [];
     }
 
     render(el) {
       const root = this.container;
       $(el).append(root);
       root.empty();
+      if (this._cleanupFns && this._cleanupFns.length) {
+        this._cleanupFns.forEach(fn => { try { fn(); } catch {} });
+        this._cleanupFns = [];
+      }
 
       const widgetRow = $('<div class="input-group input-group-sm"></div>');
       const widgetLabel = $('<span class="input-group-text">Target Plot</span>');
       const widgetSelect = $('<select class="form-select form-select-sm"></select>');
       this.controls.widget = widgetSelect;
       widgetRow.append(widgetLabel).append(widgetSelect);
+      const updateBtn = $('<button class="btn btn-outline-secondary btn-sm ms-auto">Update sources</button>');
+      const headerWrap = $('<div class="d-flex flex-wrap align-items-center gap-2"></div>');
+      headerWrap.append(widgetRow).append(updateBtn);
 
       const opRow = $('<div class="input-group input-group-sm"></div>');
       const opLabel = $('<span class="input-group-text">Operation</span>');
@@ -42,7 +50,7 @@
         const v = opSelect.val();
         paramInput.toggle(v === 'scale' || v === 'offset');
         const showY = v === 'mulvar';
-        srcBRow.toggle(showY);
+        srcB.row.toggle(showY);
       });
       opRow.append(opLabel).append(opSelect).append(paramInput);
 
@@ -57,8 +65,6 @@
       };
 
       const srcARow = makeSourceRow('Source X');
-      const srcBRow = makeSourceRow('Source Y').row.hide().end?.() || srcBRow; // ensure hidden
-      // hack: get references for B
       const srcB = makeSourceRow('Source Y');
       srcB.row.hide();
 
@@ -74,7 +80,7 @@
 
       const list = $('<div class="d-flex flex-column gap-1"></div>');
 
-      root.append(widgetRow, opRow, srcARow.row, srcB.row, labelRow, btnRow, $('<hr/>'), list);
+      root.append(headerWrap, opRow, srcARow.row, srcB.row, labelRow, btnRow, $('<hr/>'), list);
 
       // Wire up behaviors
       const refreshWidgets = () => {
@@ -99,6 +105,15 @@
         if (type === 'can_datasource') await this._populateDevices(dsSel.val(), devSel);
         await this._populateVariables(dsSel.val(), devSel.val(), varSel);
       };
+
+      const refreshSources = async () => {
+        refreshDatasources(srcARow.ds);
+        refreshDatasources(srcB.ds);
+        await onDsChange(srcARow.ds, srcARow.dev, srcARow.vsel);
+        await onDsChange(srcB.ds, srcB.dev, srcB.vsel);
+      };
+
+      updateBtn.on('click', () => { refreshSources(); });
 
       srcARow.ds.on('change', () => onDsChange(srcARow.ds, srcARow.dev, srcARow.vsel));
       srcARow.dev.on('change', () => onDsChange(srcARow.ds, srcARow.dev, srcARow.vsel));
@@ -125,15 +140,23 @@
 
       // Initial population
       refreshWidgets();
-      refreshDatasources(srcARow.ds); refreshDatasources(srcB.ds);
-      onDsChange(srcARow.ds, srcARow.dev, srcARow.vsel);
-      onDsChange(srcB.ds, srcB.dev, srcB.vsel);
+      refreshSources();
       if (widgetSelect.val()) this._renderList(this._findTargetPlot(widgetSelect.val()), list);
 
-      freeboard.on && freeboard.on('config_updated', () => {
-        refreshWidgets();
-        refreshDatasources(srcARow.ds); refreshDatasources(srcB.ds);
-      });
+      const subscriptionHandler = () => { refreshSources(); };
+      window.addEventListener('thingset-subscriptions-updated', subscriptionHandler);
+      this._cleanupFns.push(() => window.removeEventListener('thingset-subscriptions-updated', subscriptionHandler));
+
+      if (freeboard.on) {
+        const configHandler = () => {
+          refreshWidgets();
+          refreshSources();
+        };
+        freeboard.on('config_updated', configHandler);
+        if (typeof freeboard.off === 'function') {
+          this._cleanupFns.push(() => { try { freeboard.off('config_updated', configHandler); } catch {} });
+        }
+      }
     }
 
     _listPlotWidgets() {
@@ -181,6 +204,12 @@
       return null;
     }
 
+    _formatDeviceLabel(addr, meta) {
+      if (!addr) return '';
+      const uid = meta && meta.node_uid;
+      return uid ? `${addr} (${uid})` : addr;
+    }
+
     async _populateDevices(dsName, devSelect) {
       if (!this.ipc) return;
       try {
@@ -190,11 +219,27 @@
         const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
         const nodes = snap?.nodes || {};
         const keys = Object.keys(nodes).sort();
-        const cur = devSelect.val();
+        const prevVal = devSelect.val();
+        const prevUidAttr = devSelect.find('option:selected').data('uid');
+        const prevUid = (typeof prevUidAttr !== 'undefined') ? prevUidAttr : (devSelect.data('selectedUid') || null);
         devSelect.empty();
-        keys.forEach(k => devSelect.append(`<option value="${k}">${k}</option>`));
-        if (cur && devSelect.find(`option[value='${cur}']`).length) devSelect.val(cur);
-        else if (!cur && keys.length) devSelect.val(keys[0]);
+        keys.forEach(k => {
+          const meta = nodes[k] || {};
+          const label = this._formatDeviceLabel(k, meta);
+          const opt = $(`<option value="${k}">${label}</option>`);
+          if (meta.node_uid) opt.attr('data-uid', meta.node_uid);
+          devSelect.append(opt);
+        });
+        let next = null;
+        if (prevUid) next = keys.find(k => (nodes[k]?.node_uid === prevUid)) || null;
+        if (!next && prevVal && devSelect.find(`option[value='${prevVal}']`).length) next = prevVal;
+        if (!next && keys.length) next = keys[0];
+        if (next) {
+          devSelect.val(next);
+          devSelect.data('selectedUid', nodes[next]?.node_uid || null);
+        } else {
+          devSelect.data('selectedUid', null);
+        }
       } catch {}
     }
 
@@ -238,7 +283,10 @@
           const entries = Object.keys(flat).sort();
           entries.forEach(p => {
             const leaf = p.includes('/') ? p.split('/').pop() : p;
-            varSelect.append(`<option value="${p}">${leaf}</option>`);
+            const text = (leaf && leaf !== p) ? `${leaf} — ${p}` : p;
+            const opt = $(`<option value="${p}">${text}</option>`);
+            opt.attr('title', p);
+            varSelect.append(opt);
           });
         } catch {}
       }
@@ -247,19 +295,25 @@
     _buildDefFromInputs(opSelect, paramInput, srcA, srcB, labelInput) {
       const op = opSelect.val();
       const param = parseFloat(paramInput.val());
+      const typeA = this._getDatasourceType(srcA.ds.val());
+      const selectedAUid = srcA.dev.find('option:selected').data('uid');
       const A = {
         ds: srcA.ds.val(),
-        type: this._getDatasourceType(srcA.ds.val()),
-        device: (this._getDatasourceType(srcA.ds.val()) === 'can_datasource') ? srcA.dev.val() : null,
-        var: (this._getDatasourceType(srcA.ds.val()) === 'can_datasource') ? srcA.vsel.val() : parseInt(srcA.vsel.val(), 10)
+        type: typeA,
+        device: (typeA === 'can_datasource') ? srcA.dev.val() : null,
+        device_uid: (typeA === 'can_datasource') ? (selectedAUid || srcA.dev.data('selectedUid') || null) : null,
+        var: (typeA === 'can_datasource') ? srcA.vsel.val() : parseInt(srcA.vsel.val(), 10)
       };
       let B = null;
       if (op === 'mulvar') {
+        const typeB = this._getDatasourceType(srcB.ds.val());
+        const selectedBUid = srcB.dev.find('option:selected').data('uid');
         B = {
           ds: srcB.ds.val(),
-          type: this._getDatasourceType(srcB.ds.val()),
-          device: (this._getDatasourceType(srcB.ds.val()) === 'can_datasource') ? srcB.dev.val() : null,
-          var: (this._getDatasourceType(srcB.ds.val()) === 'can_datasource') ? srcB.vsel.val() : parseInt(srcB.vsel.val(), 10)
+          type: typeB,
+          device: (typeB === 'can_datasource') ? srcB.dev.val() : null,
+          device_uid: (typeB === 'can_datasource') ? (selectedBUid || srcB.dev.data('selectedUid') || null) : null,
+          var: (typeB === 'can_datasource') ? srcB.vsel.val() : parseInt(srcB.vsel.val(), 10)
         };
       }
       if (!A.ds) return null;
@@ -291,8 +345,12 @@
         const left = $('<div class="d-flex align-items-center gap-2"></div>');
         const label = d.label || this._formatDefLabel(d);
         left.append($('<strong></strong>').text(label));
-        left.append(`<span class="badge bg-light text-dark">${d.a.ds}${d.a.type==='can_datasource' && d.a.device ? ' '+d.a.device : ''}</span>`);
-        if (d.op === 'mulvar' && d.b) left.append(`<span>×</span><span class="badge bg-light text-dark">${d.b.ds}${d.b.type==='can_datasource' && d.b.device ? ' '+d.b.device : ''}</span>`);
+        const devALabel = (d.a.type === 'can_datasource') ? (d.a.device_uid || d.a.device || '') : '';
+        left.append(`<span class="badge bg-light text-dark">${d.a.ds}${devALabel ? ' ' + devALabel : ''}</span>`);
+        if (d.op === 'mulvar' && d.b) {
+          const devBLabel = (d.b.type === 'can_datasource') ? (d.b.device_uid || d.b.device || '') : '';
+          left.append(`<span>×</span><span class="badge bg-light text-dark">${d.b.ds}${devBLabel ? ' ' + devBLabel : ''}</span>`);
+        }
         const rm = $('<button class="btn btn-sm btn-outline-danger">Remove</button>');
         rm.on('click', () => {
           const newer = defs.slice(0, i).concat(defs.slice(i + 1));
@@ -316,6 +374,11 @@
 
     onSettingsChanged(s) { this.settings = s; }
     getHeight() { return 6; }
-    onDispose() {}
+    onDispose() {
+      if (this._cleanupFns && this._cleanupFns.length) {
+        this._cleanupFns.forEach(fn => { try { fn(); } catch {} });
+        this._cleanupFns = [];
+      }
+    }
   }
 }());

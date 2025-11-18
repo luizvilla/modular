@@ -60,6 +60,11 @@ class OwnTechPlotUPlot {
             this._configHandler = () => this._maybeUpdateHeaders(true);
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             this._detectDatasource();
+            this.selection = { ds: this.datasourceName || '', type: '', device: null, deviceUid: null, var: null, op: 'identity', param: 0 };
+            this.selectionB = null;
+            this.selectionBState = { device: null, deviceUid: null };
+            this.deviceMeta = {};
+            this.deviceMetaB = {};
         }
 
         _detectDatasource() {
@@ -434,6 +439,7 @@ class OwnTechPlotUPlot {
                         ds: a.ds || '',
                         type: a.type || this._getDatasourceType(a.ds) || '',
                         device: a.device || null,
+                        device_uid: a.device_uid || null,
                         var: a.var
                     }
                 };
@@ -442,12 +448,31 @@ class OwnTechPlotUPlot {
                         ds: b.ds || '',
                         type: b.type || this._getDatasourceType(b.ds) || '',
                         device: b.device || null,
+                        device_uid: b.device_uid || null,
                         var: b.var
                     };
                 }
                 return out;
             });
             return norm;
+        }
+
+        _formatDeviceLabel(addr, meta) {
+            if (!addr) return '';
+            const uid = meta && meta.node_uid;
+            return uid ? `${addr} (${uid})` : addr;
+        }
+
+        _resolveDeviceKey(nodes, preferredKey, preferredUid) {
+            if (!nodes || typeof nodes !== 'object') return preferredKey || null;
+            if (preferredUid) {
+                for (const [addr, meta] of Object.entries(nodes)) {
+                    if (meta && meta.node_uid && meta.node_uid === preferredUid) return addr;
+                }
+            }
+            if (preferredKey && nodes[preferredKey]) return preferredKey;
+            const keys = Object.keys(nodes);
+            return keys.length ? keys[0] : null;
         }
 
         // ===== Custom variable selection UI =====
@@ -507,11 +532,22 @@ class OwnTechPlotUPlot {
                 try { await this.ipc.invoke('can-aggregate-start', { channel }); } catch {}
                 const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
                 const nodes = snap?.nodes || {};
+                this.deviceMeta = nodes;
                 const keys = Object.keys(nodes).sort();
                 this.devSelect.empty();
-                keys.forEach(k => this.devSelect.append(`<option value="${k}">${k}</option>`));
-                if (!this.selection.device && keys.length) this.selection.device = keys[0];
-                if (this.selection.device) this.devSelect.val(this.selection.device);
+                keys.forEach(k => {
+                    const label = this._formatDeviceLabel(k, nodes[k] || {});
+                    this.devSelect.append(`<option value="${k}">${label}</option>`);
+                });
+                const resolved = this._resolveDeviceKey(nodes, this.selection.device, this.selection.deviceUid);
+                if (resolved) {
+                    this.selection.device = resolved;
+                    this.selection.deviceUid = nodes[resolved]?.node_uid || this.selection.deviceUid || null;
+                    this.devSelect.val(resolved);
+                } else {
+                    this.selection.device = null;
+                    this.selection.deviceUid = null;
+                }
             } catch {}
         }
 
@@ -546,10 +582,19 @@ class OwnTechPlotUPlot {
                 try {
                     const dsSettings = freeboard.getDatasourceSettings(ds) || {};
                     const channel = dsSettings.channel || 'can0';
-                    const dev = this.devSelect.val() || this.selection.device;
-                    this.selection.device = dev;
                     const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
-                    const flat = snap?.nodes?.[dev]?.flat || {};
+                    const nodes = snap?.nodes || {};
+                    const resolved = this._resolveDeviceKey(nodes, this.devSelect.val() || this.selection.device, this.selection.deviceUid);
+                    if (resolved) {
+                        this.selection.device = resolved;
+                        this.selection.deviceUid = nodes[resolved]?.node_uid || this.selection.deviceUid || null;
+                        if (this.devSelect.find(`option[value='${resolved}']`).length) {
+                            this.devSelect.val(resolved);
+                        }
+                    } else {
+                        this.selection.device = null;
+                    }
+                    const flat = resolved && nodes[resolved] ? (nodes[resolved].flat || {}) : {};
                     const entries = Object.keys(flat).sort();
                     entries.forEach(p => {
                         const leaf = p.includes('/') ? p.split('/').pop() : p;
@@ -567,9 +612,24 @@ class OwnTechPlotUPlot {
                 try { await this.ipc.invoke('can-aggregate-start', { channel }); } catch {}
                 const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
                 const nodes = snap?.nodes || {};
+                this.deviceMetaB = nodes;
                 const keys = Object.keys(nodes).sort();
                 this.devSelectB.empty();
-                keys.forEach(k => this.devSelectB.append(`<option value="${k}">${k}</option>`));
+                keys.forEach(k => {
+                    const label = this._formatDeviceLabel(k, nodes[k] || {});
+                    this.devSelectB.append(`<option value="${k}">${label}</option>`);
+                });
+                const preferredDev = this.selectionB?.device ?? this.selectionBState.device;
+                const preferredUid = this.selectionB?.deviceUid ?? this.selectionBState.deviceUid;
+                const resolved = this._resolveDeviceKey(nodes, preferredDev, preferredUid);
+                if (resolved) {
+                    this.devSelectB.val(resolved);
+                    this.selectionBState.device = resolved;
+                    this.selectionBState.deviceUid = nodes[resolved]?.node_uid || this.selectionBState.deviceUid || null;
+                } else {
+                    this.selectionBState.device = null;
+                    this.selectionBState.deviceUid = null;
+                }
             } catch {}
         }
 
@@ -603,9 +663,19 @@ class OwnTechPlotUPlot {
                 try {
                     const dsSettings = freeboard.getDatasourceSettings(ds) || {};
                     const channel = dsSettings.channel || 'can0';
-                    const dev = this.devSelectB.val();
                     const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
-                    const flat = snap?.nodes?.[dev]?.flat || {};
+                    const nodes = snap?.nodes || {};
+                    const resolved = this._resolveDeviceKey(nodes, this.devSelectB.val() || this.selectionBState.device, this.selectionBState.deviceUid);
+                    if (resolved) {
+                        this.selectionBState.device = resolved;
+                        this.selectionBState.deviceUid = nodes[resolved]?.node_uid || this.selectionBState.deviceUid || null;
+                        if (this.devSelectB.find(`option[value='${resolved}']`).length) {
+                            this.devSelectB.val(resolved);
+                        }
+                    } else {
+                        this.selectionBState.device = null;
+                    }
+                    const flat = resolved && nodes[resolved] ? (nodes[resolved].flat || {}) : {};
                     const entries = Object.keys(flat).sort();
                     entries.forEach(p => {
                         const leaf = p.includes('/') ? p.split('/').pop() : p;
@@ -643,20 +713,54 @@ class OwnTechPlotUPlot {
                 const typeB = this._getDatasourceType(dsB);
                 const varBLabel = this.varSelectB.find('option:selected').text() || 'y';
                 label = `${label} × ${varBLabel}`;
+                let devBVal = null;
+                let devBUid = null;
+                if (typeB === 'can_datasource') {
+                    const nodesB = this.deviceMetaB || {};
+                    const desiredB = this.devSelectB.val() || this.selectionBState.device;
+                    const resolvedB = this._resolveDeviceKey(nodesB, desiredB, this.selectionBState.deviceUid);
+                    if (resolvedB) {
+                        devBVal = resolvedB;
+                        devBUid = nodesB[resolvedB]?.node_uid || this.selectionBState.deviceUid || null;
+                        this.selectionBState.device = resolvedB;
+                        this.selectionBState.deviceUid = devBUid;
+                        if (this.devSelectB.find(`option[value='${resolvedB}']`).length) this.devSelectB.val(resolvedB);
+                    } else {
+                        this.selectionBState.device = null;
+                        this.selectionBState.deviceUid = null;
+                    }
+                }
                 this.selectionB = {
                     ds: dsB,
                     type: typeB,
-                    device: (typeB === 'can_datasource') ? this.devSelectB.val() : null,
+                    device: (typeB === 'can_datasource') ? devBVal : null,
+                    deviceUid: (typeB === 'can_datasource') ? devBUid : null,
                     var: (typeB === 'can_datasource') ? this.varSelectB.val() : parseInt(this.varSelectB.val(), 10)
                 };
             } else {
                 this.selectionB = null;
             }
 
+            let devVal = null;
+            let devUid = null;
+            if (type === 'can_datasource') {
+                const nodes = this.deviceMeta || {};
+                const desired = this.devSelect.val() || this.selection.device;
+                const resolved = this._resolveDeviceKey(nodes, desired, this.selection.deviceUid);
+                if (resolved) {
+                    devVal = resolved;
+                    devUid = nodes[resolved]?.node_uid || this.selection.deviceUid || null;
+                    if (this.devSelect.find(`option[value='${resolved}']`).length) this.devSelect.val(resolved);
+                }
+                this.selection.device = devVal;
+                this.selection.deviceUid = devUid;
+            }
+
             this.selection = {
                 type,
                 ds,
-                device: (type === 'can_datasource') ? (this.devSelect.val() || this.selection.device) : null,
+                device: (type === 'can_datasource') ? (devVal ?? null) : null,
+                deviceUid: (type === 'can_datasource') ? (devUid ?? null) : null,
                 var: (type === 'can_datasource') ? this.varSelect.val() : parseInt(this.varSelect.val(), 10),
                 op,
                 param
@@ -787,7 +891,14 @@ class OwnTechPlotUPlot {
                 const dsSettings = freeboard.getDatasourceSettings(s.ds) || {};
                 const channel = dsSettings.channel || 'can0';
                 const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
-                const flat = snap?.nodes?.[s.device]?.flat || {};
+                const nodes = snap?.nodes || {};
+                const resolved = this._resolveDeviceKey(nodes, s.device, s.deviceUid);
+                if (!resolved) return null;
+                if (s.device !== resolved) s.device = resolved;
+                if (nodes[resolved]?.node_uid && nodes[resolved].node_uid !== s.deviceUid) {
+                    s.deviceUid = nodes[resolved].node_uid;
+                }
+                const flat = nodes[resolved]?.flat || {};
                 const val = flat[s.var];
                 return Number(val);
             }

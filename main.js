@@ -191,6 +191,74 @@ ipcMain.handle('get-serial-ports', async () => {
 	}));
 });
 
+function orderSerialCandidates(list) {
+    const preferred = [];
+    const others = [];
+    const preferRe = /(ttyACM|ttyUSB|usbserial|usbmodem|cu\.usb|COM\d+)/i;
+    for (const entry of list) {
+        const pathStr = String(entry || '');
+        if (!pathStr) continue;
+        if (preferRe.test(pathStr)) preferred.push(pathStr);
+        else others.push(pathStr);
+    }
+    return preferred.concat(others);
+}
+
+async function collectSerialCandidates(explicitPort = null) {
+    if (explicitPort) return [explicitPort];
+    try {
+        const ports = await SerialPort.list();
+        if (!ports || !ports.length) return [];
+        const paths = ports.map((p) => p?.path).filter(Boolean);
+        return orderSerialCandidates(paths);
+    } catch (err) {
+        console.warn('Failed to enumerate serial ports for ThingSet detect:', err?.message || err);
+        return [];
+    }
+}
+
+ipcMain.handle('ts-serial-detect', async (_event, { port = null, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    const candidates = await collectSerialCandidates(port);
+    if (!candidates.length) {
+        throw new Error('No serial ports found to probe for ThingSet shell');
+    }
+    const attempts = [];
+    const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+    for (const candidate of candidates) {
+        let shell = null;
+        try {
+            const existingPort = openPorts.get(candidate) || null;
+            shell = new ThingSetSerialShell({ path: candidate, baudRate, usePrefix, verbose: isVerbose, existingPort });
+            await shell.open();
+            await shell.enterThingSet();
+            if (!shell.probeSucceeded()) throw new Error('ThingSet prompt not detected');
+            const nodeUid = await shell.readNodeUid().catch(() => null);
+            const nodeName = await shell.readNodeName().catch(() => null);
+            const nodeAddr = await shell.readNodeAddr().catch(() => null);
+            const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
+            emitActivity({ id: `serial:${candidate}:detect`, title: candidate, state: 'done', label: 'ThingSet serial detect', detail: nodeUid || addressHex || 'ok' });
+            return {
+                port: candidate,
+                baudRate,
+                node_uid: nodeUid,
+                node_name: nodeName,
+                node_addr: nodeAddr,
+                address_hex: addressHex,
+                command_prefix: shell.getCommandPrefix(),
+            };
+        } catch (err) {
+            attempts.push({ port: candidate, error: err?.message || String(err) });
+            emitActivity({ id: `serial:${candidate}:detect`, title: candidate, state: 'error', label: 'ThingSet serial detect', detail: err?.message || String(err) });
+        } finally {
+            if (shell) {
+                try { await shell.close(); } catch {}
+            }
+        }
+    }
+    const detail = attempts.map((t) => `${t.port}: ${t.error}`).join('; ');
+    throw new Error(detail || 'ThingSet serial shell not found');
+});
+
 // 🚌 List CAN interfaces (Linux heuristic)
 ipcMain.handle('get-can-interfaces', async () => {
     try {
