@@ -1,11 +1,54 @@
 (function () {
         const ipcRenderer = window.require?.("electron")?.ipcRenderer;
+        // Keep a cached, auto-refreshing serial port list for dynamic dropdowns + reconnection.
+        const instances = new Set();
+        const portPollIntervalMs = 1500;
+        let cachedPortOptions = [];
+        let lastPortValues = [];
+        let portPollTimer = null;
+
+        function normalizePortValue(port) {
+                return port?.value || port?.path || port?.name || String(port || "");
+        }
+
+        function portsEqual(a, b) {
+                if (a.length !== b.length) return false;
+                for (let i = 0; i < a.length; i++) {
+                        if (a[i] !== b[i]) return false;
+                }
+                return true;
+        }
+
+        async function refreshPortCache(force = false) {
+                if (!ipcRenderer) return;
+                try {
+                        const ports = await ipcRenderer.invoke('get-serial-ports');
+                        const values = Array.isArray(ports) ? ports.map(normalizePortValue).filter(Boolean) : [];
+                        if (!force && portsEqual(values, lastPortValues)) return;
+                        lastPortValues = values;
+                        cachedPortOptions = values.map((v) => ({ name: v, value: v }));
+                        instances.forEach((inst) => {
+                                if (inst && typeof inst.onPortListUpdate === 'function') {
+                                        inst.onPortListUpdate(cachedPortOptions);
+                                }
+                        });
+                } catch (e) {
+                        console.error('Failed to refresh serial ports', e);
+                }
+        }
+
+        function startPortPolling() {
+                if (portPollTimer || !ipcRenderer) return;
+                refreshPortCache(true);
+                portPollTimer = setInterval(() => refreshPortCache(false), portPollIntervalMs);
+        }
         var serialDatasource = function (settings, updateCallback) {
                 var self = this;
                 var currentSettings = settings;
                 var timer;
                 // ipcRenderer is defined above
                 let latestData = [];
+                let portSyncInFlight = null;
 
 		const eol = unescape(currentSettings.eol || "\\n");
 		const sep = currentSettings.separator || ":";
@@ -24,6 +67,30 @@
 				console.error("Open serial failed:", e.message);
 			}
 		}
+
+                async function syncPortState(portOptions) {
+                        if (!ipcRenderer || !currentSettings.portPath) return;
+                        if (portSyncInFlight) return portSyncInFlight;
+                        portSyncInFlight = (async () => {
+                                const path = currentSettings.portPath;
+                                const portSet = new Set((portOptions || []).map((p) => normalizePortValue(p)).filter(Boolean));
+                                const isOpen = await ipcRenderer.invoke('is-serial-port-open', { path }).catch(() => false);
+                                if (!portSet.has(path)) {
+                                        if (isOpen) {
+                                                await ipcRenderer.invoke('close-serial-port', { path }).catch(() => {});
+                                        }
+                                        return;
+                                }
+                                if (!isOpen) {
+                                        await openPort();
+                                }
+                        })();
+                        try {
+                                await portSyncInFlight;
+                        } finally {
+                                portSyncInFlight = null;
+                        }
+                }
 
                 async function pollData() {
                         try {
@@ -52,7 +119,7 @@
 			}, interval);
 		}
 
-		this.updateNow = async function () {
+                this.updateNow = async function () {
 			const date = new Date();
                         await pollData();
                         const data = {
@@ -66,8 +133,13 @@
                         updateCallback(data);
                 };
 
+                this.onPortListUpdate = function (portOptions) {
+                        syncPortState(portOptions);
+                };
+
 		this.onDispose = function () {
 			stopTimer();
+                        instances.delete(self);
 			if (ipcRenderer && currentSettings.portPath) {
 				ipcRenderer.invoke("close-serial-port", {
 					path: currentSettings.portPath
@@ -83,23 +155,18 @@
                        currentSettings = newSettings;
                        updateTimer();
                        openPort();
+                       syncPortState(cachedPortOptions);
                };
 
 		stopTimer();
 		updateTimer();
 		openPort();
+                instances.add(this);
+                syncPortState(cachedPortOptions);
 	};
 
         async function registerPlugin() {
-                let portOptions = [];
-                if (ipcRenderer) {
-                        try {
-                                const ports = await ipcRenderer.invoke('get-serial-ports');
-                                portOptions = ports.map(p => ({ name: p.name, value: p.value }));
-                        } catch (e) {
-                                console.error('Failed to list serial ports', e);
-                        }
-                }
+                startPortPolling();
 
                 freeboard.loadDatasourcePlugin({
                         type_name: "serialport_datasource",
@@ -110,8 +177,8 @@
                                         name: "portPath",
                                         display_name: "Port",
                                         type: "option",
-                                        options: portOptions,
-                                        default_value: portOptions.length ? portOptions[0].value : ""
+                                        options: () => cachedPortOptions,
+                                        optionsRefreshMs: portPollIntervalMs
                                 },
 			{
 				name: "baudRate",
