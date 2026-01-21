@@ -1843,7 +1843,12 @@ PluginEditor = function(jsEditor, valueEditor)
 
 			_.each(pluginTypes, function(pluginType)
 			{
-				typeSelect.append($("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name));
+				var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
+				if(pluginType.description && pluginType.description.length > 0)
+				{
+					option.attr("title", pluginType.description);
+				}
+				typeSelect.append(option);
 			});
 
 			typeSelect.change(function()
@@ -1868,10 +1873,12 @@ PluginEditor = function(jsEditor, valueEditor)
 					if(selectedType.description && selectedType.description.length > 0)
 					{
 						pluginDescriptionElement.html(selectedType.description).show();
+						typeSelect.attr("title", selectedType.description);
 					}
 					else
 					{
 						pluginDescriptionElement.hide();
+						typeSelect.removeAttr("title");
 					}
 
 					$("#dialog-ok").show();
