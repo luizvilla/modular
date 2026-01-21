@@ -23,6 +23,58 @@ PluginEditor = function(jsEditor, valueEditor)
 		return !isNaN(parseFloat(n)) && isFinite(n);
 	}
 
+	function _getWidgetCategoryConfig()
+	{
+		if(typeof freeboard !== "undefined" && _.isFunction(freeboard.getWidgetCategoryConfig))
+		{
+			return freeboard.getWidgetCategoryConfig();
+		}
+		return {
+			categories: ["Other"],
+			widgetCategories: {}
+		};
+	}
+
+	function _inferWidgetCategory(typeName, pluginType)
+	{
+		var name = (typeName || "").toLowerCase();
+		var display = (pluginType && pluginType.display_name ? pluginType.display_name : "").toLowerCase();
+
+		if(name.indexOf("serial") === 0 || name.indexOf("_serial") > -1 || display.indexOf("serial") > -1)
+		{
+			return "Serial";
+		}
+		if(name.indexOf("thingset") === 0 || name.indexOf("ts_") === 0 || display.indexOf("thingset") > -1)
+		{
+			return "ThingSet";
+		}
+		if(name.indexOf("uplot") === 0 || name.indexOf("plot") > -1 || name.indexOf("power_bars") > -1 || display.indexOf("plot") > -1)
+		{
+			return "Plots";
+		}
+		if(name.indexOf("control") > -1 || name.indexOf("mode") > -1 || display.indexOf("control") > -1)
+		{
+			return "Controls";
+		}
+
+		return "Other";
+	}
+
+	function _getWidgetCategoryForType(typeName, pluginType, config)
+	{
+		if(pluginType && pluginType.category)
+		{
+			return pluginType.category;
+		}
+		var categoryConfig = config || _getWidgetCategoryConfig();
+		var mapped = categoryConfig.widgetCategories && categoryConfig.widgetCategories[typeName];
+		if(mapped)
+		{
+			return mapped;
+		}
+		return _inferWidgetCategory(typeName, pluginType);
+	}
+
 	function _appendCalculatedSettingRow(valueCell, newSettings, settingDef, currentValue, includeRemove)
 	{
 		var input = $('<textarea></textarea>');
@@ -84,7 +136,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		$(valueCell).append(wrapperDiv);
 	}
 
-	function createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback)
+	function createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType)
 	{
 		var newSettings = {
 			type    : currentTypeName,
@@ -466,15 +518,63 @@ PluginEditor = function(jsEditor, valueEditor)
 
 			typeSelect.append($("<option>Select a type...</option>").attr("value", "undefined"));
 
-			_.each(pluginTypes, function(pluginType)
+			if(isWidgetType)
 			{
-				var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
-				if(pluginType.description && pluginType.description.length > 0)
+				var categoryConfig = _getWidgetCategoryConfig();
+				var categories = categoryConfig.categories.slice(0);
+				var grouped = {};
+
+				_.each(pluginTypes, function(pluginType)
 				{
-					option.attr("title", pluginType.description);
-				}
-				typeSelect.append(option);
-			});
+					var category = _getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
+					if(!grouped[category])
+					{
+						grouped[category] = [];
+					}
+					grouped[category].push(pluginType);
+				});
+
+				_.each(_.keys(grouped), function(category)
+				{
+					if(!_.contains(categories, category))
+					{
+						categories.push(category);
+					}
+				});
+
+				_.each(categories, function(category)
+				{
+					var list = grouped[category];
+					if(!list || list.length === 0) return;
+
+					typeSelect.append($("<option></option>").text("-- " + category + " --").attr("value", "").prop("disabled", true));
+
+					_.each(_.sortBy(list, function(pluginType)
+					{
+						return (pluginType.display_name || pluginType.type_name || "").toLowerCase();
+					}), function(pluginType)
+					{
+						var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
+						if(pluginType.description && pluginType.description.length > 0)
+						{
+							option.attr("title", pluginType.description);
+						}
+						typeSelect.append(option);
+					});
+				});
+			}
+			else
+			{
+				_.each(pluginTypes, function(pluginType)
+				{
+					var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
+					if(pluginType.description && pluginType.description.length > 0)
+					{
+						option.attr("title", pluginType.description);
+					}
+					typeSelect.append(option);
+				});
+			}
 
 			typeSelect.change(function()
 			{
@@ -539,12 +639,12 @@ PluginEditor = function(jsEditor, valueEditor)
 		createPluginEditor : function(
 			title,
 			pluginTypes,
-			currentInstanceName,
 			currentTypeName,
 			currentSettingsValues,
-			settingsSavedCallback)
+			settingsSavedCallback,
+			isWidgetType)
 		{
-			createPluginEditor(title, pluginTypes, currentInstanceName, currentTypeName, currentSettingsValues, settingsSavedCallback);
+			createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType);
 		}
 	}
 }
