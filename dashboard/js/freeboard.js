@@ -1630,45 +1630,93 @@ PluginEditor = function(jsEditor, valueEditor)
 					{
 						var defaultValue = currentSettingsValues[settingDef.name];
 
+						// Allow dynamic option lists (function) and optional refresh for live lists.
+						var optionsProvider = settingDef.options;
 						var input = $('<select></select>').appendTo($('<div class="styled-select"></div>').appendTo(valueCell)).change(function()
 						{
 							newSettings.settings[settingDef.name] = $(this).val();
 						});
 
-						_.each(settingDef.options, function(option)
+						function resolveOptions()
 						{
+							return _.isFunction(optionsProvider) ? optionsProvider() : optionsProvider;
+						}
 
-							var optionName;
-							var optionValue;
-
-							if(_.isObject(option))
-							{
-								optionName = option.name;
-								optionValue = option.value;
-							}
-							else
-							{
-								optionName = option;
-							}
-
-							if(_.isUndefined(optionValue))
-							{
-								optionValue = optionName;
-							}
-
-							if(_.isUndefined(defaultValue))
-							{
-								defaultValue = optionValue;
-							}
-
-							$("<option></option>").text(optionName).attr("value", optionValue).appendTo(input);
-						});
-
-						newSettings.settings[settingDef.name] = defaultValue;
-
-						if(settingDef.name in currentSettingsValues)
+						function hasOptionValue(value)
 						{
-							input.val(currentSettingsValues[settingDef.name]);
+							var found = false;
+							input.find('option').each(function()
+							{
+								if($(this).attr('value') == value)
+								{
+									found = true;
+									return false;
+								}
+							});
+							return found;
+						}
+
+						function populateOptions(optionsList)
+						{
+							var selectedValue = (settingDef.name in currentSettingsValues) ? currentSettingsValues[settingDef.name] : input.val();
+							var resolved = _.isArray(optionsList) ? optionsList : [];
+							input.empty();
+
+							_.each(resolved, function(option)
+							{
+								var optionName;
+								var optionValue;
+
+								if(_.isObject(option))
+								{
+									optionName = option.name;
+									optionValue = option.value;
+								}
+								else
+								{
+									optionName = option;
+								}
+
+								if(_.isUndefined(optionValue))
+								{
+									optionValue = optionName;
+								}
+
+								if(_.isUndefined(defaultValue))
+								{
+									defaultValue = optionValue;
+								}
+
+								$("<option></option>").text(optionName).attr("value", optionValue).appendTo(input);
+							});
+
+							var nextValue = selectedValue;
+							if(_.isUndefined(nextValue) || nextValue === "" || !hasOptionValue(nextValue))
+							{
+								nextValue = _.isUndefined(defaultValue) ? undefined : defaultValue;
+							}
+
+							if(!_.isUndefined(nextValue))
+							{
+								input.val(nextValue);
+								newSettings.settings[settingDef.name] = nextValue;
+							}
+						}
+
+						populateOptions(resolveOptions());
+
+						if(_.isFunction(optionsProvider) && settingDef.optionsRefreshMs)
+						{
+							var refreshMs = Math.max(parseInt(settingDef.optionsRefreshMs, 10) || 1000, 250);
+							var refreshTimer = setInterval(function()
+							{
+								populateOptions(resolveOptions());
+							}, refreshMs);
+
+							input.on('remove', function()
+							{
+								clearInterval(refreshTimer);
+							});
 						}
 
 						break;
