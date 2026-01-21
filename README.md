@@ -16,6 +16,7 @@ Modular is an Electron application built on top of [Freeboard](dashboard/README.
    ```bash
    npm install
    ```
+   On Windows, `socketcan` is an optional dependency and will be skipped. This is expected.
 3. Launch the application in development mode:
    ```bash
    npm start
@@ -26,6 +27,11 @@ Modular is an Electron application built on top of [Freeboard](dashboard/README.
    npm run dist
    ```
    Binaries for the current platform will be placed in the `dist` folder.
+
+### Windows build notes
+
+- CAN over SocketCAN is Linux-only. On Windows, CAN support requires a vendor driver and an `ffi-napi` binding (see `js/can_adapter.js`).
+- If native modules need to compile (for example if prebuilt binaries are unavailable), install the Windows build tools first (MSVC Build Tools + Python).
 
 Sample dashboard configurations can be found under [`test_dashboards`](test_dashboards/).
 

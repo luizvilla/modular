@@ -25,9 +25,12 @@
     "luxon": "^3.6.1",
     "raphael": "^2.3.0",
     "serialport": "^13.0.0",
-    "socketcan": "^2.9.0",
     "cbor": "^9.0.2"
   },
+  "optionalDependencies": {
+    "socketcan": "^2.9.0"
+  },
+  "_comment": "socketcan is optional on Windows; required for Linux CAN support",
   "devDependencies": {
     "electron": "^36.4.0",
     "electron-builder": "^26.0.12"
