@@ -154,10 +154,11 @@
                 <li data-bind="pluginEditor: {operation: 'add', type: 'widget'}">
                     <i class="icon-plus icon-white"></i>
                 </li>
-                <li data-bind="pluginEditor: {operation: 'edit', type: 'pane'}">
+                <li class="tool-edit" data-bind="pluginEditor: {operation: 'edit', type: 'pane'}">
                     <i class="icon-wrench icon-white"></i>
                 </li>
-                <li data-bind="pluginEditor: {operation: 'delete', type: 'pane'}">
+                <li class="toolbar-separator">|</li>
+                <li class="tool-delete" data-bind="pluginEditor: {operation: 'delete', type: 'pane'}">
                     <i class="icon-trash icon-white"></i>
                 </li>
             </ul>
@@ -166,6 +167,7 @@
             <div class="sub-section" data-bind="css: 'sub-section-height-' + height()">
                 <div class="widget" data-bind="widget: true, css:{fillsize:fillSize}"></div>
                 <div class="sub-section-tools">
+                    <span class="widget-tools-title" data-bind="text: displayTitle"></span>
                     <ul class="board-toolbar">
                         <!-- ko if:$parent.widgetCanMoveUp($data) -->
                         <li data-bind="click:$parent.moveWidgetUp"><i class="icon-chevron-up icon-white"></i></li>
@@ -173,8 +175,9 @@
                         <!-- ko if:$parent.widgetCanMoveDown($data) -->
                         <li data-bind="click:$parent.moveWidgetDown"><i class="icon-chevron-down icon-white"></i></li>
                         <!-- /ko -->
-                        <li data-bind="pluginEditor: {operation: 'edit', type: 'widget'}"><i class="icon-wrench icon-white"></i></li>
-                        <li data-bind="pluginEditor: {operation: 'delete', type: 'widget'}"><i class="icon-trash icon-white"></i></li>
+                        <li class="tool-edit" data-bind="pluginEditor: {operation: 'edit', type: 'widget'}"><i class="icon-wrench icon-white"></i></li>
+                        <li class="toolbar-separator">|</li>
+                        <li class="tool-delete" data-bind="pluginEditor: {operation: 'delete', type: 'widget'}"><i class="icon-trash icon-white"></i></li>
                     </ul>
                 </div>
             </div>

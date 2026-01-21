@@ -2515,6 +2515,35 @@ function WidgetModel(theFreeboardModel, widgetPlugins) {
 		}
 	});
 
+	this.displayTitle = ko.computed(function()
+	{
+		var settings = self.settings();
+		var titleSetting = settings ? settings.title : undefined;
+		if(_.isFunction(titleSetting))
+		{
+			titleSetting = titleSetting();
+		}
+
+		if(titleSetting && titleSetting.length)
+		{
+			return titleSetting;
+		}
+
+		var fallbackTitle = self.title();
+		if(fallbackTitle && fallbackTitle.length)
+		{
+			return fallbackTitle;
+		}
+
+		var type = self.type();
+		if(type && widgetPlugins[type] && widgetPlugins[type].display_name)
+		{
+			return widgetPlugins[type].display_name;
+		}
+
+		return "";
+	});
+
 	this.shouldRender = ko.observable(false);
 	this.render = function (element) {
 		self.shouldRender(false);
@@ -2887,9 +2916,21 @@ var freeboard = (function()
 							}
 							else if(options.type == 'widget')
 							{
+								if(_.isUndefined(newSettings.settings.title) || newSettings.settings.title === "")
+								{
+									var widgetType = widgetPlugins[newSettings.type];
+									if(widgetType && widgetType.display_name)
+									{
+										newSettings.settings.title = widgetType.display_name;
+									}
+								}
 								var newViewModel = new WidgetModel(theFreeboardModel, widgetPlugins);
 								newViewModel.settings(newSettings.settings);
 								newViewModel.type(newSettings.type);
+								if((_.isUndefined(newSettings.settings.title) || newSettings.settings.title === "") && widgetPlugins[newSettings.type] && widgetPlugins[newSettings.type].display_name)
+								{
+									newViewModel.title(widgetPlugins[newSettings.type].display_name);
+								}
 
 								viewModel.widgets.push(newViewModel);
 
