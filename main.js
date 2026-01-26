@@ -249,16 +249,19 @@ function createWindow() {
         mainWindow = new BrowserWindow({
                 width: 1280,
                 height: 800,
+                icon: path.join(__dirname, 'assets', 'icon.png'),
                 webPreferences: {
                         nodeIntegration: true,
                         contextIsolation: false
                 }
         });
-        // Force DevTools open during debugging since shortcuts are not working.
-        mainWindow.webContents.openDevTools({ mode: 'detach' });
-        mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
-            console.error('[main] did-fail-load', code, desc, url);
-        });
+        // Only open DevTools in development.
+        if (!app.isPackaged) {
+            mainWindow.webContents.openDevTools({ mode: 'detach' });
+            mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+                console.error('[main] did-fail-load', code, desc, url);
+            });
+        }
         setAppMenu();
         mainWindow.loadFile(path.join(__dirname, 'dashboard/index.html'));
         mainWindow.on('closed', () => {
