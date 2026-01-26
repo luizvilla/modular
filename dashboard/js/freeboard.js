@@ -1029,6 +1029,13 @@ function FreeboardUI()
 			grid.resize_widget($(element), viewModel.col_width(), calculatedHeight, function(){
 				grid.set_dom_grid_height();
 			});
+			// If a resize introduces overlap (gridster doesn't resolve horizontal collisions on resize), rebuild layout.
+			var currentCol = Number($(element).attr("data-col"));
+			var currentRow = Number($(element).attr("data-row"));
+			if(!grid.can_move_to({ size_x: viewModel.col_width(), size_y: calculatedHeight }, currentCol, currentRow))
+			{
+				processResize(true);
+			}
 		}
 	}
 
