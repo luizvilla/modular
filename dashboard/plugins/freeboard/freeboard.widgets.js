@@ -297,6 +297,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "text_widget",
         display_name: "Text",
+        description: "Single value with optional sparkline and units",
         "external_scripts" : [
             "plugins/thirdparty/jquery.sparkline.min.js"
         ],
@@ -419,6 +420,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "gauge",
         display_name: "Gauge",
+        description: "Dial gauge for a numeric value",
         "external_scripts" : [
             "plugins/thirdparty/raphael.2.1.0.min.js",
             "plugins/thirdparty/justgage.1.0.1.js"
@@ -510,6 +512,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "sparkline",
         display_name: "Sparkline",
+        description: "Compact line chart showing recent values",
         "external_scripts" : [
             "plugins/thirdparty/jquery.sparkline.min.js"
         ],
@@ -621,6 +624,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "pointer",
         display_name: "Pointer",
+        description: "Rotating pointer driven by an angle in degrees",
         "external_scripts" : [
             "plugins/thirdparty/raphael.2.1.0.min.js"
         ],
@@ -723,6 +727,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "picture",
         display_name: "Picture",
+        description: "Image tile from a URL, with optional refresh",
         fill_size: true,
         settings: [
             {
@@ -804,6 +809,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "indicator",
         display_name: "Indicator Light",
+        description: "On/off status light with labels",
         settings: [
 	        {
 	            name: "title",
@@ -972,6 +978,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "google_map",
         display_name: "Google Map",
+        description: "Map widget with a marker at latitude/longitude",
         fill_size: true,
         settings: [
             {
@@ -1024,6 +1031,7 @@
     freeboard.loadWidgetPlugin({
         "type_name": "html",
         "display_name": "HTML",
+        "description": "Render custom HTML from a calculated value",
         "fill_size": true,
         "settings": [
             {
