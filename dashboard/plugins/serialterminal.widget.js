@@ -5,8 +5,10 @@
         description: "Show live data from a serial datasource",
         settings: [
             { name: "title", display_name: "Title", type: "text" },
-            { name: "datasourceName", display_name: "Datasource Name", type: "text" },
+            // Use a live options provider so the widget settings modal shows a datasource dropdown.
+            { name: "datasourceName", display_name: "Datasource Name", type: "option", options: getSerialDatasourceOptions, optionsRefreshMs: 1000 },
             { name: "colorize", display_name: "Colorize", type: "boolean", default_value: true },
+            { name: "autoScroll", display_name: "Auto-scroll", type: "boolean", default_value: true },
             { name: "refresh", display_name: "Refresh (ms)", type: "number", default_value: 500 },
             { name: "maxLines", display_name: "Max Lines", type: "number", default_value: 100 }
         ],
@@ -14,6 +16,23 @@
             newInstanceCallback(new SerialTerminal(settings));
         }
     });
+
+    // Provide a datasource list for the widget settings dropdown.
+    function getSerialDatasourceOptions() {
+        const live = freeboard.getLiveModel?.();
+        if (!live || typeof live.datasources !== 'function') return [];
+        const allowedTypes = new Set(['serialport_datasource', 'fast_frame_datasource', 'thingset_serial_datasource']);
+        const options = [];
+        live.datasources().forEach(ds => {
+            try {
+                if (ds.type && allowedTypes.has(ds.type())) {
+                    const name = ds.name();
+                    options.push({ name, value: name });
+                }
+            } catch (e) { /* ignore */ }
+        });
+        return options;
+    }
 
     class SerialTerminal {
         constructor(settings) {
@@ -26,10 +45,16 @@
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
             const colorId = `chk_${Math.random().toString(36).slice(2)}`;
             this.colorCheck = $('<input class="form-check-input mt-0" type="checkbox">').attr('id', colorId);
+            const scrollId = `chk_${Math.random().toString(36).slice(2)}`;
+            this.autoScrollCheck = $('<input class="form-check-input mt-0" type="checkbox">').attr('id', scrollId);
             const colorWrapper = $('<div class="input-group input-group-sm mb-1"></div>');
             const colorLabel = $(`<label class="input-group-text" for="${colorId}">Colorize</label>`);
             const colorBox = $('<span class="input-group-text"></span>').append(this.colorCheck);
             colorWrapper.append(colorLabel).append(colorBox);
+            const scrollWrapper = $('<div class="input-group input-group-sm mb-1"></div>');
+            const scrollLabel = $(`<label class="input-group-text" for="${scrollId}">Auto-scroll</label>`);
+            const scrollBox = $('<span class="input-group-text"></span>').append(this.autoScrollCheck);
+            scrollWrapper.append(scrollLabel).append(scrollBox);
             this.codeEl = $('<code></code>');
             this.preEl = $(
                 '<pre class="serial-terminal border border-secondary rounded bg-dark text-light p-2" ' +
@@ -37,7 +62,7 @@
             ).append(this.codeEl);
             const dsRow = $('<div class="input-group input-group-sm mb-1"></div>');
             dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
-            this.container.append(dsRow, colorWrapper, this.preEl);
+            this.container.append(dsRow, colorWrapper, scrollWrapper, this.preEl);
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
         }
@@ -52,7 +77,11 @@
             this.colorCheck.on('change', () => {
                 this.settings.colorize = this.colorCheck.prop('checked');
             });
+            this.autoScrollCheck.on('change', () => {
+                this.settings.autoScroll = this.autoScrollCheck.prop('checked');
+            });
             this.colorCheck.prop('checked', !!this.settings.colorize);
+            this.autoScrollCheck.prop('checked', this.settings.autoScroll !== false);
             this.dsSelect.val(this.settings.datasourceName);
             this._refreshColors(true);
             this._updateTimer();
@@ -62,6 +91,8 @@
             if (!this.ipcRenderer || !this.settings.datasourceName) return;
             const ds = freeboard.getDatasourceSettings(this.settings.datasourceName);
             if (!ds || !ds.portPath) return;
+            // Keep terminal output stable while the datasource is paused.
+            if (ds.paused) return;
             await this._refreshColors();
             try {
                 const lines = await this.ipcRenderer.invoke("get-terminal-buffer", { path: ds.portPath });
@@ -73,6 +104,10 @@
                         this.codeEl.html(formatted.join("<br/>"));
                     } else {
                         this.codeEl.text(display.join("\n"));
+                    }
+                    // Auto-scroll by default, but let users disable it.
+                    if (this.settings.autoScroll !== false) {
+                        this.preEl.scrollTop(this.preEl.prop('scrollHeight'));
                     }
                 }
             } catch (e) {
@@ -120,10 +155,11 @@
             if (!live || typeof live.datasources !== 'function') return;
             const list = live.datasources();
             const current = this.settings.datasourceName;
+            const allowedTypes = new Set(['serialport_datasource', 'fast_frame_datasource', 'thingset_serial_datasource']);
             this.dsSelect.empty();
             list.forEach(ds => {
                 try {
-                    if (ds.type && ds.type() === 'serialport_datasource') {
+                    if (ds.type && allowedTypes.has(ds.type())) {
                         const name = ds.name();
                         this.dsSelect.append(`<option value="${name}">${name}</option>`);
                     }
@@ -158,6 +194,7 @@
         onSettingsChanged(newSettings) {
             this.settings = newSettings;
             this.colorCheck.prop('checked', !!this.settings.colorize);
+            this.autoScrollCheck.prop('checked', this.settings.autoScroll !== false);
             this._refreshDatasourceOptions();
             this.dsSelect.val(this.settings.datasourceName);
             this._refreshColors(true);
