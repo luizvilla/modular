@@ -39,6 +39,8 @@
     let timer = null;
     let deviceMeta = null;
     let lastSelectedAddr = null;
+    // Pause handling to suppress polling without tearing down the CAN bus.
+    const isPaused = () => !!(currentSettings && currentSettings.paused);
 
     async function ensureOpen() {
       if (!ipcRenderer) return;
@@ -50,6 +52,7 @@
     }
 
     async function poll() {
+      if (isPaused()) return;
       const ch = currentSettings.channel || 'can0';
       const now = new Date();
       let data = {
@@ -137,6 +140,7 @@
 
     function updateTimer() {
       stopTimer();
+      if (isPaused()) return;
       let interval = parseFloat(currentSettings.refresh);
       if (isNaN(interval) || interval < 50) interval = 1000;
       timer = setInterval(poll, interval);
@@ -151,6 +155,10 @@
 
     this.onSettingsChanged = async function (newSettings) {
       currentSettings = newSettings;
+      if (isPaused()) {
+        stopTimer();
+        return;
+      }
       await ensureOpen();
       updateTimer();
       try {
@@ -164,6 +172,7 @@
     };
 
     (async () => {
+      if (isPaused()) return;
       const ch = currentSettings.channel || 'can0';
       await setupCanIfLinux(ch);
       await ensureOpen();

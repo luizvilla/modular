@@ -98,6 +98,20 @@
       return currentSettings.autoDetect !== false;
     }
 
+    // Pause handling to release the serial port on demand.
+    function isPaused() {
+      return !!(currentSettings && currentSettings.paused);
+    }
+
+    async function closePort() {
+      if (!ipc || !detectedPort) return;
+      try {
+        await ipc.invoke('close-serial-port', { path: detectedPort });
+      } catch (e) {
+        console.warn('ThingSet Serial: close port failed', e?.message || e);
+      }
+    }
+
     function effectiveBaudRate() {
       const num = Number(currentSettings.baudRate);
       return Number.isFinite(num) && num > 0 ? num : 115200;
@@ -166,6 +180,7 @@
     }
 
     async function poll() {
+      if (isPaused()) return;
       const base = baseData();
       if (!ipc) {
         updateCallback({ ...base, status: 'unavailable', error: 'Electron IPC unavailable' });
@@ -226,12 +241,14 @@
 
     function updateTimer() {
       stopTimer();
+      if (isPaused()) return;
       let interval = Number(currentSettings.refresh);
       if (!Number.isFinite(interval) || interval < 200) interval = 1000;
       timer = setInterval(() => { self.updateNow(); }, interval);
     }
 
     self.updateNow = () => {
+      if (isPaused()) return Promise.resolve();
       if (pollInFlight) return pollInFlight;
       pollInFlight = (async () => {
         try {
@@ -249,6 +266,11 @@
 
     self.onSettingsChanged = (newSettings) => {
       currentSettings = newSettings || {};
+      if (isPaused()) {
+        stopTimer();
+        closePort();
+        return;
+      }
       if (!isAutoMode()) {
         detectedPort = manualPort(currentSettings);
       } else if (!detectedPort) {
@@ -258,8 +280,10 @@
       self.updateNow();
     };
 
-    if (isAutoMode() && !detectedPort) detectPort(true);
-    updateTimer();
+    if (!isPaused()) {
+      if (isAutoMode() && !detectedPort) detectPort(true);
+      updateTimer();
+    }
   }
 
   async function registerPlugin() {

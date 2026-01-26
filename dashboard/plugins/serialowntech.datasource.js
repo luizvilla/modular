@@ -49,12 +49,15 @@
                 // ipcRenderer is defined above
                 let latestData = [];
                 let portSyncInFlight = null;
+                // Pause handling to release the serial port on demand.
+                const isPaused = () => !!(currentSettings && currentSettings.paused);
 
 		const eol = unescape(currentSettings.eol || "\\n");
 		const sep = currentSettings.separator || ":";
 
 		async function openPort() {
 			if (!ipcRenderer) return;
+                        if (isPaused()) return;
 			try {
                                 await ipcRenderer.invoke("open-serial-port", {
                                         path: currentSettings.portPath,
@@ -70,6 +73,7 @@
 
                 async function syncPortState(portOptions) {
                         if (!ipcRenderer || !currentSettings.portPath) return;
+                        if (isPaused()) return;
                         if (portSyncInFlight) return portSyncInFlight;
                         portSyncInFlight = (async () => {
                                 const path = currentSettings.portPath;
@@ -93,6 +97,7 @@
                 }
 
                 async function pollData() {
+                        if (isPaused()) return;
                         try {
                                 const data = await ipcRenderer.invoke("get-serial-buffer", { path: currentSettings.portPath });
                                 if (Array.isArray(data)) {
@@ -112,6 +117,7 @@
 
 		function updateTimer() {
 			stopTimer();
+                        if (isPaused()) return;
 			let interval = parseFloat(currentSettings.refresh);
 			if (isNaN(interval) || interval < 50) interval = 1000; // min 50 ms
 			timer = setInterval(() => {
@@ -120,6 +126,7 @@
 		}
 
                 this.updateNow = async function () {
+                        if (isPaused()) return;
 			const date = new Date();
                         await pollData();
                         const data = {
@@ -153,14 +160,23 @@
 
                this.onSettingsChanged = function (newSettings) {
                        currentSettings = newSettings;
+                       if (isPaused()) {
+                               stopTimer();
+                               if (ipcRenderer && currentSettings.portPath) {
+                                       ipcRenderer.invoke("close-serial-port", { path: currentSettings.portPath }).catch(() => {});
+                               }
+                               return;
+                       }
                        updateTimer();
                        openPort();
                        syncPortState(cachedPortOptions);
                };
 
 		stopTimer();
-		updateTimer();
-		openPort();
+                if (!isPaused()) {
+		        updateTimer();
+		        openPort();
+                }
                 instances.add(this);
                 syncPortState(cachedPortOptions);
 	};

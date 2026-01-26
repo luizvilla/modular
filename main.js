@@ -13,6 +13,14 @@ const { exploreId } = require('./js/query_nodes');
 const { flashCanFirmware } = require('./js/thingset_dfu_can');
 const { ThingSetSerialShell } = require('./js/thingset_serial_shell');
 
+const argv = process.argv || [];
+const noGpu = argv.includes('--no-gpu') || argv.includes('--disable-gpu');
+if (noGpu) {
+    // Must be called before app is ready
+    app.disableHardwareAcceleration();
+    app.commandLine.appendSwitch('disable-gpu');
+}
+
 let mainWindow; // reference to the main BrowserWindow
 
 // Emit UI activity events to renderer (used for toasts/indicators)
@@ -31,6 +39,10 @@ const mcumgrPath = path.join(__dirname, 'tools', mcumgrBinary);
 
 const activeRecordings = new Map(); // Active CSV recordings mapped by port path
 const openPorts = new Map(); // key: path, value: SerialPort instance
+// Persist last-known serial settings per port so we can auto-reopen later.
+const portSettings = new Map(); // key: path, value: { baudRate, separator, eol, type }
+// Track pending auto-reopen timers and intent per port.
+const pendingReopens = new Map(); // key: path, value: { timer: Timeout|null, settings }
 const terminalBuffers = new Map(); // key: path, value: array of raw lines
 const serialBuffers = new Map(); // key: path, value: array of parsed data arrays
 // header and color buffers keyed by "path||type" to support multiple
@@ -311,7 +323,7 @@ ipcMain.handle('get-thingset-nodes', async () => {
 });
 
 // 🚪 Open serial port with tracking and buffer setup
-ipcMain.handle("open-serial-port", async (event, { path, baudRate, separator, eol, type = 'serialport_datasource' }) => {
+async function openSerialPortInternal({ path, baudRate, separator, eol, type = 'serialport_datasource' }) {
         emitActivity({ id: 'serial:open', title: path, state: 'start', label: 'Open serial port' });
         if (openPorts.has(path)) {
                 console.warn(`Port ${path} is already open.`);
@@ -324,7 +336,14 @@ ipcMain.handle("open-serial-port", async (event, { path, baudRate, separator, eo
         }
 
 	currentSettings.separator = separator || ":";
-    currentSettings.eol = decodeEolToken(eol);
+        currentSettings.eol = decodeEolToken(eol);
+        // Persist settings so a later auto-reopen uses the same config.
+        portSettings.set(path, {
+            baudRate: parseInt(baudRate),
+            separator: separator || ":",
+            eol: decodeEolToken(eol),
+            type
+        });
 
 	const port = new SerialPort({
 		path,
@@ -332,7 +351,7 @@ ipcMain.handle("open-serial-port", async (event, { path, baudRate, separator, eo
 		autoOpen: false
 	});
 
-    port.open(err => {
+        port.open(err => {
                 if (err) {
                         console.error("Serial open error:", err.message);
                         emitActivity({ id: 'serial:open', title: path, state: 'error', label: 'Open serial port', detail: err.message });
@@ -340,7 +359,7 @@ ipcMain.handle("open-serial-port", async (event, { path, baudRate, separator, eo
                 }
                 console.log("✅ Serial port opened:", path);
                 emitActivity({ id: 'serial:open', title: path, state: 'done', label: 'Serial opened' });
-    });
+        });
 
 	let rawBuffer = "";
 
@@ -387,6 +406,10 @@ ipcMain.handle("open-serial-port", async (event, { path, baudRate, separator, eo
         });
 
 	openPorts.set(path, port);
+}
+
+ipcMain.handle("open-serial-port", async (_event, payload) => {
+        return openSerialPortInternal(payload || {});
 });
 
 // 📥 Renderer pulls latest parsed data
@@ -627,6 +650,66 @@ ipcMain.handle("close-serial-port", async (event, { path }) => {
 			emitActivity({ id: 'serial:close', title: path, state: 'done', label: 'Serial already closed' });
 			return "not open";
 	}
+});
+
+// 🔁 Release a serial port temporarily and optionally auto-reopen after a delay.
+ipcMain.handle("release-serial-port", async (_event, { path, reopen = true, reopenDelayMs = 0 } = {}) => {
+        if (!path) throw new Error("path required");
+        const port = openPorts.get(path);
+        if (!port || !port.isOpen) {
+                return { released: false, reason: "not-open" };
+        }
+        const settings = portSettings.get(path) || null;
+        // Close now to free the COM port for external flash tools.
+        await new Promise((resolve) => port.close(() => resolve()));
+        // Clear any prior pending reopen.
+        const pending = pendingReopens.get(path);
+        if (pending && pending.timer) {
+                clearTimeout(pending.timer);
+        }
+        pendingReopens.delete(path);
+        if (reopen && settings) {
+                if (reopenDelayMs > 0) {
+                        const timer = setTimeout(() => {
+                                // Fire-and-forget reopen using the last-known settings.
+                                openSerialPortInternal({
+                                        path,
+                                        baudRate: settings.baudRate,
+                                        separator: settings.separator,
+                                        eol: settings.eol,
+                                        type: settings.type
+                                });
+                        }, reopenDelayMs);
+                        pendingReopens.set(path, { timer, settings });
+                } else {
+                        await openSerialPortInternal({
+                                path,
+                                baudRate: settings.baudRate,
+                                separator: settings.separator,
+                                eol: settings.eol,
+                                type: settings.type
+                        });
+                }
+        }
+        return { released: true, reopenScheduled: Boolean(reopen && settings && reopenDelayMs > 0) };
+});
+
+// 🔁 Explicitly reopen a port that was previously released.
+ipcMain.handle("reopen-serial-port", async (_event, { path } = {}) => {
+        if (!path) throw new Error("path required");
+        const settings = portSettings.get(path);
+        if (!settings) return { reopened: false, reason: "no-settings" };
+        const pending = pendingReopens.get(path);
+        if (pending && pending.timer) clearTimeout(pending.timer);
+        pendingReopens.delete(path);
+        await openSerialPortInternal({
+                path,
+                baudRate: settings.baudRate,
+                separator: settings.separator,
+                eol: settings.eol,
+                type: settings.type
+        });
+        return { reopened: true };
 });
 
 // ➡️ Write data to an open serial port

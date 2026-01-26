@@ -203,3 +203,10 @@ textarea.form-control {
 .sub-table {
     margin-bottom: 0px;
 }
+/* Dim paused datasources so it's clear they are inactive. */
+.datasource-paused {
+  opacity: 0.6;
+}
+.datasource-paused .datasource-name {
+  text-decoration: line-through;
+}

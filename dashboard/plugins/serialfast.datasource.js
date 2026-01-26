@@ -3,9 +3,21 @@
     function FastFrameDatasource(settings, updateCallback) {
         let currentSettings = settings;
         let timer = null;
+        // Pause handling to release the serial port on demand.
+        const isPaused = () => !!(currentSettings && currentSettings.paused);
+
+        async function closePort() {
+            if (!ipcRenderer || !currentSettings?.portPath) return;
+            try {
+                await ipcRenderer.invoke('close-serial-port', { path: currentSettings.portPath });
+            } catch (e) {
+                console.warn('Close serial failed:', e?.message || e);
+            }
+        }
 
         async function openPort() {
             if (!ipcRenderer) return;
+            if (isPaused()) return;
             try {
                 await ipcRenderer.invoke('open-serial-port', {
                     path: currentSettings.portPath,
@@ -21,6 +33,7 @@
 
         async function pollFrame() {
             if (!ipcRenderer) return;
+            if (isPaused()) return;
             try {
                 const data = await ipcRenderer.invoke('get-fast-dataset', { path: currentSettings.portPath });
                 if (data && Array.isArray(data.timestamps)) {
@@ -40,6 +53,7 @@
 
         function updateTimer() {
             stopTimer();
+            if (isPaused()) return;
             let interval = parseFloat(currentSettings.refresh);
             if (isNaN(interval) || interval < 50) interval = 1000;
             timer = setInterval(pollFrame, interval);
@@ -53,12 +67,19 @@
 
         this.onSettingsChanged = function (newSettings) {
             currentSettings = newSettings;
+            if (isPaused()) {
+                stopTimer();
+                closePort();
+                return;
+            }
             updateTimer();
             openPort();
         };
 
-        updateTimer();
-        openPort();
+        if (!isPaused()) {
+            updateTimer();
+            openPort();
+        }
     }
 
     async function register() {

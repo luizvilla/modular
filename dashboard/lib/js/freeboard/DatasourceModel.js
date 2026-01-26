@@ -17,8 +17,16 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 	this.name = ko.observable();
 	this.latestData = ko.observable();
 	this.settings = ko.observable({});
+	// Track paused state for UI and to suppress updates.
+	this.isPaused = ko.observable(false);
+	function syncPausedFromSettings(newValue)
+	{
+		var paused = !!(newValue && newValue.paused);
+		self.isPaused(paused);
+	}
 	this.settings.subscribe(function(newValue)
 	{
+		syncPausedFromSettings(newValue);
 		if(!_.isUndefined(self.datasourceInstance) && _.isFunction(self.datasourceInstance.onSettingsChanged))
 		{
 			self.datasourceInstance.onSettingsChanged(newValue);
@@ -27,6 +35,8 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 
 	this.updateCallback = function(newData)
 	{
+		// Skip updates while paused to keep widgets static and avoid port contention.
+		if(self.isPaused()) return;
 		theFreeboardModel.processDatasourceUpdate(self, newData);
 
 		self.latestData(newData);
@@ -72,6 +82,7 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 
 	this.settings.subscribe(function(newValue)
 	{
+		syncPausedFromSettings(newValue);
 		if(!_.isUndefined(self.datasourceInstance) && _.isFunction(self.datasourceInstance.onSettingsChanged))
 		{
 			self.datasourceInstance.onSettingsChanged(newValue);
@@ -95,6 +106,7 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 		self.settings(object.settings);
 		self.name(object.name);
 		self.type(object.type);
+		syncPausedFromSettings(object.settings || {});
 	}
 
 	this.getDataRepresentation = function(dataPath)
@@ -105,10 +117,21 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 
 	this.updateNow = function()
 	{
+		if(self.isPaused()) return;
 		if(!_.isUndefined(self.datasourceInstance) && _.isFunction(self.datasourceInstance.updateNow))
 		{
 			self.datasourceInstance.updateNow();
 		}
+	}
+
+	// Toggle pause from the datasource list UI.
+	this.togglePause = function()
+	{
+		var next = !self.isPaused();
+		var current = self.settings() || {};
+		var newSettings = Object.assign({}, current, { paused: next });
+		self.settings(newSettings);
+		self.isPaused(next);
 	}
 
 	this.dispose = function()
