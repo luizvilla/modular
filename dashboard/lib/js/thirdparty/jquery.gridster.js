@@ -1969,6 +1969,87 @@
 		return widgets;
 	};
 
+	// Prefer horizontal swaps on overlap so widgets trade columns before pushing down.
+	fn.can_move_widget_to_col = function(widget_grid_data, col)
+	{
+		var size_x = widget_grid_data.size_x;
+		var size_y = widget_grid_data.size_y;
+		var row = widget_grid_data.row;
+
+		if(col < 1 || (col + size_x - 1) > this.cols)
+		{
+			return false;
+		}
+
+		for(var x = 0; x < size_x; x++)
+		{
+			var tcol = col + x;
+			for(var y = 0; y < size_y; y++)
+			{
+				var trow = row + y;
+				var cell = this.gridmap[tcol] ? this.gridmap[tcol][trow] : undefined;
+				if(typeof cell !== 'undefined' && cell !== false)
+				{
+					if(widget_grid_data.el && cell.is && cell.is(widget_grid_data.el))
+					{
+						continue;
+					}
+					return false;
+				}
+			}
+		}
+
+		return true;
+	};
+
+	// Move a widget to a new column, keeping its row, when horizontal space allows.
+	fn.move_widget_to_col = function($widget, col)
+	{
+		var widget_grid_data = $widget.coords().grid;
+		if(widget_grid_data.col === col)
+		{
+			return this;
+		}
+
+		if(!this.can_move_widget_to_col(widget_grid_data, col))
+		{
+			return false;
+		}
+
+		this.remove_from_gridmap(widget_grid_data);
+		widget_grid_data.col = col;
+		this.add_to_gridmap(widget_grid_data, $widget);
+		$widget.attr('data-col', col);
+		this.$changed = this.$changed.add($widget);
+
+		return this;
+	};
+
+	// Try moving the overlapped widget left/right before falling back to vertical displacement.
+	fn.try_swap_widget_sideways = function(widget_grid_data, player_col)
+	{
+		var left_col = player_col - widget_grid_data.size_x;
+		var right_col = player_col + this.player_grid_data.size_x;
+		var prefer_left_first = player_col >= widget_grid_data.col;
+		var candidates = prefer_left_first ? [left_col, right_col] : [right_col, left_col];
+
+		for(var i = 0; i < candidates.length; i++)
+		{
+			var target_col = candidates[i];
+			if(target_col === widget_grid_data.col)
+			{
+				continue;
+			}
+			if(this.can_move_widget_to_col(widget_grid_data, target_col))
+			{
+				this.move_widget_to_col(widget_grid_data.el, target_col);
+				return true;
+			}
+		}
+
+		return false;
+	};
+
 
 	/**
 	 * Sorts an Array of grid coords objects (representing the grid coords of
@@ -2007,12 +2088,18 @@
 				{
 					// target can't go up
 					// player cant't go up
-					// so we need to move widget down to a position that dont
-					// overlaps player
-					var y = (to_row + this.player_grid_data.size_y) - wgd.row;
+					// prefer a horizontal swap when space allows; otherwise move down
+					if(!this.try_swap_widget_sideways(wgd, to_col))
+					{
+						var y = (to_row + this.player_grid_data.size_y) - wgd.row;
 
-					this.move_widget_down($w, y);
-					this.set_placeholder(to_col, to_row);
+						this.move_widget_down($w, y);
+						this.set_placeholder(to_col, to_row);
+					}
+					else
+					{
+						this.set_placeholder(to_col, to_row);
+					}
 				}
 			}
 		}, this));
