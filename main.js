@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
 const fs = require('fs');
@@ -22,6 +22,74 @@ if (noGpu) {
 }
 
 let mainWindow; // reference to the main BrowserWindow
+
+// Menu-driven file open uses main-process dialog to satisfy user activation requirements.
+ipcMain.handle('show-open-dashboard', async () => {
+    if (!mainWindow) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [{ name: 'Dashboard', extensions: ['json'] }]
+    });
+    if (canceled || !filePaths || filePaths.length === 0) return null;
+    return filePaths[0];
+});
+
+// Bridge renderer logs to the terminal for debugging.
+ipcMain.on('renderer-log', (_event, { level = 'log', args = [] } = {}) => {
+    const prefix = '[renderer]';
+    const payload = Array.isArray(args) ? args : [args];
+    if (level === 'error') {
+        console.error(prefix, ...payload);
+    } else if (level === 'warn') {
+        console.warn(prefix, ...payload);
+    } else {
+        console.log(prefix, ...payload);
+    }
+});
+
+// App menu is custom: Edit only hosts "Widget Categories" and View/Window are removed.
+function setAppMenu() {
+    const template = [
+        {
+            label: 'File',
+            submenu: [
+                {
+                    label: 'Load Dashboard',
+                    click: () => {
+                        if (mainWindow && mainWindow.webContents) {
+                            mainWindow.webContents.send('menu-load-dashboard');
+                        }
+                    }
+                },
+                {
+                    label: 'Save Dashboard',
+                    click: () => {
+                        if (mainWindow && mainWindow.webContents) {
+                            mainWindow.webContents.send('menu-save-dashboard');
+                        }
+                    }
+                },
+                { type: 'separator' },
+                { role: process.platform === 'darwin' ? 'close' : 'quit' }
+            ]
+        },
+        {
+            label: 'Edit',
+            submenu: [
+                {
+                    label: 'Widget Categories',
+                    click: () => {
+                        if (mainWindow && mainWindow.webContents) {
+                            mainWindow.webContents.send('show-widget-categories');
+                        }
+                    }
+                }
+            ]
+        }
+    ];
+
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 // Emit UI activity events to renderer (used for toasts/indicators)
 function emitActivity(evt) {
@@ -186,6 +254,12 @@ function createWindow() {
                         contextIsolation: false
                 }
         });
+        // Force DevTools open during debugging since shortcuts are not working.
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+        mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+            console.error('[main] did-fail-load', code, desc, url);
+        });
+        setAppMenu();
         mainWindow.loadFile(path.join(__dirname, 'dashboard/index.html'));
         mainWindow.on('closed', () => {
                 mainWindow = null;

@@ -500,11 +500,32 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 	this.deserialize = function(object, finishedCallback)
 	{
-		self.clearDashboard();
+		// Normalize and guard input so missing fields don't break loading.
+		object = object || {};
+		object.plugins = _.isArray(object.plugins) ? object.plugins : [];
+		object.datasources = _.isArray(object.datasources) ? object.datasources : [];
+		object.panes = _.isArray(object.panes) ? object.panes : [];
+		var safeColumns = (_.isNumber(object.columns) && !isNaN(object.columns)) ? object.columns : freeboardUI.getUserColumns();
+
+		// Emit debug steps into the Activity pane.
+		freeboard.emit("activity", {
+			id: "dashboard:load",
+			state: "start",
+			title: "Dashboard",
+			label: "Deserialize",
+			detail: `plugins=${object.plugins.length}, datasources=${object.datasources.length}, panes=${object.panes.length}`
+		});
 
 		function finishLoad()
 		{
-			freeboardUI.setUserColumns(object.columns);
+			freeboardUI.setUserColumns(safeColumns);
+			freeboard.emit("activity", {
+				id: "dashboard:load:columns",
+				state: "done",
+				title: "Dashboard",
+				label: "Columns set",
+				detail: String(safeColumns)
+			});
 
 			if(!_.isUndefined(object.allow_edit))
 			{
@@ -516,6 +537,12 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 			}
 			self.version = object.version || 0;
 			self.header_image(object.header_image);
+			freeboard.emit("activity", {
+				id: "dashboard:load:meta",
+				state: "done",
+				title: "Dashboard",
+				label: "Metadata applied"
+			});
 
 			_.each(object.datasources, function(datasourceConfig)
 			{
@@ -523,9 +550,56 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 				datasource.deserialize(datasourceConfig);
 				self.addDatasource(datasource);
 			});
+			freeboard.emit("activity", {
+				id: "dashboard:load:datasources",
+				state: "done",
+				title: "Dashboard",
+				label: "Datasources loaded",
+				detail: String(object.datasources.length)
+			});
 
-			var sortedPanes = _.sortBy(object.panes, function(pane){
-				return freeboardUI.getPositionForScreenSize(pane).row;
+			// Normalize pane layouts so missing row/col does not crash reloads.
+			var normalizedPanes = _.chain(object.panes)
+				.filter(function(pane){ return !!pane; })
+				.map(function(pane, idx){
+					if(!pane.row || !pane.col)
+					{
+						var fallback = Math.max(1, safeColumns || 1);
+						pane.row = pane.row || {};
+						pane.col = pane.col || {};
+						pane.row[fallback] = pane.row[fallback] || 1;
+						pane.col[fallback] = pane.col[fallback] || ((idx % fallback) + 1);
+						console.error("Pane layout missing row/col, applying fallback:", pane);
+						freeboard.emit("activity", {
+							id: "dashboard:load:panes:normalize",
+							state: "error",
+							title: "Dashboard",
+							label: "Pane layout normalized",
+							detail: `index=${idx}`
+						});
+					}
+					return pane;
+				})
+				.value();
+
+			var sortedPanes = _.sortBy(normalizedPanes, function(pane){
+				try
+				{
+					var pos = freeboardUI.getPositionForScreenSize(pane);
+					return (pos && _.isNumber(pos.row)) ? pos.row : 1;
+				}
+				catch(err)
+				{
+					console.error("Pane position resolve failed:", err, pane);
+					freeboard.emit("activity", {
+						id: "dashboard:load:panes:position",
+						state: "error",
+						title: "Dashboard",
+						label: "Pane position resolve failed",
+						detail: String(err && (err.message || err))
+					});
+					return 1;
+				}
 			});
 
 			_.each(sortedPanes, function(paneConfig)
@@ -533,6 +607,13 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 				var pane = new PaneModel(self, widgetPlugins);
 				pane.deserialize(paneConfig);
 				self.panes.push(pane);
+			});
+			freeboard.emit("activity", {
+				id: "dashboard:load:panes",
+				state: "done",
+				title: "Dashboard",
+				label: "Panes loaded",
+				detail: String(object.panes.length)
 			});
 
 			if(self.allow_edit() && self.panes().length == 0)
@@ -546,6 +627,12 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 			}
 
 			freeboardUI.processResize(true);
+			freeboard.emit("activity", {
+				id: "dashboard:load",
+				state: "done",
+				title: "Dashboard",
+				label: "Deserialize complete"
+			});
 		}
 
 		// This could have been self.plugins(object.plugins), but for some weird reason head.js was causing a function to be added to the list of plugins.
@@ -555,10 +642,24 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		});
 
 		// Load any plugins referenced in this definition
-		if(_.isArray(object.plugins) && object.plugins.length > 0)
+		if(object.plugins.length > 0)
 		{
+			freeboard.emit("activity", {
+				id: "dashboard:load:plugins",
+				state: "start",
+				title: "Dashboard",
+				label: "Loading plugins",
+				detail: String(object.plugins.length)
+			});
 			head.js(object.plugins, function()
 			{
+				freeboard.emit("activity", {
+					id: "dashboard:load:plugins",
+					state: "done",
+					title: "Dashboard",
+					label: "Plugins loaded",
+					detail: String(object.plugins.length)
+				});
 				finishLoad();
 			});
 		}
@@ -570,6 +671,8 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 	this.clearDashboard = function()
 	{
+		// Full reset before loading a new dashboard to avoid leftover state.
+		freeboardUI.beginBulkRemove();
 		freeboardUI.removeAllPanes();
 
 		_.each(self.datasources(), function(datasource)
@@ -585,22 +688,89 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		self.plugins.removeAll();
 		self.datasources.removeAll();
 		self.panes.removeAll();
+		self.datasourceData = {};
+		self.header_image(undefined);
+		self.version = 0;
+		// Let knockout cleanup settle before re-enabling pane removals.
+		setTimeout(function() {
+			freeboardUI.endBulkRemove();
+		}, 0);
 	}
 
 	this.loadDashboard = function(dashboardData, callback)
 	{
-		freeboardUI.showLoadingIndicator(true);
-		self.deserialize(dashboardData, function()
+		// Always clear the loading spinner even if deserialization throws.
+		var loadingCleared = false;
+		function clearLoading()
 		{
+			if(loadingCleared) return;
+			loadingCleared = true;
 			freeboardUI.showLoadingIndicator(false);
+		}
 
-			if(_.isFunction(callback))
-			{
-				callback();
-			}
-
-        freeboard.emit("dashboard_loaded");
+		freeboard.emit("activity", {
+			id: "dashboard:load",
+			state: "start",
+			title: "Dashboard",
+			label: "Load requested"
 		});
+		freeboardUI.showLoadingIndicator(true);
+		try
+		{
+			// Reset the current board before loading the new one.
+			self.clearDashboard();
+			freeboard.emit("activity", {
+				id: "dashboard:load:reset",
+				state: "done",
+				title: "Dashboard",
+				label: "Reset complete"
+			});
+			self.deserialize(dashboardData, function()
+			{
+				try
+				{
+					clearLoading();
+
+					if(_.isFunction(callback))
+					{
+						callback();
+					}
+
+					freeboard.emit("dashboard_loaded");
+					freeboard.emit("activity", {
+						id: "dashboard:load",
+						state: "done",
+						title: "Dashboard",
+						label: "Load complete"
+					});
+				}
+				catch(err)
+				{
+					clearLoading();
+					console.error("Dashboard load callback failed:", err);
+					freeboard.emit("activity", {
+						id: "dashboard:load",
+						state: "error",
+						title: "Dashboard",
+						label: "Load callback failed",
+						detail: String(err && (err.message || err))
+					});
+				}
+			});
+		}
+		catch(err)
+		{
+			clearLoading();
+			console.error("Dashboard load failed:", err);
+			freeboard.emit("activity", {
+				id: "dashboard:load",
+				state: "error",
+				title: "Dashboard",
+				label: "Load failed",
+				detail: String(err && (err.message || err))
+			});
+			alert("Failed to load dashboard. Check the console for details.");
+		}
 	}
 
 	this.loadDashboardFromLocalFile = function()
@@ -621,13 +791,33 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 					reader.addEventListener("load", function(fileReaderEvent)
 					{
+						// Guard JSON parsing so a bad file doesn't leave the app stuck.
+						try
+						{
+							var textFile = fileReaderEvent.target;
+							var jsonObject = JSON.parse(textFile.result);
 
-						var textFile = fileReaderEvent.target;
-						var jsonObject = JSON.parse(textFile.result);
-
-
-						self.loadDashboard(jsonObject);
-						self.setEditing(false);
+							freeboard.emit("activity", {
+								id: "dashboard:load:file",
+								state: "done",
+								title: "Dashboard",
+								label: "File parsed"
+							});
+							self.loadDashboard(jsonObject);
+							self.setEditing(false);
+						}
+						catch(err)
+						{
+							console.error("Dashboard JSON parse failed:", err);
+							freeboard.emit("activity", {
+								id: "dashboard:load:file",
+								state: "error",
+								title: "Dashboard",
+								label: "File parse failed",
+								detail: String(err && (err.message || err))
+							});
+							alert("Invalid dashboard JSON. Check the console for details.");
+						}
 					});
 
 					reader.readAsText(file);
@@ -643,14 +833,8 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	}
 
 	this.saveDashboardClicked = function(){
-		var target = $(event.currentTarget);
-		var siblingsShown = target.data('siblings-shown') || false;
-		if(!siblingsShown){
-			$(event.currentTarget).siblings('label').fadeIn('slow');
-		}else{
-			$(event.currentTarget).siblings('label').fadeOut('slow');
-		}
-		target.data('siblings-shown', !siblingsShown);
+		// Save directly in pretty format; no toggle menu.
+		self.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
 	}
 
 	this.saveDashboard = function(_thisref, event)
@@ -789,6 +973,7 @@ function FreeboardUI()
 
 	var loadingIndicator = $('<div class="wrapperloading"><div class="loading up" ></div><div class="loading down"></div></div>');
 	var grid;
+	var suppressRemove = false;
 
 	function processResize(layoutWidgets)
 	{
@@ -1155,6 +1340,15 @@ function FreeboardUI()
 
 	// Public Functions
 	return {
+		beginBulkRemove : function()
+		{
+			// Avoid double-removal while panes are being cleared.
+			suppressRemove = true;
+		},
+		endBulkRemove : function()
+		{
+			suppressRemove = false;
+		},
 		showLoadingIndicator : function(show)
 		{
 			showLoadingIndicator(show);
@@ -1193,10 +1387,13 @@ function FreeboardUI()
 		},
 		removePane : function(element)
 		{
+			if(suppressRemove) return;
+			if(!grid) return;
 			grid.remove_widget(element);
 		},
 		removeAllPanes : function()
 		{
+			if(!grid) return;
 			grid.remove_all_widgets();
 		},
 		addGridColumnLeft : function()

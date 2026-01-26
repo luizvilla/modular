@@ -22,38 +22,41 @@
     <script src="plugins/thirdparty/justgage.1.0.1.js"></script>
     <!-- <script src="plugins/thirdparty/chartjs-plugin-streaming.min.js"></script>    -->
     <script type="text/javascript">
-        head.js(
-            // "plugins/freeboard/freeboard.datasources.js",
-            // "plugins/freeboard/freeboard.widgets.js",
-            "plugins/uplot.widget.js",
-            "dashboard/js/zoom_control.js",
-            "plugins/serialcommand.widget.js",
-            "plugins/serialterminal.widget.js",
-            "plugins/serialrecord.widget.js",
-            "plugins/serialportcontrol.widget.js",
-            "plugins/serialflash.widget.js",
-            "plugins/serialheaders.widget.js",
-            "plugins/serialfast.datasource.js",
-            "plugins/thingset_serial.datasource.js",
-            "plugins/serialowntech.datasource.js",
-            "plugins/can.datasource.js",
-            "plugins/ts_device_ui.widget.js",
-            "plugins/ts_serial_device_ui.widget.js",
-            "plugins/ts_mode.widget.js",
-            "plugins/ts_control.widget.js",
-            "plugins/ts_measurements.widget.js",
-            "plugins/powerbars.widget.js",
-            "js/activity_toasts.js",
-            "js/dashboard_control.js",
-            "plugins/uplot.series.manager.js",
-            "plugins/uplot.UI.js",
-            function () {
-                // DOM is ready and all plugins are loaded
+        (function () {
+            // Ensure Freeboard exists before loading plugins (prevents "freeboard is not defined").
+            var pluginScripts = [
+                // "plugins/freeboard/freeboard.datasources.js",
+                // "plugins/freeboard/freeboard.widgets.js",
+                "js/activity_toasts.js",
+                "js/dashboard_control.js",
+                "plugins/uplot.widget.js",
+                "js/zoom_control.js",
+                "plugins/serialcommand.widget.js",
+                "plugins/serialterminal.widget.js",
+                "plugins/serialrecord.widget.js",
+                "plugins/serialportcontrol.widget.js",
+                "plugins/serialflash.widget.js",
+                "plugins/serialheaders.widget.js",
+                "plugins/serialfast.datasource.js",
+                "plugins/thingset_serial.datasource.js",
+                "plugins/serialowntech.datasource.js",
+                "plugins/can.datasource.js",
+                "plugins/ts_device_ui.widget.js",
+                "plugins/ts_serial_device_ui.widget.js",
+                "plugins/ts_mode.widget.js",
+                "plugins/ts_control.widget.js",
+                "plugins/ts_measurements.widget.js",
+                "plugins/powerbars.widget.js",
+                "plugins/uplot.series.manager.js",
+                "plugins/uplot.UI.js"
+            ];
+
+            function initFreeboard() {
                 $(function () {
                     setTimeout(function () {
                         console.log("✅ Delayed init: Freeboard now initializing.");
                         freeboard.initialize(true);
-        
+
                         var hashpattern = window.location.hash.match(/(&|#)source=([^&]+)/);
                         if (hashpattern !== null) {
                             $.getJSON(hashpattern[2], function (data) {
@@ -65,8 +68,26 @@
                     }, 100); // Short delay to allow plugin to register
                 });
             }
-        );
-        </script>
+
+            function loadPlugins() {
+                head.js.apply(null, pluginScripts.concat([initFreeboard]));
+            }
+
+            function waitForFreeboard(retries) {
+                if (typeof freeboard !== "undefined" && typeof head !== "undefined") {
+                    loadPlugins();
+                    return;
+                }
+                if (retries <= 0) {
+                    console.error("Freeboard boot timed out: freeboard or head.js missing.");
+                    return;
+                }
+                setTimeout(function () { waitForFreeboard(retries - 1); }, 25);
+            }
+
+            waitForFreeboard(200);
+        })();
+    </script>
 </head>
 <body>
 <div id="board-content">
@@ -83,14 +104,13 @@
                 <h1 id="board-logo" class="title bordered">modular</h1>
                 <div id="board-actions">
                     <ul class="board-toolbar vertical">
-                        <li data-bind="click: loadDashboardFromLocalFile"><i id="full-screen-icon" class="icon-folder-open icon-white"></i><label id="full-screen">Load Freeboard</label></li>
+                        <li data-bind="click: loadDashboardFromLocalFile"><i id="full-screen-icon" class="icon-folder-open icon-white"></i><label id="full-screen">Load Dashboard</label></li>
                         <li><i class="icon-download-alt icon-white"></i>
-                            <label data-bind="click: saveDashboardClicked">Save Freeboard</label>
-                            <label style="display: none;" data-bind="click: saveDashboard" data-pretty="true">[Pretty]</label>
-                            <label style="display: none;" data-bind="click: saveDashboard" data-pretty="false">[Minified]</label>
+                            <label data-bind="click: saveDashboardClicked">Save Dashboard</label>
+                            <!-- Pretty/Minified options removed; Save uses pretty JSON by default. -->
                         </li>
                         <li id="add-pane" data-bind="click: createPane"><i class="icon-plus icon-white"></i><label>Add Pane</label></li>
-                        <li data-bind="click: showWidgetCategoryManager"><i class="icon-list icon-white"></i><label>Widget Categories</label></li>
+                        <!-- Widget Categories moved to the app Edit menu. -->
                     </ul>
                 </div>
             </div>
@@ -192,3 +212,4 @@
 
 </body>
 </html>
+
