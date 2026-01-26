@@ -135,6 +135,75 @@ textarea.form-control {
   display: flex !important;      /* block-level flex so items stack */
 }
 
+/* Vertical gauge widget */
+.vgauge-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(20, 20, 20, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+
+.vgauge-root.vgauge-alarm {
+  border-color: rgba(255, 0, 0, 0.6);
+  box-shadow: 0 0 0 2px rgba(255, 0, 0, 0.15) inset;
+}
+
+.vgauge-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #cfcfcf;
+}
+
+.vgauge-body {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.vgauge-track {
+  position: relative;
+  flex: 1 1 auto;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.vgauge-fill {
+  width: 100%;
+  height: 0%;
+  transition: height 120ms linear;
+}
+
+.vgauge-root.vgauge-alarm .vgauge-fill {
+  background-color: #ef4444 !important;
+}
+
+.vgauge-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  font-size: 11px;
+  color: #9aa0a6;
+  min-width: 44px;
+}
+
+.vgauge-value {
+  font-size: 14px;
+  color: #e5e7eb;
+  text-align: center;
+}
+
 /* Tidy pane/widget tool buttons */
 .pane-tools,
 .sub-section-tools {
