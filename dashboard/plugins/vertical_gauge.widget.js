@@ -181,8 +181,9 @@
         }
 
         async _readInstantValue(s) {
-            if (!s || !s.ds || !this.ipc) return null;
+            if (!s || !s.ds) return null;
             if (s.type === 'serialport_datasource') {
+                if (!this.ipc) return null;
                 const dsSettings = freeboard.getDatasourceSettings(s.ds) || {};
                 const path = dsSettings.portPath || s.ds;
                 const arr = await this.ipc.invoke('get-serial-buffer', { path });
@@ -191,6 +192,7 @@
                 return Number(val);
             }
             if (s.type === 'fast_frame_datasource') {
+                if (!this.ipc) return null;
                 const dsSettings = freeboard.getDatasourceSettings(s.ds) || {};
                 const path = dsSettings.portPath || s.ds;
                 const data = await this.ipc.invoke('get-fast-dataset', { path });
@@ -199,6 +201,7 @@
                 return arr.length ? Number(arr[arr.length - 1]) : null;
             }
             if (s.type === 'can_datasource') {
+                if (!this.ipc) return null;
                 const dsSettings = freeboard.getDatasourceSettings(s.ds) || {};
                 const channel = dsSettings.channel || 'can0';
                 const snap = await this.ipc.invoke('can-aggregate-snapshot', { channel });
@@ -208,6 +211,13 @@
                 const flat = nodes[resolved]?.flat || {};
                 const val = flat[s.var];
                 return Number(val);
+            }
+            if (s.type === 'signal_generator_datasource') {
+                const live = freeboard.getLiveModel?.();
+                const data = live?.datasourceData ? live.datasourceData[s.ds] : null;
+                if (data && data.y1 != null) return Number(data.y1);
+                if (data && data.value != null) return Number(data.value);
+                return null;
             }
             return null;
         }

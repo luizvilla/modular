@@ -485,7 +485,7 @@ class OwnTechPlotUPlot {
             list.forEach(ds => {
                 try {
                     const t = ds.type && ds.type();
-                    if (t === 'serialport_datasource' || t === 'fast_frame_datasource' || t === 'can_datasource') {
+                    if (t === 'serialport_datasource' || t === 'fast_frame_datasource' || t === 'can_datasource' || t === 'signal_generator_datasource') {
                         const name = ds.name();
                         this.dsSelect.append(`<option value="${name}">${name}</option>`);
                     }
@@ -556,7 +556,9 @@ class OwnTechPlotUPlot {
             const type = this.selection.type;
             this.varSelect.empty();
             if (!ds) return;
-            if (type === 'fast_frame_datasource' || type === 'serialport_datasource') {
+            if (type === 'signal_generator_datasource') {
+                this.varSelect.append('<option value="0">Signal</option>');
+            } else if (type === 'fast_frame_datasource' || type === 'serialport_datasource') {
                 const headers = await this._fetchHeaders(ds);
                 let count = headers.length;
                 if (!count) {
@@ -638,7 +640,9 @@ class OwnTechPlotUPlot {
             const type = this._getDatasourceType(ds);
             this.varSelectB.empty();
             if (!ds) return;
-            if (type === 'fast_frame_datasource' || type === 'serialport_datasource') {
+            if (type === 'signal_generator_datasource') {
+                this.varSelectB.append('<option value="0">Signal</option>');
+            } else if (type === 'fast_frame_datasource' || type === 'serialport_datasource') {
                 const headers = await this._fetchHeaders(ds);
                 let count = headers.length;
                 if (!count) {
@@ -865,6 +869,10 @@ class OwnTechPlotUPlot {
                     const val = flat[sel.var];
                     const y = this._transform(sel.op, sel.param, val);
                     if (y != null) this._updatePlotData([y]);
+                } else if (sel.type === 'signal_generator_datasource') {
+                    const val = await this._readInstantValue(sel);
+                    const y = this._transform(sel.op, sel.param, val);
+                    if (y != null) this._updatePlotData([y]);
                 }
             } catch (e) {
                 // ignore transient polling errors
@@ -901,6 +909,12 @@ class OwnTechPlotUPlot {
                 const flat = nodes[resolved]?.flat || {};
                 const val = flat[s.var];
                 return Number(val);
+            } else if (s.type === 'signal_generator_datasource') {
+                const live = freeboard.getLiveModel?.();
+                const data = live?.datasourceData ? live.datasourceData[s.ds] : null;
+                if (data && data.y1 != null) return Number(data.y1);
+                if (data && data.value != null) return Number(data.value);
+                return null;
             }
             return null;
         }

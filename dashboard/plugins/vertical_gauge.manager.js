@@ -152,7 +152,7 @@
             live.datasources().forEach(ds => {
                 try {
                     const t = ds.type && ds.type();
-                    if (t === 'serialport_datasource' || t === 'fast_frame_datasource' || t === 'can_datasource') {
+                    if (t === 'serialport_datasource' || t === 'fast_frame_datasource' || t === 'can_datasource' || t === 'signal_generator_datasource') {
                         list.push({ name: ds.name(), type: t });
                     }
                 } catch {}
@@ -197,7 +197,9 @@
             varSelect.empty();
             const type = this._getDatasourceType(dsName);
             if (!type) return;
-            if (type === 'serialport_datasource' || type === 'fast_frame_datasource') {
+            if (type === 'signal_generator_datasource') {
+                varSelect.append('<option value="0">Signal</option>');
+            } else if (type === 'serialport_datasource' || type === 'fast_frame_datasource') {
                 let headers = [];
                 if (this.ipc) {
                     try {
