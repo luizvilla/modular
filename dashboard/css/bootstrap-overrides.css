@@ -135,6 +135,69 @@ textarea.form-control {
   display: flex !important;      /* block-level flex so items stack */
 }
 
+/* Tidy pane/widget tool buttons */
+.pane-tools,
+.sub-section-tools {
+  white-space: nowrap;
+  z-index: 5;
+}
+
+/* Reserve space so tools don't overlap widget content */
+.sub-section {
+  padding-right: 56px;
+  padding-top: 26px;
+}
+
+/* Keep tools aligned inside the reserved header space */
+.sub-section-tools {
+  top: 4px;
+  right: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sub-section-tools .widget-tools-title {
+  color: #bfbfbf;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-toolbar li.toolbar-separator {
+  cursor: default;
+  color: #6f6f6f;
+  padding: 8px 2px;
+  margin-left: 4px;
+  margin-right: 2px;
+  background-color: transparent;
+}
+
+.board-toolbar li.toolbar-separator:hover {
+  background-color: transparent;
+}
+
+.board-toolbar li.tool-edit {
+  background-color: rgba(90, 120, 160, 0.12);
+}
+
+.board-toolbar li.tool-delete {
+  background-color: rgba(160, 90, 90, 0.12);
+}
+
+.board-toolbar li.tool-edit:hover {
+  background-color: rgba(90, 120, 160, 0.22);
+}
+
+.board-toolbar li.tool-delete:hover {
+  background-color: rgba(160, 90, 90, 0.22);
+}
+
 
 /* Fix margin in DATASOURCES table */
 .sub-table {

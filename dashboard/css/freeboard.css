@@ -1202,6 +1202,7 @@ header h1 {
 	right: 0px;
 	position: absolute;
 	display: none;
+	white-space: nowrap;
 }
 
 .sub-section-tools {
@@ -1209,6 +1210,7 @@ header h1 {
 	right: 0px;
 	position: absolute;
 	display: none;
+	white-space: nowrap;
 }
 
 .datasource-edit-btn {
@@ -2129,6 +2131,35 @@ ul.board-toolbar.vertical {
 	height: 14px;
 }
 
+.board-toolbar li.toolbar-separator {
+	cursor: default;
+	color: #6f6f6f;
+	padding: 8px 2px;
+	margin-left: 4px;
+	margin-right: 2px;
+	background-color: transparent;
+}
+
+.board-toolbar li.toolbar-separator:hover {
+	background-color: transparent;
+}
+
+.board-toolbar li.tool-edit {
+	background-color: rgba(90, 120, 160, 0.12);
+}
+
+.board-toolbar li.tool-delete {
+	background-color: rgba(160, 90, 90, 0.12);
+}
+
+.board-toolbar li.tool-edit:hover {
+	background-color: rgba(90, 120, 160, 0.22);
+}
+
+.board-toolbar li.tool-delete:hover {
+	background-color: rgba(160, 90, 90, 0.22);
+}
+
 .board-toolbar.vertical li {
 	float: none;
 }
@@ -2727,4 +2758,3 @@ input:-moz-placeholder, textarea:-moz-placeholder {
 	width: 100%;
 	height: 100% !important;
 }
-
