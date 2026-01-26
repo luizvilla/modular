@@ -1371,6 +1371,273 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 	}
 }
 
+var WIDGET_CATEGORY_STORAGE_KEY = "freeboard.widget_categories";
+
+function _getDefaultWidgetCategories()
+{
+	return ["Serial", "ThingSet", "Plots", "Controls", "Other"];
+}
+
+function _normalizeCategories(categories)
+{
+	var seen = {};
+	var normalized = [];
+	_.each(categories, function(category)
+	{
+		var name = (category || "").toString().trim();
+		if(name.length === 0) return;
+		if(!seen[name])
+		{
+			seen[name] = true;
+			normalized.push(name);
+		}
+	});
+	return normalized;
+}
+
+function _inferWidgetCategory(typeName, pluginType)
+{
+	var name = (typeName || "").toLowerCase();
+	var display = (pluginType && pluginType.display_name ? pluginType.display_name : "").toLowerCase();
+
+	if(name.indexOf("serial") === 0 || name.indexOf("_serial") > -1 || display.indexOf("serial") > -1)
+	{
+		return "Serial";
+	}
+	if(name.indexOf("thingset") === 0 || name.indexOf("ts_") === 0 || display.indexOf("thingset") > -1)
+	{
+		return "ThingSet";
+	}
+	if(name.indexOf("uplot") === 0 || name.indexOf("plot") > -1 || name.indexOf("power_bars") > -1 || display.indexOf("plot") > -1)
+	{
+		return "Plots";
+	}
+	if(name.indexOf("control") > -1 || name.indexOf("mode") > -1 || display.indexOf("control") > -1)
+	{
+		return "Controls";
+	}
+
+	return "Other";
+}
+
+function getWidgetCategoryConfig()
+{
+	var stored = null;
+	try
+	{
+		stored = JSON.parse(localStorage.getItem(WIDGET_CATEGORY_STORAGE_KEY) || "null");
+	}
+	catch(e)
+	{
+		stored = null;
+	}
+
+	var categories = stored && _.isArray(stored.categories) ? stored.categories : _getDefaultWidgetCategories();
+	categories = _normalizeCategories(categories);
+	if(categories.length === 0)
+	{
+		categories = _getDefaultWidgetCategories();
+	}
+	if(!_.contains(categories, "Other"))
+	{
+		categories.push("Other");
+	}
+
+	var widgetCategories = stored && _.isObject(stored.widgetCategories) ? stored.widgetCategories : {};
+
+	return {
+		categories: categories,
+		widgetCategories: widgetCategories
+	};
+}
+
+function saveWidgetCategoryConfig(config)
+{
+	var categories = _normalizeCategories(config && config.categories ? config.categories : []);
+	if(categories.length === 0)
+	{
+		categories = _getDefaultWidgetCategories();
+	}
+	if(!_.contains(categories, "Other"))
+	{
+		categories.push("Other");
+	}
+	var widgetCategories = config && _.isObject(config.widgetCategories) ? config.widgetCategories : {};
+	try
+	{
+		localStorage.setItem(WIDGET_CATEGORY_STORAGE_KEY, JSON.stringify({
+			categories: categories,
+			widgetCategories: widgetCategories
+		}));
+	}
+	catch(e)
+	{
+	}
+}
+
+function getWidgetCategoryForType(typeName, pluginType, config)
+{
+	if(pluginType && pluginType.category)
+	{
+		return pluginType.category;
+	}
+	var categoryConfig = config || getWidgetCategoryConfig();
+	var mapped = categoryConfig.widgetCategories && categoryConfig.widgetCategories[typeName];
+	if(mapped)
+	{
+		return mapped;
+	}
+	return _inferWidgetCategory(typeName, pluginType);
+}
+
+WidgetCategoryManager = function(theFreeboardModel, widgetPlugins)
+{
+	function showWidgetCategoryManager()
+	{
+		var config = getWidgetCategoryConfig();
+		var categories = config.categories.slice(0);
+		var widgetCategories = _.clone(config.widgetCategories || {});
+
+		var container = $("<div></div>");
+		container.append($("<p>Organize widget types into categories. Categories and assignments are stored locally in your browser.</p>"));
+
+		var categoryTable = $('<table class="table table-condensed sub-table"></table>');
+		categoryTable.append($("<thead><tr><th>Categories</th><th>&nbsp;</th></tr></thead>"));
+		var categoryBody = $("<tbody></tbody>");
+		categoryTable.append(categoryBody);
+
+		var addCategoryButton = $('<div class="table-operation text-button">ADD CATEGORY</div>');
+
+		var mappingTable = $('<table class="table table-condensed sub-table"></table>');
+		mappingTable.append($("<thead><tr><th>Widget</th><th>Category</th></tr></thead>"));
+		var mappingBody = $("<tbody></tbody>");
+		mappingTable.append(mappingBody);
+
+		container.append(categoryTable).append(addCategoryButton).append(mappingTable);
+
+		function renderCategoryRows()
+		{
+			categoryBody.empty();
+			_.each(categories, function(category, index)
+			{
+				var row = $("<tr></tr>");
+				var nameCell = $("<td></td>");
+				var input = $('<input class="table-row-value" type="text">').val(category);
+				input.on("change", function()
+				{
+					categories[index] = $(this).val();
+					renderMappingRows();
+				});
+				nameCell.append(input);
+
+				var controlsCell = $("<td></td>");
+				var toolbar = $('<ul class="board-toolbar"></ul>');
+				var removeBtn = $('<li><i class="icon-trash icon-white"></i></li>').on("click", function()
+				{
+					categories.splice(index, 1);
+					renderCategoryRows();
+					renderMappingRows();
+				});
+				toolbar.append(removeBtn);
+				controlsCell.append(toolbar);
+
+				row.append(nameCell).append(controlsCell);
+				categoryBody.append(row);
+			});
+		}
+
+		function renderMappingRows()
+		{
+			mappingBody.empty();
+			var normalized = _normalizeCategories(categories);
+			if(normalized.length === 0)
+			{
+				normalized = _getDefaultWidgetCategories();
+			}
+			if(!_.contains(normalized, "Other"))
+			{
+				normalized.push("Other");
+			}
+
+			var pluginList = _.sortBy(_.values(widgetPlugins), function(plugin)
+			{
+				return (plugin.display_name || plugin.type_name || "").toLowerCase();
+			});
+
+			_.each(pluginList, function(plugin)
+			{
+				var row = $("<tr></tr>");
+				row.append($("<td></td>").text(plugin.display_name || plugin.type_name));
+
+				var select = $("<select></select>");
+				_.each(normalized, function(category)
+				{
+					select.append($("<option></option>").val(category).text(category));
+				});
+
+				var current = widgetCategories[plugin.type_name] || getWidgetCategoryForType(plugin.type_name, plugin, {
+					categories: normalized,
+					widgetCategories: widgetCategories
+				});
+				if(!_.contains(normalized, current))
+				{
+					current = _.contains(normalized, "Other") ? "Other" : normalized[0];
+				}
+				select.val(current);
+				select.on("change", function()
+				{
+					widgetCategories[plugin.type_name] = $(this).val();
+				});
+
+				row.append($("<td></td>").append(select));
+				mappingBody.append(row);
+			});
+		}
+
+		addCategoryButton.on("click", function()
+		{
+			categories.push("New Category");
+			renderCategoryRows();
+			renderMappingRows();
+		});
+
+		renderCategoryRows();
+		renderMappingRows();
+
+		new DialogBox(container, "Widget Categories", "Save", "Cancel", function()
+		{
+			var normalized = _normalizeCategories(categories);
+			if(normalized.length === 0)
+			{
+				normalized = _getDefaultWidgetCategories();
+			}
+			if(!_.contains(normalized, "Other"))
+			{
+				normalized.push("Other");
+			}
+
+			_.each(widgetCategories, function(value, key)
+			{
+				if(!_.contains(normalized, value))
+				{
+					widgetCategories[key] = _.contains(normalized, "Other") ? "Other" : normalized[0];
+				}
+			});
+
+			saveWidgetCategoryConfig({
+				categories: normalized,
+				widgetCategories: widgetCategories
+			});
+
+			theFreeboardModel._widgetTypes.valueHasMutated();
+		});
+	}
+
+	return {
+		showWidgetCategoryManager: showWidgetCategoryManager
+	};
+}
+
 PluginEditor = function(jsEditor, valueEditor)
 {
 	function _displayValidationError(settingName, errorMessage)
@@ -1457,7 +1724,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		$(valueCell).append(wrapperDiv);
 	}
 
-	function createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback)
+	function createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType)
 	{
 		var newSettings = {
 			type    : currentTypeName,
@@ -1889,15 +2156,63 @@ PluginEditor = function(jsEditor, valueEditor)
 
 			typeSelect.append($("<option>Select a type...</option>").attr("value", "undefined"));
 
-			_.each(pluginTypes, function(pluginType)
+			if(isWidgetType)
 			{
-				var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
-				if(pluginType.description && pluginType.description.length > 0)
+				var categoryConfig = getWidgetCategoryConfig();
+				var categories = categoryConfig.categories.slice(0);
+				var grouped = {};
+
+				_.each(pluginTypes, function(pluginType)
 				{
-					option.attr("title", pluginType.description);
-				}
-				typeSelect.append(option);
-			});
+					var category = getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
+					if(!grouped[category])
+					{
+						grouped[category] = [];
+					}
+					grouped[category].push(pluginType);
+				});
+
+				_.each(_.keys(grouped), function(category)
+				{
+					if(!_.contains(categories, category))
+					{
+						categories.push(category);
+					}
+				});
+
+				_.each(categories, function(category)
+				{
+					var list = grouped[category];
+					if(!list || list.length === 0) return;
+
+					typeSelect.append($("<option></option>").text("-- " + category + " --").attr("value", "").prop("disabled", true));
+
+					_.each(_.sortBy(list, function(pluginType)
+					{
+						return (pluginType.display_name || pluginType.type_name || "").toLowerCase();
+					}), function(pluginType)
+					{
+						var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
+						if(pluginType.description && pluginType.description.length > 0)
+						{
+							option.attr("title", pluginType.description);
+						}
+						typeSelect.append(option);
+					});
+				});
+			}
+			else
+			{
+				_.each(pluginTypes, function(pluginType)
+				{
+					var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
+					if(pluginType.description && pluginType.description.length > 0)
+					{
+						option.attr("title", pluginType.description);
+					}
+					typeSelect.append(option);
+				});
+			}
 
 			typeSelect.change(function()
 			{
@@ -1962,12 +2277,12 @@ PluginEditor = function(jsEditor, valueEditor)
 		createPluginEditor : function(
 			title,
 			pluginTypes,
-			currentInstanceName,
 			currentTypeName,
 			currentSettingsValues,
-			settingsSavedCallback)
+			settingsSavedCallback,
+			isWidgetType)
 		{
-			createPluginEditor(title, pluginTypes, currentInstanceName, currentTypeName, currentSettingsValues, settingsSavedCallback);
+			createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType);
 		}
 	}
 }
@@ -2744,6 +3059,12 @@ var freeboard = (function()
 	var pluginEditor = new PluginEditor(jsEditor, valueEditor);
 
 	var developerConsole = new DeveloperConsole(theFreeboardModel);
+	var widgetCategoryManager = new WidgetCategoryManager(theFreeboardModel, widgetPlugins);
+
+	theFreeboardModel.showWidgetCategoryManager = function()
+	{
+		widgetCategoryManager.showWidgetCategoryManager();
+	};
 
 	var currentStyle = {
 		values: {
@@ -2905,7 +3226,7 @@ var freeboard = (function()
 								viewModel.settings(newSettings.settings);
 							}
 						}
-					});
+					}, options.type === 'widget');
 				}
 			});
 		}
@@ -3172,6 +3493,22 @@ var freeboard = (function()
 		showDeveloperConsole : function()
 		{
 			developerConsole.showDeveloperConsole();
+		},
+		showWidgetCategoryManager : function()
+		{
+			widgetCategoryManager.showWidgetCategoryManager();
+		},
+		getWidgetCategoryConfig : function()
+		{
+			return getWidgetCategoryConfig();
+		},
+		setWidgetCategoryConfig : function(config)
+		{
+			saveWidgetCategoryConfig(config);
+		},
+		getWidgetCategoryForType : function(typeName, pluginType, config)
+		{
+			return getWidgetCategoryForType(typeName, pluginType, config);
 		}
 	};
 }());
