@@ -22,6 +22,7 @@ if (noGpu) {
 }
 
 let mainWindow; // reference to the main BrowserWindow
+let exampleWindow; // dedicated window for example documentation and actions
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -83,6 +84,23 @@ function setAppMenu() {
                             mainWindow.webContents.send('show-widget-categories');
                         }
                     }
+                }
+            ]
+        },
+        // Examples menu opens standalone example documentation and actions.
+        {
+            label: 'Examples',
+            submenu: [
+                {
+                    label: 'TWIST',
+                    submenu: [
+                        {
+                            label: 'Voltage source inverter',
+                            click: () => {
+                                openExampleWindow('twist_vsi');
+                            }
+                        }
+                    ]
                 }
             ]
         }
@@ -268,6 +286,42 @@ function createWindow() {
                 mainWindow = null;
         });
 }
+
+// Standalone examples window for offline markdown docs and example actions.
+function openExampleWindow(exampleId) {
+    if (exampleWindow) {
+        exampleWindow.focus();
+        exampleWindow.webContents.send('example-select', { id: exampleId });
+        return;
+    }
+    exampleWindow = new BrowserWindow({
+        width: 1100,
+        height: 800,
+        title: 'Modular Examples',
+        icon: path.join(__dirname, 'assets', 'icon.png'),
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+    exampleWindow.loadFile(path.join(__dirname, 'dashboard', 'examples', 'example_viewer.html'), {
+        query: { id: exampleId || '' }
+    });
+    exampleWindow.on('closed', () => {
+        exampleWindow = null;
+    });
+}
+
+// Load a dashboard JSON from a path into the main window Freeboard instance.
+ipcMain.handle('load-dashboard-from-path', async (_event, { dashboardPath } = {}) => {
+    if (!mainWindow || !dashboardPath) return { ok: false, error: 'Missing dashboard path or main window.' };
+    try {
+        mainWindow.webContents.send('load-dashboard-from-path', { dashboardPath });
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
 
 app.whenReady().then(createWindow);
 

@@ -73,6 +73,26 @@
             }
         }
     });
+
+    // Load a dashboard JSON from a specific path (used by the Examples window).
+    ipcRenderer.on('load-dashboard-from-path', async (_event, { dashboardPath } = {}) => {
+        if (!dashboardPath) return;
+        try {
+            const text = await fs.promises.readFile(dashboardPath, 'utf8');
+            const jsonObject = JSON.parse(text);
+            if (window.freeboard && typeof window.freeboard.loadDashboard === 'function') {
+                window.freeboard.loadDashboard(jsonObject, function () {
+                    window.freeboard.setEditing(false);
+                });
+            } else if (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function') {
+                window.freeboardModel.loadDashboard(jsonObject, function () {
+                    window.freeboardModel.setEditing(false);
+                });
+            }
+        } catch (err) {
+            console.error('Load dashboard from path failed:', err);
+        }
+    });
     // 🔍 Widget lookup
     function getWidgetByTitle(title) {
         return freeboardModel.panes()
