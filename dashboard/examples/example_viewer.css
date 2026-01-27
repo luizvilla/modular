@@ -30,6 +30,27 @@ body {
     font-size: 13px;
 }
 
+.example-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.example-picker label {
+    font-size: 12px;
+    color: #9aa4b2;
+}
+
+.example-picker select {
+    background: #10141d;
+    border: 1px solid #394052;
+    color: #e6e6e6;
+    padding: 6px 8px;
+    border-radius: 6px;
+    min-width: 320px;
+}
+
 .actions {
     display: flex;
     gap: 10px;

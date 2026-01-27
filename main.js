@@ -49,7 +49,70 @@ ipcMain.on('renderer-log', (_event, { level = 'log', args = [] } = {}) => {
 });
 
 // App menu is custom: Edit only hosts "Widget Categories" and View/Window are removed.
+// Build a nested Examples menu from dashboard/docs/examples/**/README.md.
+function buildExamplesMenuItems() {
+    try {
+        const baseDir = path.join(__dirname, 'dashboard', 'docs', 'examples');
+        if (!fs.existsSync(baseDir)) return [];
+
+        const readmes = [];
+        const walk = (dir) => {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(full);
+                } else if (entry.isFile() && entry.name.toLowerCase() === 'readme.md') {
+                    readmes.push(full);
+                }
+            }
+        };
+        walk(baseDir);
+
+        if (!readmes.length) return [];
+
+        const root = { children: new Map(), exampleId: null };
+        for (const rm of readmes) {
+            const relDir = path.relative(baseDir, path.dirname(rm));
+            const parts = relDir.split(path.sep).filter(Boolean);
+            if (!parts.length) continue;
+            let node = root;
+            for (const part of parts) {
+                if (!node.children.has(part)) node.children.set(part, { children: new Map(), exampleId: null });
+                node = node.children.get(part);
+            }
+            node.exampleId = parts.join('/');
+        }
+
+        const buildMenuFromNode = (node) => {
+            const items = [];
+            const keys = Array.from(node.children.keys()).sort((a, b) => a.localeCompare(b));
+            for (const key of keys) {
+                const child = node.children.get(key);
+                if (child.children.size > 0) {
+                    items.push({
+                        label: key,
+                        submenu: buildMenuFromNode(child)
+                    });
+                } else if (child.exampleId) {
+                    items.push({
+                        label: key,
+                        click: () => openExampleWindow(child.exampleId)
+                    });
+                }
+            }
+            return items;
+        };
+
+        return buildMenuFromNode(root);
+    } catch (err) {
+        console.warn('Failed to build Examples menu:', err?.message || err);
+        return [];
+    }
+}
+
 function setAppMenu() {
+    const examplesMenu = buildExamplesMenuItems();
     const template = [
         {
             label: 'File',
@@ -90,19 +153,7 @@ function setAppMenu() {
         // Examples menu opens standalone example documentation and actions.
         {
             label: 'Examples',
-            submenu: [
-                {
-                    label: 'TWIST',
-                    submenu: [
-                        {
-                            label: 'Voltage source inverter',
-                            click: () => {
-                                openExampleWindow('twist_vsi');
-                            }
-                        }
-                    ]
-                }
-            ]
+            submenu: examplesMenu.length ? examplesMenu : [{ label: 'No examples found', enabled: false }]
         }
     ];
 

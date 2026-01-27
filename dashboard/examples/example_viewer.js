@@ -9,6 +9,7 @@
     const titleEl = document.getElementById('example-title');
     const subtitleEl = document.getElementById('example-subtitle');
     const docContent = document.getElementById('doc-content');
+    const exampleSelect = document.getElementById('example-select');
     const portSelect = document.getElementById('port-select');
     const loadDashboardBtn = document.getElementById('load-dashboard-btn');
     const uploadFirmwareBtn = document.getElementById('upload-firmware-btn');
@@ -19,15 +20,8 @@
     const progressState = document.getElementById('upload-state');
     const progressLabel = document.getElementById('upload-label');
 
-    const EXAMPLES = {
-        twist_vsi: {
-            title: 'Voltage source inverter',
-            subtitle: 'TWIST example',
-            docPath: path.join(__dirname, '..', 'docs', 'examples', 'buck_voltage_mode', 'README.md'),
-            dashboardPath: path.join(__dirname, '..', 'dashboards', 'buck_voltage_mode', 'buck_voltage_mode.json'),
-            firmwarePath: path.join(__dirname, '..', 'binaries', 'buck_voltage_mode', 'Voltage Mode Buck.mcuboot.bin')
-        }
-    };
+    // Examples are discovered from dashboard/docs/examples at runtime.
+    const examplesById = new Map();
 
     let currentExample = null;
     let isUploading = false;
@@ -213,8 +207,68 @@
         return renderMarkdownBlocks(lines, baseDir).join('\n');
     }
 
+    // Build example list by scanning dashboard/docs/examples/**/README.md.
+    async function loadExamplesIndex() {
+        examplesById.clear();
+        const baseDir = path.join(__dirname, '..', 'docs', 'examples');
+
+        async function walk(dir) {
+            let entries = [];
+            try {
+                entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            } catch {
+                return [];
+            }
+            const results = [];
+            for (const entry of entries) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    results.push(...await walk(full));
+                } else if (entry.isFile() && entry.name.toLowerCase() === 'readme.md') {
+                    results.push(full);
+                }
+            }
+            return results;
+        }
+
+        const readmes = await walk(baseDir);
+        readmes.sort((a, b) => a.localeCompare(b));
+        for (const rm of readmes) {
+            const dir = path.dirname(rm);
+            const relDir = path.relative(baseDir, dir);
+            const parts = relDir.split(path.sep).filter(Boolean);
+            const leaf = path.basename(dir);
+            const id = parts.join('/');
+            const board = parts[0] || '';
+            const category = parts.slice(1, -1).join(' / ');
+            const subtitle = board ? (category ? `${board} - ${category}` : board) : '';
+            const label = parts.length ? parts.join(' / ') : leaf;
+            const example = {
+                id,
+                title: leaf,
+                subtitle,
+                label,
+                docPath: rm,
+                dashboardPath: path.join(__dirname, '..', 'dashboards', leaf, `${leaf}.json`),
+                firmwarePath: path.join(__dirname, '..', 'binaries', leaf, `${leaf}.mcuboot.bin`)
+            };
+            examplesById.set(id, example);
+        }
+        return examplesById;
+    }
+
+    function populateExampleSelect() {
+        exampleSelect.innerHTML = '';
+        for (const ex of examplesById.values()) {
+            const opt = document.createElement('option');
+            opt.value = ex.id;
+            opt.textContent = ex.label;
+            exampleSelect.appendChild(opt);
+        }
+    }
+
     async function loadExample(exampleId) {
-        const example = EXAMPLES[exampleId];
+        const example = examplesById.get(exampleId) || null;
         if (!example) {
             setStatus('Example not found.');
             docContent.innerHTML = '<p>Example configuration missing.</p>';
@@ -292,7 +346,7 @@
                 firmwarePath: currentExample.firmwarePath
             });
         } catch (err) {
-            setProgress(0, `Error: ${err?.message || String(err)}`);
+            setFailure(`Error: ${err?.message || String(err)}`);
             setStatus('Upload failed to start.');
             isUploading = false;
             uploadFirmwareBtn.disabled = false;
@@ -324,16 +378,34 @@
     });
 
     ipcRenderer.on('example-select', (_event, { id }) => {
-        loadExample(id);
+        if (id && examplesById.has(id)) {
+            exampleSelect.value = id;
+            loadExample(id);
+        }
     });
 
     loadDashboardBtn.addEventListener('click', loadDashboard);
     uploadFirmwareBtn.addEventListener('click', uploadFirmware);
     refreshPortsBtn.addEventListener('click', refreshPorts);
+    exampleSelect.addEventListener('change', () => {
+        const id = exampleSelect.value;
+        if (id) loadExample(id);
+    });
 
     const urlParams = new URLSearchParams(window.location.search);
-    const initialId = urlParams.get('id') || 'twist_vsi';
+    const requestedId = urlParams.get('id');
     resetProgress();
     refreshPorts();
-    loadExample(initialId);
+    loadExamplesIndex().then(() => {
+        populateExampleSelect();
+        const first = exampleSelect.options.length ? exampleSelect.options[0].value : null;
+        const initialId = (requestedId && examplesById.has(requestedId)) ? requestedId : first;
+        if (initialId) {
+            exampleSelect.value = initialId;
+            loadExample(initialId);
+        } else {
+            setStatus('No examples found.');
+            docContent.innerHTML = '<p>No examples found in dashboard/docs/examples.</p>';
+        }
+    });
 })();
