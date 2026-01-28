@@ -45,6 +45,7 @@
     let lastAllowEdit = null;
     // Toggle a body class to hide dashboard UI without leaving inline styles behind.
     const docsModeClass = 'docs-mode';
+    const dashboardModeClass = 'dashboard-mode';
     // Dock preview state for popping an example window back into the tab strip.
     let dockPreviewTab = null;
     let dockPreviewExampleId = null;
@@ -412,6 +413,8 @@
             console.log('[tabs] switching to dashboard view');
             document.body.classList.remove(docsModeClass);
             document.documentElement.classList.remove(docsModeClass);
+            document.body.classList.add(dashboardModeClass);
+            document.documentElement.classList.add(dashboardModeClass);
             if (mainHeader) mainHeader.style.display = '';
             if (boardContent) boardContent.style.display = '';
             try {
@@ -482,6 +485,7 @@
                     if (window.freeboard && typeof window.freeboard.getLiveModel === 'function') {
                         const model = window.freeboard.getLiveModel();
                         if (model && typeof model.allow_edit === 'function') {
+                            // Ensure the header can render when returning to the dashboard tab.
                             model.allow_edit(lastAllowEdit !== null ? lastAllowEdit : true);
                         }
                     }
@@ -493,6 +497,27 @@
                         const allowEdit = model && typeof model.allow_edit === 'function'
                             ? model.allow_edit()
                             : true;
+                        console.log('[tabs] allow_edit check:', {
+                            hasFreeboard: !!window.freeboard,
+                            hasLiveModel: !!(window.freeboard && typeof window.freeboard.getLiveModel === 'function'),
+                            hasFreeboardModel: !!window.freeboardModel,
+                            allowEdit,
+                            lastAllowEdit
+                        });
+                        // If allow_edit was forced off elsewhere, re-enable it on the dashboard tab.
+                        if (model && typeof model.allow_edit === 'function' && !allowEdit) {
+                            model.allow_edit(true);
+                            console.log('[tabs] allow_edit forced true');
+                        }
+                        if (model && typeof model.allow_edit === 'function' && mainHeader) {
+                            const headerDisplay = getComputedStyle(mainHeader).display;
+                            if (allowEdit && headerDisplay === 'none') {
+                                // Force the allow_edit subscription to re-run so the header is shown.
+                                model.allow_edit(false);
+                                model.allow_edit(true);
+                                console.log('[tabs] allow_edit toggled to refresh header display');
+                            }
+                        }
                         if (window.$) {
                             const beforeShown = $("#main-header").data('shown');
                             console.log('[tabs] jQuery present; main-header data.shown before:', beforeShown);
@@ -652,6 +677,8 @@
         docPanel.hidden = false;
         document.body.classList.add(docsModeClass);
         document.documentElement.classList.add(docsModeClass);
+        document.body.classList.remove(dashboardModeClass);
+        document.documentElement.classList.remove(dashboardModeClass);
         const tab = tabs.get(tabId);
         if (tab && tab.exampleId) {
             exampleSelect.value = tab.exampleId;

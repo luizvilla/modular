@@ -68,6 +68,12 @@ html.docs-mode #board-content {
     display: none !important;
 }
 
+/* Dashboard mode force-shows the header when returning from docs tabs. */
+body.dashboard-mode #main-header,
+html.dashboard-mode #main-header {
+    display: block !important;
+}
+
 .doc-panel {
     padding: 16px 20px 20px;
     background: #0f1115;
