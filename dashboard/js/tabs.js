@@ -41,6 +41,13 @@
     let headerObserver = null;
     let lastHeaderSnapshot = null;
     let lastHeaderState = null;
+    // Preserve allow_edit so the dashboard header can be restored after docs tabs.
+    let lastAllowEdit = null;
+    // Toggle a body class to hide dashboard UI without leaving inline styles behind.
+    const docsModeClass = 'docs-mode';
+    // Dock preview state for popping an example window back into the tab strip.
+    let dockPreviewTab = null;
+    let dockPreviewExampleId = null;
 
     function setStatus(message) {
         statusBar.textContent = message || '';
@@ -403,6 +410,10 @@
         }
         if (tabId === dashboardTabId) {
             console.log('[tabs] switching to dashboard view');
+            document.body.classList.remove(docsModeClass);
+            document.documentElement.classList.remove(docsModeClass);
+            if (mainHeader) mainHeader.style.display = '';
+            if (boardContent) boardContent.style.display = '';
             try {
                 if (mainHeader && !headerObserver && window.MutationObserver) {
                     headerObserver = new MutationObserver((mutations) => {
@@ -462,20 +473,37 @@
                 console.warn('[tabs] state snapshot failed:', err?.message || err);
             }
             docPanel.hidden = true;
-            boardContent.style.display = '';
             if (mainHeader) {
                 try {
                     if (window.freeboardModel && typeof window.freeboardModel.allow_edit === 'function') {
                         const canEdit = !!window.freeboardModel.allow_edit();
                         console.log('[tabs] allow_edit:', canEdit);
                     }
-                    // Always restore the dashboard header when returning to the dashboard view.
+                    if (window.freeboard && typeof window.freeboard.getLiveModel === 'function') {
+                        const model = window.freeboard.getLiveModel();
+                        if (model && typeof model.allow_edit === 'function') {
+                            model.allow_edit(lastAllowEdit !== null ? lastAllowEdit : true);
+                        }
+                    }
+                    // Show the header only on the dashboard tab and only when allow_edit is enabled.
                     try {
+                        const model = window.freeboard && typeof window.freeboard.getLiveModel === 'function'
+                            ? window.freeboard.getLiveModel()
+                            : window.freeboardModel;
+                        const allowEdit = model && typeof model.allow_edit === 'function'
+                            ? model.allow_edit()
+                            : true;
                         if (window.$) {
                             const beforeShown = $("#main-header").data('shown');
                             console.log('[tabs] jQuery present; main-header data.shown before:', beforeShown);
-                            $("#main-header").show().data('shown', true);
-                            console.log('[tabs] jQuery show() called; main-header data.shown after:', $("#main-header").data('shown'));
+                            if (allowEdit) {
+                                $("#main-header").show().data('shown', true);
+                            } else {
+                                $("#main-header").hide().data('shown', false);
+                            }
+                            console.log('[tabs] jQuery allow_edit applied; main-header data.shown after:', $("#main-header").data('shown'));
+                        } else if (mainHeader) {
+                            mainHeader.style.display = allowEdit ? '' : 'none';
                         }
                     } catch {}
                     const tabsEl = document.getElementById('app-tabs');
@@ -612,10 +640,18 @@
                     styleAttr: mainHeader.getAttribute('style')
                 };
             }
+            if (window.freeboard && typeof window.freeboard.getLiveModel === 'function') {
+                const model = window.freeboard.getLiveModel();
+                if (model && typeof model.allow_edit === 'function') {
+                    lastAllowEdit = model.allow_edit();
+                }
+            } else if (window.freeboardModel && typeof window.freeboardModel.allow_edit === 'function') {
+                lastAllowEdit = window.freeboardModel.allow_edit();
+            }
         } catch {}
         docPanel.hidden = false;
-        boardContent.style.display = 'none';
-        if (mainHeader) mainHeader.style.display = 'none';
+        document.body.classList.add(docsModeClass);
+        document.documentElement.classList.add(docsModeClass);
         const tab = tabs.get(tabId);
         if (tab && tab.exampleId) {
             exampleSelect.value = tab.exampleId;
@@ -635,6 +671,43 @@
         }
     }
 
+    function clearDockPreview() {
+        if (dockPreviewExampleId) {
+            const existing = tabs.get(`doc:${dockPreviewExampleId}`);
+            if (existing) existing.button.classList.remove('dock-preview');
+        }
+        if (dockPreviewTab) {
+            dockPreviewTab.remove();
+            dockPreviewTab = null;
+        }
+        dockPreviewExampleId = null;
+    }
+
+    function showDockPreview(exampleId) {
+        if (!exampleId) {
+            clearDockPreview();
+            return;
+        }
+        if (dockPreviewExampleId === exampleId) return;
+        clearDockPreview();
+        dockPreviewExampleId = exampleId;
+        const existing = tabs.get(`doc:${exampleId}`);
+        if (existing) {
+            existing.button.classList.add('dock-preview');
+            return;
+        }
+        const example = examplesById.get(exampleId);
+        const label = example ? example.title : exampleId;
+        const btn = document.createElement('button');
+        btn.className = 'tab tab-dock-preview';
+        btn.textContent = label;
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        btn.dataset.previewId = exampleId;
+        tabStrip.appendChild(btn);
+        dockPreviewTab = btn;
+    }
+
     function isPointInWindow(screenX, screenY) {
         const left = window.screenX;
         const top = window.screenY;
@@ -648,6 +721,9 @@
         if (tabs.has(id)) {
             setActiveTab(id);
             return;
+        }
+        if (dockPreviewExampleId === exampleId) {
+            clearDockPreview();
         }
         const example = examplesById.get(exampleId);
         const label = example ? example.title : exampleId;
@@ -727,6 +803,10 @@
     ipcRenderer.on('open-example-tab', (_e, { id }) => {
         console.log('[tabs] open-example-tab IPC:', id);
         if (id) openExampleTab(id);
+    });
+    ipcRenderer.on('example-dock-preview', (_e, { id, active }) => {
+        if (active) showDockPreview(id);
+        else clearDockPreview();
     });
 
     resetProgress();

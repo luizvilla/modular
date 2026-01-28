@@ -25,6 +25,12 @@ let mainWindow; // reference to the main BrowserWindow
 let exampleWindow; // dedicated window for example documentation and actions
 let exampleTabRequestTimer; // debounce example tab requests
 let pendingExampleTabId = null; // last requested example tab (for late renderer init)
+// Track example window docking previews/selection so popped tabs can be dragged back.
+let exampleWindowActiveId = null;
+let exampleDockPreviewActive = false;
+let exampleDockMoveTimer = null;
+let exampleDockLastOverlap = false;
+let exampleDockingInProgress = false;
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -371,6 +377,7 @@ function openExampleWindow(exampleId) {
         exampleWindow.webContents.send('example-select', { id: exampleId });
         return;
     }
+    exampleWindowActiveId = exampleId || null;
     exampleWindow = new BrowserWindow({
         width: 1100,
         height: 800,
@@ -384,7 +391,59 @@ function openExampleWindow(exampleId) {
     exampleWindow.loadFile(path.join(__dirname, 'dashboard', 'examples', 'example_viewer.html'), {
         query: { id: exampleId || '' }
     });
+    // Watch for window moves to show a dock preview and pop the tab back in on release.
+    const updateDockPreview = () => {
+        if (!exampleWindow || !mainWindow || !mainWindow.webContents) return;
+        const eb = exampleWindow.getBounds();
+        const mb = mainWindow.getBounds();
+        const overlapX = Math.max(0, Math.min(eb.x + eb.width, mb.x + mb.width) - Math.max(eb.x, mb.x));
+        const overlapY = Math.max(0, Math.min(eb.y + eb.height, mb.y + mb.height) - Math.max(eb.y, mb.y));
+        const overlapArea = overlapX * overlapY;
+        const exampleArea = eb.width * eb.height || 1;
+        const overlapRatio = overlapArea / exampleArea;
+        const shouldPreview = overlapRatio >= 0.2 && Boolean(exampleWindowActiveId);
+        if (shouldPreview !== exampleDockPreviewActive || exampleDockLastOverlap !== shouldPreview) {
+            exampleDockPreviewActive = shouldPreview;
+            exampleDockLastOverlap = shouldPreview;
+            mainWindow.webContents.send('example-dock-preview', {
+                id: exampleWindowActiveId,
+                active: shouldPreview
+            });
+        }
+    };
+    const tryDockOnRelease = () => {
+        clearTimeout(exampleDockMoveTimer);
+        exampleDockMoveTimer = setTimeout(() => {
+            if (!exampleWindow || !mainWindow) return;
+            if (!exampleDockLastOverlap || !exampleWindowActiveId) return;
+            if (exampleDockingInProgress) return;
+            exampleDockingInProgress = true;
+            try {
+                if (mainWindow && mainWindow.webContents) {
+                    mainWindow.webContents.send('example-dock-preview', {
+                        id: exampleWindowActiveId,
+                        active: false
+                    });
+                    mainWindow.webContents.send('open-example-tab', { id: exampleWindowActiveId });
+                }
+                if (exampleWindow) exampleWindow.close();
+            } finally {
+                exampleDockingInProgress = false;
+            }
+        }, 180);
+    };
+    exampleWindow.on('move', () => {
+        updateDockPreview();
+        tryDockOnRelease();
+    });
     exampleWindow.on('closed', () => {
+        exampleWindowActiveId = null;
+        exampleDockPreviewActive = false;
+        exampleDockLastOverlap = false;
+        clearTimeout(exampleDockMoveTimer);
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('example-dock-preview', { id: null, active: false });
+        }
         exampleWindow = null;
     });
 }
@@ -392,6 +451,16 @@ function openExampleWindow(exampleId) {
 // Allow renderer tabs to be popped out into a dedicated examples window.
 ipcMain.on('undock-doc-tab', (_event, { id } = {}) => {
     if (id) openExampleWindow(id);
+});
+// Keep main process updated with the example window's active selection for docking.
+ipcMain.on('example-active-id', (_event, { id } = {}) => {
+    exampleWindowActiveId = id || null;
+    if (exampleDockPreviewActive && mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('example-dock-preview', {
+            id: exampleWindowActiveId,
+            active: !!exampleWindowActiveId
+        });
+    }
 });
 
 // Load a dashboard JSON from a path into the main window Freeboard instance.

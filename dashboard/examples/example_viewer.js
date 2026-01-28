@@ -28,6 +28,13 @@
     let uploadFailed = false;
     let lastProgress = 0;
 
+    // Notify the main process which example is active so it can dock correctly.
+    function notifyActiveExample() {
+        if (currentExample) {
+            ipcRenderer.send('example-active-id', { id: currentExample.id });
+        }
+    }
+
     function setStatus(message) {
         statusBar.textContent = message;
     }
@@ -277,6 +284,7 @@
         currentExample = example;
         titleEl.textContent = example.title;
         subtitleEl.textContent = example.subtitle || '';
+        notifyActiveExample();
         setStatus('Loading documentation...');
 
         try {
@@ -403,6 +411,7 @@
         if (initialId) {
             exampleSelect.value = initialId;
             loadExample(initialId);
+            notifyActiveExample();
         } else {
             setStatus('No examples found.');
             docContent.innerHTML = '<p>No examples found in dashboard/docs/examples.</p>';
