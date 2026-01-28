@@ -930,13 +930,14 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 		var animateLength = (animate) ? 250 : 0;
 		var barHeight = $("#admin-bar").outerHeight();
+		var tabsOffset = $("#app-tabs").outerHeight() || 0;
 
 		if(!editing)
 		{
 			$("#toggle-header-icon").addClass("icon-wrench").removeClass("icon-chevron-up");
 			$(".gridster .gs_w").css({cursor: "default"});
-			$("#main-header").animate({"top": "-" + barHeight + "px"}, animateLength);
-			$("#board-content").animate({"top": "20"}, animateLength);
+			$("#main-header").animate({"top": (tabsOffset - barHeight) + "px"}, animateLength);
+			$("#board-content").animate({"top": (tabsOffset + 20) + "px"}, animateLength);
 			$("#main-header").data().shown = false;
 			$(".sub-section").unbind();
 			freeboardUI.disableGrid();
@@ -945,8 +946,8 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		{
 			$("#toggle-header-icon").addClass("icon-chevron-up").removeClass("icon-wrench");
 			$(".gridster .gs_w").css({cursor: "pointer"});
-			$("#main-header").animate({"top": "0px"}, animateLength);
-			$("#board-content").animate({"top": (barHeight + 20) + "px"}, animateLength);
+			$("#main-header").animate({"top": tabsOffset + "px"}, animateLength);
+			$("#board-content").animate({"top": (tabsOffset + barHeight + 20) + "px"}, animateLength);
 			$("#main-header").data().shown = true;
 			freeboardUI.attachWidgetEditIcons($(".sub-section"));
 			freeboardUI.enableGrid();

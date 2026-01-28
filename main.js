@@ -23,6 +23,8 @@ if (noGpu) {
 
 let mainWindow; // reference to the main BrowserWindow
 let exampleWindow; // dedicated window for example documentation and actions
+let exampleTabRequestTimer; // debounce example tab requests
+let pendingExampleTabId = null; // last requested example tab (for late renderer init)
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -97,7 +99,7 @@ function buildExamplesMenuItems() {
                 } else if (child.exampleId) {
                     items.push({
                         label: key,
-                        click: () => openExampleWindow(child.exampleId)
+                        click: () => openExampleTab(child.exampleId)
                     });
                 }
             }
@@ -338,6 +340,30 @@ function createWindow() {
         });
 }
 
+// Route examples to the in-app tab strip when available.
+function openExampleTab(exampleId) {
+    pendingExampleTabId = exampleId;
+    if (mainWindow && mainWindow.webContents) {
+        try {
+            clearTimeout(exampleTabRequestTimer);
+            exampleTabRequestTimer = setTimeout(() => {
+                mainWindow.webContents.send('open-example-tab', { id: exampleId });
+            }, 0);
+            return;
+        } catch {
+            // Fall back to a dedicated window if the tab IPC fails.
+        }
+    }
+    openExampleWindow(exampleId);
+}
+
+// Allow renderer to fetch any pending example tab request.
+ipcMain.handle('get-pending-example-tab', () => {
+    const id = pendingExampleTabId;
+    pendingExampleTabId = null;
+    return id;
+});
+
 // Standalone examples window for offline markdown docs and example actions.
 function openExampleWindow(exampleId) {
     if (exampleWindow) {
@@ -362,6 +388,11 @@ function openExampleWindow(exampleId) {
         exampleWindow = null;
     });
 }
+
+// Allow renderer tabs to be popped out into a dedicated examples window.
+ipcMain.on('undock-doc-tab', (_event, { id } = {}) => {
+    if (id) openExampleWindow(id);
+});
 
 // Load a dashboard JSON from a path into the main window Freeboard instance.
 ipcMain.handle('load-dashboard-from-path', async (_event, { dashboardPath } = {}) => {

@@ -1,0 +1,272 @@
+/* Tabs and documentation panel styling for the main window. */
+:root {
+    --tabs-bg: #0f1115;
+    --tabs-border: #2a3240;
+    --tabs-text: #e6e6e6;
+    --tabs-muted: #9aa4b2;
+    --tabs-primary: #0d6efd;
+    --tabs-height: 44px;
+}
+
+.app-tabs {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 900;
+    background: var(--tabs-bg);
+    border-bottom: 1px solid var(--tabs-border);
+    padding: 6px 12px;
+    min-height: var(--tabs-height);
+}
+
+.tab-strip {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.tab {
+    background: #151923;
+    color: var(--tabs-text);
+    border: 1px solid var(--tabs-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tab.active {
+    background: #202534;
+    border-color: #394052;
+}
+
+.tab .tab-close {
+    font-size: 12px;
+    line-height: 1;
+    opacity: 0.7;
+}
+
+.doc-panel {
+    padding: 16px 20px 20px;
+    background: #0f1115;
+    color: var(--tabs-text);
+    margin-top: var(--tabs-height);
+}
+
+.doc-header {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.doc-title-block h1 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.subtitle {
+    margin: 4px 0 0;
+    color: var(--tabs-muted);
+    font-size: 13px;
+}
+
+.doc-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.doc-picker label {
+    font-size: 12px;
+    color: var(--tabs-muted);
+}
+
+.doc-picker select {
+    background: #10141d;
+    border: 1px solid #394052;
+    color: var(--tabs-text);
+    padding: 6px 8px;
+    border-radius: 6px;
+    min-width: 320px;
+}
+
+.doc-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.btn {
+    border: 1px solid #394052;
+    background: #202534;
+    color: var(--tabs-text);
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn.primary {
+    background: #2c4cff;
+    border-color: #2c4cff;
+    color: #fff;
+}
+
+.btn.ghost {
+    background: transparent;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.doc-port-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.doc-port-row label {
+    font-size: 12px;
+    color: var(--tabs-muted);
+}
+
+.doc-port-row select {
+    background: #10141d;
+    border: 1px solid #394052;
+    color: var(--tabs-text);
+    padding: 6px 8px;
+    border-radius: 6px;
+    min-width: 220px;
+}
+
+.status-bar {
+    font-size: 12px;
+    color: var(--tabs-muted);
+}
+
+.doc-content {
+    background: #0f121b;
+    border: 1px solid #2a3240;
+    border-radius: 10px;
+    padding: 20px 24px;
+    line-height: 1.6;
+}
+
+.doc-content img {
+    max-width: 100%;
+    border-radius: 8px;
+    border: 1px solid #2a3240;
+}
+
+.doc-content pre {
+    background: #111623;
+    border: 1px solid #2a3240;
+    border-radius: 8px;
+    padding: 12px;
+    overflow: auto;
+}
+
+/* Progress bar styles aligned with Activity Center */
+.progress-panel {
+    background: #0f121b;
+    border: 1px solid #2a3240;
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 260px;
+    height: fit-content;
+}
+
+.progress-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.text-muted {
+    color: var(--tabs-muted);
+}
+
+.small {
+    font-size: 12px;
+}
+
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 0.12em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-rotate 0.75s linear infinite;
+}
+
+.spinner-border-sm {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-width: 0.12em;
+}
+
+.text-secondary {
+    color: #6c757d;
+}
+
+.progress {
+    display: flex;
+    height: 14px;
+    overflow: hidden;
+    background-color: #0b0f18;
+    border: 1px solid #2a3240;
+    border-radius: 999px;
+}
+
+.progress-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 11px;
+    background-color: var(--tabs-primary);
+    transition: width 0.2s ease;
+}
+
+.bg-success {
+    background-color: #198754;
+}
+
+.bg-danger {
+    background-color: #dc3545;
+}
+
+.d-none {
+    display: none;
+}
+
+@keyframes spinner-rotate {
+    100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 980px) {
+    .doc-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
