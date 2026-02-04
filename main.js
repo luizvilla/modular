@@ -58,25 +58,28 @@ ipcMain.on('renderer-log', (_event, { level = 'log', args = [] } = {}) => {
 
 // App menu is custom: Edit only hosts "Widget Categories" and View/Window are removed.
 // Build a nested Examples menu from dashboard/docs/examples/**/README.md.
+function collectReadmes(baseDir) {
+    const readmes = [];
+    if (!fs.existsSync(baseDir)) return readmes;
+    const walk = (dir) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walk(full);
+            } else if (entry.isFile() && entry.name.toLowerCase() === 'readme.md') {
+                readmes.push(full);
+            }
+        }
+    };
+    walk(baseDir);
+    return readmes;
+}
+
 function buildExamplesMenuItems() {
     try {
         const baseDir = path.join(__dirname, 'dashboard', 'docs', 'examples');
-        if (!fs.existsSync(baseDir)) return [];
-
-        const readmes = [];
-        const walk = (dir) => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (const entry of entries) {
-                const full = path.join(dir, entry.name);
-                if (entry.isDirectory()) {
-                    walk(full);
-                } else if (entry.isFile() && entry.name.toLowerCase() === 'readme.md') {
-                    readmes.push(full);
-                }
-            }
-        };
-        walk(baseDir);
-
+        const readmes = collectReadmes(baseDir);
         if (!readmes.length) return [];
 
         const root = { children: new Map(), exampleId: null };
@@ -118,6 +121,22 @@ function buildExamplesMenuItems() {
         return [];
     }
 }
+
+// Renderer-facing docs helpers (used by tabs / example viewer).
+ipcMain.handle('docs-list-readmes', async (_event, { baseDir } = {}) => {
+    if (!baseDir) return [];
+    try {
+        return collectReadmes(baseDir);
+    } catch (err) {
+        console.warn('docs-list-readmes failed:', err?.message || err);
+        return [];
+    }
+});
+
+ipcMain.handle('docs-read-markdown', async (_event, { docPath } = {}) => {
+    if (!docPath) return '';
+    return fs.promises.readFile(docPath, 'utf8');
+});
 
 function setAppMenu() {
     const examplesMenu = buildExamplesMenuItems();

@@ -17,6 +17,10 @@ const api = {
         onMenuLoadDashboard: (cb) => on('menu-load-dashboard', cb),
         onMenuSaveDashboard: (cb) => on('menu-save-dashboard', cb)
     },
+    docs: {
+        listReadmes: (baseDir) => ipcRenderer.invoke('docs-list-readmes', { baseDir }),
+        readMarkdown: (docPath) => ipcRenderer.invoke('docs-read-markdown', { docPath })
+    },
     examples: {
         openExampleTab: (id) => ipcRenderer.send('open-example-tab', { id }),
         onOpenExampleTab: (cb) => on('open-example-tab', cb),
