@@ -374,8 +374,8 @@ function createWindow() {
                 icon: path.join(__dirname, 'assets', 'icon.png'),
                 webPreferences: {
                         preload: path.join(__dirname, 'preload.js'),
-                        nodeIntegration: true,
-                        contextIsolation: false
+                        nodeIntegration: false,
+                        contextIsolation: true
                 }
         });
         // Only open DevTools in development.
@@ -431,8 +431,8 @@ function openExampleWindow(exampleId) {
         icon: path.join(__dirname, 'assets', 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: true,
-            contextIsolation: false
+            nodeIntegration: false,
+            contextIsolation: true
         }
     });
     exampleWindow.loadFile(path.join(__dirname, 'dashboard', 'examples', 'example_viewer.html'), {
