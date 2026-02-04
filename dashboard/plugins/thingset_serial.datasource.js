@@ -1,10 +1,15 @@
 (function () {
-  const ipc = window.require?.('electron')?.ipcRenderer;
+  const api = window.api || null;
+  const serialApi = api && api.serial ? api.serial : null;
+  const tsSerialApi = api && api.thingsetSerial ? api.thingsetSerial : null;
+  const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
 
   async function fetchSerialPortOptions() {
-    if (!ipc) return [];
+    if (!serialApi && !ipc) return [];
     try {
-      const ports = await ipc.invoke('get-serial-ports');
+      const ports = serialApi && serialApi.listPorts
+        ? await serialApi.listPorts()
+        : await ipc.invoke('get-serial-ports');
       if (Array.isArray(ports) && ports.length) {
         return ports.map((p) => ({ name: p.name || p.value || p.path || String(p), value: p.value || p.name || p.path || String(p) }));
       }
@@ -104,9 +109,13 @@
     }
 
     async function closePort() {
-      if (!ipc || !detectedPort) return;
+      if (!detectedPort) return;
       try {
-        await ipc.invoke('close-serial-port', { path: detectedPort });
+        if (serialApi && serialApi.closePort) {
+          await serialApi.closePort(detectedPort);
+        } else if (ipc) {
+          await ipc.invoke('close-serial-port', { path: detectedPort });
+        }
       } catch (e) {
         console.warn('ThingSet Serial: close port failed', e?.message || e);
       }
@@ -118,7 +127,7 @@
     }
 
     async function detectPort(force = false) {
-      if (!ipc) return null;
+      if (!tsSerialApi && !ipc) return null;
       if (!isAutoMode()) {
         detectedPort = manualPort(currentSettings);
         return detectedPort;
@@ -135,7 +144,9 @@
 
       detectPromise = (async () => {
         try {
-          const res = await ipc.invoke('ts-serial-detect', opts);
+          const res = tsSerialApi && tsSerialApi.detect
+            ? await tsSerialApi.detect(opts)
+            : await ipc.invoke('ts-serial-detect', opts);
           if (res?.port) {
             detectedPort = res.port;
             lastMeta = res;
@@ -157,7 +168,7 @@
     }
 
     async function ensurePort(forceDetect = false) {
-      if (!ipc) return null;
+      if (!tsSerialApi && !ipc) return null;
       if (!isAutoMode()) {
         detectedPort = manualPort(currentSettings);
         return detectedPort;
@@ -169,20 +180,22 @@
     }
 
     async function fetchTree(port) {
-      if (!ipc || !port) return null;
-      const res = await ipc.invoke('ts-serial-tree', {
+      if (!port) return null;
+      const payload = {
         port,
         baudRate: effectiveBaudRate(),
         usePrefix: !!currentSettings.usePrefix,
         verbose: !!currentSettings.debug,
-      });
-      return res;
+      };
+      return tsSerialApi && tsSerialApi.tree
+        ? tsSerialApi.tree(payload)
+        : ipc.invoke('ts-serial-tree', payload);
     }
 
     async function poll() {
       if (isPaused()) return;
       const base = baseData();
-      if (!ipc) {
+      if (!tsSerialApi && !ipc) {
         updateCallback({ ...base, status: 'unavailable', error: 'Electron IPC unavailable' });
         return;
       }

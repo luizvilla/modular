@@ -1,14 +1,20 @@
 (function () {
-  const ipcRenderer = window.require?.('electron')?.ipcRenderer;
+  const api = window.api || null;
+  const canApi = api && api.can ? api.can : null;
+  const ipcRenderer = !api && window.require ? window.require('electron')?.ipcRenderer : null;
   const isLinux = navigator.userAgent.toLowerCase().includes('linux');
 
   // Activity toasts are generated in the backend (main.js) via IPC.
 
   async function setupCanIfLinux(channel) {
-    if (!ipcRenderer) return true;
+    if (!canApi && !ipcRenderer) return true;
     if (!isLinux) return true;
     try {
-      await ipcRenderer.invoke('can-setup-linux');
+      if (canApi && canApi.setupLinux) {
+        await canApi.setupLinux();
+      } else {
+        await ipcRenderer.invoke('can-setup-linux');
+      }
       return true;
     } catch (e) {
       console.warn('can-setup-linux failed or was cancelled:', e?.message || e);
@@ -17,17 +23,21 @@
   }
 
   async function scanAndBuildTrees(channel) {
-    if (!ipcRenderer) return { scanned: 0, built: 0 };
+    if (!canApi && !ipcRenderer) return { scanned: 0, built: 0 };
     let scanned = 0;
     let built = 0;
     // Scan writes thingset/nodes.json
-    const scanRes = await ipcRenderer.invoke('can-scan-nodes', { channel });
+    const scanRes = canApi && canApi.scanNodes
+      ? await canApi.scanNodes({ channel })
+      : await ipcRenderer.invoke('can-scan-nodes', { channel });
     try {
       const nodes = scanRes?.nodes || {};
       scanned = Object.keys(nodes).length;
     } catch {}
     // Build ThingSet trees per node so aggregator can map IDs to paths
-    const buildRes = await ipcRenderer.invoke('can-build-trees', { channel, maxDepth: 16 });
+    const buildRes = canApi && canApi.buildTrees
+      ? await canApi.buildTrees({ channel, maxDepth: 16 })
+      : await ipcRenderer.invoke('can-build-trees', { channel, maxDepth: 16 });
     try {
       built = Array.isArray(buildRes?.written) ? buildRes.written.length : 0;
     } catch {}
@@ -43,9 +53,13 @@
     const isPaused = () => !!(currentSettings && currentSettings.paused);
 
     async function ensureOpen() {
-      if (!ipcRenderer) return;
+      if (!canApi && !ipcRenderer) return;
       try {
-        await ipcRenderer.invoke('can-open', { channel: currentSettings.channel || 'can0' });
+        if (canApi && canApi.open) {
+          await canApi.open({ channel: currentSettings.channel || 'can0' });
+        } else {
+          await ipcRenderer.invoke('can-open', { channel: currentSettings.channel || 'can0' });
+        }
       } catch (e) {
         console.warn('can-open failed:', e?.message || e);
       }
@@ -60,8 +74,10 @@
         full_string_value: now.toLocaleString()
       };
       try {
-        if (ipcRenderer) {
-          const snap = await ipcRenderer.invoke('can-aggregate-snapshot', { channel: ch });
+        if (canApi || ipcRenderer) {
+          const snap = canApi && canApi.aggregateSnapshot
+            ? await canApi.aggregateSnapshot({ channel: ch })
+            : await ipcRenderer.invoke('can-aggregate-snapshot', { channel: ch });
           const nodes = snap?.nodes || {};
           const nodeKeys = Object.keys(nodes);
 
@@ -162,9 +178,13 @@
       await ensureOpen();
       updateTimer();
       try {
-        if (ipcRenderer) {
+        if (canApi || ipcRenderer) {
           const ch = currentSettings.channel || 'can0';
-          await ipcRenderer.invoke('can-aggregate-set-debug', { channel: ch, enable: !!currentSettings.debug });
+          if (canApi && canApi.aggregateSetDebug) {
+            await canApi.aggregateSetDebug({ channel: ch, enable: !!currentSettings.debug });
+          } else {
+            await ipcRenderer.invoke('can-aggregate-set-debug', { channel: ch, enable: !!currentSettings.debug });
+          }
         }
       } catch (e) {
         console.warn('set debug failed:', e?.message || e);
@@ -178,8 +198,20 @@
       await ensureOpen();
       // Scan nodes and build trees to enable id->path mapping, then start aggregator
       try { await scanAndBuildTrees(ch); } catch (e) { /* backend toasts handle errors */ }
-      try { await ipcRenderer.invoke('can-aggregate-start', { channel: ch }); } catch (e) { /* backend handles */ }
-      try { await ipcRenderer.invoke('can-aggregate-set-debug', { channel: ch, enable: !!currentSettings.debug }); } catch (e) { /* ignore */ }
+      try {
+        if (canApi && canApi.aggregateStart) {
+          await canApi.aggregateStart({ channel: ch });
+        } else {
+          await ipcRenderer.invoke('can-aggregate-start', { channel: ch });
+        }
+      } catch (e) { /* backend handles */ }
+      try {
+        if (canApi && canApi.aggregateSetDebug) {
+          await canApi.aggregateSetDebug({ channel: ch, enable: !!currentSettings.debug });
+        } else {
+          await ipcRenderer.invoke('can-aggregate-set-debug', { channel: ch, enable: !!currentSettings.debug });
+        }
+      } catch (e) { /* ignore */ }
       updateTimer();
     })();
   }

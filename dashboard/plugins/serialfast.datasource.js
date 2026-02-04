@@ -1,5 +1,7 @@
 (function () {
-    const ipcRenderer = window.require?.('electron')?.ipcRenderer;
+    const api = window.api || null;
+    const serialApi = api && api.serial ? api.serial : null;
+    const ipcRenderer = !api && window.require ? window.require('electron')?.ipcRenderer : null;
     function FastFrameDatasource(settings, updateCallback) {
         let currentSettings = settings;
         let timer = null;
@@ -7,35 +9,44 @@
         const isPaused = () => !!(currentSettings && currentSettings.paused);
 
         async function closePort() {
-            if (!ipcRenderer || !currentSettings?.portPath) return;
+            if (!currentSettings?.portPath) return;
             try {
-                await ipcRenderer.invoke('close-serial-port', { path: currentSettings.portPath });
+                if (serialApi && serialApi.closePort) {
+                    await serialApi.closePort(currentSettings.portPath);
+                } else if (ipcRenderer) {
+                    await ipcRenderer.invoke('close-serial-port', { path: currentSettings.portPath });
+                }
             } catch (e) {
                 console.warn('Close serial failed:', e?.message || e);
             }
         }
 
         async function openPort() {
-            if (!ipcRenderer) return;
             if (isPaused()) return;
             try {
-                await ipcRenderer.invoke('open-serial-port', {
+                const payload = {
                     path: currentSettings.portPath,
                     baudRate: currentSettings.baudRate,
                     separator: currentSettings.separator,
                     eol: currentSettings.eol,
                     type: 'fast_frame_datasource'
-                });
+                };
+                if (serialApi && serialApi.openPort) {
+                    await serialApi.openPort(payload);
+                } else if (ipcRenderer) {
+                    await ipcRenderer.invoke('open-serial-port', payload);
+                }
             } catch (e) {
                 console.error('Open serial failed:', e.message);
             }
         }
 
         async function pollFrame() {
-            if (!ipcRenderer) return;
             if (isPaused()) return;
             try {
-                const data = await ipcRenderer.invoke('get-fast-dataset', { path: currentSettings.portPath });
+                const data = serialApi && serialApi.getFastDataset
+                    ? await serialApi.getFastDataset(currentSettings.portPath)
+                    : await ipcRenderer.invoke('get-fast-dataset', { path: currentSettings.portPath });
                 if (data && Array.isArray(data.timestamps)) {
                     updateCallback(data);
                 }
@@ -84,9 +95,11 @@
 
     async function register() {
         let portOptions = [];
-        if (ipcRenderer) {
+        if (serialApi || ipcRenderer) {
             try {
-                const ports = await ipcRenderer.invoke('get-serial-ports');
+                const ports = serialApi && serialApi.listPorts
+                    ? await serialApi.listPorts()
+                    : await ipcRenderer.invoke('get-serial-ports');
                 portOptions = ports.map(p => ({ name: p.name, value: p.value }));
             } catch (e) {
                 console.error('Failed to list serial ports', e);

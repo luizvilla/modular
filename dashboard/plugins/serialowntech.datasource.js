@@ -1,11 +1,41 @@
 (function () {
-        const ipcRenderer = window.require?.("electron")?.ipcRenderer;
+        const api = window.api || null;
+        const serialApi = api && api.serial ? api.serial : null;
+        const ipcRenderer = !api && window.require ? window.require("electron")?.ipcRenderer : null;
         // Keep a cached, auto-refreshing serial port list for dynamic dropdowns + reconnection.
         const instances = new Set();
         const portPollIntervalMs = 1500;
         let cachedPortOptions = [];
         let lastPortValues = [];
         let portPollTimer = null;
+
+        async function listSerialPorts() {
+                if (serialApi && serialApi.listPorts) return serialApi.listPorts();
+                if (ipcRenderer) return ipcRenderer.invoke('get-serial-ports');
+                return [];
+        }
+
+        async function openSerialPort(payload) {
+                if (serialApi && serialApi.openPort) return serialApi.openPort(payload);
+                if (ipcRenderer) return ipcRenderer.invoke('open-serial-port', payload);
+        }
+
+        async function closeSerialPort(path) {
+                if (serialApi && serialApi.closePort) return serialApi.closePort(path);
+                if (ipcRenderer) return ipcRenderer.invoke('close-serial-port', { path });
+        }
+
+        async function isSerialPortOpen(path) {
+                if (serialApi && serialApi.isOpen) return serialApi.isOpen(path);
+                if (ipcRenderer) return ipcRenderer.invoke('is-serial-port-open', { path });
+                return false;
+        }
+
+        async function getSerialBuffer(path) {
+                if (serialApi && serialApi.getBuffer) return serialApi.getBuffer(path);
+                if (ipcRenderer) return ipcRenderer.invoke('get-serial-buffer', { path });
+                return [];
+        }
 
         function normalizePortValue(port) {
                 return port?.value || port?.path || port?.name || String(port || "");
@@ -20,9 +50,8 @@
         }
 
         async function refreshPortCache(force = false) {
-                if (!ipcRenderer) return;
                 try {
-                        const ports = await ipcRenderer.invoke('get-serial-ports');
+                        const ports = await listSerialPorts();
                         const values = Array.isArray(ports) ? ports.map(normalizePortValue).filter(Boolean) : [];
                         if (!force && portsEqual(values, lastPortValues)) return;
                         lastPortValues = values;
@@ -38,7 +67,7 @@
         }
 
         function startPortPolling() {
-                if (portPollTimer || !ipcRenderer) return;
+                if (portPollTimer || (!serialApi && !ipcRenderer)) return;
                 refreshPortCache(true);
                 portPollTimer = setInterval(() => refreshPortCache(false), portPollIntervalMs);
         }
@@ -56,10 +85,9 @@
 		const sep = currentSettings.separator || ":";
 
 		async function openPort() {
-			if (!ipcRenderer) return;
                         if (isPaused()) return;
 			try {
-                                await ipcRenderer.invoke("open-serial-port", {
+                                await openSerialPort({
                                         path: currentSettings.portPath,
                                         baudRate: currentSettings.baudRate,
                                         separator: currentSettings.separator,
@@ -72,16 +100,16 @@
 		}
 
                 async function syncPortState(portOptions) {
-                        if (!ipcRenderer || !currentSettings.portPath) return;
+                        if (!currentSettings.portPath) return;
                         if (isPaused()) return;
                         if (portSyncInFlight) return portSyncInFlight;
                         portSyncInFlight = (async () => {
                                 const path = currentSettings.portPath;
                                 const portSet = new Set((portOptions || []).map((p) => normalizePortValue(p)).filter(Boolean));
-                                const isOpen = await ipcRenderer.invoke('is-serial-port-open', { path }).catch(() => false);
+                                const isOpen = await isSerialPortOpen(path).catch(() => false);
                                 if (!portSet.has(path)) {
                                         if (isOpen) {
-                                                await ipcRenderer.invoke('close-serial-port', { path }).catch(() => {});
+                                                await closeSerialPort(path).catch(() => {});
                                         }
                                         return;
                                 }
@@ -99,7 +127,7 @@
                 async function pollData() {
                         if (isPaused()) return;
                         try {
-                                const data = await ipcRenderer.invoke("get-serial-buffer", { path: currentSettings.portPath });
+                                const data = await getSerialBuffer(currentSettings.portPath);
                                 if (Array.isArray(data)) {
                                         latestData = data;
                                 }
@@ -147,10 +175,8 @@
 		this.onDispose = function () {
 			stopTimer();
                         instances.delete(self);
-			if (ipcRenderer && currentSettings.portPath) {
-				ipcRenderer.invoke("close-serial-port", {
-					path: currentSettings.portPath
-				}).then(() => {
+			if (currentSettings.portPath) {
+				closeSerialPort(currentSettings.portPath).then(() => {
 					console.log("🔌 Serial port closed via IPC.");
 				}).catch(err => {
 					console.error("❌ Failed to close port:", err);
@@ -162,8 +188,8 @@
                        currentSettings = newSettings;
                        if (isPaused()) {
                                stopTimer();
-                               if (ipcRenderer && currentSettings.portPath) {
-                                       ipcRenderer.invoke("close-serial-port", { path: currentSettings.portPath }).catch(() => {});
+                               if (currentSettings.portPath) {
+                                       closeSerialPort(currentSettings.portPath).catch(() => {});
                                }
                                return;
                        }
@@ -230,3 +256,4 @@
 
         registerPlugin();
 }());
+
