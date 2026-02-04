@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
+    "test:ui": "playwright test",
     "rebuild:native": "npx electron-rebuild -f -w socketcan",
     "scan:can": "ELECTRON_RUN_AS_NODE=1 electron js/scan.js",
     "ts:query": "ELECTRON_RUN_AS_NODE=1 electron js/query_nodes.js",
@@ -33,7 +34,8 @@
   "_comment": "socketcan is optional on Windows; required for Linux CAN support",
   "devDependencies": {
     "electron": "^36.4.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "playwright": "^1.50.0"
   },
   "build": {
     "appId": "com.modular.app",
