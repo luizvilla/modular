@@ -1,20 +1,52 @@
 (function () {
-  const ipc = window.require?.('electron')?.ipcRenderer;
-  const fs = window.require?.('fs');
-  const path = window.require?.('path');
+  const api = window.api || null;
+  const canApi = api && api.can ? api.can : null;
+  const thingsetApi = api && api.thingset ? api.thingset : null;
+  const filesApi = api && api.files ? api.files : null;
+  const paths = api && api.paths ? api.paths : null;
+  const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
+  const fs = !api && window.require ? window.require('fs') : null;
+  const path = !api && window.require ? window.require('path') : null;
 
   function thingsetDir() {
-    try { return path.join(process.cwd(), 'thingset'); } catch { return null; }
+    try {
+      if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'thingset');
+      if (path) return path.join(process.cwd(), 'thingset');
+    } catch {}
+    return null;
   }
 
-  function readJsonSafe(p) {
+  async function readJsonSafe(p) {
     try {
-      const txt = fs.readFileSync(p, 'utf8');
-      return JSON.parse(txt);
+      if (filesApi && filesApi.readText) {
+        const txt = await filesApi.readText(p);
+        return JSON.parse(txt);
+      }
+      if (fs) {
+        const txt = fs.readFileSync(p, 'utf8');
+        return JSON.parse(txt);
+      }
     } catch (e) {
       console.warn('readJsonSafe failed:', p, e?.message || e);
       return null;
     }
+  }
+
+  async function writeJsonSafe(p, obj) {
+    try {
+      const content = JSON.stringify(obj, null, 2);
+      if (filesApi && filesApi.writeText) {
+        const res = await filesApi.writeText(p, content);
+        return !!res?.ok;
+      }
+      if (fs) {
+        fs.writeFileSync(p, content, 'utf8');
+        return true;
+      }
+    } catch (e) {
+      console.warn('writeJsonSafe failed:', p, e?.message || e);
+    }
+    return false;
   }
 
   function lastSeg(p) { if (!p) return ''; return p.includes('/') ? p.split('/').pop() : p; }
@@ -59,7 +91,7 @@
         det.attr('data-path', thisPath);
         det.on('toggle', () => {
           const isOpen = det.prop('open') === true;
-          saveUiExpansion(ctx.addr, thisPath, isOpen);
+          saveUiExpansion(ctx.addr, thisPath, isOpen).catch(() => {});
           try {
             ctx.uiState = ctx.uiState || {};
             ctx.uiState.expandedPaths = ctx.uiState.expandedPaths || {};
@@ -80,7 +112,7 @@
           const isReadable = typeof vk === 'string' && vk.startsWith('r');
           const isWritable = typeof vk === 'string' && vk.startsWith('w');
 
-          if (isReadable && ctx?.ipc && ctx?.addr != null && ctx?.channel) {
+          if (isReadable && ctx?.ts && ctx?.addr != null && ctx?.channel) {
             const btn = $('<button class="btn btn-outline-primary btn-sm">subscribe</button>');
             btn.on('click', async () => {
               try {
@@ -89,7 +121,7 @@
                 // Resolve subset ID per device if not cached in context
                 if (ctx.subsetId == null) {
                   try {
-                    const subResp = await ctx.ipc.invoke('ts-ids-for-paths', {
+                    const subResp = await ctx.ts.idsForPaths( {
                       channel: ctx.channel,
                       targetAddr: ctx.addr,
                       paths: ['mLive']
@@ -100,7 +132,7 @@
                 }
                 const subscribed = btn.data('subscribed') === true;
                 if (!subscribed) {
-                  const cre = await ctx.ipc.invoke('ts-create', {
+                  const cre = await ctx.ts.create( {
                     channel: ctx.channel,
                     targetAddr: ctx.addr,
                     endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
@@ -108,13 +140,13 @@
                   });
                   if (cre && cre.status >= 0x80 && cre.status < 0xA0) {
                     btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
-                    saveUiSubscription(ctx.addr, fullPath, true);
+                    saveUiSubscription(ctx.addr, fullPath, true).catch(() => {});
                     emitSubscriptionEvent(ctx.addr, fullPath, true);
                   } else {
                     btn.text('subscribe');
                   }
                 } else {
-                  const del = await ctx.ipc.invoke('ts-delete', {
+                  const del = await ctx.ts.delete( {
                     channel: ctx.channel,
                     targetAddr: ctx.addr,
                     endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
@@ -122,7 +154,7 @@
                   });
                   if (del && del.status >= 0x80 && del.status < 0xA0) {
                     btn.data('subscribed', false).text('subscribe').toggleClass('btn-outline-danger btn-outline-primary');
-                    saveUiSubscription(ctx.addr, fullPath, false);
+                    saveUiSubscription(ctx.addr, fullPath, false).catch(() => {});
                     emitSubscriptionEvent(ctx.addr, fullPath, false);
                   } else {
                     btn.text('unsubscribe');
@@ -143,7 +175,7 @@
             right.append(btn);
           }
 
-          if (isWritable && ctx?.ipc && ctx?.addr != null && ctx?.channel) {
+          if (isWritable && ctx?.ts && ctx?.addr != null && ctx?.channel) {
             const input = $('<input type="text" class="form-control form-control-sm" style="max-width: 140px;">');
             const send = $('<button class="btn btn-primary btn-sm">send</button>');
             send.on('click', async () => {
@@ -162,7 +194,7 @@
               } catch { val = raw; }
               try {
                 send.prop('disabled', true).text('sending…');
-                const resp = await ctx.ipc.invoke('ts-update', {
+                const resp = await ctx.ts.update( {
                   channel: ctx.channel,
                   targetAddr: ctx.addr,
                   endpoint: node.path,
@@ -217,7 +249,7 @@
 
       const isReadable = typeof title === 'string' && title.startsWith('r');
       const isWritable = typeof title === 'string' && title.startsWith('w');
-      if (isReadable && node?.path && ctx?.ipc && ctx?.addr != null && ctx?.channel) {
+      if (isReadable && node?.path && ctx?.ts && ctx?.addr != null && ctx?.channel) {
         const btn = $('<button class="btn btn-outline-primary btn-sm">subscribe</button>');
         btn.on('click', async () => {
           try {
@@ -226,7 +258,7 @@
             // Resolve subset ID per device if not cached
             if (ctx.subsetId == null) {
               try {
-                const subResp = await ctx.ipc.invoke('ts-ids-for-paths', {
+                const subResp = await ctx.ts.idsForPaths( {
                   channel: ctx.channel,
                   targetAddr: ctx.addr,
                   paths: ['mLive']
@@ -237,7 +269,7 @@
             }
             const subscribed = btn.data('subscribed') === true;
             if (!subscribed) {
-              const cre = await ctx.ipc.invoke('ts-create', {
+              const cre = await ctx.ts.create( {
                 channel: ctx.channel,
                 targetAddr: ctx.addr,
                 endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
@@ -245,13 +277,13 @@
               });
               if (cre && cre.status >= 0x80 && cre.status < 0xA0) {
                 btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
-                saveUiSubscription(ctx.addr, fullPath, true);
+                saveUiSubscription(ctx.addr, fullPath, true).catch(() => {});
                 emitSubscriptionEvent(ctx.addr, fullPath, true);
               } else {
                 btn.text('subscribe');
               }
             } else {
-              const del = await ctx.ipc.invoke('ts-delete', {
+              const del = await ctx.ts.delete( {
                 channel: ctx.channel,
                 targetAddr: ctx.addr,
                 endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
@@ -259,7 +291,7 @@
               });
               if (del && del.status >= 0x80 && del.status < 0xA0) {
                 btn.data('subscribed', false).text('subscribe').toggleClass('btn-outline-danger btn-outline-primary');
-                saveUiSubscription(ctx.addr, fullPath, false);
+                saveUiSubscription(ctx.addr, fullPath, false).catch(() => {});
                 emitSubscriptionEvent(ctx.addr, fullPath, false);
               } else {
                 btn.text('unsubscribe');
@@ -276,7 +308,7 @@
         } catch {}
         right.append(btn);
       }
-      if (isWritable && node?.path && ctx?.ipc && ctx?.addr != null && ctx?.channel) {
+      if (isWritable && node?.path && ctx?.ts && ctx?.addr != null && ctx?.channel) {
         const input = $('<input type="text" class="form-control form-control-sm" style="max-width: 140px;">');
         const send = $('<button class="btn btn-primary btn-sm">send</button>');
         send.on('click', async () => {
@@ -292,7 +324,7 @@
           } catch { val = raw; }
           try {
             send.prop('disabled', true).text('sending…');
-            const resp = await ctx.ipc.invoke('ts-update', {
+            const resp = await ctx.ts.update( {
               channel: ctx.channel,
               targetAddr: ctx.addr,
               endpoint: parentPath,
@@ -346,14 +378,22 @@
   }
 
   async function scanAndBuild(channel) {
-    if (!ipc) return { ok: false, reason: 'no-ipc' };
+    if (!canApi && !ipc) return { ok: false, reason: 'no-ipc' };
     try {
       if (navigator.userAgent.toLowerCase().includes('linux')) {
-        try { await ipc.invoke('can-setup-linux'); } catch (e) { /* user may cancel */ }
+        try {
+          if (canApi && canApi.setupLinux) await canApi.setupLinux();
+          else await ipc.invoke('can-setup-linux');
+        } catch (e) { /* user may cancel */ }
       }
-      try { await ipc.invoke('can-open', { channel }); } catch {}
-      await ipc.invoke('can-scan-nodes', { channel });
-      await ipc.invoke('can-build-trees', { channel, maxDepth: 16 });
+      try {
+        if (canApi && canApi.open) await canApi.open({ channel });
+        else await ipc.invoke('can-open', { channel });
+      } catch {}
+      if (canApi && canApi.scanNodes) await canApi.scanNodes({ channel });
+      else await ipc.invoke('can-scan-nodes', { channel });
+      if (canApi && canApi.buildTrees) await canApi.buildTrees({ channel, maxDepth: 16 });
+      else await ipc.invoke('can-build-trees', { channel, maxDepth: 16 });
       return { ok: true };
     } catch (e) {
       console.error('scanAndBuild failed', e);
@@ -361,11 +401,11 @@
     }
   }
 
-  function listDevices() {
+  async function listDevices() {
     const dir = thingsetDir();
     if (!dir) return [];
-    const np = path.join(dir, 'nodes.json');
-    const mapping = readJsonSafe(np) || {};
+    const np = (paths && paths.join) ? paths.join(dir, 'nodes.json') : path.join(dir, 'nodes.json');
+    const mapping = await readJsonSafe(np) || {};
     const out = [];
     for (const [addrStr, uid] of Object.entries(mapping)) {
       const addr = parseInt(addrStr, 10);
@@ -377,11 +417,11 @@
     return out;
   }
 
-  function readTreeForAddr(addr) {
+  async function readTreeForAddr(addr) {
     const dir = thingsetDir();
     if (!dir) return null;
     const hex = addr.toString(16).toUpperCase().padStart(2, '0');
-    const fp = path.join(dir, `node_${hex}_tree.json`);
+    const fp = (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
     return readJsonSafe(fp);
   }
 
@@ -389,30 +429,53 @@
     const dir = thingsetDir();
     if (!dir) return null;
     const hex = addr.toString(16).toUpperCase().padStart(2, '0');
-    return path.join(dir, `node_${hex}_tree.json`);
+    return (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
   }
 
-  function writeTreeForAddr(addr, treeObj) {
+  async function writeTreeForAddr(addr, treeObj) {
     try {
       const fp = treeFilePathForAddr(addr);
       if (!fp) return false;
-      fs.writeFileSync(fp, JSON.stringify(treeObj, null, 2), 'utf8');
-      return true;
+      return await writeJsonSafe(fp, treeObj);
     } catch (e) {
       console.warn('writeTreeForAddr failed:', e?.message || e);
       return false;
     }
   }
 
-  function saveUiSubscription(addr, fullPath, subscribed) {
+  async function tsIdsForPaths(payload) {
+    if (thingsetApi && thingsetApi.idsForPaths) return thingsetApi.idsForPaths(payload);
+    if (ipc) return ipc.invoke('ts-ids-for-paths', payload);
+    return null;
+  }
+
+  async function tsCreate(payload) {
+    if (thingsetApi && thingsetApi.create) return thingsetApi.create(payload);
+    if (ipc) return ipc.invoke('ts-create', payload);
+    return null;
+  }
+
+  async function tsDelete(payload) {
+    if (thingsetApi && thingsetApi.delete) return thingsetApi.delete(payload);
+    if (ipc) return ipc.invoke('ts-delete', payload);
+    return null;
+  }
+
+  async function tsUpdate(payload) {
+    if (thingsetApi && thingsetApi.update) return thingsetApi.update(payload);
+    if (ipc) return ipc.invoke('ts-update', payload);
+    return null;
+  }
+
+  async function saveUiSubscription(addr, fullPath, subscribed) {
     try {
-      const tree = readTreeForAddr(addr);
+      const tree = await readTreeForAddr(addr);
       if (!tree || !tree.root) return false;
       tree.root._ui = tree.root._ui || {};
       tree.root._ui.subscriptions = tree.root._ui.subscriptions || {};
       if (subscribed) tree.root._ui.subscriptions[fullPath] = true;
       else delete tree.root._ui.subscriptions[fullPath];
-      return writeTreeForAddr(addr, tree);
+      return await writeTreeForAddr(addr, tree);
     } catch { return false; }
   }
 
@@ -425,16 +488,16 @@
     } catch {}
   }
 
-  function saveUiExpansion(addr, pathStr, expanded) {
+  async function saveUiExpansion(addr, pathStr, expanded) {
     try {
       if (!pathStr) return false;
-      const tree = readTreeForAddr(addr);
+      const tree = await readTreeForAddr(addr);
       if (!tree || !tree.root) return false;
       tree.root._ui = tree.root._ui || {};
       tree.root._ui.expandedPaths = tree.root._ui.expandedPaths || {};
       if (expanded) tree.root._ui.expandedPaths[pathStr] = true;
       else delete tree.root._ui.expandedPaths[pathStr];
-      return writeTreeForAddr(addr, tree);
+      return await writeTreeForAddr(addr, tree);
     } catch { return false; }
   }
 
@@ -450,9 +513,9 @@
     return cur;
   }
 
-  function saveNodeValue(addr, pathStr, value) {
+  async function saveNodeValue(addr, pathStr, value) {
     try {
-      const tree = readTreeForAddr(addr);
+      const tree = await readTreeForAddr(addr);
       if (!tree || !tree.root) return false;
       const node = findNodeByPathInTreeRoot(tree.root, pathStr);
       if (node) node.value = value;
@@ -460,7 +523,7 @@
       tree.root._ui = tree.root._ui || {};
       tree.root._ui.reporting = tree.root._ui.reporting || {};
       if (pathStr === '_Reporting/mLive/sEnable') tree.root._ui.reporting.sEnable = !!value;
-      return writeTreeForAddr(addr, tree);
+      return await writeTreeForAddr(addr, tree);
     } catch { return false; }
   }
 
@@ -505,8 +568,8 @@
     );
     root.append(controls, contentWrap, status);
 
-    function populateDevices(selectFirst = false) {
-      const devices = listDevices();
+    async function populateDevices(selectFirst = false) {
+      const devices = await listDevices();
       devSelect.empty();
       devices.forEach(d => devSelect.append(`<option value="${d.value}">${d.label}</option>`));
       if (selectFirst && devices.length) devSelect.val(String(devices[0].value));
@@ -559,9 +622,9 @@
     }
 
     async function toggleReporting(addr, channel, enable) {
-      if (!ipc || addr == null || !channel) return { ok: false };
+      if ((!thingsetApi && !ipc) || addr == null || !channel) return { ok: false };
       try {
-        const resp = await ipc.invoke('ts-update', {
+        const resp = await tsUpdate({
           channel,
           targetAddr: addr,
           endpoint: '_Reporting/mLive',
@@ -574,18 +637,29 @@
       }
     }
 
-    function renderSelected() {
+    async function renderSelected() {
       const v = devSelect.val();
       if (!v) { content.empty(); status.text('Select a device.'); return; }
       const addr = parseInt(v, 10);
-      const tree = readTreeForAddr(addr);
+      const tree = await readTreeForAddr(addr);
       if (!tree || !tree.root) { content.empty(); status.text('No tree JSON for this device. Use Scan + Build.'); return; }
       let subsetId = null;
       try {
         const idStr = tree?.root?.children?.mLive?.id;
         if (typeof idStr === 'string' && idStr.startsWith('0x')) subsetId = parseInt(idStr, 16);
       } catch {}
-      const ctx = { ipc, channel: current.channel || 'can0', addr, subsetId, uiState: (tree?.root?._ui || {}) };
+      const ctx = {
+        ts: {
+          idsForPaths: tsIdsForPaths,
+          create: tsCreate,
+          delete: tsDelete,
+          update: tsUpdate
+        },
+        channel: current.channel || 'can0',
+        addr,
+        subsetId,
+        uiState: (tree?.root?._ui || {})
+      };
       const ui = renderTree(tree.root, filter.val(), ctx);
       content.empty().append(ui);
       const hex = `0x${addr.toString(16).toUpperCase().padStart(2, '0')}`;
@@ -595,14 +669,14 @@
       updateReportingButton(addr, tree);
     }
 
-    function setAllExpanded(open) {
+    async function setAllExpanded(open) {
       const want = !!open;
       try {
         content.find('details').prop('open', want);
         // Persist for nodes we know the path of
         const addrVal = parseInt(devSelect.val(), 10);
         if (addrVal) {
-          const tree = readTreeForAddr(addrVal);
+          const tree = await readTreeForAddr(addrVal);
           if (tree && tree.root) {
             tree.root._ui = tree.root._ui || {};
             tree.root._ui.expandedPaths = tree.root._ui.expandedPaths || {};
@@ -612,7 +686,7 @@
               if (!p) return;
               if (want) map[p] = true; else delete map[p];
             });
-            writeTreeForAddr(addrVal, tree);
+            await writeTreeForAddr(addrVal, tree);
           }
         }
       } catch {}
@@ -623,10 +697,9 @@
       // Ensure the widget itself fills its parent; scrolling happens in contentWrap
       $container.css({ overflow: 'hidden' });
       $container.empty().append(root);
-      populateDevices(true);
-      renderSelected();
+      populateDevices(true).then(() => renderSelected()).catch(() => {});
 
-      btnRefresh.on('click', () => { populateDevices(); renderSelected(); });
+      btnRefresh.on('click', () => { populateDevices().then(() => renderSelected()).catch(() => {}); });
 
       btnScanBuild.on('click', async () => {
         status.text('Scanning and building trees...');
@@ -635,8 +708,7 @@
         const res = await scanAndBuild(ch);
         btnScanBuild.prop('disabled', false);
         if (!res.ok) status.text(`Scan failed: ${res.reason || 'unknown error'}`);
-        populateDevices();
-        renderSelected();
+        populateDevices().then(() => renderSelected()).catch(() => {});
       });
 
       btnToggleReporting.on('click', async () => {
@@ -652,7 +724,7 @@
         const enabledNow = !!willEnable;
         setReportingButtonState(enabledNow);
         updateSenableValueInUI(enabledNow);
-        saveNodeValue(addr, '_Reporting/mLive/sEnable', enabledNow);
+        saveNodeValue(addr, '_Reporting/mLive/sEnable', enabledNow).catch(() => {});
       } else {
           // On failure, restore previous label from data
           const prevEnabled = btnToggleReporting.data('enabled') === true;
@@ -660,11 +732,11 @@
         }
       });
 
-      btnExpandAll.on('click', () => setAllExpanded(true));
-      btnCollapseAll.on('click', () => setAllExpanded(false));
+      btnExpandAll.on('click', () => { setAllExpanded(true).catch(() => {}); });
+      btnCollapseAll.on('click', () => { setAllExpanded(false).catch(() => {}); });
 
-      devSelect.on('change', renderSelected);
-      filter.on('input', renderSelected);
+      devSelect.on('change', () => { renderSelected().catch(() => {}); });
+      filter.on('input', () => { renderSelected().catch(() => {}); });
     };
 
     this.onSettingsChanged = function (s) { current = s || {}; };
@@ -672,3 +744,7 @@
     this.getHeight = function () { return 8; };
   }
 }());
+
+
+
+

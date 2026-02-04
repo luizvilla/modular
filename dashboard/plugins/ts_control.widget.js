@@ -1,18 +1,46 @@
 (function () {
-  const ipc = window.require?.('electron')?.ipcRenderer;
-  const fs = window.require?.('fs');
-  const path = window.require?.('path');
+  const api = window.api || null;
+  const filesApi = api && api.files ? api.files : null;
+  const paths = api && api.paths ? api.paths : null;
+  const thingsetApi = api && api.thingset ? api.thingset : null;
+  const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
+  const fs = !api && window.require ? window.require('fs') : null;
+  const path = !api && window.require ? window.require('path') : null;
 
-  function thingsetDir() { try { return path.join(process.cwd(), 'thingset'); } catch { return null; } }
-  function readJsonSafe(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
+  function thingsetDir() {
+    try {
+      if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'thingset');
+      if (path) return path.join(process.cwd(), 'thingset');
+    } catch {}
+    return null;
+  }
 
-  function listDevices() {
+  async function readJsonSafe(p) {
+    try {
+      if (filesApi && filesApi.readText) {
+        const text = await filesApi.readText(p);
+        return JSON.parse(text);
+      }
+      if (fs) return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch {}
+    return null;
+  }
+
+  async function listDirSafe(dir) {
+    try {
+      if (filesApi && filesApi.listDir) return filesApi.listDir(dir);
+      if (fs) return fs.readdirSync(dir);
+    } catch {}
+    return [];
+  }
+
+  async function listDevices() {
     const dir = thingsetDir(); if (!dir) return [];
     const byAddr = new Map();
 
     // nodes.json mapping (if present)
-    const np = path.join(dir, 'nodes.json');
-    const mapping = readJsonSafe(np) || {};
+    const np = (paths && paths.join) ? paths.join(dir, 'nodes.json') : path.join(dir, 'nodes.json');
+    const mapping = await readJsonSafe(np) || {};
     for (const [addrStr, uid] of Object.entries(mapping)) {
       const addr = parseInt(addrStr, 10); if (!Number.isFinite(addr)) continue;
       byAddr.set(addr, { addr, uid });
@@ -21,7 +49,7 @@
 
     // node_XX_tree.json files (ensure we include any device with a tree)
     try {
-      const files = fs.readdirSync(dir).filter(f => /^node_[0-9A-Fa-f]{2}_tree\.json$/.test(f));
+      const files = (await listDirSafe(dir)).filter(f => /^node_[0-9A-Fa-f]{2}_tree\.json$/.test(f));
       for (const f of files) {
         const m = f.match(/^node_([0-9A-Fa-f]{2})_tree\.json$/);
         if (!m) continue;
@@ -32,7 +60,7 @@
           // If nodes.json is authoritative, skip stray tree files from prior scans
           continue;
         }
-        const tree = readJsonSafe(path.join(dir, f)) || {};
+        const tree = await readJsonSafe((paths && paths.join) ? paths.join(dir, f) : path.join(dir, f)) || {};
         const prev = byAddr.get(addr) || { addr, uid: null };
         const uid = tree.node_uid || prev.uid;
         byAddr.set(addr, { addr, uid });
@@ -42,13 +70,13 @@
     // If nodes.json was empty, fall back to whatever trees we parsed
     if (!hasMapping && byAddr.size === 0) {
       try {
-        const files = fs.readdirSync(dir).filter(f => /^node_[0-9A-Fa-f]{2}_tree\.json$/.test(f));
+        const files = (await listDirSafe(dir)).filter(f => /^node_[0-9A-Fa-f]{2}_tree\.json$/.test(f));
         for (const f of files) {
           const hex = f.match(/^node_([0-9A-Fa-f]{2})_tree\.json$/)?.[1];
           if (!hex) continue;
           const addr = parseInt(hex, 16);
           if (!Number.isFinite(addr) || byAddr.has(addr)) continue;
-          const tree = readJsonSafe(path.join(dir, f)) || {};
+          const tree = await readJsonSafe((paths && paths.join) ? paths.join(dir, f) : path.join(dir, f)) || {};
           byAddr.set(addr, { addr, uid: tree.node_uid || null });
         }
       } catch {}
@@ -59,10 +87,10 @@
     return out;
   }
 
-  function readTreeForAddr(addr) {
+  async function readTreeForAddr(addr) {
     const dir = thingsetDir(); if (!dir) return null;
     const hex = addr.toString(16).toUpperCase().padStart(2, '0');
-    const fp = path.join(dir, `node_${hex}_tree.json`);
+    const fp = (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
     return readJsonSafe(fp);
   }
 
@@ -103,6 +131,12 @@
   }
 
   async function setValue(channel, addr, endpoint, key, value) {
+    if (thingsetApi && thingsetApi.update) {
+      try {
+        const resp = await thingsetApi.update({ channel, targetAddr: addr, endpoint, values: { [key]: value } });
+        return { ok: !!resp };
+      } catch { return { ok: false }; }
+    }
     if (!ipc) return { ok: false };
     try {
       const resp = await ipc.invoke('ts-update', { channel, targetAddr: addr, endpoint, values: { [key]: value } });
@@ -151,7 +185,7 @@
       row.append(badge, voltageBtn, currentBtn, refGroup);
 
       async function setModeVC(value) {
-        const tree = readTreeForAddr(dev.addr);
+        const tree = await readTreeForAddr(dev.addr);
         const found = tree && tree.root ? findLeg0WModeVC(tree.root) : null;
         if (!found) return false;
         // Optimistic UI update
@@ -177,7 +211,7 @@
       });
 
       refSend.on('click', async () => {
-        const tree = readTreeForAddr(dev.addr);
+        const tree = await readTreeForAddr(dev.addr);
         const found = tree && tree.root ? findLeg0WRef(tree.root) : null;
         if (!found) { refSend.blur(); return; }
         const raw = String(refInput.val() ?? '').trim();
@@ -191,68 +225,49 @@
       return row;
     }
 
-    function render() {
+    async function render() {
       grid.empty();
-      const devs = listDevices();
+      const devs = await listDevices();
       if (!devs.length) { grid.append('<div class="text-muted">No devices found. Use Scan + Build in ThingSet UI.</div>'); return; }
       devs.forEach(d => {
         const row = makeRow(d);
         // Initialize button style based on current value from tree
-        try {
-          const tree = readTreeForAddr(d.addr);
+        readTreeForAddr(d.addr).then((tree) => {
           const found = tree && tree.root ? findLeg0WModeVC(tree.root) : null;
-          if (found && typeof found.current === 'number') {
-            const v = found.current | 0;
-            const voltageBtnEl = row.find('button.ts-voltage');
-            const currentBtnEl = row.find('button.ts-current');
-            voltageBtnEl.toggleClass('btn-success', v === 0).toggleClass('btn-outline-success', v !== 0);
-            currentBtnEl.toggleClass('btn-danger', v === 1).toggleClass('btn-outline-danger', v !== 1);
-          } else {
-            // No endpoint found: disable and hint
-            row.find('button.ts-voltage,button.ts-current').prop('disabled', true).attr('title', 'wModeVC not found');
+          if (!found) return;
+          const mode = found.current;
+          if (mode === 0) {
+            row.find('.ts-voltage').addClass('btn-success').removeClass('btn-outline-success');
+          } else if (mode === 1) {
+            row.find('.ts-current').addClass('btn-danger').removeClass('btn-outline-danger');
           }
-          // Initialize reference field
-          const foundRef = tree && tree.root ? findLeg0WRef(tree.root) : null;
-          if (foundRef && (typeof foundRef.current === 'number')) {
-            row.find('input[type=number]').val(foundRef.current);
-          }
-        } catch {}
+        }).catch(() => {});
         grid.append(row);
       });
     }
 
-    refreshBtn.on('click', render);
+    refreshBtn.on('click', () => { render().catch(() => {}); });
 
     resetVoltageBtn.on('click', async () => {
-      const devs = listDevices();
-      resetVoltageBtn.prop('disabled', true);
-      try {
-        for (const d of devs) {
-          const tree = readTreeForAddr(d.addr);
-          const found = tree && tree.root ? findLeg0WModeVC(tree.root) : null;
-          if (!found) continue;
-          await setValue(current.channel || 'can0', d.addr, found.endpoint, found.key, 0);
-        }
-        // Update UI highlights to Voltage for all rows
-        grid.find('.ts-voltage').removeClass('btn-outline-success').addClass('btn-success');
-        grid.find('.ts-current').removeClass('btn-danger').addClass('btn-outline-danger');
-      } finally {
-        resetVoltageBtn.prop('disabled', false);
+      const devs = await listDevices();
+      const list = parseList(current.resetTargets);
+      const filtered = list.length
+        ? devs.filter(d => list.includes(String(d.addr)) || list.includes(`0x${d.addr.toString(16).toUpperCase().padStart(2, '0')}`))
+        : devs;
+      for (const dev of filtered) {
+        const tree = await readTreeForAddr(dev.addr);
+        const found = tree && tree.root ? findLeg0WModeVC(tree.root) : null;
+        if (!found) continue;
+        await setValue(current.channel || 'can0', dev.addr, found.endpoint, found.key, 0);
       }
+      render().catch(() => {});
     });
 
-    this.render = function (container) { $(container).empty().append(root); render(); };
-    this.onSettingsChanged = function (s) { current = s || {}; };
-    this.onDispose = function () {};
-    this.getHeight = function () {
-      if (current.autoHeight) {
-        try {
-          const count = listDevices().length || 3;
-          // Header (1) + rows (approx). Clamp between 3 and 15 blocks.
-          return Math.max(3, Math.min(15, 1 + count));
-        } catch { /* fallthrough */ }
-      }
-      return 3;
+    this.render = function (el) {
+      $(el).append(root);
+      render().catch(() => {});
     };
+    this.onSettingsChanged = function (newSettings) { current = newSettings || {}; render().catch(() => {}); };
+    this.getHeight = function () { return current.autoHeight ? Math.max(4, (grid.children().length || 1) + 1) : 6; };
   }
-}());
+})();

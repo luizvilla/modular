@@ -14,7 +14,8 @@
     class SerialPortControl {
         constructor(settings) {
             this.settings = settings;
-            this.ipc = window.require?.("electron")?.ipcRenderer;
+            this.serialApi = window.api && window.api.serial ? window.api.serial : null;
+            this.ipc = !this.serialApi && window.require ? window.require("electron")?.ipcRenderer : null;
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
             this.toggleBtn = $('<button class="btn btn-primary btn-sm w-100"></button>');
@@ -70,10 +71,12 @@
         }
 
         async _updateStatus() {
-            if (!this.ipc || !this.settings.datasource) return;
+            if ((!this.serialApi && !this.ipc) || !this.settings.datasource) return;
             const path = await this._getPortPath();
             try {
-                this.isOpen = await this.ipc.invoke('is-serial-port-open', { path });
+                this.isOpen = this.serialApi && this.serialApi.isOpen
+                    ? await this.serialApi.isOpen(path)
+                    : await this.ipc.invoke('is-serial-port-open', { path });
             } catch (e) {
                 this.isOpen = false;
             }
@@ -81,29 +84,42 @@
         }
 
         async _togglePort() {
-            if (!this.ipc || !this.settings.datasource) return;
+            if ((!this.serialApi && !this.ipc) || !this.settings.datasource) return;
             const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
             const path = dsSettings.portPath || this.settings.datasource;
             if (this.isOpen) {
-                await this.ipc.invoke('close-serial-port', { path }).catch(() => {});
+                if (this.serialApi && this.serialApi.closePort) {
+                    await this.serialApi.closePort(path).catch(() => {});
+                } else {
+                    await this.ipc.invoke('close-serial-port', { path }).catch(() => {});
+                }
                 this.isOpen = false;
             } else {
-                await this.ipc.invoke('open-serial-port', {
+                const payload = {
                     path,
                     baudRate: dsSettings.baudRate,
                     separator: dsSettings.separator,
                     eol: dsSettings.eol,
                     type: 'serialport_datasource'
-                }).catch(() => {});
+                };
+                if (this.serialApi && this.serialApi.openPort) {
+                    await this.serialApi.openPort(payload).catch(() => {});
+                } else {
+                    await this.ipc.invoke('open-serial-port', payload).catch(() => {});
+                }
                 this.isOpen = true;
             }
             this.toggleBtn.text(this.isOpen ? 'Pause' : 'Open');
         }
 
         async _flushBuffers() {
-            if (!this.ipc || !this.settings.datasource) return;
+            if ((!this.serialApi && !this.ipc) || !this.settings.datasource) return;
             const path = await this._getPortPath();
-            await this.ipc.invoke('flush-serial-buffers', { path }).catch(() => {});
+            if (this.serialApi && this.serialApi.flush) {
+                await this.serialApi.flush(path).catch(() => {});
+            } else {
+                await this.ipc.invoke('flush-serial-buffers', { path }).catch(() => {});
+            }
         }
 
         onSettingsChanged(newSettings) {

@@ -1,4 +1,25 @@
 (function () {
+    const api = window.api || null;
+    const ipcShim = (function createIpcShim(apiRef) {
+        if (!apiRef) return null;
+        const serial = apiRef.serial || null;
+        const can = apiRef.can || null;
+        if (!serial && !can) return null;
+        return {
+            invoke: async (channel, payload = {}) => {
+                switch (channel) {
+                    case 'get-serial-buffer':
+                        return serial && serial.getBuffer ? serial.getBuffer(payload.path) : null;
+                    case 'get-fast-dataset':
+                        return serial && serial.getFastDataset ? serial.getFastDataset(payload.path) : null;
+                    case 'can-aggregate-snapshot':
+                        return can && can.aggregateSnapshot ? can.aggregateSnapshot(payload) : null;
+                    default:
+                        return null;
+                }
+            }
+        };
+    })(api);
     const COLOR_MAP = {
         blue: '#3b82f6',
         green: '#22c55e',
@@ -58,7 +79,7 @@
     class VerticalGauge {
         constructor(settings) {
             this.settings = settings;
-            this.ipc = window.require?.('electron')?.ipcRenderer;
+            this.ipc = ipcShim || window.require?.('electron')?.ipcRenderer;
             this.container = $('<div class="vgauge-root"></div>');
             this.titleEl = $('<div class="vgauge-title"></div>');
             this.bodyEl = $('<div class="vgauge-body"></div>');

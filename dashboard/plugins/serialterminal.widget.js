@@ -37,7 +37,8 @@
     class SerialTerminal {
         constructor(settings) {
             this.settings = settings;
-            this.ipcRenderer = window.require?.("electron")?.ipcRenderer;
+            this.serialApi = window.api && window.api.serial ? window.api.serial : null;
+            this.ipcRenderer = !this.serialApi && window.require ? window.require("electron")?.ipcRenderer : null;
             this.timer = null;
             this.colors = [];
             this.lastColorCheck = 0;
@@ -88,14 +89,16 @@
         }
 
         async _poll() {
-            if (!this.ipcRenderer || !this.settings.datasourceName) return;
+            if ((!this.serialApi && !this.ipcRenderer) || !this.settings.datasourceName) return;
             const ds = freeboard.getDatasourceSettings(this.settings.datasourceName);
             if (!ds || !ds.portPath) return;
             // Keep terminal output stable while the datasource is paused.
             if (ds.paused) return;
             await this._refreshColors();
             try {
-                const lines = await this.ipcRenderer.invoke("get-terminal-buffer", { path: ds.portPath });
+                const lines = this.serialApi && this.serialApi.getTerminalBuffer
+                    ? await this.serialApi.getTerminalBuffer(ds.portPath)
+                    : await this.ipcRenderer.invoke("get-terminal-buffer", { path: ds.portPath });
                 if (Array.isArray(lines)) {
                     const max = parseInt(this.settings.maxLines) || 100;
                     const display = lines.slice(-max);
@@ -129,7 +132,7 @@
             const now = Date.now();
             if (!force && now - this.lastColorCheck < 1000) return;
             this.lastColorCheck = now;
-            if (!this.ipcRenderer || !this.settings.datasourceName) {
+            if ((!this.serialApi && !this.ipcRenderer) || !this.settings.datasourceName) {
                 this.colors = [];
                 return;
             }
@@ -137,7 +140,9 @@
             const path = ds.portPath || this.settings.datasourceName;
             const type = this._getDatasourceType(this.settings.datasourceName);
             try {
-                const fetched = await this.ipcRenderer.invoke('get-serial-colors', { path, type });
+                const fetched = this.serialApi && this.serialApi.getColors
+                    ? await this.serialApi.getColors(path, type)
+                    : await this.ipcRenderer.invoke('get-serial-colors', { path, type });
                 if (Array.isArray(fetched) && fetched.length) {
                     this.colors = fetched;
                     return;

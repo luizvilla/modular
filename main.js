@@ -143,6 +143,27 @@ ipcMain.handle('files-read-text', async (_event, { filePath } = {}) => {
     return fs.promises.readFile(filePath, 'utf8');
 });
 
+ipcMain.handle('files-list-dir', async (_event, { dirPath } = {}) => {
+    if (!dirPath) return [];
+    try {
+        return await fs.promises.readdir(dirPath);
+    } catch (err) {
+        console.warn('files-list-dir failed:', err?.message || err);
+        return [];
+    }
+});
+
+ipcMain.handle('files-write-text', async (_event, { filePath, content } = {}) => {
+    if (!filePath) return { ok: false, error: 'Missing filePath' };
+    try {
+        await fs.promises.writeFile(filePath, content ?? '', 'utf8');
+        return { ok: true };
+    } catch (err) {
+        console.warn('files-write-text failed:', err?.message || err);
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
+
 function setAppMenu() {
     const examplesMenu = buildExamplesMenuItems();
     const template = [

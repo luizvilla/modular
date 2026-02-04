@@ -58,7 +58,8 @@
     class SerialCsvRecorder {
         constructor(settings) {
             this.settings = settings;
-            this.ipc = window.require?.("electron")?.ipcRenderer;
+            this.serialApi = window.api && window.api.serial ? window.api.serial : null;
+            this.ipc = !this.serialApi && window.require ? window.require("electron")?.ipcRenderer : null;
             this.isRecording = false;
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
 
@@ -180,28 +181,37 @@
         }
 
         async _toggleRecord() {
-            if (!this.ipc) return;
+            if (!this.serialApi && !this.ipc) return;
             const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
             this.portPath = dsSettings.portPath || this.settings.datasource;
             const type = this._getDatasourceType();
             if (type === 'fast_frame_datasource') {
-                await this.ipc.invoke('save-fast-csv', {
+                const payload = {
                     path: this.portPath,
                     filePath: this.settings.filePath,
                     separator: dsSettings.separator || this.settings.separator,
                     eol: dsSettings.eol || this.settings.eol,
                     addHeader: this.settings.addHeader,
                     timestampMode: this.settings.timestampMode
-                });
+                };
+                if (this.serialApi && this.serialApi.saveFastCsv) {
+                    await this.serialApi.saveFastCsv(payload);
+                } else {
+                    await this.ipc.invoke('save-fast-csv', payload);
+                }
                 return;
             }
 
             if (this.isRecording) {
-                await this.ipc.invoke('stop-csv-record', { path: this.portPath });
+                if (this.serialApi && this.serialApi.stopCsvRecord) {
+                    await this.serialApi.stopCsvRecord(this.portPath);
+                } else {
+                    await this.ipc.invoke('stop-csv-record', { path: this.portPath });
+                }
                 this.isRecording = false;
                 this.button.text('Start Record');
             } else {
-                await this.ipc.invoke('start-csv-record', {
+                const payload = {
                     path: this.portPath,
                     filePath: this.settings.filePath,
                     separator: dsSettings.separator || this.settings.separator,
@@ -210,7 +220,12 @@
                     addHeader: this.settings.addHeader,
                     timestampMode: this.settings.timestampMode,
                     type
-                });
+                };
+                if (this.serialApi && this.serialApi.startCsvRecord) {
+                    await this.serialApi.startCsvRecord(payload);
+                } else {
+                    await this.ipc.invoke('start-csv-record', payload);
+                }
                 this.isRecording = true;
                 this.button.text('Stop Record');
             }
@@ -222,8 +237,12 @@
         }
 
         onDispose() {
-            if (this.isRecording && this.ipc) {
-                this.ipc.invoke('stop-csv-record', { path: this.portPath });
+            if (this.isRecording) {
+                if (this.serialApi && this.serialApi.stopCsvRecord) {
+                    this.serialApi.stopCsvRecord(this.portPath);
+                } else if (this.ipc) {
+                    this.ipc.invoke('stop-csv-record', { path: this.portPath });
+                }
             }
             if (this._configHandler && freeboard.off) {
                 freeboard.off('config_updated', this._configHandler);

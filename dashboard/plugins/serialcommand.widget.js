@@ -37,7 +37,8 @@
     class SerialCommandButtons {
         constructor(settings) {
             this.settings = settings;
-            this.ipcRenderer = window.require?.("electron")?.ipcRenderer;
+            this.serialApi = window.api && window.api.serial ? window.api.serial : null;
+            this.ipcRenderer = !this.serialApi && window.require ? window.require("electron")?.ipcRenderer : null;
             this.container = $('<div class="serial-command-buttons d-flex flex-column gap-2 overflow-auto"></div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
             this.btnContainer = $('<div class="d-flex flex-wrap"></div>');
@@ -100,13 +101,18 @@
         }
 
         _sendCommand(command) {
-            if (!this.ipcRenderer || !command) return;
+            if (!command) return;
             const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
             const path = dsSettings.portPath || this.settings.datasource;
             const payload = { data: command };
             if (path) payload.path = path;
-            this.ipcRenderer.invoke("write-serial-port", payload)
-                .catch(err => console.error("Serial command failed:", err));
+            if (this.serialApi && this.serialApi.write) {
+                this.serialApi.write(payload.path, payload.data)
+                    .catch(err => console.error("Serial command failed:", err));
+            } else if (this.ipcRenderer) {
+                this.ipcRenderer.invoke("write-serial-port", payload)
+                    .catch(err => console.error("Serial command failed:", err));
+            }
         }
 
         onSettingsChanged(newSettings) {

@@ -1,21 +1,34 @@
 (function () {
-  const ipc = window.require?.('electron')?.ipcRenderer;
-  const fs = window.require?.('fs');
-  const path = window.require?.('path');
+  const api = window.api || null;
+  const thingsetApi = api && api.thingset ? api.thingset : null;
+  const filesApi = api && api.files ? api.files : null;
+  const paths = api && api.paths ? api.paths : null;
+  const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
+  const fs = !api && window.require ? window.require('fs') : null;
+  const path = !api && window.require ? window.require('path') : null;
 
   function thingsetDir() {
-    try { return path.join(process.cwd(), 'thingset'); } catch { return null; }
+    try {
+      if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'thingset');
+      return path.join(process.cwd(), 'thingset');
+    } catch { return null; }
   }
 
-  function readJsonSafe(p) {
-    try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
+  async function readJsonSafe(p) {
+    try {
+      if (filesApi && filesApi.readText) {
+        return JSON.parse(await filesApi.readText(p));
+      }
+      if (fs) return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch {}
+    return null;
   }
 
-  function listDevices() {
+  async function listDevices() {
     const dir = thingsetDir();
     if (!dir) return [];
-    const np = path.join(dir, 'nodes.json');
-    const mapping = readJsonSafe(np) || {};
+    const np = (paths && paths.join) ? paths.join(dir, 'nodes.json') : path.join(dir, 'nodes.json');
+    const mapping = await readJsonSafe(np) || {};
     const out = [];
     for (const [addrStr, uid] of Object.entries(mapping)) {
       const addr = parseInt(addrStr, 10);
@@ -26,11 +39,11 @@
     return out;
   }
 
-  function readTreeForAddr(addr) {
+  async function readTreeForAddr(addr) {
     const dir = thingsetDir();
     if (!dir) return null;
     const hex = addr.toString(16).toUpperCase().padStart(2, '0');
-    const fp = path.join(dir, `node_${hex}_tree.json`);
+    const fp = (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
     return readJsonSafe(fp);
   }
 
@@ -74,12 +87,18 @@
     return hits;
   }
 
+  async function tsUpdate(payload) {
+    if (thingsetApi && thingsetApi.update) return thingsetApi.update(payload);
+    if (ipc) return ipc.invoke('ts-update', payload);
+    return null;
+  }
+
   async function setWOnForAll(channel, enable) {
-    if (!ipc) return { ok: false, reason: 'no-ipc' };
-    const devs = listDevices();
+    if (!thingsetApi && !ipc) return { ok: false, reason: 'no-ipc' };
+    const devs = await listDevices();
     const ops = [];
     for (const d of devs) {
-      const tree = readTreeForAddr(d.addr);
+      const tree = await readTreeForAddr(d.addr);
       const wOnPaths = tree && tree.root ? findLeg0WOnEndpoint(tree.root) : [];
       const wModePaths = tree && tree.root ? findWModeEndpoint(tree.root) : [];
       if (!wOnPaths.length && !wModePaths.length) continue;
@@ -91,7 +110,7 @@
         perEndpoint.get(endpoint)[key] = val;
       }
       for (const [endpoint, values] of perEndpoint.entries()) {
-        ops.push(ipc.invoke('ts-update', { channel, targetAddr: d.addr, endpoint, values }).catch(() => null));
+        ops.push(tsUpdate({ channel, targetAddr: d.addr, endpoint, values }).catch(() => null));
       }
     }
     try { await Promise.all(ops); } catch {}

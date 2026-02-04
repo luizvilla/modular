@@ -1,4 +1,29 @@
 (function () {
+    const api = window.api || null;
+    const ipcShim = (function createIpcShim(apiRef) {
+        if (!apiRef) return null;
+        const serial = apiRef.serial || null;
+        const can = apiRef.can || null;
+        if (!serial && !can) return null;
+        return {
+            invoke: async (channel, payload = {}) => {
+                switch (channel) {
+                    case 'can-aggregate-start':
+                        return can && can.aggregateStart ? can.aggregateStart(payload) : null;
+                    case 'can-aggregate-snapshot':
+                        return can && can.aggregateSnapshot ? can.aggregateSnapshot(payload) : null;
+                    case 'get-serial-headers':
+                        return serial && serial.getHeaders ? serial.getHeaders(payload.path, payload.type) : null;
+                    case 'get-fast-dataset':
+                        return serial && serial.getFastDataset ? serial.getFastDataset(payload.path) : null;
+                    case 'get-serial-buffer':
+                        return serial && serial.getBuffer ? serial.getBuffer(payload.path) : null;
+                    default:
+                        return null;
+                }
+            }
+        };
+    })(api);
     freeboard.loadWidgetPlugin({
         type_name: 'vertical_gauge_manager',
         display_name: 'Gauge Channel Manager',
@@ -13,7 +38,7 @@
     class GaugeManager {
         constructor(settings) {
             this.settings = settings;
-            this.ipc = window.require?.('electron')?.ipcRenderer;
+            this.ipc = ipcShim || window.require?.('electron')?.ipcRenderer;
             this.container = $('<div class="h-100 overflow-auto p-2 d-flex flex-column gap-2"></div>');
             this.controls = {};
             this._cleanupFns = [];

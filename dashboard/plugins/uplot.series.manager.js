@@ -1,4 +1,22 @@
 (function () {
+  const api = window.api || null;
+  const ipcShim = (function createIpcShim(apiRef) {
+    if (!apiRef) return null;
+    const serial = apiRef.serial || null;
+    if (!serial) return null;
+    return {
+      invoke: async (channel, payload = {}) => {
+        switch (channel) {
+          case 'get-serial-headers':
+            return serial.getHeaders ? serial.getHeaders(payload.path, payload.type) : null;
+          case 'get-serial-colors':
+            return serial.getColors ? serial.getColors(payload.path, payload.type) : null;
+          default:
+            return null;
+        }
+      }
+    };
+  })(api);
   freeboard.loadWidgetPlugin({
     type_name: 'uplot_series_manager',
     display_name: 'Plot Series Manager',
@@ -12,7 +30,7 @@
   class SeriesManager {
     constructor(settings) {
       this.settings = settings;
-      this.ipc = window.require?.('electron')?.ipcRenderer;
+      this.ipc = ipcShim || window.require?.('electron')?.ipcRenderer;
       this.container = $('<div class="h-100 overflow-auto p-2 d-flex flex-column gap-2"></div>');
       this.controls = {};
       this._cleanupFns = [];

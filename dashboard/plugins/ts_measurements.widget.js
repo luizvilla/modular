@@ -1,44 +1,71 @@
 (function () {
-  const ipc = window.require?.('electron')?.ipcRenderer;
-  const fs = window.require?.('fs');
-  const path = window.require?.('path');
+  const api = window.api || null;
+  const thingsetApi = api && api.thingset ? api.thingset : null;
+  const filesApi = api && api.files ? api.files : null;
+  const paths = api && api.paths ? api.paths : null;
+  const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
+  const fs = !api && window.require ? window.require('fs') : null;
+  const path = !api && window.require ? window.require('path') : null;
 
   function thingsetDir() {
     try {
+      if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'thingset');
       return path.join(process.cwd(), 'thingset');
     } catch {
       return null;
     }
   }
 
-  function readJsonSafe(fp) {
+  async function readJsonSafe(fp) {
     try {
-      const txt = fs.readFileSync(fp, 'utf8');
-      return JSON.parse(txt);
+      if (filesApi && filesApi.readText) {
+        const txt = await filesApi.readText(fp);
+        return JSON.parse(txt);
+      }
+      if (fs) {
+        const txt = fs.readFileSync(fp, 'utf8');
+        return JSON.parse(txt);
+      }
     } catch {
       return null;
     }
   }
 
-  function listDevices() {
+  async function writeJsonSafe(fp, obj) {
+    try {
+      const content = JSON.stringify(obj, null, 2);
+      if (filesApi && filesApi.writeText) {
+        const res = await filesApi.writeText(fp, content);
+        return !!res?.ok;
+      }
+      if (fs) {
+        fs.writeFileSync(fp, content, 'utf8');
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  async function listDevices() {
     const dir = thingsetDir();
     if (!dir) return [];
     const byAddr = new Map();
-    const nodesPath = path.join(dir, 'nodes.json');
-    const mapping = readJsonSafe(nodesPath) || {};
+    const nodesPath = (paths && paths.join) ? paths.join(dir, 'nodes.json') : path.join(dir, 'nodes.json');
+    const mapping = await readJsonSafe(nodesPath) || {};
     for (const [addrStr, uid] of Object.entries(mapping)) {
       const addr = parseInt(addrStr, 10);
       if (!Number.isFinite(addr)) continue;
       byAddr.set(addr, { addr, uid });
     }
     try {
-      const files = fs.readdirSync(dir).filter(f => /^node_[0-9A-Fa-f]{2}_tree\.json$/.test(f));
+      const files = (filesApi && filesApi.listDir ? await filesApi.listDir(dir) : fs.readdirSync(dir))
+        .filter(f => /^node_[0-9A-Fa-f]{2}_tree\.json$/.test(f));
       for (const f of files) {
         const m = f.match(/^node_([0-9A-Fa-f]{2})_tree\.json$/);
         if (!m) continue;
         const addr = parseInt(m[1], 16);
         if (!Number.isFinite(addr)) continue;
-        const tree = readJsonSafe(path.join(dir, f)) || {};
+        const tree = await readJsonSafe((paths && paths.join) ? paths.join(dir, f) : path.join(dir, f)) || {};
         const uid = tree.node_uid || tree?.root?.node_uid || (byAddr.get(addr)?.uid);
         if (!byAddr.has(addr)) byAddr.set(addr, { addr, uid });
         else if (!byAddr.get(addr).uid && uid) byAddr.get(addr).uid = uid;
@@ -49,54 +76,77 @@
     return out;
   }
 
-  function readTreeForAddr(addr) {
+  async function readTreeForAddr(addr) {
     const dir = thingsetDir();
     if (!dir) return null;
     const hex = addr.toString(16).toUpperCase().padStart(2, '0');
-    const fp = path.join(dir, `node_${hex}_tree.json`);
+    const fp = (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
     return readJsonSafe(fp);
   }
 
-  function writeTreeForAddr(addr, treeObj) {
+  async function writeTreeForAddr(addr, treeObj) {
     try {
       const dir = thingsetDir();
       if (!dir) return false;
       const hex = addr.toString(16).toUpperCase().padStart(2, '0');
-      const fp = path.join(dir, `node_${hex}_tree.json`);
-      fs.writeFileSync(fp, JSON.stringify(treeObj, null, 2), 'utf8');
-      return true;
+      const fp = (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
+      return await writeJsonSafe(fp, treeObj);
     } catch {
       return false;
     }
   }
 
-  function setSubscriptionState(addr, pathStr, subscribed) {
+  async function setSubscriptionState(addr, pathStr, subscribed) {
     try {
-      const tree = readTreeForAddr(addr);
+      const tree = await readTreeForAddr(addr);
       if (!tree || !tree.root) return false;
       tree.root._ui = tree.root._ui || {};
       tree.root._ui.subscriptions = tree.root._ui.subscriptions || {};
       if (subscribed) tree.root._ui.subscriptions[pathStr] = true;
       else delete tree.root._ui.subscriptions[pathStr];
-      return writeTreeForAddr(addr, tree);
+      return await writeTreeForAddr(addr, tree);
     } catch {
       return false;
     }
   }
 
-  function setReportingFlag(addr, enabled) {
+  async function setReportingFlag(addr, enabled) {
     try {
-      const tree = readTreeForAddr(addr);
+      const tree = await readTreeForAddr(addr);
       if (!tree || !tree.root) return false;
       tree.root._ui = tree.root._ui || {};
       tree.root._ui.reporting = tree.root._ui.reporting || {};
       tree.root._ui.reporting.sEnable = !!enabled;
       const repNode = findNodeByPath(tree.root, '_Reporting/mLive/sEnable');
       if (repNode) repNode.value = !!enabled;
-      return writeTreeForAddr(addr, tree);
+      return await writeTreeForAddr(addr, tree);
     } catch {
       return false;
     }
+  }
+
+  async function tsCreate(payload) {
+    if (thingsetApi && thingsetApi.create) return thingsetApi.create(payload);
+    if (ipc) return ipc.invoke('ts-create', payload);
+    return null;
+  }
+
+  async function tsDelete(payload) {
+    if (thingsetApi && thingsetApi.delete) return thingsetApi.delete(payload);
+    if (ipc) return ipc.invoke('ts-delete', payload);
+    return null;
+  }
+
+  async function tsIdsForPaths(payload) {
+    if (thingsetApi && thingsetApi.idsForPaths) return thingsetApi.idsForPaths(payload);
+    if (ipc) return ipc.invoke('ts-ids-for-paths', payload);
+    return null;
+  }
+
+  async function tsUpdate(payload) {
+    if (thingsetApi && thingsetApi.update) return thingsetApi.update(payload);
+    if (ipc) return ipc.invoke('ts-update', payload);
+    return null;
   }
 
   function findNodeByPath(root, pathStr) {
@@ -210,35 +260,36 @@
     controls.append(refreshBtn, $('<div class="flex-fill"></div>'), this.status);
     this.container.append(controls, this.listWrap);
     $(el).append(this.container);
-    refreshBtn.on('click', () => this.refresh());
+    refreshBtn.on('click', () => { this.refresh().catch(() => {}); });
     if (!this._subscriptionHandler) {
-      this._subscriptionHandler = () => this.refresh();
+      this._subscriptionHandler = () => { this.refresh().catch(() => {}); };
       window.addEventListener('thingset-subscriptions-updated', this._subscriptionHandler);
     }
-    this.refresh();
+    this.refresh().catch(() => {});
   };
 
-  MeasurementsWidget.prototype.refresh = function () {
-    const devices = listDevices();
+  MeasurementsWidget.prototype.refresh = async function () {
+    const devices = await listDevices();
     this.status.text(`${devices.length} device${devices.length === 1 ? '' : 's'} found`);
     this.listWrap.empty();
     if (!devices.length) {
       this.listWrap.append('<div class="text-muted">No ThingSet devices found. Run the CAN scan + build process.</div>');
       return;
     }
-    devices.forEach(dev => {
-      this.listWrap.append(this._renderDeviceCard(dev));
-    });
+    for (const dev of devices) {
+      const card = await this._renderDeviceCard(dev);
+      this.listWrap.append(card);
+    }
   };
 
-  MeasurementsWidget.prototype._renderDeviceCard = function (dev) {
+  MeasurementsWidget.prototype._renderDeviceCard = async function (dev) {
     const card = $('<div class="border rounded p-2 d-flex flex-column gap-2"></div>');
     const header = $('<div class="d-flex justify-content-between align-items-center flex-wrap gap-1"></div>');
     const hex = `0x${dev.addr.toString(16).toUpperCase().padStart(2, '0')}`;
     header.append($('<strong></strong>').text(hex));
     header.append($('<span class="text-muted small"></span>').text(dev.uid || 'unknown uid'));
     card.append(header);
-    const tree = readTreeForAddr(dev.addr);
+    const tree = await readTreeForAddr(dev.addr);
     if (!tree || !tree.root) {
       card.append('<div class="text-muted small">No tree JSON found. Run ThingSet tree builder.</div>');
       return card;
@@ -274,7 +325,7 @@
   };
 
   MeasurementsWidget.prototype._toggleMeasurement = async function (addr, pathStr, enable, btn) {
-    if (!ipc) return;
+    if (!thingsetApi && !ipc) return;
     const channel = this.settings.channel || 'can0';
     const subsetId = await this._ensureSubsetId(channel, addr);
     const endpoint = subsetId != null ? subsetId : 'mLive';
@@ -282,7 +333,7 @@
     let stateChanged = false;
     try {
       if (enable) {
-        const resp = await ipc.invoke('ts-create', {
+        const resp = await tsCreate({
           channel,
           targetAddr: addr,
           endpoint,
@@ -290,14 +341,14 @@
         });
         if (resp && resp.status >= 0x80 && resp.status < 0xA0) {
           btn.data('active', true).removeClass('btn-outline-secondary').addClass('btn-success');
-          setSubscriptionState(addr, pathStr, true);
+          await setSubscriptionState(addr, pathStr, true);
           await this._ensureReportingEnabled(channel, addr);
           stateChanged = true;
         } else {
           btn.data('active', false).removeClass('btn-success').addClass('btn-outline-secondary');
         }
       } else {
-        const resp = await ipc.invoke('ts-delete', {
+        const resp = await tsDelete({
           channel,
           targetAddr: addr,
           endpoint,
@@ -305,7 +356,7 @@
         });
         if (resp && resp.status >= 0x80 && resp.status < 0xA0) {
           btn.data('active', false).removeClass('btn-success').addClass('btn-outline-secondary');
-          setSubscriptionState(addr, pathStr, false);
+          await setSubscriptionState(addr, pathStr, false);
           stateChanged = true;
         } else {
           btn.data('active', true).removeClass('btn-outline-secondary').addClass('btn-success');
@@ -327,7 +378,7 @@
     if (this.subsetCache.has(addr)) return this.subsetCache.get(addr);
     let sid = null;
     try {
-      const resp = await ipc.invoke('ts-ids-for-paths', { channel, targetAddr: addr, paths: ['mLive'] });
+      const resp = await tsIdsForPaths({ channel, targetAddr: addr, paths: ['mLive'] });
       const payload = resp?.payload;
       if (Array.isArray(payload) && Number.isInteger(payload[0])) sid = payload[0];
     } catch {}
@@ -337,14 +388,14 @@
 
   MeasurementsWidget.prototype._ensureReportingEnabled = async function (channel, addr) {
     try {
-      const resp = await ipc.invoke('ts-update', {
+      const resp = await tsUpdate({
         channel,
         targetAddr: addr,
         endpoint: '_Reporting/mLive',
         values: { sEnable: true }
       });
       if (resp && resp.status >= 0x80 && resp.status < 0xA0) {
-        setReportingFlag(addr, true);
+        await setReportingFlag(addr, true);
         return true;
       }
     } catch {}
@@ -353,7 +404,7 @@
 
   MeasurementsWidget.prototype.onSettingsChanged = function (newSettings) {
     this.settings = newSettings || {};
-    this.refresh();
+    this.refresh().catch(() => {});
   };
 
   MeasurementsWidget.prototype.onDispose = function () {

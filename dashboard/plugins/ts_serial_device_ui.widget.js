@@ -1,6 +1,8 @@
 (function () {
-  const ipc = window.require?.('electron')?.ipcRenderer;
-  const nodePath = window.require?.('path');
+  const api = window.api || null;
+  const tsSerialApi = api && api.thingsetSerial ? api.thingsetSerial : null;
+  const paths = api && api.paths ? api.paths : null;
+  const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -79,7 +81,7 @@
           const isWritable = prefix === 'w' || prefix === 's';
           const isReadable = prefix === 'r';
 
-          if (isWritable && ipc) {
+          if (isWritable && (widget.tsSerialApi || widget.ipc)) {
             const input = $('<input type="text" class="form-control form-control-sm" style="max-width: 140px;" placeholder="value">');
             const sendBtn = $('<button class="btn btn-primary btn-sm">send</button>');
             sendBtn.on('click', async () => {
@@ -102,7 +104,7 @@
             right.append(input, sendBtn);
           }
 
-          if (isReadable && ipc) {
+          if (isReadable && (widget.tsSerialApi || widget.ipc)) {
             const readBtn = $('<button class="btn btn-outline-secondary btn-sm">read</button>');
             readBtn.on('click', async () => {
               readBtn.prop('disabled', true).text('reading…');
@@ -146,6 +148,8 @@
 
   function SerialThingSetWidget(settings) {
     this.settings = settings || {};
+    this.tsSerialApi = tsSerialApi;
+    this.ipc = !this.tsSerialApi ? ipc : null;
     this.uiState = { expanded: {} };
     this.root = $('<div class="d-flex flex-column h-100 p-1 gap-2"></div>');
     this.dsSelect = $('<select class="form-select form-select-sm"></select>');
@@ -245,7 +249,7 @@
   };
 
   SerialThingSetWidget.prototype.invokeUpdate = async function (path, value) {
-    if (!ipc) throw new Error('IPC unavailable');
+    if (!this.tsSerialApi && !this.ipc) throw new Error('IPC unavailable');
     const ds = this._getDatasourceSettings();
     if (!ds || !ds.portPath) throw new Error('serial datasource not configured');
     const opts = {
@@ -256,11 +260,14 @@
       usePrefix: !!this.settings.usePrefix,
       verbose: !!this.settings.debug,
     };
-    return ipc.invoke('ts-serial-set-value', opts);
+    if (this.tsSerialApi && this.tsSerialApi.setValue) {
+      return this.tsSerialApi.setValue(opts);
+    }
+    return this.ipc.invoke('ts-serial-set-value', opts);
   };
 
   SerialThingSetWidget.prototype.invokeRead = async function (path) {
-    if (!ipc) throw new Error('IPC unavailable');
+    if (!this.tsSerialApi && !this.ipc) throw new Error('IPC unavailable');
     const ds = this._getDatasourceSettings();
     if (!ds || !ds.portPath) throw new Error('serial datasource not configured');
     const opts = {
@@ -270,11 +277,14 @@
       usePrefix: !!this.settings.usePrefix,
       verbose: !!this.settings.debug,
     };
-    return ipc.invoke('ts-serial-get-value', opts);
+    if (this.tsSerialApi && this.tsSerialApi.getValue) {
+      return this.tsSerialApi.getValue(opts);
+    }
+    return this.ipc.invoke('ts-serial-get-value', opts);
   };
 
   SerialThingSetWidget.prototype.refresh = async function () {
-    if (!ipc) {
+    if (!this.tsSerialApi && !this.ipc) {
       this.status.text('Electron IPC unavailable.');
       return;
     }
@@ -293,7 +303,14 @@
     }
     this.setLoading(true);
     try {
-      const res = await ipc.invoke('ts-serial-tree', {
+      const res = this.tsSerialApi && this.tsSerialApi.tree
+        ? await this.tsSerialApi.tree({
+          port,
+          baudRate: Number(ds.baudRate) || 115200,
+          usePrefix: !!this.settings.usePrefix,
+          verbose: !!this.settings.debug,
+        })
+        : await this.ipc.invoke('ts-serial-tree', {
         port,
         baudRate: Number(ds.baudRate) || 115200,
         usePrefix: !!this.settings.usePrefix,
@@ -314,8 +331,8 @@
       if (res?.saved_tree_path) {
         let pretty = res.saved_tree_path;
         try {
-          if (nodePath && typeof nodePath.relative === 'function') {
-            const rel = nodePath.relative(process.cwd(), res.saved_tree_path);
+          if (paths && paths.relative && paths.cwd) {
+            const rel = paths.relative(paths.cwd(), res.saved_tree_path);
             if (rel && rel.length < pretty.length) pretty = rel;
           }
         } catch {}

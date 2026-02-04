@@ -19,7 +19,8 @@
     class SerialHeaderEditor {
         constructor(settings) {
             this.settings = settings;
-            this.ipc = window.require?.("electron")?.ipcRenderer;
+            this.serialApi = window.api && window.api.serial ? window.api.serial : null;
+            this.ipc = !this.serialApi && window.require ? window.require("electron")?.ipcRenderer : null;
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
             this.paletteSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
@@ -81,19 +82,25 @@
         }
 
         async _getChannelCount() {
-            if (!this.ipc || !this.settings.datasource) return 0;
+            if ((!this.serialApi && !this.ipc) || !this.settings.datasource) return 0;
             try {
                 const path = await this._getPortPath();
                 const dsType = this._getDatasourceType();
                 if (dsType === 'fast_frame_datasource') {
-                    const dataset = await this.ipc.invoke('get-fast-dataset', { path });
+                    const dataset = this.serialApi && this.serialApi.getFastDataset
+                        ? await this.serialApi.getFastDataset(path)
+                        : await this.ipc.invoke('get-fast-dataset', { path });
                     if (dataset && Array.isArray(dataset.series)) return dataset.series.length;
                 } else if (dsType === 'can_datasource') {
                     // For CAN, size by existing headers array length (if any)
-                    const headers = await this.ipc.invoke('get-serial-headers', { path, type: dsType });
+                    const headers = this.serialApi && this.serialApi.getHeaders
+                        ? await this.serialApi.getHeaders(path, dsType)
+                        : await this.ipc.invoke('get-serial-headers', { path, type: dsType });
                     if (Array.isArray(headers)) return headers.length;
                 } else {
-                    const data = await this.ipc.invoke('get-serial-buffer', { path });
+                    const data = this.serialApi && this.serialApi.getBuffer
+                        ? await this.serialApi.getBuffer(path)
+                        : await this.ipc.invoke('get-serial-buffer', { path });
                     if (Array.isArray(data)) return data.length;
                 }
             } catch (e) { /* ignore */ }
@@ -143,12 +150,16 @@
             const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
             let headers = [];
             let colors = [];
-            if (this.ipc) {
+            if (this.serialApi || this.ipc) {
                 try {
                     const path = await this._getPortPath();
                     const type = this._getDatasourceType();
-                    headers = await this.ipc.invoke('get-serial-headers', { path, type });
-                    colors = await this.ipc.invoke('get-serial-colors', { path, type });
+                    headers = this.serialApi && this.serialApi.getHeaders
+                        ? await this.serialApi.getHeaders(path, type)
+                        : await this.ipc.invoke('get-serial-headers', { path, type });
+                    colors = this.serialApi && this.serialApi.getColors
+                        ? await this.serialApi.getColors(path, type)
+                        : await this.ipc.invoke('get-serial-colors', { path, type });
                 } catch (e) { /* ignore */ }
             }
             if (!Array.isArray(headers) || !headers.length) {
@@ -186,12 +197,20 @@
             if (typeof freeboard.setDatasourceSettings === 'function') {
                 freeboard.setDatasourceSettings(this.settings.datasource, { headers: newHeaders });
             }
-            if (this.ipc) {
+            if (this.serialApi || this.ipc) {
                 try {
                     const path = await this._getPortPath();
                     const type = this._getDatasourceType();
-                    await this.ipc.invoke('set-serial-headers', { path, type, headers: clean });
-                    await this.ipc.invoke('set-serial-colors', { path, type, colors });
+                    if (this.serialApi && this.serialApi.setHeaders) {
+                        await this.serialApi.setHeaders(path, clean, type);
+                    } else {
+                        await this.ipc.invoke('set-serial-headers', { path, type, headers: clean });
+                    }
+                    if (this.serialApi && this.serialApi.setColors) {
+                        await this.serialApi.setColors(path, colors, type);
+                    } else {
+                        await this.ipc.invoke('set-serial-colors', { path, type, colors });
+                    }
                 } catch (e) { console.error('Failed to set headers', e); }
             }
         }

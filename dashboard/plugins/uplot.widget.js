@@ -1,4 +1,33 @@
 (function () {
+    const api = window.api || null;
+    const ipcShim = (function createIpcShim(apiRef) {
+        if (!apiRef) return null;
+        const serial = apiRef.serial || null;
+        const can = apiRef.can || null;
+        if (!serial && !can) return null;
+        return {
+            invoke: async (channel, payload = {}) => {
+                switch (channel) {
+                    case 'get-serial-headers':
+                        return serial && serial.getHeaders ? serial.getHeaders(payload.path, payload.type) : null;
+                    case 'get-serial-colors':
+                        return serial && serial.getColors ? serial.getColors(payload.path, payload.type) : null;
+                    case 'get-fast-dataset':
+                        return serial && serial.getFastDataset ? serial.getFastDataset(payload.path) : null;
+                    case 'get-serial-buffer':
+                        return serial && serial.getBuffer ? serial.getBuffer(payload.path) : null;
+                    case 'can-aggregate-start':
+                        return can && can.aggregateStart ? can.aggregateStart(payload) : null;
+                    case 'can-aggregate-snapshot':
+                        return can && can.aggregateSnapshot ? can.aggregateSnapshot(payload) : null;
+                    case 'can-aggregate-set-debug':
+                        return can && can.aggregateSetDebug ? can.aggregateSetDebug(payload) : null;
+                    default:
+                        return null;
+                }
+            }
+        };
+    })(api);
     freeboard.loadWidgetPlugin({
         type_name: "owntech_plot_uplot",
         display_name: "Plot widget",
@@ -44,7 +73,7 @@ class OwnTechPlotUPlot {
             this.localMode = false; // when true, we poll values ourselves
             this.seriesDefs = this._parseSeriesDefs((typeof settings.seriesDefs === 'function' ? settings.seriesDefs() : settings.seriesDefs));
 
-            this.ipc = window.require?.('electron')?.ipcRenderer;
+            this.ipc = ipcShim || window.require?.('electron')?.ipcRenderer;
             this.headersByDs = {};
             this.colorsByDs = {};
             this.dsMap = [];

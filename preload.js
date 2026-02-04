@@ -26,7 +26,9 @@ const api = {
         readMarkdown: (docPath) => ipcRenderer.invoke('docs-read-markdown', { docPath })
     },
     files: {
-        readText: (filePath) => ipcRenderer.invoke('files-read-text', { filePath })
+        readText: (filePath) => ipcRenderer.invoke('files-read-text', { filePath }),
+        listDir: (dirPath) => ipcRenderer.invoke('files-list-dir', { dirPath }),
+        writeText: (filePath, content) => ipcRenderer.invoke('files-write-text', { filePath, content })
     },
     examples: {
         openExampleTab: (id) => ipcRenderer.send('open-example-tab', { id }),
@@ -106,6 +108,7 @@ const api = {
         relative: (from, to) => path.relative(from, to),
         isAbsolute: (input) => path.isAbsolute(input),
         sep: path.sep,
+        cwd: () => process.cwd(),
         toFileUrl: (input) => pathToFileURL(input).toString()
     },
     logger: {
