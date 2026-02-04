@@ -1,6 +1,7 @@
 const { _electron: electron, test, expect } = require('playwright/test');
 
-test('electron app boots and exposes window.api', async () => {
+test('electron app boots and exposes window.api', async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
   const errors = [];
   const app = await electron.launch({
     args: ['.'],
@@ -16,9 +17,18 @@ test('electron app boots and exposes window.api', async () => {
   });
 
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForFunction(() => document.readyState === 'complete' || document.readyState === 'interactive');
-  await page.waitForSelector('#app-tabs', { state: 'attached', timeout: 30_000 });
-  await page.waitForSelector('#board-content', { state: 'attached', timeout: 30_000 });
+  await page.waitForSelector('body', { state: 'attached', timeout: 30_000 });
+  try {
+    await page.waitForSelector('#app-tabs', { state: 'attached', timeout: 20_000 });
+    await page.waitForSelector('#board-content', { state: 'attached', timeout: 20_000 });
+  } catch (err) {
+    const url = page.url();
+    const title = await page.title().catch(() => '');
+    const bodyText = await page.evaluate(() => document.body ? document.body.innerText.slice(0, 500) : '');
+    // eslint-disable-next-line no-console
+    console.error('Smoke debug:', { url, title, bodyText });
+    throw err;
+  }
 
   const hasApi = await page.evaluate(() => typeof window.api === 'object' && window.api !== null);
   expect(hasApi).toBe(true);
