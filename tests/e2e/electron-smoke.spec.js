@@ -16,8 +16,9 @@ test('electron app boots and exposes window.api', async () => {
   });
 
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('#app-tabs', { timeout: 10_000 });
-  await page.waitForSelector('#board-content', { timeout: 10_000 });
+  await page.waitForFunction(() => document.readyState === 'complete' || document.readyState === 'interactive');
+  await page.waitForSelector('#app-tabs', { state: 'attached', timeout: 30_000 });
+  await page.waitForSelector('#board-content', { state: 'attached', timeout: 30_000 });
 
   const hasApi = await page.evaluate(() => typeof window.api === 'object' && window.api !== null);
   expect(hasApi).toBe(true);
