@@ -1,4 +1,4 @@
-const { _electron: electron, test, expect } = require('playwright');
+const { _electron: electron, test, expect } = require('playwright/test');
 
 test('electron app boots and exposes window.api', async () => {
   const errors = [];
