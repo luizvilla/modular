@@ -252,30 +252,46 @@
     freeboard.on('activity', function (_e, evt) { handleActivity(evt); });
   }
   try {
-    const ipc = window.require && window.require('electron') && window.require('electron').ipcRenderer;
-    if (ipc && typeof ipc.on === 'function') {
-      ipc.on('activity', (_e, evt) => handleActivity(evt));
+    const api = window.api || null;
+    const activityApi = api && api.activity ? api.activity : null;
+    const flashApi = api && api.flash ? api.flash : null;
 
-      // Update DFU task progress from backend progress stream
-      ipc.on('flash-progress', (_e, msg) => {
-        try {
-          const m = String(msg || '');
-          const pm = m.match(/(\d{1,3}(?:\.\d+)?)%/);
-          if (!pm) return;
-          const p = Math.max(0, Math.min(100, parseFloat(pm[1])));
-          // Pick the most recent active DFU task
-          const keys = Array.from(tasks.keys()).filter(k => {
-            const t = tasks.get(k); return t && t.id && t.id.startsWith('dfu:');
-          });
-          const lastKey = keys.length ? keys[keys.length - 1] : null;
-          if (!lastKey) return;
-          const t = tasks.get(lastKey);
-          if (!t) return;
-          t.progress = p;
-          renderActiveTasks();
-          updateProgressToast(lastKey, p);
-        } catch {}
-      });
+    if (activityApi && activityApi.on) {
+      activityApi.on((evt) => handleActivity(evt));
+    } else {
+      const ipc = window.require && window.require('electron') && window.require('electron').ipcRenderer;
+      if (ipc && typeof ipc.on === 'function') {
+        ipc.on('activity', (_e, evt) => handleActivity(evt));
+      }
+    }
+
+    const onProgress = (msg) => {
+      try {
+        const m = String(msg || '');
+        const pm = m.match(/(\d{1,3}(?:\.\d+)?)%/);
+        if (!pm) return;
+        const p = Math.max(0, Math.min(100, parseFloat(pm[1])));
+        // Pick the most recent active DFU task
+        const keys = Array.from(tasks.keys()).filter(k => {
+          const t = tasks.get(k); return t && t.id && t.id.startsWith('dfu:');
+        });
+        const lastKey = keys.length ? keys[keys.length - 1] : null;
+        if (!lastKey) return;
+        const t = tasks.get(lastKey);
+        if (!t) return;
+        t.progress = p;
+        t.detail = `Progress: ${p}%`;
+        renderActiveTasks();
+      } catch {}
+    };
+
+    if (flashApi && flashApi.onProgress) {
+      flashApi.onProgress((msg) => onProgress(msg));
+    } else {
+      const ipc = window.require && window.require('electron') && window.require('electron').ipcRenderer;
+      if (ipc && typeof ipc.on === 'function') {
+        ipc.on('flash-progress', (_e, msg) => onProgress(msg));
+      }
     }
   } catch { /* ignore if not in Electron */ }
 
@@ -414,3 +430,4 @@
     clear: () => { history.length = 0; updateActivityBadge(); }
   };
 })();
+

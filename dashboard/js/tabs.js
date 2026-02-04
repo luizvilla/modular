@@ -1,11 +1,19 @@
 // Tabs controller for in-app documentation and example actions.
 (function () {
-    const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
-    const fs = window.require ? window.require('fs') : null;
-    const path = window.require ? window.require('path') : null;
-    const { pathToFileURL } = window.require ? window.require('url') : { pathToFileURL: null };
+    const api = window.api || null;
+    const paths = api && api.paths ? api.paths : null;
+    const docsApi = api && api.docs ? api.docs : null;
+    const dashboardApi = api && api.dashboard ? api.dashboard : null;
+    const serialApi = api && api.serial ? api.serial : null;
+    const flashApi = api && api.flash ? api.flash : null;
+    const examplesApi = api && api.examples ? api.examples : null;
 
-    if (!ipcRenderer || !fs || !path) {
+    const { ipcRenderer } = !api && window.require ? window.require('electron') : { ipcRenderer: null };
+    const fs = !api && window.require ? window.require('fs') : null;
+    const path = !api && window.require ? window.require('path') : null;
+    const { pathToFileURL } = !api && window.require ? window.require('url') : { pathToFileURL: null };
+
+    if (!api && (!ipcRenderer || !fs || !path)) {
         console.warn('Tabs: missing Electron/Node context; docs tabs disabled.');
         return;
     }
@@ -100,8 +108,15 @@
     function resolveAssetUrl(rawUrl, baseDir) {
         if (!rawUrl) return rawUrl;
         if (/^(https?:|data:|file:|#)/i.test(rawUrl)) return rawUrl;
-        if (path.isAbsolute(rawUrl)) return pathToFileURL(rawUrl).toString();
-        return pathToFileURL(path.resolve(baseDir, rawUrl)).toString();
+        if (paths && paths.isAbsolute && paths.toFileUrl && paths.resolve) {
+            if (paths.isAbsolute(rawUrl)) return paths.toFileUrl(rawUrl);
+            return paths.toFileUrl(paths.resolve(baseDir, rawUrl));
+        }
+        if (path && pathToFileURL) {
+            if (path.isAbsolute(rawUrl)) return pathToFileURL(rawUrl).toString();
+            return pathToFileURL(path.resolve(baseDir, rawUrl)).toString();
+        }
+        return rawUrl;
     }
 
     function renderInline(text, baseDir) {
@@ -228,38 +243,44 @@
 
     async function loadExamplesIndex() {
         examplesById.clear();
-        const baseDir = path.join(__dirname, 'docs', 'examples');
+        const baseDir = paths && paths.join ? paths.join(__dirname, 'docs', 'examples') : path.join(__dirname, 'docs', 'examples');
         console.log('[tabs] examples baseDir:', baseDir);
-
-        async function walk(dir) {
-            let entries = [];
-            try {
-                entries = await fs.promises.readdir(dir, { withFileTypes: true });
-            } catch (err) {
-                console.warn('[tabs] readDir failed:', dir, err?.message || err);
-                return [];
-            }
-            const results = [];
-            for (const entry of entries) {
-                const full = path.join(dir, entry.name);
-                if (entry.isDirectory()) {
-                    results.push(...await walk(full));
-                } else if (entry.isFile() && entry.name.toLowerCase() === 'readme.md') {
-                    results.push(full);
+        let readmes = [];
+        if (docsApi && docsApi.listReadmes) {
+            readmes = await docsApi.listReadmes(baseDir);
+        } else {
+            async function walk(dir) {
+                let entries = [];
+                try {
+                    entries = await fs.promises.readdir(dir, { withFileTypes: true });
+                } catch (err) {
+                    console.warn('[tabs] readDir failed:', dir, err?.message || err);
+                    return [];
                 }
+                const results = [];
+                for (const entry of entries) {
+                    const full = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                        results.push(...await walk(full));
+                    } else if (entry.isFile() && entry.name.toLowerCase() === 'readme.md') {
+                        results.push(full);
+                    }
+                }
+                return results;
             }
-            return results;
+            readmes = await walk(baseDir);
         }
-
-        const readmes = await walk(baseDir);
         console.log('[tabs] README count:', readmes.length);
         readmes.sort((a, b) => a.localeCompare(b));
         for (const rm of readmes) {
-            const dir = path.dirname(rm);
-            const relDir = path.relative(baseDir, dir);
-            const parts = relDir.split(path.sep).filter(Boolean);
+            const dir = paths && paths.dirname ? paths.dirname(rm) : path.dirname(rm);
+            const relDir = paths && paths.relative
+                ? paths.relative(baseDir, dir)
+                : path.relative(baseDir, dir);
+            const sep = paths && paths.sep ? paths.sep : path.sep;
+            const parts = relDir.split(sep).filter(Boolean);
             if (!parts.length) continue;
-            const leaf = path.basename(dir);
+            const leaf = path && path.basename ? path.basename(dir) : dir.split(sep).slice(-1)[0];
             const id = parts.join('/');
             const board = parts[0] || '';
             const category = parts.slice(1, -1).join(' / ');
@@ -271,8 +292,8 @@
                 subtitle,
                 label,
                 docPath: rm,
-                dashboardPath: path.join(__dirname, '..', 'dashboards', leaf, `${leaf}.json`),
-                firmwarePath: path.join(__dirname, '..', 'binaries', leaf, `${leaf}.mcuboot.bin`)
+                dashboardPath: (paths && paths.join ? paths.join(__dirname, '..', 'dashboards', leaf, `${leaf}.json`) : path.join(__dirname, '..', 'dashboards', leaf, `${leaf}.json`)),
+                firmwarePath: (paths && paths.join ? paths.join(__dirname, '..', 'binaries', leaf, `${leaf}.mcuboot.bin`) : path.join(__dirname, '..', 'binaries', leaf, `${leaf}.mcuboot.bin`))
             });
         }
     }
@@ -301,8 +322,10 @@
         docSubtitle.textContent = example.subtitle || '';
         setStatus('Loading documentation...');
         try {
-            const markdown = await fs.promises.readFile(example.docPath, 'utf8');
-            const baseDir = path.dirname(example.docPath);
+            const markdown = docsApi && docsApi.readMarkdown
+                ? await docsApi.readMarkdown(example.docPath)
+                : await fs.promises.readFile(example.docPath, 'utf8');
+            const baseDir = paths && paths.dirname ? paths.dirname(example.docPath) : path.dirname(example.docPath);
             docContent.innerHTML = renderMarkdown(markdown, baseDir);
             setStatus('Ready.');
         } catch (err) {
@@ -313,7 +336,9 @@
 
     async function refreshPorts() {
         try {
-            const ports = await ipcRenderer.invoke('get-serial-ports');
+            const ports = serialApi && serialApi.listPorts
+                ? await serialApi.listPorts()
+                : await ipcRenderer.invoke('get-serial-ports');
             portSelect.innerHTML = '';
             if (!ports || ports.length === 0) {
                 const opt = document.createElement('option');
@@ -339,9 +364,9 @@
         const example = examplesById.get(tab.exampleId);
         if (!example) return;
         setStatus('Loading dashboard in main window...');
-        const res = await ipcRenderer.invoke('load-dashboard-from-path', {
-            dashboardPath: example.dashboardPath
-        });
+        const res = dashboardApi && dashboardApi.loadDashboardFromPath
+            ? await dashboardApi.loadDashboardFromPath(example.dashboardPath)
+            : await ipcRenderer.invoke('load-dashboard-from-path', { dashboardPath: example.dashboardPath });
         if (res && res.ok) {
             setStatus('Dashboard loaded.');
         } else {
@@ -367,10 +392,14 @@
         if (progressSpinner) progressSpinner.classList.remove('d-none');
 
         try {
-            await ipcRenderer.invoke('start-flash', {
-                comPort: port,
-                firmwarePath: example.firmwarePath
-            });
+            if (flashApi && flashApi.startFlash) {
+                await flashApi.startFlash({ comPort: port, firmwarePath: example.firmwarePath });
+            } else {
+                await ipcRenderer.invoke('start-flash', {
+                    comPort: port,
+                    firmwarePath: example.firmwarePath
+                });
+            }
         } catch (err) {
             setFailure(`Error: ${err?.message || String(err)}`);
             setStatus('Upload failed to start.');
@@ -379,7 +408,20 @@
         }
     }
 
-    ipcRenderer.on('flash-progress', (_event, message) => {
+    if (flashApi && flashApi.onProgress) {
+        flashApi.onProgress((message) => {
+            const text = String(message || '').trim();
+            const match = text.match(/(\d{1,3}(?:\.\d+)?)%/);
+            if (/error|failed/i.test(text)) {
+                setFailure(text || 'Upload failed');
+                return;
+            }
+            if (match) {
+                setProgress(Math.round(parseFloat(match[1])));
+            }
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('flash-progress', (_event, message) => {
         const text = String(message || '').trim();
         const match = text.match(/(\d{1,3}(?:\.\d+)?)%/);
         if (/error|failed/i.test(text)) {
@@ -389,9 +431,23 @@
         if (match) {
             setProgress(Math.round(parseFloat(match[1])));
         }
-    });
+        });
+    }
 
-    ipcRenderer.on('flash-complete', () => {
+    if (flashApi && flashApi.onComplete) {
+        flashApi.onComplete(() => {
+            if (uploadFailed) {
+                setFailure('Upload failed');
+                setStatus('Upload failed.');
+            } else {
+                setSuccess();
+                setStatus('Upload complete.');
+            }
+            isUploading = false;
+            uploadFirmwareBtn.disabled = false;
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('flash-complete', () => {
         if (uploadFailed) {
             setFailure('Upload failed');
             setStatus('Upload failed.');
@@ -401,7 +457,8 @@
         }
         isUploading = false;
         uploadFirmwareBtn.disabled = false;
-    });
+        });
+    }
 
     function setActiveTab(tabId) {
         console.log('[tabs] setActiveTab:', tabId);
@@ -773,7 +830,8 @@
         btn.addEventListener('dragend', (e) => {
             const outside = !isPointInWindow(e.screenX, e.screenY);
             if (outside) {
-                ipcRenderer.send('undock-doc-tab', { id: exampleId });
+                if (examplesApi && examplesApi.undockDocTab) examplesApi.undockDocTab(exampleId);
+                else ipcRenderer.send('undock-doc-tab', { id: exampleId });
                 closeTab(id);
             }
         });
@@ -827,14 +885,28 @@
     uploadFirmwareBtn.addEventListener('click', uploadFirmware);
     refreshPortsBtn.addEventListener('click', refreshPorts);
 
-    ipcRenderer.on('open-example-tab', (_e, { id }) => {
-        console.log('[tabs] open-example-tab IPC:', id);
-        if (id) openExampleTab(id);
-    });
-    ipcRenderer.on('example-dock-preview', (_e, { id, active }) => {
-        if (active) showDockPreview(id);
-        else clearDockPreview();
-    });
+    if (examplesApi && examplesApi.onOpenExampleTab) {
+        examplesApi.onOpenExampleTab(({ id } = {}) => {
+            console.log('[tabs] open-example-tab IPC:', id);
+            if (id) openExampleTab(id);
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('open-example-tab', (_e, { id }) => {
+            console.log('[tabs] open-example-tab IPC:', id);
+            if (id) openExampleTab(id);
+        });
+    }
+    if (examplesApi && examplesApi.onDockPreview) {
+        examplesApi.onDockPreview(({ id, active } = {}) => {
+            if (active) showDockPreview(id);
+            else clearDockPreview();
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('example-dock-preview', (_e, { id, active }) => {
+            if (active) showDockPreview(id);
+            else clearDockPreview();
+        });
+    }
 
     resetProgress();
     refreshPorts();
@@ -850,7 +922,9 @@
         console.error('[tabs] loadExamplesIndex failed', err);
     }).finally(async () => {
         try {
-            const pending = await ipcRenderer.invoke('get-pending-example-tab');
+            const pending = examplesApi && examplesApi.getPendingExampleTab
+                ? await examplesApi.getPendingExampleTab()
+                : await ipcRenderer.invoke('get-pending-example-tab');
             if (pending) openExampleTab(pending);
         } catch {}
     });

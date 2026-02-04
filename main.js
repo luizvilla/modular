@@ -138,6 +138,11 @@ ipcMain.handle('docs-read-markdown', async (_event, { docPath } = {}) => {
     return fs.promises.readFile(docPath, 'utf8');
 });
 
+ipcMain.handle('files-read-text', async (_event, { filePath } = {}) => {
+    if (!filePath) return '';
+    return fs.promises.readFile(filePath, 'utf8');
+});
+
 function setAppMenu() {
     const examplesMenu = buildExamplesMenuItems();
     const template = [

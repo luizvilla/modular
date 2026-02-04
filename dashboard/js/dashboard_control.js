@@ -1,7 +1,12 @@
 (function () {
     // Wire the app Edit menu to open the widget category manager in the renderer.
-    const { ipcRenderer } = require('electron');
-    const fs = require('fs');
+    const api = window.api || null;
+    const dashboardApi = api && api.dashboard ? api.dashboard : null;
+    const filesApi = api && api.files ? api.files : null;
+    const loggerApi = api && api.logger ? api.logger : null;
+
+    const { ipcRenderer } = !api && window.require ? window.require('electron') : { ipcRenderer: null };
+    const fs = !api && window.require ? window.require('fs') : null;
 
     // Forward renderer console logs to the main process terminal.
     (function bridgeRendererLogs() {
@@ -10,7 +15,11 @@
             const original = console[level];
             console[level] = function () {
                 try {
-                    ipcRenderer.send('renderer-log', { level, args: Array.from(arguments) });
+                    if (loggerApi && loggerApi.log) {
+                        loggerApi.log(level, Array.from(arguments));
+                    } else if (ipcRenderer) {
+                        ipcRenderer.send('renderer-log', { level, args: Array.from(arguments) });
+                    }
                 } catch { /* ignore */ }
                 if (typeof original === 'function') {
                     original.apply(console, arguments);
@@ -35,78 +44,128 @@
         } catch { /* ignore */ }
     });
 
-    ipcRenderer.on('show-widget-categories', () => {
-        if (window.freeboardModel && typeof window.freeboardModel.showWidgetCategoryManager === 'function') {
-            window.freeboardModel.showWidgetCategoryManager();
+    function applyDashboardJson(jsonObject) {
+        if (window.freeboard && typeof window.freeboard.loadDashboard === 'function') {
+            window.freeboard.loadDashboard(jsonObject, function () {
+                window.freeboard.setEditing(false);
+            });
+        } else if (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function') {
+            window.freeboardModel.loadDashboard(jsonObject, function () {
+                window.freeboardModel.setEditing(false);
+            });
         }
-    });
+    }
 
-    // File menu actions: load/save dashboard via Freeboard API.
-    ipcRenderer.on('menu-load-dashboard', async () => {
-        // Use main-process dialog so file chooser is treated as a user activation.
-        try {
-            const filePath = await ipcRenderer.invoke('show-open-dashboard');
-            if (!filePath) return;
-            const text = await fs.promises.readFile(filePath, 'utf8');
-            const jsonObject = JSON.parse(text);
-            if (window.freeboard && typeof window.freeboard.loadDashboard === 'function') {
-                window.freeboard.loadDashboard(jsonObject, function () {
-                    window.freeboard.setEditing(false);
-                });
-            } else if (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function') {
-                window.freeboardModel.loadDashboard(jsonObject, function () {
-                    window.freeboardModel.setEditing(false);
-                });
-            }
-        } catch (err) {
-            console.error('Menu load dashboard failed:', err);
-        }
-    });
+    async function readTextFile(filePath) {
+        if (!filePath) return '';
+        if (filesApi && filesApi.readText) return filesApi.readText(filePath);
+        if (fs) return fs.promises.readFile(filePath, 'utf8');
+        return '';
+    }
 
-    ipcRenderer.on('menu-save-dashboard', () => {
-        if (window.freeboardModel && typeof window.freeboardModel.saveDashboard === 'function') {
-            window.freeboardModel.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
-        } else if (window.freeboard && typeof window.freeboard.getLiveModel === 'function') {
-            const model = window.freeboard.getLiveModel();
-            if (model && typeof model.saveDashboard === 'function') {
-                model.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
-            }
-        }
-    });
-
-    // Load a dashboard JSON from a specific path (used by the Examples window).
-    ipcRenderer.on('load-dashboard-from-path', async (_event, { dashboardPath } = {}) => {
+    async function loadDashboardFromPath(dashboardPath) {
         if (!dashboardPath) return;
         try {
-            const text = await fs.promises.readFile(dashboardPath, 'utf8');
+            const text = await readTextFile(dashboardPath);
             const jsonObject = JSON.parse(text);
-            if (window.freeboard && typeof window.freeboard.loadDashboard === 'function') {
-                window.freeboard.loadDashboard(jsonObject, function () {
-                    window.freeboard.setEditing(false);
-                });
-            } else if (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function') {
-                window.freeboardModel.loadDashboard(jsonObject, function () {
-                    window.freeboardModel.setEditing(false);
-                });
-            }
+            applyDashboardJson(jsonObject);
         } catch (err) {
             console.error('Load dashboard from path failed:', err);
         }
-    });
-    // 🔍 Widget lookup
+    }
+
+    if (dashboardApi && dashboardApi.onShowWidgetCategories) {
+        dashboardApi.onShowWidgetCategories(() => {
+            if (window.freeboardModel && typeof window.freeboardModel.showWidgetCategoryManager === 'function') {
+                window.freeboardModel.showWidgetCategoryManager();
+            }
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('show-widget-categories', () => {
+            if (window.freeboardModel && typeof window.freeboardModel.showWidgetCategoryManager === 'function') {
+                window.freeboardModel.showWidgetCategoryManager();
+            }
+        });
+    }
+
+    // File menu actions: load/save dashboard via Freeboard API.
+    if (dashboardApi && dashboardApi.onMenuLoadDashboard) {
+        dashboardApi.onMenuLoadDashboard(async () => {
+            try {
+                const filePath = dashboardApi.openDashboardDialog
+                    ? await dashboardApi.openDashboardDialog()
+                    : null;
+                if (!filePath) return;
+                const text = await readTextFile(filePath);
+                const jsonObject = JSON.parse(text);
+                applyDashboardJson(jsonObject);
+            } catch (err) {
+                console.error('Menu load dashboard failed:', err);
+            }
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('menu-load-dashboard', async () => {
+            // Use main-process dialog so file chooser is treated as a user activation.
+            try {
+                const filePath = await ipcRenderer.invoke('show-open-dashboard');
+                if (!filePath) return;
+                const text = await fs.promises.readFile(filePath, 'utf8');
+                const jsonObject = JSON.parse(text);
+                applyDashboardJson(jsonObject);
+            } catch (err) {
+                console.error('Menu load dashboard failed:', err);
+            }
+        });
+    }
+
+    if (dashboardApi && dashboardApi.onMenuSaveDashboard) {
+        dashboardApi.onMenuSaveDashboard(() => {
+            if (window.freeboardModel && typeof window.freeboardModel.saveDashboard === 'function') {
+                window.freeboardModel.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
+            } else if (window.freeboard && typeof window.freeboard.getLiveModel === 'function') {
+                const model = window.freeboard.getLiveModel();
+                if (model && typeof model.saveDashboard === 'function') {
+                    model.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
+                }
+            }
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('menu-save-dashboard', () => {
+            if (window.freeboardModel && typeof window.freeboardModel.saveDashboard === 'function') {
+                window.freeboardModel.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
+            } else if (window.freeboard && typeof window.freeboard.getLiveModel === 'function') {
+                const model = window.freeboard.getLiveModel();
+                if (model && typeof model.saveDashboard === 'function') {
+                    model.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
+                }
+            }
+        });
+    }
+
+    // Load a dashboard JSON from a specific path (used by the Examples window).
+    if (dashboardApi && dashboardApi.onLoadDashboardFromPath) {
+        dashboardApi.onLoadDashboardFromPath(async ({ dashboardPath } = {}) => {
+            await loadDashboardFromPath(dashboardPath);
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('load-dashboard-from-path', async (_event, { dashboardPath } = {}) => {
+            await loadDashboardFromPath(dashboardPath);
+        });
+    }
+    // \ud83d\udd0d Widget lookup
     function getWidgetByTitle(title) {
         return freeboardModel.panes()
             .flatMap(pane => pane.widgets())
             .find(widget => widget.settings().title === title);
     }
 
-    // 🔍 Datasource lookup
+    // \ud83d\udd0d Datasource lookup
     function getDatasourceByName(name) {
         return freeboardModel.datasources()
             .find(ds => ds.name() === name);
     }
 
-    // 🔧 Global Dashboard Control API
+    // \ud83d\udd27 Global Dashboard Control API
     window.DashboardControl = {
         updateWidgetSetting(title, key, value) {
             const widget = getWidgetByTitle(title);

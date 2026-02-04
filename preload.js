@@ -1,4 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
+const path = require('path');
+const { pathToFileURL } = require('url');
 
 function on(channel, handler) {
     if (typeof handler !== 'function') return () => {};
@@ -14,12 +16,17 @@ const api = {
     dashboard: {
         openDashboardDialog: () => ipcRenderer.invoke('show-open-dashboard'),
         loadDashboardFromPath: (dashboardPath) => ipcRenderer.invoke('load-dashboard-from-path', { dashboardPath }),
+        onLoadDashboardFromPath: (cb) => on('load-dashboard-from-path', cb),
         onMenuLoadDashboard: (cb) => on('menu-load-dashboard', cb),
-        onMenuSaveDashboard: (cb) => on('menu-save-dashboard', cb)
+        onMenuSaveDashboard: (cb) => on('menu-save-dashboard', cb),
+        onShowWidgetCategories: (cb) => on('show-widget-categories', cb)
     },
     docs: {
         listReadmes: (baseDir) => ipcRenderer.invoke('docs-list-readmes', { baseDir }),
         readMarkdown: (docPath) => ipcRenderer.invoke('docs-read-markdown', { docPath })
+    },
+    files: {
+        readText: (filePath) => ipcRenderer.invoke('files-read-text', { filePath })
     },
     examples: {
         openExampleTab: (id) => ipcRenderer.send('open-example-tab', { id }),
@@ -91,6 +98,15 @@ const api = {
         exec: (payload) => ipcRenderer.invoke('ts-exec', payload),
         pathsForIds: (payload) => ipcRenderer.invoke('ts-paths-for-ids', payload),
         idsForPaths: (payload) => ipcRenderer.invoke('ts-ids-for-paths', payload)
+    },
+    paths: {
+        dirname: (input) => path.dirname(input),
+        resolve: (...parts) => path.resolve(...parts),
+        join: (...parts) => path.join(...parts),
+        relative: (from, to) => path.relative(from, to),
+        isAbsolute: (input) => path.isAbsolute(input),
+        sep: path.sep,
+        toFileUrl: (input) => pathToFileURL(input).toString()
     },
     logger: {
         log: (level, args) => ipcRenderer.send('renderer-log', { level, args })
