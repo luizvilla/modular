@@ -18,13 +18,21 @@ test('no serial ports shows message', async () => {
   const { app, page } = await launchApp({ MOCK_NO_PORTS: '1' });
   await waitForDashboard(page);
 
-  await page.evaluate(() => window.api.examples.openExampleTab('test_board/test_example'));
+  await app.evaluate(({ BrowserWindow }, exampleId) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('open-example-tab', { id: exampleId });
+  }, 'test_board/test_example');
   await page.waitForFunction(() => {
     const panel = document.getElementById('doc-panel');
     return panel && panel.hidden === false;
   });
+  await page.waitForFunction(() => {
+    const sel = document.getElementById('doc-example-select');
+    return sel && sel.options.length > 0;
+  });
 
   await page.locator('#doc-refresh-ports-btn').click();
+  await page.locator('#doc-port-select option').first().waitFor({ state: 'attached', timeout: 5_000 });
   const label = await page.locator('#doc-port-select option').first().innerText();
   expect(label).toContain('No ports');
 
@@ -35,12 +43,20 @@ test('missing firmware shows upload failure', async () => {
   const { app, page } = await launchApp({ MOCK_FW_MISSING: '1' });
   await waitForDashboard(page);
 
-  await page.evaluate(() => window.api.examples.openExampleTab('test_board/test_example'));
+  await app.evaluate(({ BrowserWindow }, exampleId) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('open-example-tab', { id: exampleId });
+  }, 'test_board/test_example');
   await page.waitForFunction(() => {
     const panel = document.getElementById('doc-panel');
     return panel && panel.hidden === false;
   });
+  await page.waitForFunction(() => {
+    const sel = document.getElementById('doc-example-select');
+    return sel && sel.options.length > 0;
+  });
   await page.locator('#doc-refresh-ports-btn').click();
+  await page.locator('#doc-port-select option').first().waitFor({ state: 'attached', timeout: 5_000 });
   await page.selectOption('#doc-port-select', { value: 'COM_MOCK' });
   await page.locator('#doc-upload-firmware-btn').click();
   await page.waitForFunction(() => {

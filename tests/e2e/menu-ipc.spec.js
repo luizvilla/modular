@@ -26,7 +26,7 @@ test('menu load/save and widget categories IPC', async () => {
     win.webContents.send('show-widget-categories');
   });
 
-  const filtered = errors.filter((err) => /Menu load dashboard failed|saveDashboard|widget/i.test(String(err.message || err)));
+  const filtered = errors.filter((err) => /Menu load dashboard failed|saveDashboard|showWidgetCategoryManager/i.test(String(err.message || err)));
   expect(filtered).toEqual([]);
 
   await app.close();

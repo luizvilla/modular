@@ -33,6 +33,16 @@ test('dashboard loads and editing toggles', async () => {
     'serial_flasher',
     'thingset_device_ui',
     'owntech_plot_uplot',
+    'text_widget',
+    'gauge',
+    'sparkline',
+    'pointer',
+    'picture',
+    'indicator',
+    'google_map',
+    'owntech_power_bars',
+    'uplot_config_panel',
+    'thingset_serial_device_ui',
   ]));
 
   await app.close();

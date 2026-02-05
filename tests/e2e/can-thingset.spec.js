@@ -40,7 +40,7 @@ test('thingset widgets render in test dashboard', async () => {
     'thingset_device_ui',
     'thingset_measurements',
     'thingset_mode_button',
-    'ts_serial_device_ui',
+    'thingset_serial_device_ui',
   ]));
 
   await app.close();

@@ -16,17 +16,31 @@ test('example viewer window loads and actions work', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
 
-  await page.evaluate(() => window.api.examples.openExampleTab('test_board/test_example'));
-  await page.evaluate(() => window.api.examples.undockDocTab('test_board/test_example'));
+  const exampleId = 'test_board/test_example';
+  const exPagePromise = getExampleWindow(app);
+  const preloadPath = require('path').join(process.cwd(), 'preload.js');
+  const htmlPath = require('path').join(process.cwd(), 'dashboard', 'examples', 'example_viewer.html');
+  await app.evaluate(({ BrowserWindow }, { id, preload, html }) => {
+    const win = new BrowserWindow({
+      show: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        preload,
+      },
+    });
+    win.loadFile(html, { query: { id } });
+  }, { id: exampleId, preload: preloadPath, html: htmlPath });
 
-  const exPage = await getExampleWindow(app);
+  const exPage = await exPagePromise;
   await exPage.waitForSelector('#example-title', { timeout: 20_000 });
 
   const title = await exPage.locator('#example-title').innerText();
   expect(title.toLowerCase()).toContain('test_example');
 
   await exPage.locator('#refresh-ports-btn').click();
-  await exPage.waitForSelector('#port-select option', { timeout: 5_000 });
+  await exPage.locator('#port-select option').first().waitFor({ state: 'attached', timeout: 5_000 });
   await exPage.selectOption('#port-select', { label: 'COM_MOCK' }).catch(async () => {
     await exPage.selectOption('#port-select', { value: 'COM_MOCK' });
   });

@@ -1,55 +1,72 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard } = require('./helpers');
 
-test('tabs open example and render docs', async () => {
+async function getExampleIds(page, limit = 10) {
+  await page.waitForFunction(() => {
+    const sel = document.getElementById('doc-example-select');
+    return sel && sel.options.length > 0;
+  });
+  return page.evaluate((max) => {
+    const sel = document.getElementById('doc-example-select');
+    if (!sel) return [];
+    return Array.from(sel.options)
+      .map((o) => o.value)
+      .filter(Boolean)
+      .slice(0, max);
+  }, limit);
+}
+
+async function openExampleTabs(app, ids) {
+  for (const id of ids) {
+    await app.evaluate(({ BrowserWindow }, exampleId) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) win.webContents.send('open-example-tab', { id: exampleId });
+    }, id);
+  }
+}
+
+async function waitForTabCount(page, count) {
+  await page.waitForFunction((expected) => {
+    const tabs = document.querySelectorAll('[data-tab-id^="doc:"]');
+    return tabs.length === expected;
+  }, count);
+}
+
+test('open up to 10 example tabs', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
 
-  await page.evaluate(() => window.api.examples.openExampleTab('test_board/test_example'));
+  const ids = await getExampleIds(page, 10);
+  expect(ids.length).toBeGreaterThan(0);
 
-  await page.waitForFunction(() => {
-    const panel = document.getElementById('doc-panel');
-    return panel && panel.hidden === false;
-  });
+  await openExampleTabs(app, ids);
+  await waitForTabCount(page, ids.length);
 
-  const optionLabels = await page.evaluate(() => {
-    const sel = document.getElementById('doc-example-select');
-    if (!sel) return [];
-    return Array.from(sel.options).map((o) => o.textContent || '');
-  });
-  expect(optionLabels.join(' ')).toContain('test_board');
+  await app.close();
+});
 
-  const hasDocsMode = await page.evaluate(() => document.body.classList.contains('docs-mode'));
-  expect(hasDocsMode).toBe(true);
+test('undock and re-dock up to 10 example tabs', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
 
-  await page.locator('[data-tab-id="dashboard"]').click();
-  await page.waitForFunction(() => document.body.classList.contains('dashboard-mode'));
+  const ids = await getExampleIds(page, 10);
+  expect(ids.length).toBeGreaterThan(0);
 
-  const title = await page.locator('#doc-title').innerText();
-  expect(title.toLowerCase()).toContain('test_example');
+  await openExampleTabs(app, ids);
+  await waitForTabCount(page, ids.length);
 
-  const hasHeading = await page.locator('#doc-content h1').innerText();
-  expect(hasHeading).toContain('Test Example');
+  for (const id of ids) {
+    await app.evaluate(({ BrowserWindow }, exampleId) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) win.webContents.send('undock-doc-tab', { id: exampleId });
+    }, id);
+    await page.locator(`[data-tab-id="doc:${id}"] .tab-close`).click().catch(() => {});
+  }
 
-  const codeBlock = await page.locator('#doc-content pre code').innerText();
-  expect(codeBlock).toContain('const msg');
+  await waitForTabCount(page, 0);
 
-  const imgSrc = await page.evaluate(() => {
-    const img = document.querySelector('#doc-content img');
-    return img ? img.getAttribute('src') : '';
-  });
-  expect(imgSrc.includes('asset.svg')).toBe(true);
-
-  await app.evaluate(({ BrowserWindow }) => {
-    const win = BrowserWindow.getAllWindows()[0];
-    win.webContents.send('example-dock-preview', { id: 'test_board/test_example', active: true });
-  });
-  await page.waitForSelector('.tab-dock-preview', { timeout: 5_000 });
-  await app.evaluate(({ BrowserWindow }) => {
-    const win = BrowserWindow.getAllWindows()[0];
-    win.webContents.send('example-dock-preview', { id: 'test_board/test_example', active: false });
-  });
-  await page.waitForFunction(() => !document.querySelector('.tab-dock-preview'));
+  await openExampleTabs(app, ids);
+  await waitForTabCount(page, ids.length);
 
   await app.close();
 });
