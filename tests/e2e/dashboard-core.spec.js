@@ -1,0 +1,39 @@
+const { test, expect } = require('playwright/test');
+const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./helpers');
+
+test('dashboard loads and editing toggles', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  await loadDashboard(page, fixturePath('test_dashboard.json'));
+
+  const editState = await page.evaluate(() => {
+    const fb = window.freeboard;
+    if (!fb || typeof fb.isEditing !== 'function' || typeof fb.setEditing !== 'function') return null;
+    const before = fb.isEditing();
+    fb.setEditing(!before, false);
+    const after = fb.isEditing();
+    return { before, after };
+  });
+  expect(editState).not.toBeNull();
+  expect(editState.before).not.toEqual(editState.after);
+
+  const widgetTypes = await page.evaluate(() => {
+    const model = window.freeboard?.getLiveModel?.();
+    if (!model || typeof model.panes !== 'function') return [];
+    const types = [];
+    model.panes().forEach((p) => {
+      p.widgets().forEach((w) => {
+        if (typeof w.type === 'function') types.push(w.type());
+      });
+    });
+    return types;
+  });
+  expect(widgetTypes).toEqual(expect.arrayContaining([
+    'serial_terminal',
+    'serial_flasher',
+    'thingset_device_ui',
+    'owntech_plot_uplot',
+  ]));
+
+  await app.close();
+});
