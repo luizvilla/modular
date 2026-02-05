@@ -30,7 +30,17 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
     throw err;
   }
 
-  const hasApi = await page.evaluate(() => typeof window.api === 'object' && window.api !== null);
+  let hasApi = false;
+  try {
+    await page.waitForFunction(() => typeof window.api === 'object' && window.api !== null, null, { timeout: 15_000 });
+    hasApi = true;
+  } catch (err) {
+    const url = page.url();
+    const title = await page.title().catch(() => '');
+    const apiKeys = await page.evaluate(() => Object.keys(window).filter(k => k.toLowerCase().includes('api')).slice(0, 20));
+    // eslint-disable-next-line no-console
+    console.error('Smoke api debug:', { url, title, apiKeys, hasApi: typeof window.api });
+  }
   expect(hasApi).toBe(true);
 
   const filtered = errors.filter((err) => {
