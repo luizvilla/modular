@@ -8,7 +8,18 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
     env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: 'true' },
   });
 
-  const page = await app.firstWindow();
+  const pickAppPage = async () => {
+    const pages = app.windows();
+    const appPage = pages.find((p) => !p.url().startsWith('devtools://'));
+    if (appPage) return appPage;
+    return new Promise((resolve) => {
+      app.on('window', (win) => {
+        if (!win.url().startsWith('devtools://')) resolve(win);
+      });
+    });
+  };
+
+  const page = await pickAppPage();
   page.on('pageerror', (err) => errors.push(err));
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
@@ -25,8 +36,9 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
     const url = page.url();
     const title = await page.title().catch(() => '');
     const bodyText = await page.evaluate(() => document.body ? document.body.innerText.slice(0, 500) : '');
+    const allUrls = app.windows().map((p) => p.url());
     // eslint-disable-next-line no-console
-    console.error('Smoke debug:', { url, title, bodyText });
+    console.error('Smoke debug:', { url, title, bodyText, allUrls });
     throw err;
   }
 
