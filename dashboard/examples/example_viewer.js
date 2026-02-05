@@ -12,6 +12,13 @@
     const fs = !api && window.require ? window.require('fs') : null;
     const path = !api && window.require ? window.require('path') : null;
     const { pathToFileURL } = !api && window.require ? window.require('url') : { pathToFileURL: null };
+    const localDir = (typeof __dirname !== 'undefined') ? __dirname : null;
+
+    function getDashboardRoot() {
+        if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'dashboard');
+        if (localDir && path) return path.join(localDir, '..');
+        return null;
+    }
 
     const statusBar = document.getElementById('status-bar');
     const titleEl = document.getElementById('example-title');
@@ -236,9 +243,10 @@
     // Build example list by scanning dashboard/docs/examples/**/README.md.
     async function loadExamplesIndex() {
         examplesById.clear();
-        const baseDir = paths && paths.join
-            ? paths.join(__dirname, '..', 'docs', 'examples')
-            : path.join(__dirname, '..', 'docs', 'examples');
+        const dashboardRoot = getDashboardRoot();
+        const baseDir = dashboardRoot
+            ? (paths && paths.join ? paths.join(dashboardRoot, 'docs', 'examples') : path.join(dashboardRoot, 'docs', 'examples'))
+            : (path && localDir ? path.join(localDir, '..', 'docs', 'examples') : '');
 
         let readmes = [];
         if (docsApi && docsApi.listReadmes) {
@@ -285,8 +293,8 @@
                 subtitle,
                 label,
                 docPath: rm,
-                dashboardPath: (paths && paths.join ? paths.join(__dirname, '..', 'dashboards', leaf, `${leaf}.json`) : path.join(__dirname, '..', 'dashboards', leaf, `${leaf}.json`)),
-                firmwarePath: (paths && paths.join ? paths.join(__dirname, '..', 'binaries', leaf, `${leaf}.mcuboot.bin`) : path.join(__dirname, '..', 'binaries', leaf, `${leaf}.mcuboot.bin`))
+                dashboardPath: (paths && paths.join ? paths.join(dashboardRoot || '', 'dashboards', leaf, `${leaf}.json`) : path.join(dashboardRoot || '', 'dashboards', leaf, `${leaf}.json`)),
+                firmwarePath: (paths && paths.join ? paths.join(dashboardRoot || '', 'binaries', leaf, `${leaf}.mcuboot.bin`) : path.join(dashboardRoot || '', 'binaries', leaf, `${leaf}.mcuboot.bin`))
             };
             examplesById.set(id, example);
         }
