@@ -1,20 +1,20 @@
-<!-- Widget doc: ThingSet Control Panel (thingset_control_panel). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # ThingSet Control Panel
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Per-device control panel for voltage/current mode and reference.
 
-## When to use
-- Use this widget when you want to expose ThingSet Control Panel behavior in a dashboard.
-- Pair it with the ThingSet datasource and controls.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right ThingSet fields.
-- Advanced: adjust any widget-specific options if needed.
+- Channel: CAN channel to target.
+- Auto height (fit devices): Resize to match device count.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the ThingSet category.
+- Refresh: Reload device list and values.
+- Reset to Voltage: Set all devices back to voltage mode.
+- Voltage/Current: Select wModeVC per device.
+- Reference input: Send wRef setpoints per device.
+

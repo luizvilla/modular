@@ -1,20 +1,18 @@
-<!-- Widget doc: Plot (uPlot) (owntech_plot_uplot). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Plot (uPlot)
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Realtime uPlot chart for streaming values or full datasets. Use helper widgets to manage series and tuning.
 
-## When to use
-- Use this widget when you want to expose plot (uplot) behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- Title: Widget title shown in the header.
+- Helper Widgets: Auto-spawn the Plot UI Controller and/or Plot Series Manager when the plot is created.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Plots category.
+- Plot area: Shows live series data.
+- Legend: Displays series names when enabled from the UI Controller.
+

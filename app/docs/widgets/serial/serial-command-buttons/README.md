@@ -1,20 +1,19 @@
-<!-- Widget doc: Serial Command Buttons (serial_command_buttons). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Serial Command Buttons
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Send predefined commands over a serial datasource using buttons.
 
-## When to use
-- Use this widget when you want to expose serial command buttons behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- Buttons: List of label/command pairs.
+- Layout: Vertical or horizontal button layout.
+- Datasource Name: Serial datasource that receives commands.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Serial category.
+- Datasource selector: Choose the serial datasource (MockSerial).
+- Command buttons: Click to send Start/Stop/Reset commands.
+

@@ -1,20 +1,18 @@
-<!-- Widget doc: Serial Port Control (serial_port_control). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Serial Port Control
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Open/close and clear a serial datasource.
 
-## When to use
-- Use this widget when you want to expose serial port control behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- Datasource Name: Serial datasource to control.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Serial category.
+- Datasource selector: Choose the serial datasource.
+- Open/Pause: Open or pause the serial port.
+- Clear: Flush buffers for the datasource.
+

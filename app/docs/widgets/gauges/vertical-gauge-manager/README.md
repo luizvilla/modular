@@ -1,20 +1,20 @@
-<!-- Widget doc: Vertical Gauge Manager (vertical_gauge_manager). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Vertical Gauge Manager
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Select datasource/channel for a target Vertical Gauge widget.
 
-## When to use
-- Use this widget when you want to expose vertical gauge manager behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- No settings: All configuration happens in the panel UI.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Gauges category.
+- Target Gauge: Select the vertical gauge to bind.
+- Update sources: Refresh the datasource/device/variable list.
+- Source: Select datasource, device, and variable.
+- Apply to Gauge: Write the selected source into the gauge settings.
+- Clear Source: Remove the gauge source binding.
+

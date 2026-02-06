@@ -1,20 +1,24 @@
-<!-- Widget doc: Serial Flasher (serial_flasher). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Serial Flasher
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Flash firmware to a device over serial or CAN using mcumgr.
 
-## When to use
-- Use this widget when you want to expose serial flasher behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- Title: Widget title.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Serial category.
+- Mode: Choose Serial or CAN flashing.
+- Serial Port: Select a serial port and refresh the list.
+- CAN Interface: Select CAN interface and refresh.
+- Target Node: Select CAN node and scan for devices.
+- Flash all nodes: Toggle between single target and all nodes.
+- Browse: Choose firmware file.
+- Flash Firmware: Start flashing.
+- Cancel: Stop an active flash.
+- Show log: Toggle the log output area.
+

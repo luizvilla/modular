@@ -1,20 +1,24 @@
-<!-- Widget doc: Serial Terminal (serial_terminal). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Serial Terminal
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Terminal view for live serial data with optional colorization and auto-scroll.
 
-## When to use
-- Use this widget when you want to expose serial terminal behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- Title: Widget title.
+- Datasource Name: Serial datasource to read from.
+- Colorize: Colorize fields using datasource header colors.
+- Auto-scroll: Keep the view pinned to the latest data.
+- Refresh (ms): Polling interval for updates.
+- Max Lines: Maximum lines retained in the display.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Serial category.
+- Datasource selector: Shows available serial datasources (e.g., MockSerial).
+- Colorize toggle: Enable/disable colored fields.
+- Auto-scroll toggle: Enable/disable auto-scroll.
+- Output area: Live text/field stream from the serial port.
+

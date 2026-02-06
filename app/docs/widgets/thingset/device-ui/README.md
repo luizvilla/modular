@@ -1,20 +1,21 @@
-<!-- Widget doc: ThingSet Device UI (thingset_device_ui). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # ThingSet Device UI
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Render a ThingSet device UI by reading the CAN ThingSet tree.
 
-## When to use
-- Use this widget when you want to expose ThingSet Device UI behavior in a dashboard.
-- Pair it with the ThingSet datasource and controls.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right ThingSet fields.
-- Advanced: adjust any widget-specific options if needed.
+- Channel: CAN channel to scan (e.g., can0).
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the ThingSet category.
+- Device selector: Choose a ThingSet device on the bus.
+- Reload: Reload the UI for the selected device.
+- Scan + Build: Scan CAN and rebuild the ThingSet tree.
+- Expand/Collapse: Expand or collapse all tree nodes.
+- Enable reporting: Toggle live reporting when supported.
+- Filter: Filter nodes by name/path.
+

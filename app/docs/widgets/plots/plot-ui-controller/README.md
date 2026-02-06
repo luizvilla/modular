@@ -1,20 +1,22 @@
-<!-- Widget doc: Plot UI Controller (uplot_config_panel). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Plot UI Controller
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Control panel for adjusting settings of a target Plot (uPlot) widget.
 
-## When to use
-- Use this widget when you want to expose plot ui controller behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- No settings: This widget is configured directly in the panel UI.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Plots category.
+- Select Target Widget: Choose the plot widget to control.
+- Display Duration: Time window shown on the X axis (ms).
+- Refresh Rate: How often the plot refreshes (ms).
+- Y Axis Label: Label text shown on the Y axis.
+- Y Min / Y Max: Manual Y axis bounds (optional).
+- Show Legend: Toggle legend visibility.
+- Apply Settings: Push updates to the target plot.
+

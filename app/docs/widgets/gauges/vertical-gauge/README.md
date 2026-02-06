@@ -1,20 +1,26 @@
-<!-- Widget doc: Vertical Gauge (vertical_gauge). -->
+<!-- Widget documentation (auto-generated from widget definitions). -->
 # Vertical Gauge
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Single-channel vertical gauge with min/max bounds and optional alarm state.
 
-## When to use
-- Use this widget when you want to expose vertical gauge behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Creation (settings)
+![Creation](creation.png)
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- Title: Widget title shown above the gauge.
+- Minimum / Maximum: Scale range for the gauge.
+- Bar Color: Color theme for the fill bar.
+- Alarm Enabled: Enable alarm threshold highlighting.
+- Alarm Threshold: Value that triggers the alarm state.
+- Alarm Direction: Trip when above or below the threshold.
+- Refresh Rate: Polling interval in milliseconds.
+- Source (managed by Gauge Manager): Data source binding set by the Gauge Manager.
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+## Usage (in dashboard)
+![Usage](usage.png)
 
-## Related
-- See other widgets in the Gauges category.
+- Gauge fill: Represents the current value as a percentage of the range.
+- Min/Max labels: Show configured bounds.
+- Value: Numeric readout of the current value.
+- Alarm styling: Red highlight when the threshold is tripped.
+
