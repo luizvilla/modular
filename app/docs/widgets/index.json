@@ -2,62 +2,6 @@
   "_comment": "Widget docs index for Help menu + widget docs tabs.",
   "widgets": [
     {
-      "type": "text_widget",
-      "title": "Text",
-      "category": "Basic",
-      "doc": "basic/text/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "gauge",
-      "title": "Gauge",
-      "category": "Gauges",
-      "doc": "gauges/gauge/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "sparkline",
-      "title": "Sparkline",
-      "category": "Plots",
-      "doc": "plots/sparkline/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "pointer",
-      "title": "Pointer",
-      "category": "Basic",
-      "doc": "basic/pointer/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "picture",
-      "title": "Picture",
-      "category": "Media",
-      "doc": "media/picture/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "indicator",
-      "title": "Indicator Light",
-      "category": "Basic",
-      "doc": "basic/indicator/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "google_map",
-      "title": "Google Map",
-      "category": "Maps",
-      "doc": "maps/google-map/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "html",
-      "title": "HTML",
-      "category": "Basic",
-      "doc": "basic/html/README.md",
-      "requiresThingset": false
-    },
-    {
       "type": "owntech_plot_uplot",
       "title": "Plot (uPlot)",
       "category": "Plots",
