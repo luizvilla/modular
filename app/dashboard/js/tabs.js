@@ -373,12 +373,28 @@
     }
 
     function populateExampleSelect() {
+        // Build a tree-like dropdown using optgroups to mirror the menu structure.
         exampleSelect.innerHTML = '';
+        const grouped = new Map();
         for (const ex of examplesById.values()) {
-            const opt = document.createElement('option');
-            opt.value = ex.id;
-            opt.textContent = ex.label;
-            exampleSelect.appendChild(opt);
+            const parts = ex.id.split('/').filter(Boolean);
+            const root = parts[0] || 'Examples';
+            const label = parts.slice(1).join(' / ') || ex.title || ex.id;
+            if (!grouped.has(root)) grouped.set(root, []);
+            grouped.get(root).push({ ...ex, menuLabel: label });
+        }
+        const roots = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
+        for (const root of roots) {
+            const group = document.createElement('optgroup');
+            group.label = root;
+            const items = grouped.get(root).slice().sort((a, b) => a.menuLabel.localeCompare(b.menuLabel));
+            for (const ex of items) {
+                const opt = document.createElement('option');
+                opt.value = ex.id;
+                opt.textContent = ex.menuLabel;
+                group.appendChild(opt);
+            }
+            exampleSelect.appendChild(group);
         }
         console.log(`[tabs] example list populated (${examplesById.size})`);
     }
