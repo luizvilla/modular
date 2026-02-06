@@ -1,5 +1,5 @@
 {
-  "_comment": "Widget docs index for Help menu + widget docs tabs.",
+  "_comment": "Widget docs index for Help menu + widget docs tabs. Serial port control removed.",
   "widgets": [
     {
       "type": "owntech_plot_uplot",
@@ -55,13 +55,6 @@
       "title": "Serial CSV Recorder",
       "category": "Serial",
       "doc": "serial/serial-csv-recorder/README.md",
-      "requiresThingset": false
-    },
-    {
-      "type": "serial_port_control",
-      "title": "Serial Port Control",
-      "category": "Serial",
-      "doc": "serial/serial-port-control/README.md",
       "requiresThingset": false
     },
     {
