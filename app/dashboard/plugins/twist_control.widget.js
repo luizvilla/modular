@@ -1,0 +1,235 @@
+(function () {
+    // Twist/Ownverter Actions + Setpoints control widget.
+    const protocol = window.twistProtocol || null;
+    freeboard.loadWidgetPlugin({
+        type_name: 'twist_control_panel',
+        display_name: 'Twist/Ownverter Actions & Setpoints',
+        description: 'Send power, toggle, and setpoint commands over serial.',
+        settings: [
+            { name: 'title', display_name: 'Title', type: 'text' },
+            {
+                name: 'deviceType',
+                display_name: 'Device Type',
+                type: 'option',
+                default_value: 'TWIST',
+                options: [
+                    { name: 'Twist', value: 'TWIST' },
+                    { name: 'Ownverter', value: 'OWNVERTER' }
+                ]
+            },
+            { name: 'datasource', display_name: 'Datasource Name', type: 'text' }
+        ],
+        newInstance: function (settings, newInstanceCallback) {
+            newInstanceCallback(new TwistControlPanel(settings));
+        }
+    });
+
+    class TwistControlPanel {
+        constructor(settings) {
+            this.settings = settings;
+            this.serialApi = window.api && window.api.serial ? window.api.serial : null;
+            this.ipc = !this.serialApi && window.require ? window.require('electron')?.ipcRenderer : null;
+            this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto p-2"></div>');
+            this.lastCmd = $('<div class="small text-muted">Last command: —</div>');
+            this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
+            this.deviceSelect = $('<select class="form-select form-select-sm" style="max-width: 160px;"></select>');
+            this.deviceSelect.append('<option value="TWIST">Twist</option>');
+            this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
+            this._configHandler = () => this._refreshDatasourceOptions();
+            freeboard.on && freeboard.on('config_updated', this._configHandler);
+        }
+
+        render(el) {
+            $(el).append(this.container);
+            const headerRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            headerRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
+            const deviceRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
+            this.container.append(headerRow, deviceRow);
+
+            this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
+            this.deviceSelect.on('change', () => {
+                this.settings.deviceType = this.deviceSelect.val();
+                this._renderLegControls();
+                this._renderSetpoints();
+            });
+
+            this._refreshDatasourceOptions();
+            if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
+            this.deviceSelect.val(this.settings.deviceType || 'TWIST');
+
+            this._renderPowerControls();
+            this._renderLegControls();
+            this._renderSetpoints();
+            this.container.append(this.lastCmd);
+        }
+
+        _profile() {
+            return protocol ? protocol.getProfile(this.settings.deviceType || 'TWIST') : { legs: 2, variables: [] };
+        }
+
+        _refreshDatasourceOptions() {
+            const live = freeboard.getLiveModel?.();
+            if (!live || typeof live.datasources !== 'function') return;
+            const list = live.datasources();
+            const current = this.settings.datasource;
+            this.dsSelect.empty();
+            list.forEach(ds => {
+                try {
+                    if (ds.type && ds.type() === 'serialport_datasource') {
+                        const name = ds.name();
+                        this.dsSelect.append(`<option value="${name}">${name}</option>`);
+                    }
+                } catch (e) { /* ignore */ }
+            });
+            if (current && this.dsSelect.find(`option[value='${current}']`).length === 0) {
+                this.dsSelect.append(`<option value="${current}">${current}</option>`);
+            }
+            this.dsSelect.val(current);
+        }
+
+        _getPortPath() {
+            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
+            return dsSettings.portPath || this.settings.datasource;
+        }
+
+        async _send(command) {
+            if (!command) return;
+            const path = this._getPortPath();
+            if (!path) return;
+            try {
+                if (this.serialApi && this.serialApi.write) {
+                    await this.serialApi.write(path, command);
+                } else if (this.ipc) {
+                    await this.ipc.invoke('write-serial-port', { path, data: command });
+                }
+                this.lastCmd.text(`Last command: ${command}`);
+            } catch (err) {
+                console.error('Twist command failed', err);
+            }
+        }
+
+        _renderPowerControls() {
+            const row = $('<div class="d-flex gap-2 flex-wrap align-items-center"></div>');
+            const idle = $('<button class="btn btn-outline-secondary btn-sm">IDLE</button>');
+            const on = $('<button class="btn btn-outline-success btn-sm">POWER ON</button>');
+            const off = $('<button class="btn btn-outline-danger btn-sm">POWER OFF</button>');
+            row.append(idle, on, off);
+            idle.on('click', () => this._send(protocol.cmdIdle()));
+            on.on('click', () => this._send(protocol.cmdPowerOn()));
+            off.on('click', () => this._send(protocol.cmdPowerOff()));
+            this.container.append($('<div class="fw-semibold">Power</div>'), row);
+        }
+
+        _renderLegControls() {
+            if (this.legWrap) this.legWrap.remove();
+            const profile = this._profile();
+            const wrap = $('<div class="d-flex flex-column gap-2"></div>');
+            const actions = ['LEG', 'CAPA', 'DRIVER', 'BUCK', 'BOOST'];
+            for (let i = 1; i <= profile.legs; i += 1) {
+                const row = $('<div class="d-flex flex-wrap gap-2 align-items-center"></div>');
+                row.append(`<span class="badge bg-light text-dark">LEG${i}</span>`);
+                actions.forEach(action => {
+                    const group = $('<div class="btn-group btn-group-sm" role="group"></div>');
+                    const onBtn = $(`<button class="btn btn-outline-success">${action} ON</button>`);
+                    const offBtn = $(`<button class="btn btn-outline-secondary">${action} OFF</button>`);
+                    onBtn.on('click', () => {
+                        this._send(protocol.cmdToggle(action, i, 'ON', this.settings.deviceType));
+                    });
+                    offBtn.on('click', () => {
+                        this._send(protocol.cmdToggle(action, i, 'OFF', this.settings.deviceType));
+                    });
+                    group.append(onBtn, offBtn);
+                    row.append(group);
+                });
+                wrap.append(row);
+            }
+            this.legWrap = wrap;
+            this.container.append($('<div class="fw-semibold">Leg toggles</div>'), wrap);
+        }
+
+        _renderSetpoints() {
+            if (this.setpointWrap) this.setpointWrap.remove();
+            const profile = this._profile();
+            const wrap = $('<div class="d-flex flex-column gap-2"></div>');
+            const legOptions = () => {
+                const sel = $('<select class="form-select form-select-sm" style="max-width: 120px;"></select>');
+                for (let i = 1; i <= profile.legs; i += 1) {
+                    sel.append(`<option value="${i}">LEG${i}</option>`);
+                }
+                return sel;
+            };
+            const variableOptions = () => {
+                const sel = $('<select class="form-select form-select-sm" style="max-width: 120px;"></select>');
+                profile.variables.forEach(v => sel.append(`<option value="${v}">${v}</option>`));
+                return sel;
+            };
+
+            const makeRow = (label, inputs, onSend) => {
+                const row = $('<div class="input-group input-group-sm"></div>');
+                row.append(`<span class="input-group-text">${label}</span>`);
+                inputs.forEach(inp => row.append(inp));
+                const btn = $('<button class="btn btn-primary btn-sm">Send</button>');
+                btn.on('click', onSend);
+                row.append(btn);
+                wrap.append(row);
+            };
+
+            const refLeg = legOptions();
+            const refVar = variableOptions();
+            const refVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Value">');
+            makeRow('Reference', [refLeg, refVar, refVal], () => {
+                this._send(protocol.cmdReference(refLeg.val(), refVar.val(), refVal.val(), this.settings.deviceType));
+            });
+
+            const dutyLeg = legOptions();
+            const dutyVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Duty">');
+            makeRow('Duty', [dutyLeg, dutyVal], () => {
+                this._send(protocol.cmdDuty(dutyLeg.val(), dutyVal.val(), this.settings.deviceType));
+            });
+
+            const freqLeg = legOptions();
+            const freqVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Hz">');
+            makeRow('Frequency', [freqLeg, freqVal], () => {
+                this._send(protocol.cmdFrequency(freqLeg.val(), freqVal.val(), this.settings.deviceType));
+            });
+
+            const phaseLeg = legOptions();
+            const phaseVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Phase">');
+            makeRow('Phase Shift', [phaseLeg, phaseVal], () => {
+                this._send(protocol.cmdPhaseShift(phaseLeg.val(), phaseVal.val(), this.settings.deviceType));
+            });
+
+            const dtRiseLeg = legOptions();
+            const dtRiseVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Ticks">');
+            makeRow('Dead Time Rising', [dtRiseLeg, dtRiseVal], () => {
+                this._send(protocol.cmdDeadTimeRising(dtRiseLeg.val(), dtRiseVal.val(), this.settings.deviceType));
+            });
+
+            const dtFallLeg = legOptions();
+            const dtFallVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Ticks">');
+            makeRow('Dead Time Falling', [dtFallLeg, dtFallVal], () => {
+                this._send(protocol.cmdDeadTimeFalling(dtFallLeg.val(), dtFallVal.val(), this.settings.deviceType));
+            });
+
+            this.setpointWrap = wrap;
+            this.container.append($('<div class="fw-semibold">Setpoints</div>'), wrap);
+        }
+
+        onSettingsChanged(newSettings) {
+            this.settings = newSettings;
+            this.deviceSelect.val(this.settings.deviceType || 'TWIST');
+            if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
+            this._renderLegControls();
+            this._renderSetpoints();
+        }
+
+        onDispose() {
+            if (this._configHandler && freeboard.off) {
+                freeboard.off('config_updated', this._configHandler);
+            }
+        }
+
+        getHeight() { return 8; }
+    }
+})();
