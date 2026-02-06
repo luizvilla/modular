@@ -48,14 +48,20 @@
             this.colorCheck = $('<input class="form-check-input mt-0" type="checkbox">').attr('id', colorId);
             const scrollId = `chk_${Math.random().toString(36).slice(2)}`;
             this.autoScrollCheck = $('<input class="form-check-input mt-0" type="checkbox">').attr('id', scrollId);
-            const colorWrapper = $('<div class="input-group input-group-sm mb-1"></div>');
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                // Align the toggle labels/boxes when rendered side by side.
+                freeboard.addStyle('.serial-terminal-toggle .input-group-text', 'min-width:120px;justify-content:center;');
+            }
+            const colorWrapper = $('<div class="input-group input-group-sm"></div>');
             const colorLabel = $(`<label class="input-group-text" for="${colorId}">Colorize</label>`);
             const colorBox = $('<span class="input-group-text"></span>').append(this.colorCheck);
             colorWrapper.append(colorLabel).append(colorBox);
-            const scrollWrapper = $('<div class="input-group input-group-sm mb-1"></div>');
+            const scrollWrapper = $('<div class="input-group input-group-sm"></div>');
             const scrollLabel = $(`<label class="input-group-text" for="${scrollId}">Auto-scroll</label>`);
             const scrollBox = $('<span class="input-group-text"></span>').append(this.autoScrollCheck);
             scrollWrapper.append(scrollLabel).append(scrollBox);
+            const toggleRow = $('<div class="d-flex flex-wrap gap-2 mb-1 serial-terminal-toggle"></div>');
+            toggleRow.append(colorWrapper, scrollWrapper);
             this.codeEl = $('<code></code>');
             this.preEl = $(
                 '<pre class="serial-terminal border border-secondary rounded bg-dark text-light p-2" ' +
@@ -63,7 +69,7 @@
             ).append(this.codeEl);
             const dsRow = $('<div class="input-group input-group-sm mb-1"></div>');
             dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
-            this.container.append(dsRow, colorWrapper, scrollWrapper, this.preEl);
+            this.container.append(dsRow, toggleRow, this.preEl);
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
         }

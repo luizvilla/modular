@@ -2440,10 +2440,32 @@ PluginEditor = function(jsEditor, valueEditor)
 
 					typeSelect.append($("<option></option>").text("-- " + category + " --").attr("value", "").prop("disabled", true));
 
-					_.each(_.sortBy(list, function(pluginType)
+					// Preserve a custom ordering for plot + vertical gauge widgets within their categories.
+					var preferredOrder = {
+						"Plots": {
+							"owntech_plot_uplot": 0,
+							"uplot_series_manager": 1,
+							"uplot_config_panel": 2
+						},
+						"Vertical gauge": {
+							"vertical_gauge": 0,
+							"vertical_gauge_manager": 1,
+							"vertical_gauge_config_panel": 2
+						}
+					};
+					var orderedList = list.slice(0).sort(function(a, b)
 					{
-						return (pluginType.display_name || pluginType.type_name || "").toLowerCase();
-					}), function(pluginType)
+						var orderMap = preferredOrder[category] || null;
+						var rankA = orderMap && orderMap[a.type_name] !== undefined ? orderMap[a.type_name] : 999;
+						var rankB = orderMap && orderMap[b.type_name] !== undefined ? orderMap[b.type_name] : 999;
+						if(rankA !== rankB) return rankA - rankB;
+						var labelA = (a.display_name || a.type_name || "").toLowerCase();
+						var labelB = (b.display_name || b.type_name || "").toLowerCase();
+						if(labelA < labelB) return -1;
+						if(labelA > labelB) return 1;
+						return 0;
+					});
+					_.each(orderedList, function(pluginType)
 					{
 						var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
 						if(pluginType.description && pluginType.description.length > 0)

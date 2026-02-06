@@ -18,12 +18,35 @@
                     { name: 'Ownverter', value: 'OWNVERTER' }
                 ]
             },
-            { name: 'datasource', display_name: 'Datasource Name', type: 'text' }
+            {
+                name: 'datasource',
+                display_name: 'Datasource Name',
+                type: 'option',
+                // Use a live options provider so the widget settings modal shows a datasource dropdown.
+                options: getSerialDatasourceOptions,
+                optionsRefreshMs: 1000
+            }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new TwistActionsPanel(settings));
         }
     });
+
+    // Provide a datasource list for the widget settings dropdown.
+    function getSerialDatasourceOptions() {
+        const live = freeboard.getLiveModel?.();
+        if (!live || typeof live.datasources !== 'function') return [];
+        const options = [];
+        live.datasources().forEach(ds => {
+            try {
+                if (ds.type && ds.type() === 'serialport_datasource') {
+                    const name = ds.name();
+                    options.push({ name, value: name });
+                }
+            } catch (e) { /* ignore */ }
+        });
+        return options;
+    }
 
     class TwistActionsPanel {
         constructor(settings) {
@@ -33,7 +56,8 @@
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto p-2"></div>');
             this.lastCmd = $('<div class="small text-muted">Last command: —</div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
-            this.deviceSelect = $('<select class="form-select form-select-sm" style="max-width: 160px;"></select>');
+            this.deviceSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
+            this.dsRefreshBtn = $('<button class="btn btn-outline-secondary btn-sm">Refresh</button>');
             this.deviceSelect.append('<option value="TWIST">Twist</option>');
             this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
             this.powerState = 'IDLE';
@@ -45,19 +69,26 @@
                 freeboard.addStyle('.twist-toggle-grid', 'display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:8px;');
                 freeboard.addStyle('.twist-toggle-item', 'min-width:140px;');
                 freeboard.addStyle('.twist-toggle-item .input-group-text', 'min-width:70px;justify-content:center;');
-                freeboard.addStyle('.twist-toggle-state', 'min-width:52px;display:inline-flex;justify-content:center;');
+                // Align on/off sliders inside the input group for consistent layout.
+                freeboard.addStyle('.twist-toggle-switch', 'display:flex;align-items:center;justify-content:center;min-width:72px;');
+                // Nudge ON/OFF text slightly inward for better visual centering in tight layouts.
+                freeboard.addStyle('.twist-toggle-switch .onoffswitch-inner .on', 'padding-left:2px;');
+                freeboard.addStyle('.twist-toggle-switch .onoffswitch-inner .off', 'padding-right:2px;');
+                // Keep header labels aligned and inputs sized consistently.
+                freeboard.addStyle('.twist-header-row .input-group-text', 'min-width:96px;justify-content:center;');
             }
         }
 
         render(el) {
             $(el).append(this.container);
-            const headerRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            headerRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
-            const deviceRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const headerRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
+            headerRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect, this.dsRefreshBtn);
+            const deviceRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
             deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
             this.container.append(headerRow, deviceRow);
 
             this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
+            this.dsRefreshBtn.on('click', () => this._refreshDatasourceOptions());
             this.deviceSelect.on('change', () => {
                 this.settings.deviceType = this.deviceSelect.val();
                 this._renderLegControls();
@@ -163,19 +194,24 @@
                     const current = this.toggleState.get(key) || 'OFF';
                     const isOn = current === 'ON';
                     const inputId = `tw_${action}_${i}_${Math.random().toString(36).slice(2)}`;
-                    const checkbox = $('<input type="checkbox" class="form-check-input mt-0">')
+                    // Use the same on/off switch markup as freeboard's boolean settings.
+                    const checkbox = $('<input type="checkbox" class="onoffswitch-checkbox">')
                         .attr('id', inputId)
                         .prop('checked', isOn);
-                    const stateLabel = $('<span class="twist-toggle-state"></span>')
-                        .text(isOn ? 'ON' : 'OFF');
+                    const onOffLabel = $(
+                        `<label class="onoffswitch-label" for="${inputId}">
+                            <div class="onoffswitch-inner"><span class="on">ON</span><span class="off">OFF</span></div>
+                            <div class="onoffswitch-switch"></div>
+                         </label>`
+                    );
+                    const switchWrap = $('<div class="onoffswitch"></div>').append(checkbox, onOffLabel);
                     checkbox.on('change', () => {
                         const state = checkbox.prop('checked') ? 'ON' : 'OFF';
                         this.toggleState.set(key, state);
-                        stateLabel.text(state);
                         this._send(protocol.cmdToggle(action, i, state, this.settings.deviceType));
                     });
                     const label = $(`<label class="input-group-text" for="${inputId}">${action}</label>`);
-                    const box = $('<span class="input-group-text"></span>').append(checkbox, stateLabel);
+                    const box = $('<span class="input-group-text twist-toggle-switch"></span>').append(switchWrap);
                     const group = $('<div class="input-group input-group-sm twist-toggle-item"></div>');
                     group.append(label, box);
                     grid.append(group);

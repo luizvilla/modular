@@ -18,12 +18,35 @@
                     { name: 'Ownverter', value: 'OWNVERTER' }
                 ]
             },
-            { name: 'datasource', display_name: 'Datasource Name', type: 'text' }
+            {
+                name: 'datasource',
+                display_name: 'Datasource Name',
+                type: 'option',
+                // Use a live options provider so the widget settings modal shows a datasource dropdown.
+                options: getSerialDatasourceOptions,
+                optionsRefreshMs: 1000
+            }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new TwistSetpointsPanel(settings));
         }
     });
+
+    // Provide a datasource list for the widget settings dropdown.
+    function getSerialDatasourceOptions() {
+        const live = freeboard.getLiveModel?.();
+        if (!live || typeof live.datasources !== 'function') return [];
+        const options = [];
+        live.datasources().forEach(ds => {
+            try {
+                if (ds.type && ds.type() === 'serialport_datasource') {
+                    const name = ds.name();
+                    options.push({ name, value: name });
+                }
+            } catch (e) { /* ignore */ }
+        });
+        return options;
+    }
 
     class TwistSetpointsPanel {
         constructor(settings) {
@@ -33,22 +56,28 @@
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto p-2"></div>');
             this.lastCmd = $('<div class="small text-muted">Last command: —</div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
-            this.deviceSelect = $('<select class="form-select form-select-sm" style="max-width: 160px;"></select>');
+            this.deviceSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
+            this.dsRefreshBtn = $('<button class="btn btn-outline-secondary btn-sm">Refresh</button>');
             this.deviceSelect.append('<option value="TWIST">Twist</option>');
             this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                // Keep header labels aligned and inputs sized consistently.
+                freeboard.addStyle('.twist-header-row .input-group-text', 'min-width:96px;justify-content:center;');
+            }
         }
 
         render(el) {
             $(el).append(this.container);
-            const headerRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            headerRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
-            const deviceRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const headerRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
+            headerRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect, this.dsRefreshBtn);
+            const deviceRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
             deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
             this.container.append(headerRow, deviceRow);
 
             this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
+            this.dsRefreshBtn.on('click', () => this._refreshDatasourceOptions());
             this.deviceSelect.on('change', () => {
                 this.settings.deviceType = this.deviceSelect.val();
                 this._renderSetpoints();
@@ -111,21 +140,27 @@
             if (this.setpointWrap) this.setpointWrap.remove();
             const profile = this._profile();
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
+            // Keep label/input widths aligned across all setpoint rows.
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                freeboard.addStyle('.twist-setpoints .input-group-text', 'min-width:140px;');
+                freeboard.addStyle('.twist-setpoints .form-control', 'min-width:140px;');
+                freeboard.addStyle('.twist-setpoints .form-select', 'min-width:140px;');
+            }
             const legOptions = () => {
-                const sel = $('<select class="form-select form-select-sm" style="max-width: 120px;"></select>');
+                const sel = $('<select class="form-select form-select-sm"></select>');
                 for (let i = 1; i <= profile.legs; i += 1) {
                     sel.append(`<option value="${i}">LEG${i}</option>`);
                 }
                 return sel;
             };
             const variableOptions = () => {
-                const sel = $('<select class="form-select form-select-sm" style="max-width: 120px;"></select>');
+                const sel = $('<select class="form-select form-select-sm"></select>');
                 profile.variables.forEach(v => sel.append(`<option value="${v}">${v}</option>`));
                 return sel;
             };
 
             const makeRow = (label, inputs, onSend) => {
-                const row = $('<div class="input-group input-group-sm"></div>');
+                const row = $('<div class="input-group input-group-sm twist-setpoints"></div>');
                 row.append(`<span class="input-group-text">${label}</span>`);
                 inputs.forEach(inp => row.append(inp));
                 const btn = $('<button class="btn btn-primary btn-sm">Send</button>');

@@ -62,6 +62,11 @@
             this.ipc = !this.serialApi && window.require ? window.require("electron")?.ipcRenderer : null;
             this.isRecording = false;
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                // Align label/input widths across the recorder rows.
+                freeboard.addStyle('.serial-recorder .input-group-text', 'min-width:140px;justify-content:center;');
+                freeboard.addStyle('.serial-recorder .form-control, .serial-recorder .form-select', 'min-width:140px;');
+            }
 
             // Dropdown of available serial datasources
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
@@ -79,14 +84,14 @@
             freeboard.on && freeboard.on('config_updated', this._configHandler);
 
             const makeRow = (labelText, inputEl) => {
-                const row = $('<div class="input-group input-group-sm mb-1"></div>');
+                const row = $('<div class="input-group input-group-sm mb-1 serial-recorder"></div>');
                 const label = $(`<span class="input-group-text">${labelText}</span>`);
                 row.append(label).append(inputEl);
                 return row;
             };
 
             const makeCheckRow = (labelText, checkEl) => {
-                const row = $('<div class="input-group input-group-sm mb-1"></div>');
+                const row = $('<div class="input-group input-group-sm mb-1 serial-recorder"></div>');
                 const id = `chk_${Math.random().toString(36).slice(2)}`;
                 checkEl.addClass('form-check-input mt-0').attr('id', id);
                 const label = $(`<label class="input-group-text" for="${id}">${labelText}</label>`);
@@ -112,8 +117,8 @@
                 makeRow('Datasource', this.dsSelect),
                 makeRow('CSV File', this.fileInput),
                 makeRow('Data Order', this.orderSelect),
-                makeCheckRow('Add label on the first line', this.headerCheck),
                 makeRow('Timestamp', this.timeSelect),
+                makeCheckRow('Add label on the first line', this.headerCheck),
                 this.button
             );
         }

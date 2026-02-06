@@ -26,13 +26,32 @@
             {
                 name: "datasource",
                 display_name: "Datasource Name",
-                type: "text"
+                type: "option",
+                // Keep datasource selection aligned with the Serial Terminal widget.
+                options: getSerialDatasourceOptions,
+                optionsRefreshMs: 1000
             }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new SerialCommandButtons(settings));
         }
     });
+
+    // Provide a datasource list for the widget settings dropdown.
+    function getSerialDatasourceOptions() {
+        const live = freeboard.getLiveModel?.();
+        if (!live || typeof live.datasources !== 'function') return [];
+        const options = [];
+        live.datasources().forEach(ds => {
+            try {
+                if (ds.type && ds.type() === 'serialport_datasource') {
+                    const name = ds.name();
+                    options.push({ name, value: name });
+                }
+            } catch (e) { /* ignore */ }
+        });
+        return options;
+    }
 
     class SerialCommandButtons {
         constructor(settings) {

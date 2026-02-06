@@ -18,12 +18,35 @@
                     { name: 'Ownverter', value: 'OWNVERTER' }
                 ]
             },
-            { name: 'datasource', display_name: 'Datasource Name', type: 'text' }
+            {
+                name: 'datasource',
+                display_name: 'Datasource Name',
+                type: 'option',
+                // Use a live options provider so the widget settings modal shows a datasource dropdown.
+                options: getSerialDatasourceOptions,
+                optionsRefreshMs: 1000
+            }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new TwistCalibrationPanel(settings));
         }
     });
+
+    // Provide a datasource list for the widget settings dropdown.
+    function getSerialDatasourceOptions() {
+        const live = freeboard.getLiveModel?.();
+        if (!live || typeof live.datasources !== 'function') return [];
+        const options = [];
+        live.datasources().forEach(ds => {
+            try {
+                if (ds.type && ds.type() === 'serialport_datasource') {
+                    const name = ds.name();
+                    options.push({ name, value: name });
+                }
+            } catch (e) { /* ignore */ }
+        });
+        return options;
+    }
 
     class TwistCalibrationPanel {
         constructor(settings) {
@@ -33,7 +56,8 @@
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto p-2"></div>');
             this.lastCmd = $('<div class="small text-muted">Last command: —</div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
-            this.deviceSelect = $('<select class="form-select form-select-sm" style="max-width: 160px;"></select>');
+            this.deviceSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
+            this.dsRefreshBtn = $('<button class="btn btn-outline-secondary btn-sm">Refresh</button>');
             this.deviceSelect.append('<option value="TWIST">Twist</option>');
             this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
             this.varSelect = $('<select class="form-select form-select-sm" style="max-width: 160px;"></select>');
@@ -41,13 +65,17 @@
             this.offsetInput = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Offset">');
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                // Keep header labels aligned and inputs sized consistently.
+                freeboard.addStyle('.twist-header-row .input-group-text', 'min-width:96px;justify-content:center;');
+            }
         }
 
         render(el) {
             $(el).append(this.container);
-            const dsRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
-            const deviceRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const dsRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
+            dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect, this.dsRefreshBtn);
+            const deviceRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
             deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
             const calRow = $('<div class="input-group input-group-sm"></div>');
             calRow.append('<span class="input-group-text">Variable</span>', this.varSelect, this.gainInput, this.offsetInput);
@@ -57,6 +85,7 @@
             this.container.append(dsRow, deviceRow, calRow, sendRow, this.lastCmd);
 
             this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
+            this.dsRefreshBtn.on('click', () => this._refreshDatasourceOptions());
             this.deviceSelect.on('change', () => {
                 this.settings.deviceType = this.deviceSelect.val();
                 this._refreshVariables();

@@ -35,41 +35,22 @@
         type_name: 'vertical_gauge',
         display_name: 'Vertical Gauge',
         description: 'Single-channel vertical gauge with min/max and alarm',
-        category: 'plots',
+        category: 'Vertical gauge',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' },
-            { name: 'min', display_name: 'Minimum', type: 'number', default_value: 0 },
-            { name: 'max', display_name: 'Maximum', type: 'number', default_value: 100 },
+            // Keep the widget config slim; advanced tuning is handled via helper widgets.
             {
-                name: 'barColor',
-                display_name: 'Bar Color',
+                name: 'helperWidgets',
+                display_name: 'Helper Widgets',
                 type: 'option',
-                default_value: 'blue',
+                default_value: 'none',
                 options: [
-                    { name: 'Blue', value: 'blue' },
-                    { name: 'Green', value: 'green' },
-                    { name: 'Orange', value: 'orange' },
-                    { name: 'Purple', value: 'purple' },
-                    { name: 'Teal', value: 'teal' },
-                    { name: 'Yellow', value: 'yellow' },
-                    { name: 'Gray', value: 'gray' },
-                    { name: 'White', value: 'white' }
+                    { name: 'None', value: 'none' },
+                    { name: 'UI Controller', value: 'ui' },
+                    { name: 'Gauge Manager', value: 'manager' },
+                    { name: 'Both', value: 'both' }
                 ]
-            },
-            { name: 'alarmEnabled', display_name: 'Alarm Enabled', type: 'boolean', default_value: false },
-            { name: 'alarmThreshold', display_name: 'Alarm Threshold', type: 'number', default_value: 0 },
-            {
-                name: 'alarmDirection',
-                display_name: 'Alarm Direction',
-                type: 'option',
-                default_value: 'above',
-                options: [
-                    { name: 'Above threshold', value: 'above' },
-                    { name: 'Below threshold', value: 'below' }
-                ]
-            },
-            { name: 'refreshRate', display_name: 'Refresh Rate (ms)', type: 'number', default_value: 500 },
-            { name: 'sourceDef', display_name: 'Source (managed by Gauge Manager)', type: 'text' }
+            }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new VerticalGauge(settings));
@@ -99,6 +80,8 @@
             this.bodyEl.append(this.trackEl, this.labelsEl);
             this.container.append(this.titleEl, this.bodyEl, this.valueEl);
             $(el).append(this.container);
+            // Optionally spawn helper widgets (UI controller / gauge manager) next to this gauge.
+            this._maybeSpawnHelpers();
             this._applySettings();
             this._restartTimer();
         }
@@ -120,6 +103,54 @@
             return 4;
         }
 
+        _resolveHelperWidgets(settings) {
+            // Normalize helper widget selection for easier checks in the render path.
+            const raw = (typeof settings.helperWidgets === 'function' ? settings.helperWidgets() : settings.helperWidgets);
+            if (!raw) return 'none';
+            return String(raw).toLowerCase();
+        }
+
+        _maybeSpawnHelpers() {
+            const mode = this._resolveHelperWidgets(this.settings);
+            if (mode === 'none') return;
+            const model = freeboard.getLiveModel && freeboard.getLiveModel();
+            if (!model || typeof model.panes !== 'function') return;
+
+            // Identify the pane + widget index for this gauge so helpers can be inserted next to it.
+            let paneIndex = -1;
+            let widgetIndex = -1;
+            const panes = model.panes();
+            for (let p = 0; p < panes.length; p++) {
+                const widgets = panes[p].widgets();
+                for (let w = 0; w < widgets.length; w++) {
+                    if (widgets[w].widgetInstance === this) {
+                        paneIndex = p;
+                        widgetIndex = w;
+                        break;
+                    }
+                }
+                if (paneIndex >= 0) break;
+            }
+            if (paneIndex < 0 || widgetIndex < 0) return;
+
+            // Use serialized config for insertion because Freeboard has no public widget-creation API.
+            const cfg = freeboard.serialize();
+            const pane = cfg.panes[paneIndex];
+            if (!pane || !Array.isArray(pane.widgets)) return;
+            const existingTypes = new Set(pane.widgets.map(w => w.type));
+            const helpers = [];
+            if ((mode === 'ui' || mode === 'both') && !existingTypes.has('vertical_gauge_config_panel')) {
+                helpers.push({ type: 'vertical_gauge_config_panel', settings: {} });
+            }
+            if ((mode === 'manager' || mode === 'both') && !existingTypes.has('vertical_gauge_manager')) {
+                helpers.push({ type: 'vertical_gauge_manager', settings: {} });
+            }
+            if (!helpers.length) return;
+
+            pane.widgets.splice(widgetIndex + 1, 0, ...helpers);
+            freeboard.loadDashboard(cfg);
+        }
+
         _applySettings() {
             const title = typeof this.settings.title === 'function' ? this.settings.title() : this.settings.title;
             this.titleEl.text(title || '');
@@ -128,7 +159,8 @@
             this.minEl.text(String(min));
             this.maxEl.text(String(max));
             const colorKey = typeof this.settings.barColor === 'function' ? this.settings.barColor() : this.settings.barColor;
-            const color = COLOR_MAP[colorKey] || COLOR_MAP.blue;
+            // Accept raw hex colors from the UI controller palette.
+            const color = (typeof colorKey === 'string' && colorKey.startsWith('#')) ? colorKey : (COLOR_MAP[colorKey] || COLOR_MAP.blue);
             this.fillEl.css('background-color', color);
         }
 

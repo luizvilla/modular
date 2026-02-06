@@ -204,7 +204,9 @@ class OwnTechPlotUPlot {
             const chIdx = mapping.idx ?? this.channelIndices[idx] ?? idx;
             const headers = this.headersByDs[ds] || [];
             if (headers[chIdx]) return headers[chIdx];
-            return `Channel ${chIdx + 1}`;
+            const alpha = String.fromCharCode(65 + (chIdx % 26));
+            const suffix = chIdx >= 26 ? ` ${Math.floor(chIdx / 26) + 1}` : '';
+            return `Channel ${alpha}${suffix}`;
         }
 
         _getSeriesColor(idx) {
@@ -213,7 +215,12 @@ class OwnTechPlotUPlot {
             const chIdx = mapping.idx ?? this.channelIndices[idx] ?? idx;
             const colors = this.colorsByDs[ds] || [];
             if (colors[chIdx]) return colors[chIdx];
-            return (typeof ColorBlind10 !== "undefined" ? ColorBlind10[idx % ColorBlind10.length] : `hsl(${(idx * 60) % 360}, 70%, 50%)`);
+            // Allow the UI controller to override the default palette for plot colors.
+            const palette = Array.isArray(window.PlotColorPalette) && window.PlotColorPalette.length
+                ? window.PlotColorPalette
+                : (typeof ColorBlind10 !== "undefined" ? ColorBlind10 : null);
+            if (palette && palette.length) return palette[idx % palette.length];
+            return `hsl(${(idx * 60) % 360}, 70%, 50%)`;
         }
 
         render(containerElement) {
@@ -312,6 +319,15 @@ class OwnTechPlotUPlot {
                 series: resolvedSeries
             };
             this.plot = new uPlot(opts, this.dataBuffer, this.container[0]);
+            // Ensure legend items wrap to keep all channels visible.
+            if (this.plot && this.plot.root) {
+                const legend = this.plot.root.querySelector('.u-legend');
+                if (legend) {
+                    legend.style.display = 'flex';
+                    legend.style.flexWrap = 'wrap';
+                    legend.style.gap = '6px 12px';
+                }
+            }
             // Apply initial Y range (manual or computed)
             this._applyYAxisRange();
             // In case layout settles after init, try an async resize tick
@@ -1142,6 +1158,11 @@ class OwnTechPlotUPlot {
                     const root = this.plot.root;
                     const titleEl = root.querySelector('.u-title');
                     const legendEl = root.querySelector('.u-legend');
+                    if (legendEl) {
+                        legendEl.style.display = 'flex';
+                        legendEl.style.flexWrap = 'wrap';
+                        legendEl.style.gap = '6px 12px';
+                    }
                     const titleH = titleEl && getComputedStyle(titleEl).display !== 'none' ? titleEl.offsetHeight : 0;
                     const legendH = legendEl && getComputedStyle(legendEl).display !== 'none' ? legendEl.offsetHeight : 0;
                     const extra = titleH + legendH;

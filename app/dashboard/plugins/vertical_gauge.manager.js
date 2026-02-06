@@ -28,7 +28,7 @@
         type_name: 'vertical_gauge_manager',
         display_name: 'Gauge Channel Manager',
         description: 'Select datasource/channel for a target Vertical Gauge',
-        category: 'plots',
+        category: 'Vertical gauge',
         settings: [],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new GaugeManager(settings));
@@ -42,6 +42,11 @@
             this.container = $('<div class="h-100 overflow-auto p-2 d-flex flex-column gap-2"></div>');
             this.controls = {};
             this._cleanupFns = [];
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                // Align label/input widths across the manager rows.
+                freeboard.addStyle('.vgauge-channel-manager .input-group-text', 'min-width:140px;justify-content:center;');
+                freeboard.addStyle('.vgauge-channel-manager .form-control, .vgauge-channel-manager .form-select', 'min-width:140px;');
+            }
         }
 
         render(el) {
@@ -53,7 +58,7 @@
                 this._cleanupFns = [];
             }
 
-            const widgetRow = $('<div class="input-group input-group-sm"></div>');
+            const widgetRow = $('<div class="input-group input-group-sm vgauge-channel-manager"></div>');
             const widgetLabel = $('<span class="input-group-text">Target Gauge</span>');
             const widgetSelect = $('<select class="form-select form-select-sm"></select>');
             this.controls.widget = widgetSelect;
@@ -64,7 +69,7 @@
             headerWrap.append(widgetRow).append(updateBtn);
 
             const makeSourceRow = () => {
-                const row = $('<div class="input-group input-group-sm"></div>');
+                const row = $('<div class="input-group input-group-sm vgauge-channel-manager"></div>');
                 const lab = $('<span class="input-group-text">Source</span>');
                 const ds = $('<select class="form-select form-select-sm" style="max-width: 200px;"></select>');
                 const dev = $('<select class="form-select form-select-sm" style="max-width: 160px; display:none;"></select>');

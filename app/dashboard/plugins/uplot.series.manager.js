@@ -19,7 +19,7 @@
   })(api);
   freeboard.loadWidgetPlugin({
     type_name: 'uplot_series_manager',
-    display_name: 'Plot Series Manager',
+    display_name: 'Plot Channel Manager',
     description: 'Add/remove variables and math operations for a target Plot widget',
     settings: [],
     newInstance: function (settings, newInstanceCallback) {
@@ -34,6 +34,11 @@
       this.container = $('<div class="h-100 overflow-auto p-2 d-flex flex-column gap-2"></div>');
       this.controls = {};
       this._cleanupFns = [];
+      if (freeboard && typeof freeboard.addStyle === 'function') {
+        // Align label/input widths across the manager rows.
+        freeboard.addStyle('.plot-channel-manager .input-group-text', 'min-width:140px;justify-content:center;');
+        freeboard.addStyle('.plot-channel-manager .form-control, .plot-channel-manager .form-select', 'min-width:140px;');
+      }
     }
 
     render(el) {
@@ -45,7 +50,7 @@
         this._cleanupFns = [];
       }
 
-      const widgetRow = $('<div class="input-group input-group-sm"></div>');
+      const widgetRow = $('<div class="input-group input-group-sm plot-channel-manager"></div>');
       const widgetLabel = $('<span class="input-group-text">Target Plot</span>');
       const widgetSelect = $('<select class="form-select form-select-sm"></select>');
       this.controls.widget = widgetSelect;
@@ -54,7 +59,7 @@
       const headerWrap = $('<div class="d-flex flex-wrap align-items-center gap-2"></div>');
       headerWrap.append(widgetRow).append(updateBtn);
 
-      const opRow = $('<div class="input-group input-group-sm"></div>');
+      const opRow = $('<div class="input-group input-group-sm plot-channel-manager"></div>');
       const opLabel = $('<span class="input-group-text">Operation</span>');
       const opSelect = $('<select class="form-select form-select-sm"></select>')
         .append('<option value="identity">x</option>')
@@ -73,7 +78,7 @@
       opRow.append(opLabel).append(opSelect).append(paramInput);
 
       const makeSourceRow = (title) => {
-        const row = $('<div class="input-group input-group-sm"></div>');
+        const row = $('<div class="input-group input-group-sm plot-channel-manager"></div>');
         const lab = $(`<span class="input-group-text">${title}</span>`);
         const ds = $('<select class="form-select form-select-sm" style="max-width: 200px;"></select>');
         const dev = $('<select class="form-select form-select-sm" style="max-width: 160px; display:none;"></select>');
@@ -86,14 +91,14 @@
       const srcB = makeSourceRow('Source Y');
       srcB.row.hide();
 
-      const labelRow = $('<div class="input-group input-group-sm"></div>');
+      const labelRow = $('<div class="input-group input-group-sm plot-channel-manager"></div>');
       const labelLab = $('<span class="input-group-text">Label</span>');
-      const labelInput = $('<input type="text" class="form-control form-control-sm" placeholder="Series label (optional)">');
+      const labelInput = $('<input type="text" class="form-control form-control-sm" placeholder="Channel label (optional)">');
       labelRow.append(labelLab).append(labelInput);
 
       const btnRow = $('<div class="d-flex gap-1"></div>');
-      const addBtn = $('<button class="btn btn-primary btn-sm">Add series</button>');
-      const resetBtn = $('<button class="btn btn-outline-danger btn-sm">Reset all</button>');
+      const addBtn = $('<button class="btn btn-primary btn-sm">Add channel</button>');
+      const resetBtn = $('<button class="btn btn-outline-danger btn-sm">Reset channels</button>');
       btnRow.append(addBtn, resetBtn);
 
       const list = $('<div class="d-flex flex-column gap-1"></div>');
@@ -289,7 +294,10 @@
           } catch {}
         }
         for (let i = 0; i < count; i++) {
-          const label = headers[i] || `Channel ${i + 1}`;
+          const alpha = String.fromCharCode(65 + (i % 26));
+          const suffix = i >= 26 ? ` ${Math.floor(i / 26) + 1}` : '';
+          const fallback = `Channel ${alpha}${suffix}`;
+          const label = headers[i] || fallback;
           varSelect.append(`<option value="${i}">${label}</option>`);
         }
       } else if (type === 'can_datasource') {
@@ -359,11 +367,11 @@
     _renderList(widget, listEl) {
       const defs = this._getSeriesDefs(widget);
       listEl.empty();
-      if (!defs.length) { listEl.append('<div class="text-muted">No series added</div>'); return; }
+      if (!defs.length) { listEl.append('<div class="text-muted">No channels added</div>'); return; }
       defs.forEach((d, i) => {
         const row = $('<div class="d-flex align-items-center justify-content-between border rounded px-2 py-1"></div>');
         const left = $('<div class="d-flex align-items-center gap-2"></div>');
-        const label = d.label || this._formatDefLabel(d);
+        const label = d.label || this._formatDefLabel(d, i);
         left.append($('<strong></strong>').text(label));
         const devALabel = (d.a.type === 'can_datasource') ? (d.a.device_uid || d.a.device || '') : '';
         left.append(`<span class="badge bg-light text-dark">${d.a.ds}${devALabel ? ' ' + devALabel : ''}</span>`);
@@ -382,14 +390,20 @@
       });
     }
 
-    _formatDefLabel(d) {
+    _formatDefLabel(d, plotIndex = 0) {
       const nameA = String(d?.a?.var);
-      if (d.op === 'mulvar' && d.b) return `${nameA} × ${String(d.b.var)}`;
-      if (d.op === 'negate') return `-${nameA}`;
-      if (d.op === 'abs') return `abs(${nameA})`;
-      if (d.op === 'scale') return `${nameA} * ${d.param}`;
-      if (d.op === 'offset') return `${nameA} + ${d.param}`;
-      return nameA;
+      // Build a consistent label that includes plot channel + source index.
+      const plotLetter = String.fromCharCode(65 + (plotIndex % 26));
+      const plotSuffix = plotIndex >= 26 ? ` ${Math.floor(plotIndex / 26) + 1}` : '';
+      const plotLabel = `Channel ${plotLetter}${plotSuffix}`;
+      const srcIndex = Number.isFinite(Number(d?.a?.var)) ? Number(d?.a?.var) + 1 : d?.a?.var;
+      const base = `${plotLabel} · Src ${srcIndex}`;
+      if (d.op === 'mulvar' && d.b) return `${base} × ${String(d.b.var)}`;
+      if (d.op === 'negate') return `-${base}`;
+      if (d.op === 'abs') return `abs(${base})`;
+      if (d.op === 'scale') return `${base} * ${d.param}`;
+      if (d.op === 'offset') return `${base} + ${d.param}`;
+      return base;
     }
 
     onSettingsChanged(s) { this.settings = s; }
