@@ -60,12 +60,16 @@
     opacity: 0.7;
 }
 
-/* Docs mode hides the dashboard UI without locking inline display styles. */
+/* Docs mode moves the dashboard UI off-screen while keeping layout sizes. */
 body.docs-mode #main-header,
 body.docs-mode #board-content,
 html.docs-mode #main-header,
 html.docs-mode #board-content {
-    display: none !important;
+    position: fixed !important;
+    top: -20000px !important;
+    left: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 /* Dashboard mode force-shows the header when returning from docs tabs. */
