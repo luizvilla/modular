@@ -7,6 +7,7 @@
     "start": "electron .",
     "dist": "electron-builder",
     "test:ui": "playwright test",
+    "test:protocol": "node tests/unit/twist_protocol.test.js",
     "rebuild:native": "npx electron-rebuild -f -w socketcan",
     "scan:can": "ELECTRON_RUN_AS_NODE=1 electron app/js/scan.js",
     "ts:query": "ELECTRON_RUN_AS_NODE=1 electron app/js/query_nodes.js",
