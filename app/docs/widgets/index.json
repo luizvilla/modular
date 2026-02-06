@@ -112,6 +112,20 @@
       "category": "ThingSet",
       "doc": "thingset/measurements/README.md",
       "requiresThingset": true
+    },
+    {
+      "type": "twist_control_panel",
+      "title": "Twist/Ownverter Actions & Setpoints",
+      "category": "Twist",
+      "doc": "twist/actions-setpoints/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "twist_calibration_panel",
+      "title": "Twist/Ownverter Calibration",
+      "category": "Twist",
+      "doc": "twist/calibration/README.md",
+      "requiresThingset": false
     }
   ]
 }
