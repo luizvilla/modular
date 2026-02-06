@@ -80,6 +80,17 @@ function buildEmptyDashboard() {
   };
 }
 
+async function pickAppPage(app) {
+  const pages = app.windows();
+  const appPage = pages.find((p) => !p.url().startsWith('devtools://'));
+  if (appPage) return appPage;
+  return new Promise((resolve) => {
+    app.on('window', (win) => {
+      if (!win.url().startsWith('devtools://')) resolve(win);
+    });
+  });
+}
+
 async function setWindowSize(app) {
   await app.evaluate(
     ({ BrowserWindow }, size) => {
@@ -154,7 +165,7 @@ async function run() {
   };
 
   const app = await electron.launch({ args: ['.'], env });
-  const page = await app.firstWindow();
+  const page = await pickAppPage(app);
 
   await setWindowSize(app);
   await waitForDashboard(page);
