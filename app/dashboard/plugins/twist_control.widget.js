@@ -45,6 +45,7 @@
                 freeboard.addStyle('.twist-toggle-grid', 'display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:8px;');
                 freeboard.addStyle('.twist-toggle-item', 'min-width:140px;');
                 freeboard.addStyle('.twist-toggle-item .input-group-text', 'min-width:70px;justify-content:center;');
+                freeboard.addStyle('.twist-toggle-state', 'min-width:52px;display:inline-flex;justify-content:center;');
             }
         }
 
@@ -165,13 +166,16 @@
                     const checkbox = $('<input type="checkbox" class="form-check-input mt-0">')
                         .attr('id', inputId)
                         .prop('checked', isOn);
+                    const stateLabel = $('<span class="twist-toggle-state"></span>')
+                        .text(isOn ? 'ON' : 'OFF');
                     checkbox.on('change', () => {
                         const state = checkbox.prop('checked') ? 'ON' : 'OFF';
                         this.toggleState.set(key, state);
+                        stateLabel.text(state);
                         this._send(protocol.cmdToggle(action, i, state, this.settings.deviceType));
                     });
                     const label = $(`<label class="input-group-text" for="${inputId}">${action}</label>`);
-                    const box = $('<span class="input-group-text"></span>').append(checkbox);
+                    const box = $('<span class="input-group-text"></span>').append(checkbox, stateLabel);
                     const group = $('<div class="input-group input-group-sm twist-toggle-item"></div>');
                     group.append(label, box);
                     grid.append(group);
