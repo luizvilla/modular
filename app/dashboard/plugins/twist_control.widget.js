@@ -41,8 +41,10 @@
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             if (freeboard && typeof freeboard.addStyle === 'function') {
-                // Button alignment for I/O toggles.
-                freeboard.addStyle('.twist-toggle-group .btn', 'min-width: 28px;');
+                // Grid layout for leg toggles (3 on top, 2 on bottom).
+                freeboard.addStyle('.twist-toggle-grid', 'display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:8px;');
+                freeboard.addStyle('.twist-toggle-item', 'min-width:140px;');
+                freeboard.addStyle('.twist-toggle-item .input-group-text', 'min-width:70px;justify-content:center;');
             }
         }
 
@@ -144,33 +146,40 @@
             if (this.legWrap) this.legWrap.remove();
             const profile = this._profile();
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
-            const actions = ['LEG', 'CAPA', 'DRIVER', 'BUCK', 'BOOST'];
+            const topActions = ['LEG', 'CAPA', 'DRIVER'];
+            const bottomActions = ['BUCK', 'BOOST', null];
             for (let i = 1; i <= profile.legs; i += 1) {
-                const row = $('<div class="d-flex flex-wrap gap-2 align-items-center"></div>');
+                const row = $('<div class="d-flex flex-column gap-2"></div>');
                 row.append(`<span class="badge bg-light text-dark">LEG${i}</span>`);
-                actions.forEach(action => {
-                    const group = $('<div class="btn-group btn-group-sm twist-toggle-group" role="group"></div>');
-                    const onBtn = $('<button class="btn btn-outline-success">I</button>');
-                    const offBtn = $('<button class="btn btn-outline-secondary">O</button>');
-                    const label = $(`<span class="small text-muted ms-1">${action}</span>`);
+
+                const grid = $('<div class="twist-toggle-grid"></div>');
+                const renderAction = (action) => {
+                    if (!action) {
+                        grid.append('<div></div>');
+                        return;
+                    }
                     const key = `${action}:${i}`;
-                    const setState = (state, send) => {
-                        this.toggleState.set(key, state);
-                        onBtn.toggleClass('active', state === 'ON');
-                        offBtn.toggleClass('active', state === 'OFF');
-                        if (send) {
-                            this._send(protocol.cmdToggle(action, i, state, this.settings.deviceType));
-                        }
-                    };
-                    onBtn.on('click', () => setState('ON', true));
-                    offBtn.on('click', () => setState('OFF', true));
                     const current = this.toggleState.get(key) || 'OFF';
-                    setState(current, false);
-                    group.append(onBtn, offBtn);
-                    const cell = $('<div class="d-flex align-items-center gap-1"></div>');
-                    cell.append(group, label);
-                    row.append(cell);
-                });
+                    const isOn = current === 'ON';
+                    const inputId = `tw_${action}_${i}_${Math.random().toString(36).slice(2)}`;
+                    const checkbox = $('<input type="checkbox" class="form-check-input mt-0">')
+                        .attr('id', inputId)
+                        .prop('checked', isOn);
+                    checkbox.on('change', () => {
+                        const state = checkbox.prop('checked') ? 'ON' : 'OFF';
+                        this.toggleState.set(key, state);
+                        this._send(protocol.cmdToggle(action, i, state, this.settings.deviceType));
+                    });
+                    const label = $(`<label class="input-group-text" for="${inputId}">${action}</label>`);
+                    const box = $('<span class="input-group-text"></span>').append(checkbox);
+                    const group = $('<div class="input-group input-group-sm twist-toggle-item"></div>');
+                    group.append(label, box);
+                    grid.append(group);
+                };
+
+                topActions.forEach(renderAction);
+                bottomActions.forEach(renderAction);
+                row.append(grid);
                 wrap.append(row);
             }
             this.legWrap = wrap;
