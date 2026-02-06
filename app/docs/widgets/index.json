@@ -114,10 +114,17 @@
       "requiresThingset": true
     },
     {
-      "type": "twist_control_panel",
-      "title": "Twist/Ownverter Actions & Setpoints",
+      "type": "twist_actions_panel",
+      "title": "Twist/Ownverter Actions",
       "category": "Python Communication Protocol",
-      "doc": "twist/actions-setpoints/README.md",
+      "doc": "twist/actions/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "twist_setpoints_panel",
+      "title": "Twist/Ownverter Setpoints",
+      "category": "Python Communication Protocol",
+      "doc": "twist/setpoints/README.md",
       "requiresThingset": false
     },
     {

@@ -1,10 +1,10 @@
 (function () {
-    // Twist/Ownverter Actions control widget (power + toggles).
+    // Twist/Ownverter Setpoints widget (reference/duty/phase/etc).
     const protocol = window.twistProtocol || null;
     freeboard.loadWidgetPlugin({
-        type_name: 'twist_actions_panel',
-        display_name: 'Twist/Ownverter Actions',
-        description: 'Send power and toggle commands over serial.',
+        type_name: 'twist_setpoints_panel',
+        display_name: 'Twist/Ownverter Setpoints',
+        description: 'Send reference, duty, frequency, phase, and dead-time setpoints over serial.',
         category: 'Python Communication Protocol',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' },
@@ -21,11 +21,11 @@
             { name: 'datasource', display_name: 'Datasource Name', type: 'text' }
         ],
         newInstance: function (settings, newInstanceCallback) {
-            newInstanceCallback(new TwistActionsPanel(settings));
+            newInstanceCallback(new TwistSetpointsPanel(settings));
         }
     });
 
-    class TwistActionsPanel {
+    class TwistSetpointsPanel {
         constructor(settings) {
             this.settings = settings;
             this.serialApi = window.api && window.api.serial ? window.api.serial : null;
@@ -51,15 +51,14 @@
             this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
             this.deviceSelect.on('change', () => {
                 this.settings.deviceType = this.deviceSelect.val();
-                this._renderLegControls();
+                this._renderSetpoints();
             });
 
             this._refreshDatasourceOptions();
             if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
             this.deviceSelect.val(this.settings.deviceType || 'TWIST');
 
-            this._renderPowerControls();
-            this._renderLegControls();
+            this._renderSetpoints();
             this.container.append(this.lastCmd);
         }
 
@@ -104,54 +103,83 @@
                 }
                 this.lastCmd.text(`Last command: ${command}`);
             } catch (err) {
-                console.error('Twist command failed', err);
+                console.error('Twist setpoint failed', err);
             }
         }
 
-        _renderPowerControls() {
-            const row = $('<div class="d-flex gap-2 flex-wrap align-items-center"></div>');
-            const idle = $('<button class="btn btn-outline-secondary btn-sm">IDLE</button>');
-            const on = $('<button class="btn btn-outline-success btn-sm">POWER ON</button>');
-            const off = $('<button class="btn btn-outline-danger btn-sm">POWER OFF</button>');
-            row.append(idle, on, off);
-            idle.on('click', () => this._send(protocol.cmdIdle()));
-            on.on('click', () => this._send(protocol.cmdPowerOn()));
-            off.on('click', () => this._send(protocol.cmdPowerOff()));
-            this.container.append($('<div class="fw-semibold">Power</div>'), row);
-        }
-
-        _renderLegControls() {
-            if (this.legWrap) this.legWrap.remove();
+        _renderSetpoints() {
+            if (this.setpointWrap) this.setpointWrap.remove();
             const profile = this._profile();
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
-            const actions = ['LEG', 'CAPA', 'DRIVER', 'BUCK', 'BOOST'];
-            for (let i = 1; i <= profile.legs; i += 1) {
-                const row = $('<div class="d-flex flex-wrap gap-2 align-items-center"></div>');
-                row.append(`<span class="badge bg-light text-dark">LEG${i}</span>`);
-                actions.forEach(action => {
-                    const group = $('<div class="btn-group btn-group-sm" role="group"></div>');
-                    const onBtn = $(`<button class="btn btn-outline-success">${action} ON</button>`);
-                    const offBtn = $(`<button class="btn btn-outline-secondary">${action} OFF</button>`);
-                    onBtn.on('click', () => {
-                        this._send(protocol.cmdToggle(action, i, 'ON', this.settings.deviceType));
-                    });
-                    offBtn.on('click', () => {
-                        this._send(protocol.cmdToggle(action, i, 'OFF', this.settings.deviceType));
-                    });
-                    group.append(onBtn, offBtn);
-                    row.append(group);
-                });
+            const legOptions = () => {
+                const sel = $('<select class="form-select form-select-sm" style="max-width: 120px;"></select>');
+                for (let i = 1; i <= profile.legs; i += 1) {
+                    sel.append(`<option value="${i}">LEG${i}</option>`);
+                }
+                return sel;
+            };
+            const variableOptions = () => {
+                const sel = $('<select class="form-select form-select-sm" style="max-width: 120px;"></select>');
+                profile.variables.forEach(v => sel.append(`<option value="${v}">${v}</option>`));
+                return sel;
+            };
+
+            const makeRow = (label, inputs, onSend) => {
+                const row = $('<div class="input-group input-group-sm"></div>');
+                row.append(`<span class="input-group-text">${label}</span>`);
+                inputs.forEach(inp => row.append(inp));
+                const btn = $('<button class="btn btn-primary btn-sm">Send</button>');
+                btn.on('click', onSend);
+                row.append(btn);
                 wrap.append(row);
-            }
-            this.legWrap = wrap;
-            this.container.append($('<div class="fw-semibold">Leg toggles</div>'), wrap);
+            };
+
+            const refLeg = legOptions();
+            const refVar = variableOptions();
+            const refVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Value">');
+            makeRow('Reference', [refLeg, refVar, refVal], () => {
+                this._send(protocol.cmdReference(refLeg.val(), refVar.val(), refVal.val(), this.settings.deviceType));
+            });
+
+            const dutyLeg = legOptions();
+            const dutyVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Duty">');
+            makeRow('Duty', [dutyLeg, dutyVal], () => {
+                this._send(protocol.cmdDuty(dutyLeg.val(), dutyVal.val(), this.settings.deviceType));
+            });
+
+            const freqLeg = legOptions();
+            const freqVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Hz">');
+            makeRow('Frequency', [freqLeg, freqVal], () => {
+                this._send(protocol.cmdFrequency(freqLeg.val(), freqVal.val(), this.settings.deviceType));
+            });
+
+            const phaseLeg = legOptions();
+            const phaseVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Phase">');
+            makeRow('Phase Shift', [phaseLeg, phaseVal], () => {
+                this._send(protocol.cmdPhaseShift(phaseLeg.val(), phaseVal.val(), this.settings.deviceType));
+            });
+
+            const dtRiseLeg = legOptions();
+            const dtRiseVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Ticks">');
+            makeRow('Dead Time Rising', [dtRiseLeg, dtRiseVal], () => {
+                this._send(protocol.cmdDeadTimeRising(dtRiseLeg.val(), dtRiseVal.val(), this.settings.deviceType));
+            });
+
+            const dtFallLeg = legOptions();
+            const dtFallVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Ticks">');
+            makeRow('Dead Time Falling', [dtFallLeg, dtFallVal], () => {
+                this._send(protocol.cmdDeadTimeFalling(dtFallLeg.val(), dtFallVal.val(), this.settings.deviceType));
+            });
+
+            this.setpointWrap = wrap;
+            this.container.append($('<div class="fw-semibold">Setpoints</div>'), wrap);
         }
 
         onSettingsChanged(newSettings) {
             this.settings = newSettings;
             this.deviceSelect.val(this.settings.deviceType || 'TWIST');
             if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
-            this._renderLegControls();
+            this._renderSetpoints();
         }
 
         onDispose() {
