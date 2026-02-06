@@ -1,20 +1,33 @@
 (function () {
+    // Vertical gauge configuration panel for adjusting gauge settings.
+    const COLOR_OPTIONS = [
+        { name: 'Blue', value: 'blue' },
+        { name: 'Green', value: 'green' },
+        { name: 'Orange', value: 'orange' },
+        { name: 'Purple', value: 'purple' },
+        { name: 'Teal', value: 'teal' },
+        { name: 'Yellow', value: 'yellow' },
+        { name: 'Gray', value: 'gray' },
+        { name: 'White', value: 'white' }
+    ];
+
     freeboard.loadWidgetPlugin({
-        type_name: "uplot_config_panel",
-        display_name: "Plot UI controller",
-        description: "Control panel to adjust plot settings",
+        type_name: 'vertical_gauge_config_panel',
+        display_name: 'Vertical Gauge UI',
+        description: 'Control panel to adjust vertical gauge settings',
+        category: 'Vertical gauge',
         settings: [],
         newInstance: function (settings, newInstanceCallback) {
-            newInstanceCallback(new UPlotConfigPanel(settings));
+            newInstanceCallback(new VerticalGaugeConfigPanel(settings));
         }
     });
 
-    class UPlotConfigPanel {
+    class VerticalGaugeConfigPanel {
         constructor(settings) {
             this.settings = settings;
             this.container = $('<div class="h-100 overflow-auto p-2"></div>');
             this.controls = {};
-            // Reuse the serial header editor workflow inside the plot UI controller.
+            // Reuse the serial header editor workflow inside the gauge UI controller.
             this.serialApi = window.api && window.api.serial ? window.api.serial : null;
             this.ipc = !this.serialApi && window.require ? window.require('electron')?.ipcRenderer : null;
             this.colorThemes = {
@@ -41,15 +54,15 @@
 
             const form = $('<div></div>');
 
-            const titleRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            const titleLabel = $('<span class="input-group-text">Select Target Widget</span>');
-            const titleSelect = $('<select class="form-select form-select-sm"></select>');
-            this.controls.target_widget_title = titleSelect;
+            const targetRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const targetLabel = $('<span class="input-group-text">Select Target Widget</span>');
+            const targetSelect = $('<select class="form-select form-select-sm"></select>');
+            this.controls.target_widget_title = targetSelect;
 
-            titleSelect.on('change', () => { if (titleSelect.val()) this.syncFromSelectedWidget(); });
+            targetSelect.on('change', () => { if (targetSelect.val()) this.syncFromSelectedWidget(); });
 
-            titleRow.append(titleLabel).append(titleSelect);
-            form.append(titleRow);
+            targetRow.append(targetLabel).append(targetSelect);
+            form.append(targetRow);
 
             const createInput = (labelText, key, type = 'text') => {
                 const wrapper = $('<div class="input-group input-group-sm mb-1"></div>');
@@ -60,20 +73,39 @@
                 return wrapper;
             };
 
-            form.append(createInput('Display Duration (ms)', 'duration', 'number'));
-            form.append(createInput('Refresh Rate (ms)', 'refreshRate', 'number'));
-            form.append(createInput('Y Axis Label', 'yLabel'));
-            form.append(createInput('Y Min', 'yMin', 'number'));
-            form.append(createInput('Y Max', 'yMax', 'number'));
+            form.append(createInput('Title', 'title'));
+            form.append(createInput('Minimum', 'min', 'number'));
+            form.append(createInput('Maximum', 'max', 'number'));
 
-            const legendRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            const legendId = `chk_${Math.random().toString(36).slice(2)}`;
-            const legendCheckbox = $('<input type="checkbox">').addClass('form-check-input mt-0').attr('id', legendId);
-            const legendLabel = $(`<label class="input-group-text" for="${legendId}">Show Legend</label>`);
-            const legendBox = $('<span class="input-group-text"></span>').append(legendCheckbox);
-            legendRow.append(legendLabel).append(legendBox);
-            this.controls.showLegend = legendCheckbox;
-            form.append(legendRow);
+            const colorRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const colorLabel = $('<span class="input-group-text">Bar Color</span>');
+            const colorSelect = $('<select class="form-select form-select-sm"></select>');
+            COLOR_OPTIONS.forEach(opt => colorSelect.append($('<option></option>').val(opt.value).text(opt.name)));
+            this.controls.barColor = colorSelect;
+            colorRow.append(colorLabel).append(colorSelect);
+            form.append(colorRow);
+
+            form.append(createInput('Refresh Rate (ms)', 'refreshRate', 'number'));
+
+            const alarmRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const alarmId = `chk_${Math.random().toString(36).slice(2)}`;
+            const alarmCheckbox = $('<input type="checkbox">').addClass('form-check-input mt-0').attr('id', alarmId);
+            const alarmLabel = $(`<label class="input-group-text" for="${alarmId}">Alarm Enabled</label>`);
+            const alarmBox = $('<span class="input-group-text"></span>').append(alarmCheckbox);
+            alarmRow.append(alarmLabel).append(alarmBox);
+            this.controls.alarmEnabled = alarmCheckbox;
+            form.append(alarmRow);
+
+            form.append(createInput('Alarm Threshold', 'alarmThreshold', 'number'));
+
+            const dirRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const dirLabel = $('<span class="input-group-text">Alarm Direction</span>');
+            const dirSelect = $('<select class="form-select form-select-sm"></select>');
+            dirSelect.append('<option value="above">Above threshold</option>');
+            dirSelect.append('<option value="below">Below threshold</option>');
+            this.controls.alarmDirection = dirSelect;
+            dirRow.append(dirLabel).append(dirSelect);
+            form.append(dirRow);
 
             const btn = $('<button class="btn btn-primary btn-sm w-100">Apply Settings</button>');
             btn.on('click', () => this.applySettings());
@@ -110,20 +142,27 @@
             const title = this.controls.target_widget_title.val();
             const widget = model.panes().flatMap(p => p.widgets()).find(w => {
                 let wTitle = w.settings().title; if (typeof wTitle === 'function') wTitle = wTitle();
-                return wTitle === title && w.type() === 'owntech_plot_uplot';
+                return wTitle === title && w.type() === 'vertical_gauge';
             });
             if (!widget) return;
             const settings = widget.settings();
-            this.controls.duration.val(typeof settings.duration === 'function' ? settings.duration() : settings.duration || 20000);
-            this.controls.refreshRate.val(typeof settings.refreshRate === 'function' ? settings.refreshRate() : settings.refreshRate || 1000);
-            this.controls.yLabel.val(typeof settings.yLabel === 'function' ? settings.yLabel() : settings.yLabel || '');
-            this.controls.yMin.val(typeof settings.yMin === 'function' ? (settings.yMin() ?? '') : (settings.yMin ?? ''));
-            this.controls.yMax.val(typeof settings.yMax === 'function' ? (settings.yMax() ?? '') : (settings.yMax ?? ''));
-            this.controls.showLegend.prop('checked', !!(typeof settings.showLegend === 'function' ? settings.showLegend() : settings.showLegend));
-            const dsName = widget.widgetInstance?.datasourceName || (typeof settings.datasource === 'function' ? settings.datasource() : settings.datasource);
-            if (dsName) {
-                this.dsSelect.val(dsName);
-                this._loadHeaders();
+            this.controls.title.val(typeof settings.title === 'function' ? settings.title() : settings.title || '');
+            this.controls.min.val(typeof settings.min === 'function' ? settings.min() : (settings.min ?? 0));
+            this.controls.max.val(typeof settings.max === 'function' ? settings.max() : (settings.max ?? 100));
+            this.controls.barColor.val(typeof settings.barColor === 'function' ? settings.barColor() : (settings.barColor || 'blue'));
+            this.controls.refreshRate.val(typeof settings.refreshRate === 'function' ? settings.refreshRate() : (settings.refreshRate ?? 500));
+            this.controls.alarmEnabled.prop('checked', !!(typeof settings.alarmEnabled === 'function' ? settings.alarmEnabled() : settings.alarmEnabled));
+            this.controls.alarmThreshold.val(typeof settings.alarmThreshold === 'function' ? settings.alarmThreshold() : (settings.alarmThreshold ?? 0));
+            this.controls.alarmDirection.val(typeof settings.alarmDirection === 'function' ? settings.alarmDirection() : (settings.alarmDirection || 'above'));
+            const sourceDef = typeof settings.sourceDef === 'function' ? settings.sourceDef() : settings.sourceDef;
+            if (sourceDef && typeof sourceDef === 'string') {
+                try {
+                    const parsed = JSON.parse(sourceDef);
+                    if (parsed?.ds) {
+                        this.dsSelect.val(parsed.ds);
+                        this._loadHeaders();
+                    }
+                } catch { /* ignore */ }
             }
         }
 
@@ -133,7 +172,7 @@
             const model = freeboard.getLiveModel();
             model.panes().forEach(pane => {
                 pane.widgets().forEach(widget => {
-                    if (widget.type() === 'owntech_plot_uplot') {
+                    if (widget.type() === 'vertical_gauge') {
                         const t = typeof widget.settings().title === 'function' ? widget.settings().title() : widget.settings().title;
                         if (t) widgets.push(t);
                     }
@@ -152,19 +191,22 @@
             const title = this.controls.target_widget_title.val();
             const widget = model.panes().flatMap(p => p.widgets()).find(w => {
                 let wTitle = w.settings().title; if (typeof wTitle === 'function') wTitle = wTitle();
-                return wTitle === title && w.type() === 'owntech_plot_uplot';
+                return wTitle === title && w.type() === 'vertical_gauge';
             });
             if (!widget) return;
-            const yMinVal = parseFloat(this.controls.yMin.val());
-            const yMaxVal = parseFloat(this.controls.yMax.val());
+            const minVal = parseFloat(this.controls.min.val());
+            const maxVal = parseFloat(this.controls.max.val());
+            const thresholdVal = parseFloat(this.controls.alarmThreshold.val());
             const updated = {
                 ...widget.settings(),
-                duration: parseInt(this.controls.duration.val()) || 20000,
-                refreshRate: parseInt(this.controls.refreshRate.val()) || 1000,
-                yLabel: this.controls.yLabel.val() || 'Value',
-                yMin: isNaN(yMinVal) ? undefined : yMinVal,
-                yMax: isNaN(yMaxVal) ? undefined : yMaxVal,
-                showLegend: this.controls.showLegend.prop('checked')
+                title: this.controls.title.val() || '',
+                min: isNaN(minVal) ? 0 : minVal,
+                max: isNaN(maxVal) ? 100 : maxVal,
+                barColor: this.controls.barColor.val() || 'blue',
+                refreshRate: parseInt(this.controls.refreshRate.val(), 10) || 500,
+                alarmEnabled: this.controls.alarmEnabled.prop('checked'),
+                alarmThreshold: isNaN(thresholdVal) ? 0 : thresholdVal,
+                alarmDirection: this.controls.alarmDirection.val() || 'above'
             };
             widget.settings(updated);
             widget.widgetInstance.onSettingsChanged(updated);
