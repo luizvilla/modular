@@ -39,6 +39,13 @@ const api = {
         undockDocTab: (id) => ipcRenderer.send('undock-doc-tab', { id }),
         getPendingExampleTab: () => ipcRenderer.invoke('get-pending-example-tab')
     },
+    widgets: {
+        // Widget docs tabs can be opened from menus, toolbars, and creation dialogs.
+        openDocTab: (type) => ipcRenderer.send('open-widget-doc-tab', { type }),
+        onOpenDocTab: (cb) => on('open-widget-doc-tab', cb),
+        getPendingDoc: () => ipcRenderer.invoke('get-pending-widget-doc'),
+        notifyReady: () => ipcRenderer.send('widget-docs-ready')
+    },
     flash: {
         chooseFirmwareFile: () => ipcRenderer.invoke('choose-firmware-file'),
         startFlash: (payload) => ipcRenderer.invoke('start-flash', payload),

@@ -3,10 +3,12 @@
     const api = window.api || null;
     const paths = api && api.paths ? api.paths : null;
     const docsApi = api && api.docs ? api.docs : null;
+    const filesApi = api && api.files ? api.files : null;
     const dashboardApi = api && api.dashboard ? api.dashboard : null;
     const serialApi = api && api.serial ? api.serial : null;
     const flashApi = api && api.flash ? api.flash : null;
     const examplesApi = api && api.examples ? api.examples : null;
+    const widgetsApi = api && api.widgets ? api.widgets : null;
 
     const { ipcRenderer } = !api && window.require ? window.require('electron') : { ipcRenderer: null };
     const fs = !api && window.require ? window.require('fs') : null;
@@ -41,6 +43,10 @@
     const refreshPortsBtn = document.getElementById('doc-refresh-ports-btn');
     const portSelect = document.getElementById('doc-port-select');
     const statusBar = document.getElementById('doc-status');
+    const docPicker = document.querySelector('.doc-picker');
+    const docActions = document.querySelector('.doc-actions');
+    const docPortRow = document.querySelector('.doc-port-row');
+    const progressPanel = document.querySelector('.progress-panel');
 
     const progressBar = document.getElementById('doc-upload-progress-bar');
     const progressSpinner = document.getElementById('doc-upload-spinner');
@@ -50,8 +56,10 @@
     const dashboardTabId = 'dashboard';
     const tabs = new Map(); // id -> { id, type, exampleId, button }
     const examplesById = new Map();
+    const widgetDocsByType = new Map();
     let activeTabId = dashboardTabId;
     let pendingOpenId = null;
+    let pendingWidgetType = null;
     let isUploading = false;
     let uploadFailed = false;
     let headerObserver = null;
@@ -309,6 +317,59 @@
         }
     }
 
+    function getWidgetsDocsRoot() {
+        // Widget docs live under app/docs/widgets (outside the dashboard assets).
+        if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'docs', 'widgets');
+        if (localDir && path) return path.join(localDir, '..', 'docs', 'widgets');
+        return null;
+    }
+
+    async function loadWidgetDocsIndex() {
+        widgetDocsByType.clear();
+        const baseDir = getWidgetsDocsRoot();
+        if (!baseDir) return;
+        const indexPath = (paths && paths.join) ? paths.join(baseDir, 'index.json') : path.join(baseDir, 'index.json');
+        const thingsetEnabled = !(api && api.flags && api.flags.thingset === false);
+        let raw = '';
+        try {
+            raw = filesApi && filesApi.readText
+                ? await filesApi.readText(indexPath)
+                : await fs.promises.readFile(indexPath, 'utf8');
+        } catch (err) {
+            console.warn('[tabs] widget docs index read failed:', err?.message || err);
+            return;
+        }
+        try {
+            const parsed = JSON.parse(raw);
+            const entries = Array.isArray(parsed.widgets) ? parsed.widgets : [];
+            entries.forEach((entry) => {
+                if (!entry || !entry.type || !entry.doc) return;
+                if (!thingsetEnabled && entry.requiresThingset) return;
+                const docPath = (paths && paths.join) ? paths.join(baseDir, entry.doc) : path.join(baseDir, entry.doc);
+                widgetDocsByType.set(entry.type, {
+                    type: entry.type,
+                    title: entry.title || entry.type,
+                    category: entry.category || '',
+                    docPath,
+                    requiresThingset: !!entry.requiresThingset
+                });
+            });
+            console.log('[tabs] widget docs loaded:', widgetDocsByType.size);
+        } catch (err) {
+            console.warn('[tabs] widget docs parse failed:', err?.message || err);
+        }
+    }
+
+    function setDocMode(mode) {
+        if (!docPanel) return;
+        docPanel.dataset.docMode = mode || 'example';
+        const isWidget = mode === 'widget';
+        if (docPicker) docPicker.style.display = isWidget ? 'none' : '';
+        if (docActions) docActions.style.display = isWidget ? 'none' : '';
+        if (docPortRow) docPortRow.style.display = isWidget ? 'none' : '';
+        if (progressPanel) progressPanel.style.display = isWidget ? 'none' : '';
+    }
+
     function populateExampleSelect() {
         exampleSelect.innerHTML = '';
         for (const ex of examplesById.values()) {
@@ -337,6 +398,33 @@
                 ? await docsApi.readMarkdown(example.docPath)
                 : await fs.promises.readFile(example.docPath, 'utf8');
             const baseDir = paths && paths.dirname ? paths.dirname(example.docPath) : path.dirname(example.docPath);
+            docContent.innerHTML = renderMarkdown(markdown, baseDir);
+            setStatus('Ready.');
+        } catch (err) {
+            docContent.innerHTML = `<p>Failed to load documentation: ${escapeHtml(err?.message || String(err))}</p>`;
+            setStatus('Failed to load documentation.');
+        }
+    }
+
+    async function loadWidgetDoc(typeName) {
+        const doc = widgetDocsByType.get(typeName);
+        if (!doc) {
+            setStatus('Widget documentation not found.');
+            docTitle.textContent = 'Widget documentation';
+            docSubtitle.textContent = '';
+            docContent.innerHTML = '<p>Documentation for this widget is not available yet.</p>';
+            console.warn('[tabs] loadWidgetDoc: missing widget', typeName);
+            return;
+        }
+        console.log('[tabs] loadWidgetDoc:', typeName);
+        docTitle.textContent = doc.title;
+        docSubtitle.textContent = doc.category || '';
+        setStatus('Loading documentation...');
+        try {
+            const markdown = docsApi && docsApi.readMarkdown
+                ? await docsApi.readMarkdown(doc.docPath)
+                : await fs.promises.readFile(doc.docPath, 'utf8');
+            const baseDir = paths && paths.dirname ? paths.dirname(doc.docPath) : path.dirname(doc.docPath);
             docContent.innerHTML = renderMarkdown(markdown, baseDir);
             setStatus('Ready.');
         } catch (err) {
@@ -748,9 +836,13 @@
         document.body.classList.remove(dashboardModeClass);
         document.documentElement.classList.remove(dashboardModeClass);
         const tab = tabs.get(tabId);
-        if (tab && tab.exampleId) {
+        if (tab && tab.type === 'doc' && tab.exampleId) {
+            setDocMode('example');
             exampleSelect.value = tab.exampleId;
             loadExample(tab.exampleId);
+        } else if (tab && tab.type === 'widget-doc' && tab.widgetType) {
+            setDocMode('widget');
+            loadWidgetDoc(tab.widgetType);
         }
     }
 
@@ -852,6 +944,36 @@
         setActiveTab(id);
     }
 
+    function createWidgetDocTab(typeName) {
+        const id = `widgetdoc:${typeName}`;
+        if (tabs.has(id)) {
+            setActiveTab(id);
+            return;
+        }
+        const doc = widgetDocsByType.get(typeName);
+        const label = doc ? doc.title : typeName;
+        const btn = document.createElement('button');
+        btn.className = 'tab';
+        btn.dataset.tabId = id;
+        btn.textContent = label;
+        btn.setAttribute('draggable', 'false');
+
+        const close = document.createElement('span');
+        close.className = 'tab-close';
+        close.textContent = '×';
+        close.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeTab(id);
+        });
+        btn.appendChild(close);
+
+        btn.addEventListener('click', () => setActiveTab(id));
+
+        tabs.set(id, { id, type: 'widget-doc', widgetType: typeName, button: btn });
+        tabStrip.appendChild(btn);
+        setActiveTab(id);
+    }
+
     function updateActiveTabExample(exampleId) {
         const tab = tabs.get(activeTabId);
         if (!tab || tab.type !== 'doc') return;
@@ -868,6 +990,14 @@
             createDocTab(exampleId);
         } else {
             pendingOpenId = exampleId;
+        }
+    }
+
+    function openWidgetTab(typeName) {
+        if (widgetDocsByType.has(typeName)) {
+            createWidgetDocTab(typeName);
+        } else {
+            pendingWidgetType = typeName;
         }
     }
 
@@ -907,6 +1037,17 @@
             if (id) openExampleTab(id);
         });
     }
+    if (widgetsApi && widgetsApi.onOpenDocTab) {
+        widgetsApi.onOpenDocTab(({ type } = {}) => {
+            console.log('[tabs] open-widget-doc-tab IPC:', type);
+            if (type) openWidgetTab(type);
+        });
+    } else if (ipcRenderer) {
+        ipcRenderer.on('open-widget-doc-tab', (_e, { type }) => {
+            console.log('[tabs] open-widget-doc-tab IPC:', type);
+            if (type) openWidgetTab(type);
+        });
+    }
     if (examplesApi && examplesApi.onDockPreview) {
         examplesApi.onDockPreview(({ id, active } = {}) => {
             if (active) showDockPreview(id);
@@ -938,5 +1079,24 @@
                 : await ipcRenderer.invoke('get-pending-example-tab');
             if (pending) openExampleTab(pending);
         } catch {}
+    });
+
+    loadWidgetDocsIndex().then(async () => {
+        if (pendingWidgetType && widgetDocsByType.has(pendingWidgetType)) {
+            console.log('[tabs] opening pending widget doc', pendingWidgetType);
+            createWidgetDocTab(pendingWidgetType);
+            pendingWidgetType = null;
+        }
+        try {
+            const pending = widgetsApi && widgetsApi.getPendingDoc
+                ? await widgetsApi.getPendingDoc()
+                : await ipcRenderer.invoke('get-pending-widget-doc');
+            if (pending) openWidgetTab(pending);
+        } catch {}
+        if (widgetsApi && widgetsApi.notifyReady) {
+            widgetsApi.notifyReady();
+        }
+    }).catch((err) => {
+        console.error('[tabs] loadWidgetDocsIndex failed', err);
     });
 })();

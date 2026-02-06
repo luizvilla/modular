@@ -261,6 +261,11 @@
                         <!-- ko if:$parent.widgetCanMoveDown($data) -->
                         <li data-bind="click:$parent.moveWidgetDown"><i class="icon-chevron-down icon-white"></i></li>
                         <!-- /ko -->
+                        <!-- Widget docs quick-open (question mark). -->
+                        <li class="tool-help" data-bind="widgetDocs: true" title="Widget docs">
+                            <i class="icon-question-sign icon-white"></i>
+                            <span class="help-icon">?</span>
+                        </li>
                         <li class="tool-edit" data-bind="pluginEditor: {operation: 'edit', type: 'widget'}"><i class="icon-wrench icon-white"></i></li>
                         <li class="toolbar-separator">|</li>
                         <li class="tool-delete" data-bind="pluginEditor: {operation: 'delete', type: 'widget'}"><i class="icon-trash icon-white"></i></li>

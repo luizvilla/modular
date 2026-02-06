@@ -80,6 +80,13 @@ textarea.form-control {
   line-height: 28px !important; /* 30px height - 2px borders = 28px */
 }
 
+/* Widget docs button inside the plugin editor dialog. */
+#modal_overlay .widget-docs-btn {
+  margin: 0 0 10px 174px; /* align with form values (160px label + padding) */
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 /* Normalize sizing so height includes padding/border in modals */
 #modal_overlay input,
 #modal_overlay select,
@@ -133,6 +140,21 @@ textarea.form-control {
 /* Keep vertical toolbars stacking items vertically */
 .board-toolbar.vertical li {
   display: flex !important;      /* block-level flex so items stack */
+}
+
+/* Help icon styling for widget toolbars. */
+.board-toolbar li.tool-help {
+  cursor: pointer;
+  opacity: 0.85;
+}
+.board-toolbar li.tool-help:hover {
+  opacity: 1;
+}
+.board-toolbar li.tool-help .help-icon {
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+  margin-left: 2px;
 }
 
 /* Vertical gauge widget */

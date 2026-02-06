@@ -81,6 +81,14 @@ html.dashboard-mode #main-header {
     margin-top: var(--tabs-height);
 }
 
+/* Widget docs mode hides example-specific controls. */
+.doc-panel[data-doc-mode="widget"] .doc-picker,
+.doc-panel[data-doc-mode="widget"] .doc-actions,
+.doc-panel[data-doc-mode="widget"] .doc-port-row,
+.doc-panel[data-doc-mode="widget"] .progress-panel {
+    display: none;
+}
+
 .doc-header {
     display: grid;
     gap: 12px;

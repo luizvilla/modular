@@ -40,6 +40,7 @@ let exampleDockPreviewActive = false;
 let exampleDockMoveTimer = null;
 let exampleDockLastOverlap = false;
 let exampleDockingInProgress = false;
+let pendingWidgetDocType = null; // Track widget doc tab requests before renderer init.
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -131,6 +132,56 @@ function buildExamplesMenuItems() {
     }
 }
 
+// Build a nested Widgets menu from app/docs/widgets/index.json.
+function loadWidgetDocsIndex() {
+    // Widget docs live under app/docs/widgets in the packaged app.
+    const indexPath = path.join(__dirname, 'docs', 'widgets', 'index.json');
+    if (!fs.existsSync(indexPath)) return [];
+    try {
+        const raw = fs.readFileSync(indexPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (!parsed || !Array.isArray(parsed.widgets)) return [];
+        return parsed.widgets;
+    } catch (err) {
+        console.warn('Failed to read widget docs index:', err?.message || err);
+        return [];
+    }
+}
+
+function buildWidgetDocsMenuItems() {
+    try {
+        const entries = loadWidgetDocsIndex().filter((entry) => {
+            if (!entry) return false;
+            if (!entry.type || !entry.title) return false;
+            if (!enableThingset && entry.requiresThingset) return false;
+            return true;
+        });
+        if (!entries.length) return [];
+
+        const grouped = new Map();
+        for (const entry of entries) {
+            const category = entry.category || 'Other';
+            if (!grouped.has(category)) grouped.set(category, []);
+            grouped.get(category).push(entry);
+        }
+
+        const categories = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
+        return categories.map((category) => {
+            const widgets = grouped.get(category).slice().sort((a, b) => a.title.localeCompare(b.title));
+            return {
+                label: category,
+                submenu: widgets.map((widget) => ({
+                    label: widget.title,
+                    click: () => openWidgetDocTab(widget.type)
+                }))
+            };
+        });
+    } catch (err) {
+        console.warn('Failed to build Widgets menu:', err?.message || err);
+        return [];
+    }
+}
+
 // Renderer-facing docs helpers (used by tabs / example viewer).
 ipcMain.handle('docs-list-readmes', async (_event, { baseDir } = {}) => {
     if (!baseDir) return [];
@@ -173,8 +224,32 @@ ipcMain.handle('files-write-text', async (_event, { filePath, content } = {}) =>
     }
 });
 
+// IPC for widget documentation tabs.
+function openWidgetDocTab(type) {
+    if (!type) return;
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('open-widget-doc-tab', { type });
+    } else {
+        pendingWidgetDocType = type;
+    }
+}
+
+ipcMain.on('open-widget-doc-tab', (_event, { type } = {}) => {
+    openWidgetDocTab(type);
+});
+
+ipcMain.handle('get-pending-widget-doc', () => pendingWidgetDocType);
+
+ipcMain.on('widget-docs-ready', () => {
+    if (!pendingWidgetDocType) return;
+    const pending = pendingWidgetDocType;
+    pendingWidgetDocType = null;
+    openWidgetDocTab(pending);
+});
+
 function setAppMenu() {
     const examplesMenu = buildExamplesMenuItems();
+    const widgetDocsMenu = buildWidgetDocsMenuItems();
     const template = [
         {
             label: 'File',
@@ -216,6 +291,15 @@ function setAppMenu() {
         {
             label: 'Examples',
             submenu: examplesMenu.length ? examplesMenu : [{ label: 'No examples found', enabled: false }]
+        },
+        {
+            label: 'Help',
+            submenu: [
+                {
+                    label: 'Widgets',
+                    submenu: widgetDocsMenu.length ? widgetDocsMenu : [{ label: 'No widget docs found', enabled: false }]
+                }
+            ]
         }
     ];
 

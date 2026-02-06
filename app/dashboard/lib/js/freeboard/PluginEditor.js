@@ -60,6 +60,28 @@ PluginEditor = function(jsEditor, valueEditor)
 		return "Other";
 	}
 
+	function _openWidgetDocs(typeName)
+	{
+		// Widget documentation opens in the main docs tab UI.
+		if(!typeName) return;
+		try
+		{
+			if(window.api && window.api.widgets && window.api.widgets.openDocTab)
+			{
+				window.api.widgets.openDocTab(typeName);
+				return;
+			}
+		}
+		catch(err) {}
+
+		try
+		{
+			var ipc = (window.require && window.require('electron')) ? window.require('electron').ipcRenderer : null;
+			if(ipc) ipc.send('open-widget-doc-tab', { type: typeName });
+		}
+		catch(err) {}
+	}
+
 	function _getWidgetCategoryForType(typeName, pluginType, config)
 	{
 		if(pluginType && pluginType.category)
@@ -156,6 +178,9 @@ PluginEditor = function(jsEditor, valueEditor)
 
 		var pluginDescriptionElement = $('<div id="plugin-description"></div>').hide();
 		form.append(pluginDescriptionElement);
+		// Widget docs button shows alongside the widget type picker.
+		var docsButton = $('<button type="button" class="btn btn-sm btn-outline-light widget-docs-btn">Open widget docs</button>').hide();
+		form.append(docsButton);
 
 		function createSettingsFromDefinition(settingsDefs, typeaheadSource, typeaheadDataSegment)
 		{
@@ -609,7 +634,22 @@ PluginEditor = function(jsEditor, valueEditor)
 					$("#dialog-ok").show();
 					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
 				}
+
+				if(isWidgetType)
+				{
+					docsButton.show();
+					docsButton.prop("disabled", _.isUndefined(selectedType));
+				}
 			});
+
+			if(isWidgetType)
+			{
+				docsButton.show();
+				docsButton.on("click", function()
+				{
+					_openWidgetDocs(newSettings.type);
+				});
+			}
 		}
 		else if(pluginTypeNames.length == 1)
 		{
@@ -617,6 +657,14 @@ PluginEditor = function(jsEditor, valueEditor)
 			newSettings.type = selectedType.type_name;
 			newSettings.settings = {};
 			createSettingsFromDefinition(selectedType.settings);
+			if(isWidgetType)
+			{
+				docsButton.show();
+				docsButton.on("click", function()
+				{
+					_openWidgetDocs(newSettings.type);
+				});
+			}
 		}
 
 		if(typeSelect)

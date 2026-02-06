@@ -1623,8 +1623,8 @@ function _normalizeCategories(categories)
 	return normalized;
 }
 
-function _inferWidgetCategory(typeName, pluginType)
-{
+	function _inferWidgetCategory(typeName, pluginType)
+	{
 	var name = (typeName || "").toLowerCase();
 	var display = (pluginType && pluginType.display_name ? pluginType.display_name : "").toLowerCase();
 
@@ -1645,8 +1645,30 @@ function _inferWidgetCategory(typeName, pluginType)
 		return "Controls";
 	}
 
-	return "Other";
-}
+		return "Other";
+	}
+
+	function _openWidgetDocs(typeName)
+	{
+		// Widget documentation opens in the docs tab UI.
+		if(!typeName) return;
+		try
+		{
+			if(window.api && window.api.widgets && window.api.widgets.openDocTab)
+			{
+				window.api.widgets.openDocTab(typeName);
+				return;
+			}
+		}
+		catch(err) {}
+
+		try
+		{
+			var ipc = (window.require && window.require('electron')) ? window.require('electron').ipcRenderer : null;
+			if(ipc) ipc.send('open-widget-doc-tab', { type: typeName });
+		}
+		catch(err) {}
+	}
 
 function getWidgetCategoryConfig()
 {
@@ -1972,6 +1994,9 @@ PluginEditor = function(jsEditor, valueEditor)
 
 		var pluginDescriptionElement = $('<div id="plugin-description"></div>').hide();
 		form.append(pluginDescriptionElement);
+		// Widget docs button shows alongside the widget type picker.
+		var docsButton = $('<button type="button" class="btn btn-sm btn-outline-light widget-docs-btn">Open widget docs</button>').hide();
+		form.append(docsButton);
 
 		function createSettingsFromDefinition(settingsDefs, typeaheadSource, typeaheadDataSegment)
 		{
@@ -2475,7 +2500,22 @@ PluginEditor = function(jsEditor, valueEditor)
 					$("#dialog-ok").show();
 					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
 				}
+
+				if(isWidgetType)
+				{
+					docsButton.show();
+					docsButton.prop("disabled", _.isUndefined(selectedType));
+				}
 			});
+
+			if(isWidgetType)
+			{
+				docsButton.show();
+				docsButton.on("click", function()
+				{
+					_openWidgetDocs(newSettings.type);
+				});
+			}
 		}
 		else if(pluginTypeNames.length == 1)
 		{
@@ -2483,6 +2523,14 @@ PluginEditor = function(jsEditor, valueEditor)
 			newSettings.type = selectedType.type_name;
 			newSettings.settings = {};
 			createSettingsFromDefinition(selectedType.settings);
+			if(isWidgetType)
+			{
+				docsButton.show();
+				docsButton.on("click", function()
+				{
+					_openWidgetDocs(newSettings.type);
+				});
+			}
 		}
 
 		if(typeSelect)
@@ -3497,6 +3545,40 @@ var freeboard = (function()
 						}
 					}, options.type === 'widget');
 				}
+			});
+		}
+	}
+
+	function openWidgetDocs(typeName)
+	{
+		// Widget docs open in a dedicated tab (menu/toolbar integration).
+		if(!typeName) return;
+		try
+		{
+			if(window.api && window.api.widgets && window.api.widgets.openDocTab)
+			{
+				window.api.widgets.openDocTab(typeName);
+				return;
+			}
+		}
+		catch(err) {}
+
+		try
+		{
+			var ipc = (window.require && window.require('electron')) ? window.require('electron').ipcRenderer : null;
+			if(ipc) ipc.send('open-widget-doc-tab', { type: typeName });
+		}
+		catch(err) {}
+	}
+
+	ko.bindingHandlers.widgetDocs = {
+		init: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
+		{
+			$(element).click(function(event)
+			{
+				event.preventDefault();
+				var typeName = (viewModel && _.isFunction(viewModel.type)) ? viewModel.type() : null;
+				openWidgetDocs(typeName);
 			});
 		}
 	}
