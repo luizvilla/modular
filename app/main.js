@@ -21,6 +21,15 @@ if (noGpu) {
     app.commandLine.appendSwitch('disable-gpu');
 }
 
+// Feature flag: default to enabled in dev, disabled in packaged builds unless explicitly set.
+const enableThingset = (() => {
+    if (process.env.ENABLE_THINGSET !== undefined) {
+        return process.env.ENABLE_THINGSET === '1' || process.env.ENABLE_THINGSET === 'true';
+    }
+    return !app.isPackaged;
+})();
+process.env.ENABLE_THINGSET = enableThingset ? '1' : '0';
+
 let mainWindow; // reference to the main BrowserWindow
 let exampleWindow; // dedicated window for example documentation and actions
 let exampleTabRequestTimer; // debounce example tab requests
@@ -561,6 +570,7 @@ async function collectSerialCandidates(explicitPort = null) {
 }
 
 ipcMain.handle('ts-serial-detect', async (_event, { port = null, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     const candidates = await collectSerialCandidates(port);
     if (!candidates.length) {
         throw new Error('No serial ports found to probe for ThingSet shell');
@@ -631,6 +641,7 @@ ipcMain.handle('get-can-interfaces', async () => {
 
 // 📖 Read discovered ThingSet nodes from thingset/nodes.json
 ipcMain.handle('get-thingset-nodes', async () => {
+    if (!enableThingset) return [];
     emitActivity({ id: 'can:nodes:list', title: 'ThingSet', state: 'start', label: 'Load discovered nodes' });
     try {
         const file = path.join(process.cwd(), 'thingset', 'nodes.json');
@@ -781,6 +792,7 @@ ipcMain.handle('set-serial-colors', (_event, { path, colors, type = 'serialport_
 });
 
 ipcMain.handle('ts-serial-tree', async (_event, { port, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     if (!port) throw new Error('port required');
     emitActivity({ id: `serial:${port}:tree`, title: port, state: 'start', label: 'ThingSet serial tree' });
     const existingPort = openPorts.get(port) || null;
@@ -869,6 +881,7 @@ function coerceOutputValue(raw) {
 }
 
 ipcMain.handle('ts-serial-set-value', async (_event, { port, path: targetPath, value, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     if (!port) throw new Error('port required');
     if (!targetPath) throw new Error('path required');
     const existingPort = openPorts.get(port) || null;
@@ -891,6 +904,7 @@ ipcMain.handle('ts-serial-set-value', async (_event, { port, path: targetPath, v
 });
 
 ipcMain.handle('ts-serial-get-value', async (_event, { port, path: targetPath, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     if (!port) throw new Error('port required');
     if (!targetPath) throw new Error('path required');
     const existingPort = openPorts.get(port) || null;
@@ -907,6 +921,7 @@ ipcMain.handle('ts-serial-get-value', async (_event, { port, path: targetPath, b
 });
 
 ipcMain.handle('ts-serial-create', async (_event, { port, path: targetPath, value = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     if (!port) throw new Error('port required');
     if (!targetPath) throw new Error('path required');
     const existingPort = openPorts.get(port) || null;
@@ -923,6 +938,7 @@ ipcMain.handle('ts-serial-create', async (_event, { port, path: targetPath, valu
 });
 
 ipcMain.handle('ts-serial-delete', async (_event, { port, path: targetPath, value = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     if (!port) throw new Error('port required');
     if (!targetPath) throw new Error('path required');
     const existingPort = openPorts.get(port) || null;
@@ -939,6 +955,7 @@ ipcMain.handle('ts-serial-delete', async (_event, { port, path: targetPath, valu
 });
 
 ipcMain.handle('ts-serial-exec', async (_event, { port, path: targetPath, args = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     if (!port) throw new Error('port required');
     if (!targetPath) throw new Error('path required');
     const existingPort = openPorts.get(port) || null;
@@ -1362,6 +1379,7 @@ ipcMain.handle('can-close', async (_event, { channel = 'can0' } = {}) => {
 
 // Scan the bus for nodes and return discovered mapping; also writes thingset/nodes.json
 ipcMain.handle('can-scan-nodes', async (_event, { channel = 'can0' } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     ensureThingsetDir();
     emitActivity({ id: 'can:scan', title: `CAN ${channel}`, state: 'start', label: 'Scanning nodes' });
     try {
@@ -1382,6 +1400,7 @@ ipcMain.handle('can-scan-nodes', async (_event, { channel = 'can0' } = {}) => {
 
 // Build ThingSet tree files for provided nodes or from thingset/nodes.json; returns a summary
 ipcMain.handle('can-build-trees', async (_event, { channel = 'can0', nodes = null, maxDepth = 16 } = {}) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     ensureThingsetDir();
     emitActivity({ id: 'can:build', title: `CAN ${channel}`, state: 'start', label: 'Building trees' });
     // Always use a dedicated bus for tree building to avoid interference
@@ -1427,6 +1446,7 @@ async function getClient(channel = 'can0', sourceAddr = 0xEF) {
 }
 
 ipcMain.handle('ts-get', async (_e, { channel = 'can0', targetAddr, endpoint, timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:get', title: `CAN ${channel}`, state: 'start', label: `GET ${endpoint}`, detail: `0x${(targetAddr|0).toString(16).toUpperCase()}` });
     try {
         const ts = await getClient(channel, sourceAddr);
@@ -1440,6 +1460,7 @@ ipcMain.handle('ts-get', async (_e, { channel = 'can0', targetAddr, endpoint, ti
 });
 
 ipcMain.handle('ts-fetch', async (_e, { channel = 'can0', targetAddr, endpoint, items = null, timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:fetch', title: `CAN ${channel}`, state: 'start', label: `FETCH ${endpoint}`, detail: `0x${(targetAddr|0).toString(16).toUpperCase()}` });
     try {
         const ts = await getClient(channel, sourceAddr);
@@ -1453,6 +1474,7 @@ ipcMain.handle('ts-fetch', async (_e, { channel = 'can0', targetAddr, endpoint, 
 });
 
 ipcMain.handle('ts-update', async (_e, { channel = 'can0', targetAddr, endpoint, values, timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:update', title: `CAN ${channel}`, state: 'start', label: `UPDATE ${endpoint}`, detail: `0x${(targetAddr|0).toString(16).toUpperCase()}` });
     try {
         const ts = await getClient(channel, sourceAddr);
@@ -1466,6 +1488,7 @@ ipcMain.handle('ts-update', async (_e, { channel = 'can0', targetAddr, endpoint,
 });
 
 ipcMain.handle('ts-create', async (_e, { channel = 'can0', targetAddr, endpoint, value, timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:create', title: `CAN ${channel}`, state: 'start', label: `CREATE ${endpoint}`, detail: `0x${(targetAddr|0).toString(16).toUpperCase()}` });
     try {
         const ts = await getClient(channel, sourceAddr);
@@ -1479,6 +1502,7 @@ ipcMain.handle('ts-create', async (_e, { channel = 'can0', targetAddr, endpoint,
 });
 
 ipcMain.handle('ts-delete', async (_e, { channel = 'can0', targetAddr, endpoint, value, timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:delete', title: `CAN ${channel}`, state: 'start', label: `DELETE ${endpoint}`, detail: `0x${(targetAddr|0).toString(16).toUpperCase()}` });
     try {
         const ts = await getClient(channel, sourceAddr);
@@ -1492,6 +1516,7 @@ ipcMain.handle('ts-delete', async (_e, { channel = 'can0', targetAddr, endpoint,
 });
 
 ipcMain.handle('ts-exec', async (_e, { channel = 'can0', targetAddr, endpoint, args = [], timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:exec', title: `CAN ${channel}`, state: 'start', label: `EXEC ${endpoint}`, detail: `0x${(targetAddr|0).toString(16).toUpperCase()}` });
     try {
         const ts = await getClient(channel, sourceAddr);
@@ -1505,6 +1530,7 @@ ipcMain.handle('ts-exec', async (_e, { channel = 'can0', targetAddr, endpoint, a
 });
 
 ipcMain.handle('ts-paths-for-ids', async (_e, { channel = 'can0', targetAddr, ids, timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:paths-for-ids', title: `CAN ${channel}`, state: 'start', label: 'Paths for IDs' });
     try {
         const ts = await getClient(channel, sourceAddr);
@@ -1518,6 +1544,7 @@ ipcMain.handle('ts-paths-for-ids', async (_e, { channel = 'can0', targetAddr, id
 });
 
 ipcMain.handle('ts-ids-for-paths', async (_e, { channel = 'can0', targetAddr, paths, timeoutMs = 2000, sourceAddr = 0xEF }) => {
+    if (!enableThingset) return { ok: false, error: 'ThingSet disabled' };
     emitActivity({ id: 'ts:ids-for-paths', title: `CAN ${channel}`, state: 'start', label: 'IDs for paths' });
     try {
         const ts = await getClient(channel, sourceAddr);

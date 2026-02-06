@@ -38,19 +38,13 @@
         ],
         settings: [
             { name: "title", display_name: "Title", type: "text" },
-            { name: "data", display_name: "Data (array, { y: array }, or { timestamps, series })", type: "calculated" },
-            // Optional helpers for better UX: a chosen datasource name and channel indices
-            // These let config UIs (like uplot.UI.js) drive labels/colors without relying on parsing the 'data' expression
-            { name: "datasource", display_name: "Datasource (auto from UI)", type: "text" },
-            { name: "channelIndices", display_name: "Channels (auto from UI)", type: "text" },
-            { name: "seriesDefs", display_name: "Series (managed by series controller)", type: "text" },
-            { name: "duration", display_name: "Display Duration (ms)", type: "number", default_value: 20000 },
-            { name: "refreshRate", display_name: "Refresh Rate (ms)", type: "number", default_value: 1000 },
-            { name: "yLabel", display_name: "Y Axis Label", type: "text", default_value: "Value" },
-            // Use text inputs to make these optional without validation errors
-            { name: "yMin", display_name: "Y Min (optional)", type: "text" },
-            { name: "yMax", display_name: "Y Max (optional)", type: "text" },
-            { name: "showLegend", display_name: "Show Legend", type: "boolean", default_value: true }
+            // Keep the widget config slim; advanced tuning is handled via helper widgets.
+            { name: "helperWidgets", display_name: "Helper Widgets", type: "option", default_value: "none", options: [
+                { name: "None", value: "none" },
+                { name: "UI Controller", value: "ui" },
+                { name: "Series Manager", value: "series" },
+                { name: "Both", value: "both" }
+            ] }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new OwnTechPlotUPlot(settings));
@@ -72,6 +66,8 @@ class OwnTechPlotUPlot {
             this.pullTimer = null;
             this.localMode = false; // when true, we poll values ourselves
             this.seriesDefs = this._parseSeriesDefs((typeof settings.seriesDefs === 'function' ? settings.seriesDefs() : settings.seriesDefs));
+            // Persist helper widget preference so we can optionally auto-spawn related widgets.
+            this.helperWidgets = this._resolveHelperWidgets(settings);
 
             this.ipc = ipcShim || window.require?.('electron')?.ipcRenderer;
             this.headersByDs = {};
@@ -222,12 +218,62 @@ class OwnTechPlotUPlot {
 
         render(containerElement) {
             this.container.appendTo(containerElement);
+            // Optionally spawn helper widgets (UI controller / series manager) next to this plot.
+            this._maybeSpawnHelpers();
             this._initPlot();
             this._maybeUpdateHeaders(true);
             this._bindResize();
             // If seriesDefs present, start local streaming
             this.localMode = Array.isArray(this.seriesDefs) && this.seriesDefs.length > 0;
             if (this.localMode) this._restartPullTimer();
+        }
+
+        _resolveHelperWidgets(settings) {
+            // Normalize helper widget selection for easier checks in the render path.
+            const raw = (typeof settings.helperWidgets === 'function' ? settings.helperWidgets() : settings.helperWidgets);
+            if (!raw) return 'none';
+            return String(raw).toLowerCase();
+        }
+
+        _maybeSpawnHelpers() {
+            const mode = this._resolveHelperWidgets(this.settings);
+            if (mode === 'none') return;
+            const model = freeboard.getLiveModel && freeboard.getLiveModel();
+            if (!model || typeof model.panes !== 'function') return;
+
+            // Identify the pane + widget index for this plot so helpers can be inserted next to it.
+            let paneIndex = -1;
+            let widgetIndex = -1;
+            const panes = model.panes();
+            for (let p = 0; p < panes.length; p++) {
+                const widgets = panes[p].widgets();
+                for (let w = 0; w < widgets.length; w++) {
+                    if (widgets[w].widgetInstance === this) {
+                        paneIndex = p;
+                        widgetIndex = w;
+                        break;
+                    }
+                }
+                if (paneIndex >= 0) break;
+            }
+            if (paneIndex < 0 || widgetIndex < 0) return;
+
+            // Use serialized config for insertion because Freeboard has no public widget-creation API.
+            const cfg = freeboard.serialize();
+            const pane = cfg.panes[paneIndex];
+            if (!pane || !Array.isArray(pane.widgets)) return;
+            const existingTypes = new Set(pane.widgets.map(w => w.type));
+            const helpers = [];
+            if ((mode === 'ui' || mode === 'both') && !existingTypes.has('uplot_config_panel')) {
+                helpers.push({ type: 'uplot_config_panel', settings: {} });
+            }
+            if ((mode === 'series' || mode === 'both') && !existingTypes.has('uplot_series_manager')) {
+                helpers.push({ type: 'uplot_series_manager', settings: {} });
+            }
+            if (!helpers.length) return;
+
+            pane.widgets.splice(widgetIndex + 1, 0, ...helpers);
+            freeboard.loadDashboard(cfg);
         }
 
         _initPlot(series = null) {
@@ -356,6 +402,10 @@ class OwnTechPlotUPlot {
             const titleChanged = newSettings.title !== this.settings.title;
 
             this.settings = newSettings;
+            // Update helper widget choice and refresh helper UI if needed.
+            this.helperWidgets = this._resolveHelperWidgets(newSettings);
+            // Auto-spawn helpers when toggled on after settings update.
+            this._maybeSpawnHelpers();
             // Update helper fields from settings first, then infer from data if still missing
             this.datasourceName = (typeof newSettings.datasource === 'function' ? newSettings.datasource() : newSettings.datasource) || '';
             const chFromSettings = (typeof newSettings.channelIndices === 'function' ? newSettings.channelIndices() : newSettings.channelIndices);

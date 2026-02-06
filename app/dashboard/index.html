@@ -26,6 +26,12 @@
     <script type="text/javascript">
         (function () {
             // Ensure Freeboard exists before loading plugins (prevents "freeboard is not defined").
+            // Thingset can be disabled in release builds via ENABLE_THINGSET (default off when packaged).
+            var thingsetEnabled = true;
+            if (window.api && window.api.flags && window.api.flags.thingset === false) {
+                thingsetEnabled = false;
+            }
+
             var pluginScripts = [
                 // "plugins/freeboard/freeboard.datasources.js",
                 // "plugins/freeboard/freeboard.widgets.js",
@@ -55,6 +61,14 @@
                 "plugins/uplot.series.manager.js",
                 "plugins/uplot.UI.js"
             ];
+
+            if (!thingsetEnabled) {
+                pluginScripts = pluginScripts.filter(function (p) {
+                    if (p.includes('thingset_') || p.includes('ts_')) return false;
+                    if (p === 'plugins/can.datasource.js') return false;
+                    return true;
+                });
+            }
 
             function initFreeboard() {
                 $(function () {
@@ -262,4 +276,3 @@
 
 </body>
 </html>
-

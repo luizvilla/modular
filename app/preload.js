@@ -121,6 +121,12 @@ const mockNoPorts = process.env.MOCK_NO_PORTS === '1';
 const mockNoExamples = process.env.MOCK_NO_EXAMPLES === '1';
 const mockFwMissing = process.env.MOCK_FW_MISSING === '1';
 const mockIpcUnavailable = process.env.MOCK_IPC_UNAVAILABLE === '1';
+// Feature flag: default enabled in dev, disabled in packaged builds via main.js.
+const enableThingset = process.env.ENABLE_THINGSET === undefined
+    ? true
+    : (process.env.ENABLE_THINGSET === '1' || process.env.ENABLE_THINGSET === 'true');
+
+api.flags = { thingset: enableThingset };
 
 function createEmitter() {
     const listeners = new Map();
@@ -326,6 +332,15 @@ if (isMock) {
             delete: async () => ({ ok: true }),
             exec: async () => ({ ok: true })
         };
+    }
+}
+
+// If ThingSet is disabled, hide those APIs so the UI matches shipped builds.
+if (!enableThingset) {
+    api.thingset = null;
+    api.thingsetSerial = null;
+    if (api.can && typeof api.can.getThingSetNodes === 'function') {
+        api.can.getThingSetNodes = async () => [];
     }
 }
 
