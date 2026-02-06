@@ -16,7 +16,7 @@ test('example viewer window loads and actions work', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
 
-  const exampleId = 'test_board/test_example';
+  const exampleId = 'SPIN/DAC/signal_generation';
   const exPagePromise = getExampleWindow(app);
   // Use app/ paths after runtime move to keep tests aligned with packaged layout.
   const preloadPath = require('path').join(process.cwd(), 'app', 'preload.js');
@@ -38,7 +38,7 @@ test('example viewer window loads and actions work', async () => {
   await exPage.waitForSelector('#example-title', { timeout: 20_000 });
 
   const title = await exPage.locator('#example-title').innerText();
-  expect(title.toLowerCase()).toContain('test_example');
+  expect(title.toLowerCase()).toContain('signal_generation');
 
   await exPage.locator('#refresh-ports-btn').click();
   await exPage.locator('#port-select option').first().waitFor({ state: 'attached', timeout: 5_000 });

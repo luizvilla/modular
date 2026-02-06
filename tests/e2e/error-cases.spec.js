@@ -21,7 +21,7 @@ test('no serial ports shows message', async () => {
   await app.evaluate(({ BrowserWindow }, exampleId) => {
     const win = BrowserWindow.getAllWindows()[0];
     if (win) win.webContents.send('open-example-tab', { id: exampleId });
-  }, 'test_board/test_example');
+  }, 'SPIN/DAC/signal_generation');
   await page.waitForFunction(() => {
     const panel = document.getElementById('doc-panel');
     return panel && panel.hidden === false;
@@ -46,7 +46,7 @@ test('missing firmware shows upload failure', async () => {
   await app.evaluate(({ BrowserWindow }, exampleId) => {
     const win = BrowserWindow.getAllWindows()[0];
     if (win) win.webContents.send('open-example-tab', { id: exampleId });
-  }, 'test_board/test_example');
+  }, 'SPIN/DAC/signal_generation');
   await page.waitForFunction(() => {
     const panel = document.getElementById('doc-panel');
     return panel && panel.hidden === false;
