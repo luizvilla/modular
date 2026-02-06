@@ -36,8 +36,14 @@
             this.deviceSelect = $('<select class="form-select form-select-sm" style="max-width: 160px;"></select>');
             this.deviceSelect.append('<option value="TWIST">Twist</option>');
             this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
+            this.powerState = 'IDLE';
+            this.toggleState = new Map();
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                // Button alignment for I/O toggles.
+                freeboard.addStyle('.twist-toggle-group .btn', 'min-width: 28px;');
+            }
         }
 
         render(el) {
@@ -109,15 +115,29 @@
         }
 
         _renderPowerControls() {
+            if (this.powerWrap) this.powerWrap.remove();
             const row = $('<div class="d-flex gap-2 flex-wrap align-items-center"></div>');
             const idle = $('<button class="btn btn-outline-secondary btn-sm">IDLE</button>');
             const on = $('<button class="btn btn-outline-success btn-sm">POWER ON</button>');
             const off = $('<button class="btn btn-outline-danger btn-sm">POWER OFF</button>');
             row.append(idle, on, off);
-            idle.on('click', () => this._send(protocol.cmdIdle()));
-            on.on('click', () => this._send(protocol.cmdPowerOn()));
-            off.on('click', () => this._send(protocol.cmdPowerOff()));
-            this.container.append($('<div class="fw-semibold">Power</div>'), row);
+            const setPower = (mode, send) => {
+                this.powerState = mode;
+                idle.toggleClass('active', mode === 'IDLE');
+                on.toggleClass('active', mode === 'ON');
+                off.toggleClass('active', mode === 'OFF');
+                if (send) {
+                    if (mode === 'IDLE') this._send(protocol.cmdIdle());
+                    if (mode === 'ON') this._send(protocol.cmdPowerOn());
+                    if (mode === 'OFF') this._send(protocol.cmdPowerOff());
+                }
+            };
+            idle.on('click', () => setPower('IDLE', true));
+            on.on('click', () => setPower('ON', true));
+            off.on('click', () => setPower('OFF', true));
+            setPower(this.powerState || 'IDLE', false);
+            this.powerWrap = $('<div></div>').append($('<div class="fw-semibold">Power</div>'), row);
+            this.container.append(this.powerWrap);
         }
 
         _renderLegControls() {
@@ -129,17 +149,27 @@
                 const row = $('<div class="d-flex flex-wrap gap-2 align-items-center"></div>');
                 row.append(`<span class="badge bg-light text-dark">LEG${i}</span>`);
                 actions.forEach(action => {
-                    const group = $('<div class="btn-group btn-group-sm" role="group"></div>');
-                    const onBtn = $(`<button class="btn btn-outline-success">${action} ON</button>`);
-                    const offBtn = $(`<button class="btn btn-outline-secondary">${action} OFF</button>`);
-                    onBtn.on('click', () => {
-                        this._send(protocol.cmdToggle(action, i, 'ON', this.settings.deviceType));
-                    });
-                    offBtn.on('click', () => {
-                        this._send(protocol.cmdToggle(action, i, 'OFF', this.settings.deviceType));
-                    });
+                    const group = $('<div class="btn-group btn-group-sm twist-toggle-group" role="group"></div>');
+                    const onBtn = $('<button class="btn btn-outline-success">I</button>');
+                    const offBtn = $('<button class="btn btn-outline-secondary">O</button>');
+                    const label = $(`<span class="small text-muted ms-1">${action}</span>`);
+                    const key = `${action}:${i}`;
+                    const setState = (state, send) => {
+                        this.toggleState.set(key, state);
+                        onBtn.toggleClass('active', state === 'ON');
+                        offBtn.toggleClass('active', state === 'OFF');
+                        if (send) {
+                            this._send(protocol.cmdToggle(action, i, state, this.settings.deviceType));
+                        }
+                    };
+                    onBtn.on('click', () => setState('ON', true));
+                    offBtn.on('click', () => setState('OFF', true));
+                    const current = this.toggleState.get(key) || 'OFF';
+                    setState(current, false);
                     group.append(onBtn, offBtn);
-                    row.append(group);
+                    const cell = $('<div class="d-flex align-items-center gap-1"></div>');
+                    cell.append(group, label);
+                    row.append(cell);
                 });
                 wrap.append(row);
             }
@@ -151,6 +181,7 @@
             this.settings = newSettings;
             this.deviceSelect.val(this.settings.deviceType || 'TWIST');
             if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
+            this._renderPowerControls();
             this._renderLegControls();
         }
 
