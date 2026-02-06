@@ -5,6 +5,7 @@
         type_name: 'twist_control_panel',
         display_name: 'Twist/Ownverter Actions & Setpoints',
         description: 'Send power, toggle, and setpoint commands over serial.',
+        category: 'Python Communication Protocol',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' },
             {

@@ -116,14 +116,14 @@
     {
       "type": "twist_control_panel",
       "title": "Twist/Ownverter Actions & Setpoints",
-      "category": "Twist",
+      "category": "Python Communication Protocol",
       "doc": "twist/actions-setpoints/README.md",
       "requiresThingset": false
     },
     {
       "type": "twist_calibration_panel",
       "title": "Twist/Ownverter Calibration",
-      "category": "Twist",
+      "category": "Python Communication Protocol",
       "doc": "twist/calibration/README.md",
       "requiresThingset": false
     }
