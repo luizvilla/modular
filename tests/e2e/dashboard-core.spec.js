@@ -28,6 +28,7 @@ test('dashboard loads and editing toggles', async () => {
     });
     return types;
   });
+  // Power bars widget removed; keep expected list aligned with shipped widgets.
   expect(widgetTypes).toEqual(expect.arrayContaining([
     'serial_terminal',
     'serial_flasher',
@@ -40,7 +41,6 @@ test('dashboard loads and editing toggles', async () => {
     'picture',
     'indicator',
     'google_map',
-    'owntech_power_bars',
     'uplot_config_panel',
     'thingset_serial_device_ui',
   ]));

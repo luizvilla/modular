@@ -5,8 +5,12 @@
   "panes": [
     {
       "width": 1,
-      "row": { "3": 1 },
-      "col": { "3": 1 },
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
       "col_width": 1,
       "widgets": [
         {
@@ -23,7 +27,12 @@
         {
           "type": "serial_command_buttons",
           "settings": {
-            "buttons": [{ "label": "Cmd A", "command": "A" }],
+            "buttons": [
+              {
+                "label": "Cmd A",
+                "command": "A"
+              }
+            ],
             "layout": "horizontal",
             "datasource": "MockSerial"
           }
@@ -32,13 +41,19 @@
     },
     {
       "width": 1,
-      "row": { "3": 1 },
-      "col": { "3": 2 },
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 2
+      },
       "col_width": 1,
       "widgets": [
         {
           "type": "serial_port_control",
-          "settings": { "datasource": "MockSerial" }
+          "settings": {
+            "datasource": "MockSerial"
+          }
         },
         {
           "type": "serial_csv_recorder",
@@ -56,24 +71,37 @@
     },
     {
       "width": 1,
-      "row": { "3": 1 },
-      "col": { "3": 3 },
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 3
+      },
       "col_width": 1,
       "widgets": [
         {
           "type": "serial_header_editor",
-          "settings": { "datasource": "MockSerial", "palette": "ColorBlind10" }
+          "settings": {
+            "datasource": "MockSerial",
+            "palette": "ColorBlind10"
+          }
         },
         {
           "type": "serial_flasher",
-          "settings": { "title": "Firmware Flasher" }
+          "settings": {
+            "title": "Firmware Flasher"
+          }
         }
       ]
     },
     {
       "width": 1,
-      "row": { "3": 10 },
-      "col": { "3": 1 },
+      "row": {
+        "3": 10
+      },
+      "col": {
+        "3": 1
+      },
       "col_width": 2,
       "widgets": [
         {
@@ -102,7 +130,9 @@
         },
         {
           "type": "uplot_series_manager",
-          "settings": { "title": "Plot Series Manager" }
+          "settings": {
+            "title": "Plot Series Manager"
+          }
         },
         {
           "type": "vertical_gauge",
@@ -124,44 +154,78 @@
         },
         {
           "type": "vertical_gauge_manager",
-          "settings": { "title": "Gauge Channel Manager" }
+          "settings": {
+            "title": "Gauge Channel Manager"
+          }
         }
       ]
     },
     {
       "width": 1,
-      "row": { "3": 20 },
-      "col": { "3": 1 },
+      "row": {
+        "3": 20
+      },
+      "col": {
+        "3": 1
+      },
       "col_width": 2,
       "widgets": [
         {
           "type": "thingset_control_panel",
-          "settings": { "channel": "can0", "autoHeight": false }
+          "settings": {
+            "channel": "can0",
+            "autoHeight": false
+          }
         },
-        { "type": "thingset_device_ui", "settings": { "channel": "can0" } },
-        { "type": "thingset_measurements", "settings": { "channel": "can0" } },
+        {
+          "type": "thingset_device_ui",
+          "settings": {
+            "channel": "can0"
+          }
+        },
+        {
+          "type": "thingset_measurements",
+          "settings": {
+            "channel": "can0"
+          }
+        },
         {
           "type": "thingset_mode_button",
-          "settings": { "channel": "can0", "labelOn": "Power ON", "labelOff": "Idle" }
+          "settings": {
+            "channel": "can0",
+            "labelOn": "Power ON",
+            "labelOff": "Idle"
+          }
         }
       ]
     },
     {
       "width": 1,
-      "row": { "3": 30 },
-      "col": { "3": 1 },
+      "row": {
+        "3": 30
+      },
+      "col": {
+        "3": 1
+      },
       "col_width": 2,
       "widgets": [
         {
           "type": "thingset_serial_device_ui",
-          "settings": { "datasource": "MockThingSetSerial", "autoRefresh": true }
+          "settings": {
+            "datasource": "MockThingSetSerial",
+            "autoRefresh": true
+          }
         }
       ]
     },
     {
       "width": 1,
-      "row": { "3": 40 },
-      "col": { "3": 1 },
+      "row": {
+        "3": 40
+      },
+      "col": {
+        "3": 1
+      },
       "col_width": 3,
       "widgets": [
         {
@@ -220,19 +284,9 @@
         },
         {
           "type": "google_map",
-          "settings": { "lat": "0", "lon": "0" }
-        },
-        {
-          "type": "owntech_power_bars",
           "settings": {
-            "title": "Power Bars",
-            "voltages": "[[12,12],[12,12]]",
-            "currents": "[[1,1],[1,1]]",
-            "nodeLabels": "['N1','N2']",
-            "legLabels": "['L1','L2']",
-            "stacked": true,
-            "invertSign": false,
-            "height": 5
+            "lat": "0",
+            "lon": "0"
           }
         },
         {
@@ -288,5 +342,6 @@
       }
     }
   ],
-  "columns": 3
+  "columns": 3,
+  "_comment": "Power bars widget removed (not shipped)."
 }
