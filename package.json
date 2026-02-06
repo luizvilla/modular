@@ -2,16 +2,16 @@
   "name": "modular",
   "version": "0.9.1",
   "description": "",
-  "main": "main.js",
+  "main": "app/main.js",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
     "test:ui": "playwright test",
     "rebuild:native": "npx electron-rebuild -f -w socketcan",
-    "scan:can": "ELECTRON_RUN_AS_NODE=1 electron js/scan.js",
-    "ts:query": "ELECTRON_RUN_AS_NODE=1 electron js/query_nodes.js",
-    "ts:test": "ELECTRON_RUN_AS_NODE=1 electron js/test_ts_bin.js",
-    "ts:query:node": "npm rebuild socketcan --silent && node js/query_nodes.js"
+    "scan:can": "ELECTRON_RUN_AS_NODE=1 electron app/js/scan.js",
+    "ts:query": "ELECTRON_RUN_AS_NODE=1 electron app/js/query_nodes.js",
+    "ts:test": "ELECTRON_RUN_AS_NODE=1 electron app/js/test_ts_bin.js",
+    "ts:query:node": "npm rebuild socketcan --silent && node app/js/query_nodes.js"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +32,7 @@
     "socketcan": "^2.9.0"
   },
   "_comment": "socketcan is optional on Windows; required for Linux CAN support",
+  "_comment_build_files": "Release packaging includes runtime + docs/tools under app/; tests/dev artifacts are excluded via build.files below.",
   "devDependencies": {
     "electron": "^36.4.0",
     "electron-builder": "^26.0.12",
@@ -41,17 +42,26 @@
     "appId": "com.modular.app",
     "productName": "Modular",
     "asar": false,
-    "icon": "assets/icon.png",
+    "icon": "app/assets/icon.png",
+    "files": [
+      "app/**",
+      "package.json",
+      "package-lock.json",
+      "!tests/**",
+      "!dev/**",
+      "!test-results/**",
+      "!thingset/**"
+    ],
     "linux": {
       "target": "AppImage",
-      "icon": "assets/icon.png"
+      "icon": "app/assets/icon.png"
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "app/assets/icon.ico"
     },
     "mac": {
-      "icon": "assets/icon.icns"
+      "icon": "app/assets/icon.icns"
     }
   }
 }
