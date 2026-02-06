@@ -195,6 +195,7 @@ html.dashboard-mode #main-header {
     border-radius: 10px;
     padding: 20px 24px;
     line-height: 1.6;
+    user-select: text;
 }
 
 .doc-content img {

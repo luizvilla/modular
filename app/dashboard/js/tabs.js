@@ -253,7 +253,9 @@
     }
 
     function renderMarkdown(markdown, baseDir) {
-        const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+        // Strip HTML comments so internal notes don't render in docs.
+        const cleaned = markdown.replace(/<!--[\s\S]*?-->/g, '');
+        const lines = cleaned.replace(/\r\n/g, '\n').split('\n');
         return renderMarkdownBlocks(lines, baseDir).join('\n');
     }
 
