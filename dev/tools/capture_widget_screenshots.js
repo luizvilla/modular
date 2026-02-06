@@ -23,10 +23,10 @@ function buildEmptyDashboard() {
     plugins: [],
     panes: [
       {
-        width: 1,
+        width: 2,
         row: { 3: 1 },
         col: { 3: 1 },
-        col_width: 1,
+        col_width: 2,
         widgets: [],
       },
     ],
@@ -76,7 +76,7 @@ function buildEmptyDashboard() {
         },
       },
     ],
-    columns: 1,
+    columns: 2,
   };
 }
 
@@ -185,6 +185,62 @@ async function saveWidget(page) {
   await page.waitForSelector('#modal_overlay', { state: 'hidden', timeout: 10_000 });
 }
 
+async function setFirstDatasourceToMockSerial(page) {
+  await page.evaluate(() => {
+    if (!window.freeboard || typeof window.freeboard.getLiveModel !== 'function') return;
+    const model = window.freeboard.getLiveModel();
+    if (!model || typeof model.datasources !== 'function') return;
+    const datasources = model.datasources();
+    if (!datasources || datasources.length === 0) return;
+    const first = datasources[0];
+    if (!first || typeof first.name !== 'function') return;
+    const name = first.name();
+    if (name === 'MockSerial') return;
+    const settings = first.settings && typeof first.settings === 'function' ? first.settings() : null;
+    first.name('MockSerial');
+    if (settings && typeof first.settings === 'function') {
+      first.settings(settings);
+    }
+  });
+}
+
+async function configureSerialCommandButtons(page) {
+  await page.evaluate(() => {
+    if (!window.freeboard || typeof window.freeboard.getLiveModel !== 'function') return;
+    const model = window.freeboard.getLiveModel();
+    if (!model || typeof model.panes !== 'function') return;
+    const panes = model.panes();
+    if (!panes || panes.length === 0) return;
+    const widgets = panes[0].widgets ? panes[0].widgets() : [];
+    const target = widgets.find((w) => w && typeof w.type === 'function' && w.type() === 'serial_command_buttons');
+    if (!target || typeof target.settings !== 'function') return;
+    const settings = target.settings() || {};
+    settings.datasource = settings.datasource || 'MockSerial';
+    settings.buttons = [
+      { label: 'Start', command: 'START' },
+      { label: 'Stop', command: 'STOP' },
+      { label: 'Reset', command: 'RESET' },
+    ];
+    target.settings(settings);
+  });
+}
+
+async function configureSerialTerminal(page) {
+  await page.evaluate(() => {
+    if (!window.freeboard || typeof window.freeboard.getLiveModel !== 'function') return;
+    const model = window.freeboard.getLiveModel();
+    if (!model || typeof model.panes !== 'function') return;
+    const panes = model.panes();
+    if (!panes || panes.length === 0) return;
+    const widgets = panes[0].widgets ? panes[0].widgets() : [];
+    const target = widgets.find((w) => w && typeof w.type === 'function' && w.type() === 'serial_terminal');
+    if (!target || typeof target.settings !== 'function') return;
+    const settings = target.settings() || {};
+    settings.datasourceName = settings.datasourceName || 'MockSerial';
+    target.settings(settings);
+  });
+}
+
 async function cancelWidgetDialog(page) {
   const cancel = page.locator('#dialog-cancel');
   if (await cancel.count()) {
@@ -196,6 +252,7 @@ async function cancelWidgetDialog(page) {
 async function screenshotWidget(page, dest) {
   const widget = page.locator('.sub-section').first();
   await widget.waitFor({ state: 'attached' });
+  await page.waitForTimeout(150);
   await widget.scrollIntoViewIfNeeded();
   await widget.screenshot({ path: dest });
 }
@@ -239,6 +296,13 @@ async function run() {
     await screenshotModal(page, creationPath);
 
     await saveWidget(page);
+    await setFirstDatasourceToMockSerial(page);
+    if (widget.type === 'serial_command_buttons') {
+      await configureSerialCommandButtons(page);
+    }
+    if (widget.type === 'serial_terminal') {
+      await configureSerialTerminal(page);
+    }
     await screenshotWidget(page, usagePath);
   }
 
