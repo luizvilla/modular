@@ -21,7 +21,8 @@ Modular is an Electron application built on top of [Freeboard](dashboard/README.
    ```bash
    npm start
    ```
-   The dashboard will be loaded from the `dashboard` directory.
+   <!-- Runtime content lives under app/ after the release/test split. -->
+   The dashboard will be loaded from the `app/dashboard` directory.
 4. To build distributable packages use:
    ```bash
    npm run dist
@@ -33,17 +34,19 @@ Modular is an Electron application built on top of [Freeboard](dashboard/README.
 - CAN over SocketCAN is Linux-only. On Windows, CAN support requires a vendor driver and an `ffi-napi` binding (see `js/can_adapter.js`).
 - If native modules need to compile (for example if prebuilt binaries are unavailable), install the Windows build tools first (MSVC Build Tools + Python).
 
-Sample dashboard configurations can be found under [`test_dashboards`](test_dashboards/).
+<!-- Dev-only dashboards moved under dev/ to separate release vs test content. -->
+Sample dashboard configurations can be found under [`dev/test_dashboards`](dev/test_dashboards/).
 
 ## ThingSet over CAN
 
-JavaScript implementation of the CAN/ThingSet protocol under `js/`:
+<!-- Runtime JS moved under app/js after release/test split. -->
+JavaScript implementation of the CAN/ThingSet protocol under `app/js/`:
 
-- `js/ts_can_utils.js` – CAN ID builder and ISO‑TP response reassembly.
-- `js/thingset_bin.js` – ISO‑TP TX/RX and high‑level ThingSet client (`ThingSetCAN`).
-- `js/scan.js` – scans the bus for nodes by requesting `pNodeID`. Writes `thingset/nodes.json`.
-- `js/query_nodes.js` – recursively explores a node’s ThingSet tree and writes `thingset/node_<addr>_tree.json`.
-- `js/can_adapter.js` – CAN bus wrapper: native SocketCAN on Linux; on Windows use `ffi-napi` to call a vendor driver (no built‑in CAN).
+- `app/js/ts_can_utils.js` – CAN ID builder and ISO‑TP response reassembly.
+- `app/js/thingset_bin.js` – ISO‑TP TX/RX and high‑level ThingSet client (`ThingSetCAN`).
+- `app/js/scan.js` – scans the bus for nodes by requesting `pNodeID`. Writes `thingset/nodes.json`.
+- `app/js/query_nodes.js` – recursively explores a node’s ThingSet tree and writes `thingset/node_<addr>_tree.json`.
+- `app/js/can_adapter.js` – CAN bus wrapper: native SocketCAN on Linux; on Windows use `ffi-napi` to call a vendor driver (no built‑in CAN).
 
 Dependencies
 
@@ -66,17 +69,20 @@ Windows support: use `ffi-napi` to bind your CAN vendor’s driver (e.g., Kvaser
 
 ### Linux SocketCAN setup (GUI auth)
 
-- Script: `scripts/setup_can_linux.sh` configures `can0` to 500000 bps and brings it up.
+- Script: `app/scripts/setup_can_linux.sh` configures `can0` to 500000 bps and brings it up.
 - IPC: call `ipcRenderer.invoke('can-setup-linux')` from the renderer to request setup. The main process uses `pkexec` to prompt for admin rights via GUI and runs the script.
 - Notes: This is Linux-only. Ensure a PolicyKit agent is running on your desktop so `pkexec` can display the authentication prompt.
 
 ## Repository layout
 
-- `main.js` – Electron main process that handles serial ports and IPC.
-- `flasher.js` – helper used for firmware flashing through mcumgr.
-- `dashboard/` – bundled Freeboard source with additional plugins.
-- `test_dashboards/` – example dashboards for development or testing.
+<!-- Runtime sources now live under app/ (dev/test content is outside). -->
+- `app/main.js` – Electron main process that handles serial ports and IPC.
+- `app/flasher.js` – helper used for firmware flashing through mcumgr.
+- `app/dashboard/` – bundled Freeboard source with additional plugins.
+<!-- Dev-only dashboards are in dev/ to keep release artifacts clean. -->
+- `dev/test_dashboards/` – example dashboards for development or testing.
 
 ## License
 
-The code in this repository is provided under the MIT License. See [`dashboard/LICENSE`](dashboard/LICENSE) for details about the Freeboard components bundled with this application.
+<!-- License file now resides under app/ with the bundled dashboard. -->
+The code in this repository is provided under the MIT License. See [`app/dashboard/LICENSE`](app/dashboard/LICENSE) for details about the Freeboard components bundled with this application.

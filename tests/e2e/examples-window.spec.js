@@ -18,8 +18,9 @@ test('example viewer window loads and actions work', async () => {
 
   const exampleId = 'test_board/test_example';
   const exPagePromise = getExampleWindow(app);
-  const preloadPath = require('path').join(process.cwd(), 'preload.js');
-  const htmlPath = require('path').join(process.cwd(), 'dashboard', 'examples', 'example_viewer.html');
+  // Use app/ paths after runtime move to keep tests aligned with packaged layout.
+  const preloadPath = require('path').join(process.cwd(), 'app', 'preload.js');
+  const htmlPath = require('path').join(process.cwd(), 'app', 'dashboard', 'examples', 'example_viewer.html');
   await app.evaluate(({ BrowserWindow }, { id, preload, html }) => {
     const win = new BrowserWindow({
       show: true,
