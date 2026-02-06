@@ -1,0 +1,173 @@
+{
+  "_comment": "Widget docs index for Help menu + widget docs tabs.",
+  "widgets": [
+    {
+      "type": "text_widget",
+      "title": "Text",
+      "category": "Basic",
+      "doc": "basic/text/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "gauge",
+      "title": "Gauge",
+      "category": "Gauges",
+      "doc": "gauges/gauge/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "sparkline",
+      "title": "Sparkline",
+      "category": "Plots",
+      "doc": "plots/sparkline/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "pointer",
+      "title": "Pointer",
+      "category": "Basic",
+      "doc": "basic/pointer/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "picture",
+      "title": "Picture",
+      "category": "Media",
+      "doc": "media/picture/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "indicator",
+      "title": "Indicator Light",
+      "category": "Basic",
+      "doc": "basic/indicator/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "google_map",
+      "title": "Google Map",
+      "category": "Maps",
+      "doc": "maps/google-map/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "html",
+      "title": "HTML",
+      "category": "Basic",
+      "doc": "basic/html/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "owntech_plot_uplot",
+      "title": "Plot (uPlot)",
+      "category": "Plots",
+      "doc": "plots/plot-uplot/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "uplot_config_panel",
+      "title": "Plot UI Controller",
+      "category": "Plots",
+      "doc": "plots/plot-ui-controller/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "uplot_series_manager",
+      "title": "Plot Series Manager",
+      "category": "Plots",
+      "doc": "plots/plot-series-manager/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "vertical_gauge",
+      "title": "Vertical Gauge",
+      "category": "Gauges",
+      "doc": "gauges/vertical-gauge/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "vertical_gauge_manager",
+      "title": "Vertical Gauge Manager",
+      "category": "Gauges",
+      "doc": "gauges/vertical-gauge-manager/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "serial_terminal",
+      "title": "Serial Terminal",
+      "category": "Serial",
+      "doc": "serial/serial-terminal/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "serial_command_buttons",
+      "title": "Serial Command Buttons",
+      "category": "Serial",
+      "doc": "serial/serial-command-buttons/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "serial_csv_recorder",
+      "title": "Serial CSV Recorder",
+      "category": "Serial",
+      "doc": "serial/serial-csv-recorder/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "serial_port_control",
+      "title": "Serial Port Control",
+      "category": "Serial",
+      "doc": "serial/serial-port-control/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "serial_flasher",
+      "title": "Serial Flasher",
+      "category": "Serial",
+      "doc": "serial/serial-flasher/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "serial_header_editor",
+      "title": "Serial Header Editor",
+      "category": "Serial",
+      "doc": "serial/serial-header-editor/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "thingset_device_ui",
+      "title": "ThingSet Device UI",
+      "category": "ThingSet",
+      "doc": "thingset/device-ui/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_serial_device_ui",
+      "title": "ThingSet Serial Device UI",
+      "category": "ThingSet",
+      "doc": "thingset/serial-device-ui/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_mode_button",
+      "title": "ThingSet Mode Button",
+      "category": "ThingSet",
+      "doc": "thingset/mode-button/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_control_panel",
+      "title": "ThingSet Control Panel",
+      "category": "ThingSet",
+      "doc": "thingset/control-panel/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_measurements",
+      "title": "ThingSet Measurements",
+      "category": "ThingSet",
+      "doc": "thingset/measurements/README.md",
+      "requiresThingset": true
+    }
+  ]
+}
