@@ -108,6 +108,13 @@ async function waitForDashboard(page) {
   await page.waitForLoadState('domcontentloaded');
   await page.waitForSelector('#board-content', { state: 'attached', timeout: 30_000 });
   await page.waitForFunction(() => !!window.freeboard);
+  await page.waitForFunction(() => {
+    // Ensure gridster is initialized before loading dashboards.
+    if (!window.$) return false;
+    const grid = window.$('.gridster ul');
+    if (!grid || grid.length === 0) return false;
+    return !!grid.data('gridster');
+  });
 }
 
 async function loadEmptyDashboard(page) {
@@ -119,6 +126,11 @@ async function loadEmptyDashboard(page) {
     const model = fb.getLiveModel();
     return model && typeof model.panes === 'function' && model.panes().length > 0;
   });
+  await page.waitForFunction(() => {
+    if (!window.$) return false;
+    const grid = window.$('.gridster ul');
+    return grid && grid.data('gridster') && grid.data('gridster').cols > 0;
+  });
 }
 
 async function openWidgetDialog(page) {
@@ -128,8 +140,17 @@ async function openWidgetDialog(page) {
 
 async function selectWidgetType(page, typeName) {
   const selector = '#setting-row-plugin-types select';
-  await page.waitForSelector(selector, { state: 'attached' });
+  await page.waitForSelector(selector, { state: 'visible' });
+  const options = await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return [];
+    return Array.from(el.options).map((opt) => opt.value).filter(Boolean);
+  }, selector);
+  if (!options.includes(typeName)) {
+    return false;
+  }
   await page.selectOption(selector, { value: typeName });
+  return true;
 }
 
 async function screenshotModal(page, dest) {
@@ -141,6 +162,14 @@ async function screenshotModal(page, dest) {
 async function saveWidget(page) {
   await page.click('#dialog-ok');
   await page.waitForSelector('#modal_overlay', { state: 'hidden', timeout: 10_000 });
+}
+
+async function cancelWidgetDialog(page) {
+  const cancel = page.locator('#dialog-cancel');
+  if (await cancel.count()) {
+    await cancel.click();
+    await page.waitForSelector('#modal_overlay', { state: 'hidden', timeout: 10_000 });
+  }
 }
 
 async function screenshotWidget(page, dest) {
@@ -180,7 +209,12 @@ async function run() {
     await loadEmptyDashboard(page);
 
     await openWidgetDialog(page);
-    await selectWidgetType(page, widget.type);
+    const found = await selectWidgetType(page, widget.type);
+    if (!found) {
+      console.warn(`Skipping ${widget.type}: not present in widget selector.`);
+      await cancelWidgetDialog(page);
+      continue;
+    }
     await screenshotModal(page, creationPath);
 
     await saveWidget(page);
