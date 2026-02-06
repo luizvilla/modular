@@ -88,6 +88,10 @@ html.dashboard-mode #main-header {
 .doc-panel[data-doc-mode="widget"] .progress-panel {
     display: none;
 }
+/* Widget docs mode hides the header block so only the README content shows. */
+.doc-panel[data-doc-mode="widget"] .doc-header {
+    display: none;
+}
 
 .doc-header {
     display: grid;
