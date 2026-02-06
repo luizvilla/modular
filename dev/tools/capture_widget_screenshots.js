@@ -156,6 +156,27 @@ async function selectWidgetType(page, typeName) {
 async function screenshotModal(page, dest) {
   const modal = page.locator('#modal_overlay .modal');
   await modal.waitFor({ state: 'visible' });
+  await page.evaluate(() => {
+    const overlay = document.getElementById('modal_overlay');
+    const dialog = overlay ? overlay.querySelector('.modal') : null;
+    if (overlay) {
+      overlay.style.opacity = '1';
+      overlay.style.transition = 'none';
+    }
+    if (dialog) {
+      dialog.style.opacity = '1';
+      dialog.style.transition = 'none';
+    }
+  });
+  await page.waitForFunction(() => {
+    const overlay = document.getElementById('modal_overlay');
+    const dialog = overlay ? overlay.querySelector('.modal') : null;
+    if (!overlay || !dialog) return false;
+    const overlayOpacity = parseFloat(getComputedStyle(overlay).opacity || '1');
+    const dialogOpacity = parseFloat(getComputedStyle(dialog).opacity || '1');
+    return overlayOpacity > 0.98 && dialogOpacity > 0.98;
+  });
+  await page.waitForTimeout(200);
   await modal.screenshot({ path: dest });
 }
 
