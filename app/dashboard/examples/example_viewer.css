@@ -1,0 +1,277 @@
+/* Styles for the standalone example viewer window. */
+:root {
+    color-scheme: light dark;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+}
+
+.app-header {
+    padding: 20px 24px 16px;
+    background: #151923;
+    border-bottom: 1px solid #2a3240;
+    display: grid;
+    gap: 12px;
+}
+
+.title-block h1 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: 0.5px;
+}
+
+.subtitle {
+    margin: 4px 0 0;
+    color: #9aa4b2;
+    font-size: 13px;
+}
+
+.example-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.example-picker label {
+    font-size: 12px;
+    color: #9aa4b2;
+}
+
+.example-picker select {
+    background: #10141d;
+    border: 1px solid #394052;
+    color: #e6e6e6;
+    padding: 6px 8px;
+    border-radius: 6px;
+    min-width: 320px;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.btn {
+    border: 1px solid #394052;
+    background: #202534;
+    color: #e6e6e6;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn.primary {
+    background: #2c4cff;
+    border-color: #2c4cff;
+    color: #fff;
+}
+
+.btn.ghost {
+    background: transparent;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.port-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.port-row label {
+    font-size: 12px;
+    color: #9aa4b2;
+}
+
+.port-row select {
+    background: #10141d;
+    border: 1px solid #394052;
+    color: #e6e6e6;
+    padding: 6px 8px;
+    border-radius: 6px;
+    min-width: 220px;
+}
+
+.status-bar {
+    font-size: 12px;
+    color: #9aa4b2;
+}
+
+main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 20px 24px 32px;
+}
+
+.doc-content {
+    background: #0f121b;
+    border: 1px solid #2a3240;
+    border-radius: 10px;
+    padding: 20px 24px;
+    line-height: 1.6;
+}
+
+.doc-content img {
+    max-width: 100%;
+    border-radius: 8px;
+    border: 1px solid #2a3240;
+}
+
+.doc-content h1,
+.doc-content h2,
+.doc-content h3,
+.doc-content h4 {
+    margin-top: 24px;
+}
+
+.doc-content code {
+    background: #222836;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.doc-content pre {
+    background: #111623;
+    border: 1px solid #2a3240;
+    border-radius: 8px;
+    padding: 12px;
+    overflow: auto;
+}
+
+.admonition {
+    border-left: 4px solid #5b6b80;
+    background: #171c28;
+    padding: 10px 14px;
+    margin: 14px 0;
+    border-radius: 8px;
+}
+
+.admonition.warning {
+    border-left-color: #e6a23c;
+}
+
+.admonition.tip {
+    border-left-color: #40c057;
+}
+
+.admonition.note {
+    border-left-color: #4dabf7;
+}
+
+.admonition-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+/* Progress panel UI mirrors the Activity Center DFU progress rendering. */
+.progress-panel {
+    background: #0f121b;
+    border: 1px solid #2a3240;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: fit-content;
+    min-width: 260px;
+}
+
+/* Minimal bootstrap-like progress/spinner styles for standalone rendering. */
+.progress-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.text-muted {
+    color: #9aa4b2;
+}
+
+.small {
+    font-size: 12px;
+}
+
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 0.12em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-rotate 0.75s linear infinite;
+}
+
+.spinner-border-sm {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-width: 0.12em;
+}
+
+.text-secondary {
+    color: #6c757d;
+}
+
+.d-none {
+    display: none;
+}
+
+.progress {
+    display: flex;
+    height: 14px;
+    overflow: hidden;
+    background-color: #0b0f18;
+    border: 1px solid #2a3240;
+    border-radius: 999px;
+}
+
+.progress-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 11px;
+    background-color: #0d6efd;
+    transition: width 0.2s ease;
+}
+
+.bg-success {
+    background-color: #198754;
+}
+
+.bg-danger {
+    background-color: #dc3545;
+}
+
+@keyframes spinner-rotate {
+    100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 980px) {
+    main {
+        grid-template-columns: 1fr;
+    }
+    .actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

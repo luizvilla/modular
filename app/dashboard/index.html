@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>modular</title>
+	<meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="viewport" content = "width = device-width, initial-scale = 1, user-scalable = no" />
+    <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/darkly/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link href="css/freeboard.min.css" rel="stylesheet" />
+    <link href="css/bootstrap-overrides.css" rel="stylesheet" />
+    <!-- Tabs + docs UI styles for in-app documentation. -->
+    <link href="css/tabs.css" rel="stylesheet" />
+    <script src="js/freeboard.thirdparty.js"></script>
+    <script src="lib/js/thirdparty/colorschemes.tableau.js"></script>
+    <script src="lib/js/thirdparty/colorschemes.office.js"></script>
+    <script src="js/freeboard.js"></script>
+    <script src="js/expr_utils.js"></script>
+    <script src="plugins/thirdparty/eve.js"></script>
+    <script src="plugins/thirdparty/raphael.2.1.0.min.js"></script>
+    <script src="plugins/thirdparty/jquery.sparkline.min.js"></script>   
+    <script src="plugins/thirdparty/justgage.1.0.1.js"></script>
+    <!-- <script src="plugins/thirdparty/chartjs-plugin-streaming.min.js"></script>    -->
+    <script type="text/javascript">
+        (function () {
+            // Ensure Freeboard exists before loading plugins (prevents "freeboard is not defined").
+            var pluginScripts = [
+                // "plugins/freeboard/freeboard.datasources.js",
+                // "plugins/freeboard/freeboard.widgets.js",
+                "js/activity_toasts.js",
+                "js/dashboard_control.js",
+                "plugins/uplot.widget.js",
+                "js/zoom_control.js",
+                "plugins/serialcommand.widget.js",
+                "plugins/serialterminal.widget.js",
+                "plugins/serialrecord.widget.js",
+                "plugins/serialportcontrol.widget.js",
+                "plugins/serialflash.widget.js",
+                "plugins/serialheaders.widget.js",
+                "plugins/serialfast.datasource.js",
+                "plugins/thingset_serial.datasource.js",
+                "plugins/serialowntech.datasource.js",
+                "plugins/can.datasource.js",
+                "plugins/signal_generator.datasource.js",
+                "plugins/vertical_gauge.widget.js",
+                "plugins/vertical_gauge.manager.js",
+                "plugins/ts_device_ui.widget.js",
+                "plugins/ts_serial_device_ui.widget.js",
+                "plugins/ts_mode.widget.js",
+                "plugins/ts_control.widget.js",
+                "plugins/ts_measurements.widget.js",
+                "plugins/powerbars.widget.js",
+                "plugins/uplot.series.manager.js",
+                "plugins/uplot.UI.js"
+            ];
+
+            function initFreeboard() {
+                $(function () {
+                    setTimeout(function () {
+                        console.log("✅ Delayed init: Freeboard now initializing.");
+                        freeboard.initialize(true);
+
+                        var hashpattern = window.location.hash.match(/(&|#)source=([^&]+)/);
+                        if (hashpattern !== null) {
+                            $.getJSON(hashpattern[2], function (data) {
+                                freeboard.loadDashboard(data, function () {
+                                    freeboard.setEditing(false);
+                                });
+                            });
+                        }
+                    }, 100); // Short delay to allow plugin to register
+                });
+            }
+
+            function loadPlugins() {
+                head.js.apply(null, pluginScripts.concat([initFreeboard]));
+            }
+
+            function waitForFreeboard(retries) {
+                if (typeof freeboard !== "undefined" && typeof head !== "undefined") {
+                    loadPlugins();
+                    return;
+                }
+                if (retries <= 0) {
+                    console.error("Freeboard boot timed out: freeboard or head.js missing.");
+                    return;
+                }
+                setTimeout(function () { waitForFreeboard(retries - 1); }, 25);
+            }
+
+            waitForFreeboard(200);
+        })();
+    </script>
+</head>
+<body>
+<!-- App-level tabs live above the dashboard/header and remain visible. -->
+<div id="app-tabs" class="app-tabs">
+    <div id="tab-strip" class="tab-strip">
+        <button class="tab active" data-tab-id="dashboard" draggable="false">Dashboard</button>
+    </div>
+</div>
+
+<!-- Documentation panel for example tabs (hidden until activated). -->
+<div id="doc-panel" class="doc-panel" hidden>
+    <div class="doc-header">
+        <div class="doc-title-block">
+            <h1 id="doc-title">Example</h1>
+            <p id="doc-subtitle" class="subtitle">Docs</p>
+        </div>
+        <div class="doc-picker">
+            <label for="doc-example-select">Example</label>
+            <select id="doc-example-select"></select>
+        </div>
+        <div class="doc-actions">
+            <button id="doc-load-dashboard-btn" class="btn primary">Load example dashboard</button>
+            <button id="doc-upload-firmware-btn" class="btn">Upload example to target</button>
+            <section class="progress-panel">
+                <div class="progress-header">
+                    <span id="doc-upload-spinner" class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
+                    <strong id="doc-upload-title" class="text-truncate">Serial DFU</strong>
+                    <small id="doc-upload-state" class="text-muted">idle</small>
+                </div>
+                <div id="doc-upload-label" class="small text-muted text-truncate">No upload running</div>
+                <div class="progress" style="height:14px;">
+                    <div id="doc-upload-progress-bar" class="progress-bar" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                </div>
+            </section>
+        </div>
+        <div class="doc-port-row">
+            <label for="doc-port-select">Target port</label>
+            <select id="doc-port-select"></select>
+            <button id="doc-refresh-ports-btn" class="btn ghost">Refresh</button>
+        </div>
+        <div id="doc-status" class="status-bar">Ready.</div>
+    </div>
+    <article id="doc-content" class="doc-content"></article>
+</div>
+
+<div id="board-content">
+    <img id="dash-logo" data-bind="attr:{src: header_image}, visible:header_image()">
+    <div class="gridster responsive-column-width">
+        <ul data-bind="grid: true">
+        </ul>
+    </div>
+</div>
+<header id="main-header" data-bind="if:allow_edit">
+    <div id="admin-bar">
+        <div id="admin-menu">
+            <div id="board-tools">
+                <h1 id="board-logo" class="title bordered">modular</h1>
+                <div id="board-actions">
+                    <ul class="board-toolbar vertical">
+                        <li data-bind="click: loadDashboardFromLocalFile"><i id="full-screen-icon" class="icon-folder-open icon-white"></i><label id="full-screen">Load Dashboard</label></li>
+                        <li><i class="icon-download-alt icon-white"></i>
+                            <label data-bind="click: saveDashboardClicked">Save Dashboard</label>
+                            <!-- Pretty/Minified options removed; Save uses pretty JSON by default. -->
+                        </li>
+                        <li id="add-pane" data-bind="click: createPane"><i class="icon-plus icon-white"></i><label>Add Pane</label></li>
+                        <!-- Widget Categories moved to the app Edit menu. -->
+                    </ul>
+                </div>
+            </div>
+            <div id="datasources">
+                <h2 class="title">DATASOURCES</h2>
+
+                <div class="datasource-list-container">
+                    <table class="table table-condensed sub-table" id="datasources-list" data-bind="if: datasources().length">
+                        <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Last Updated</th>
+                            <th>&nbsp;</th>
+                        </tr>
+                        </thead>
+                        <tbody data-bind="foreach: datasources">
+                        <tr data-bind="css: { 'datasource-paused': isPaused }">
+                            <td>
+                                <span class="text-button datasource-name" data-bind="text: name, pluginEditor: {operation: 'edit', type: 'datasource'}"></span>
+                            </td>
+                            <td data-bind="text: last_updated"></td>
+                            <td>
+                                <ul class="board-toolbar">
+                                    <li data-bind="click: updateNow"><i class="icon-refresh icon-white"></i></li>
+                                    <!-- Pause/resume datasource -->
+                                    <li data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume datasource' : 'Pause datasource' }">
+                                        <i class="fa-solid" data-bind="css: { 'fa-pause': !isPaused(), 'fa-play': isPaused() }"></i>
+                                    </li>
+                                    <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">
+                                        <i class="icon-trash icon-white"></i></li>
+                                </ul>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <span class="text-button table-operation" data-bind="pluginEditor: {operation: 'add', type: 'datasource'}">ADD</span>
+            </div>
+        </div>
+    </div>
+	<div id="column-tools" class="responsive-column-width">
+		<ul class="board-toolbar left-columns">
+			<li class="column-tool add" data-bind="click: addGridColumnLeft"><span class="column-icon right"></span><i class="icon-arrow-left icon-white"></i></li>
+			<li class="column-tool sub" data-bind="click: subGridColumnLeft"><span class="column-icon left"></span><i class="icon-arrow-right icon-white"></i></li>
+		</ul>
+		<ul class="board-toolbar right-columns">
+			<li class="column-tool sub" data-bind="click: subGridColumnRight"><span class="column-icon right"></span><i class="icon-arrow-left icon-white"></i></li>
+			<li class="column-tool add" data-bind="click: addGridColumnRight"><span class="column-icon left"></span><i class="icon-arrow-right icon-white"></i></li>
+		</ul>
+	</div>
+    <div id="toggle-header" data-bind="click: toggleEditing">
+        <i id="toggle-header-icon" class="icon-wrench icon-white"></i></div>
+</header>
+
+<div style="display:hidden">
+    <ul data-bind="template: { name: 'pane-template', foreach: panes}">
+    </ul>
+</div>
+
+<script type="text/html" id="pane-template">
+    <li data-bind="pane: true">
+        <header>
+            <h1 data-bind="text: title"></h1>
+            <ul class="board-toolbar pane-tools">
+                <li data-bind="pluginEditor: {operation: 'add', type: 'widget'}">
+                    <i class="icon-plus icon-white"></i>
+                </li>
+                <li class="tool-edit" data-bind="pluginEditor: {operation: 'edit', type: 'pane'}">
+                    <i class="icon-wrench icon-white"></i>
+                </li>
+                <li class="toolbar-separator">|</li>
+                <li class="tool-delete" data-bind="pluginEditor: {operation: 'delete', type: 'pane'}">
+                    <i class="icon-trash icon-white"></i>
+                </li>
+            </ul>
+        </header>
+        <section data-bind="foreach: widgets">
+            <div class="sub-section" data-bind="css: 'sub-section-height-' + height()">
+                <div class="widget" data-bind="widget: true, css:{fillsize:fillSize}"></div>
+                <div class="sub-section-tools">
+                    <span class="widget-tools-title" data-bind="text: displayTitle"></span>
+                    <ul class="board-toolbar">
+                        <!-- ko if:$parent.widgetCanMoveUp($data) -->
+                        <li data-bind="click:$parent.moveWidgetUp"><i class="icon-chevron-up icon-white"></i></li>
+                        <!-- /ko -->
+                        <!-- ko if:$parent.widgetCanMoveDown($data) -->
+                        <li data-bind="click:$parent.moveWidgetDown"><i class="icon-chevron-down icon-white"></i></li>
+                        <!-- /ko -->
+                        <li class="tool-edit" data-bind="pluginEditor: {operation: 'edit', type: 'widget'}"><i class="icon-wrench icon-white"></i></li>
+                        <li class="toolbar-separator">|</li>
+                        <li class="tool-delete" data-bind="pluginEditor: {operation: 'delete', type: 'widget'}"><i class="icon-trash icon-white"></i></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </li>
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Tabs controller for in-app documentation. -->
+<script src="js/tabs.js"></script>
+
+</body>
+</html>
+

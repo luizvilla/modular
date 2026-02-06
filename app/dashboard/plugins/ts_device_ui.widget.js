@@ -1,0 +1,750 @@
+(function () {
+  const api = window.api || null;
+  const canApi = api && api.can ? api.can : null;
+  const thingsetApi = api && api.thingset ? api.thingset : null;
+  const filesApi = api && api.files ? api.files : null;
+  const paths = api && api.paths ? api.paths : null;
+  const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
+  const fs = !api && window.require ? window.require('fs') : null;
+  const path = !api && window.require ? window.require('path') : null;
+
+  function thingsetDir() {
+    try {
+      if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'thingset');
+      if (path) return path.join(process.cwd(), 'thingset');
+    } catch {}
+    return null;
+  }
+
+  async function readJsonSafe(p) {
+    try {
+      if (filesApi && filesApi.readText) {
+        const txt = await filesApi.readText(p);
+        return JSON.parse(txt);
+      }
+      if (fs) {
+        const txt = fs.readFileSync(p, 'utf8');
+        return JSON.parse(txt);
+      }
+    } catch (e) {
+      console.warn('readJsonSafe failed:', p, e?.message || e);
+      return null;
+    }
+  }
+
+  async function writeJsonSafe(p, obj) {
+    try {
+      const content = JSON.stringify(obj, null, 2);
+      if (filesApi && filesApi.writeText) {
+        const res = await filesApi.writeText(p, content);
+        return !!res?.ok;
+      }
+      if (fs) {
+        fs.writeFileSync(p, content, 'utf8');
+        return true;
+      }
+    } catch (e) {
+      console.warn('writeJsonSafe failed:', p, e?.message || e);
+    }
+    return false;
+  }
+
+  function lastSeg(p) { if (!p) return ''; return p.includes('/') ? p.split('/').pop() : p; }
+
+  function valueToInline(v) {
+    if (v == null) return '<span class="text-muted">null</span>';
+    if (typeof v === 'object') return `<code>${escapeHtml(JSON.stringify(v))}</code>`;
+    return `<code>${escapeHtml(String(v))}</code>`;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function renderNodeItem(key, node, ctx) {
+    const item = $('<div class="mb-1"></div>');
+
+    // Group children
+    const hasChildren = node && node.children && typeof node.children === 'object' && Object.keys(node.children).length;
+    const hasValues = node && node.values && typeof node.values === 'object' && Object.keys(node.values).length;
+    const hasRecords = node && Array.isArray(node.records) && node.records.length;
+    const hasValue = Object.prototype.hasOwnProperty.call(node || {}, 'value');
+
+    const title = key || lastSeg(node?.path) || node?.id || 'Node';
+    const summary = $(`<summary class="d-flex align-items-center gap-2">
+        <strong>${escapeHtml(String(title))}</strong>
+        ${node?.path ? `<span class="badge bg-light text-dark">${escapeHtml(node.path)}</span>` : ''}
+        ${node?.id ? `<span class="badge bg-secondary">${escapeHtml(node.id)}</span>` : ''}
+      </summary>`);
+
+    if (hasChildren || hasValues || hasRecords) {
+      // Default collapsed; restore expansion state if saved
+      const det = $('<details class="border rounded px-2 py-1"></details>');
+      det.append(summary);
+      const body = $('<div class="ms-2 mt-1"></div>');
+
+      // Persist expansion state per node path when available
+      const thisPath = node?.path || '';
+      if (thisPath && ctx && ctx.addr != null) {
+        const expanded = !!(ctx?.uiState?.expandedPaths && ctx.uiState.expandedPaths[thisPath] === true);
+        if (expanded) det.prop('open', true);
+        det.attr('data-path', thisPath);
+        det.on('toggle', () => {
+          const isOpen = det.prop('open') === true;
+          saveUiExpansion(ctx.addr, thisPath, isOpen).catch(() => {});
+          try {
+            ctx.uiState = ctx.uiState || {};
+            ctx.uiState.expandedPaths = ctx.uiState.expandedPaths || {};
+            if (isOpen) ctx.uiState.expandedPaths[thisPath] = true;
+            else delete ctx.uiState.expandedPaths[thisPath];
+          } catch {}
+        });
+      }
+
+      if (hasValues) {
+        const tbl = $('<div class="mb-1"></div>');
+        for (const [vk, vv] of Object.entries(node.values)) {
+          const row = $('<div class="d-flex align-items-center justify-content-between gap-2"></div>');
+          const left = $(`<span>${escapeHtml(vk)}</span>`);
+          const right = $('<span class="d-flex align-items-center gap-2"></span>');
+          right.append($(valueToInline(vv)));
+
+          const isReadable = typeof vk === 'string' && vk.startsWith('r');
+          const isWritable = typeof vk === 'string' && vk.startsWith('w');
+
+          if (isReadable && ctx?.ts && ctx?.addr != null && ctx?.channel) {
+            const btn = $('<button class="btn btn-outline-primary btn-sm">subscribe</button>');
+            btn.on('click', async () => {
+              try {
+                btn.prop('disabled', true).text('working…');
+                const fullPath = `${node.path}/${vk}`;
+                // Resolve subset ID per device if not cached in context
+                if (ctx.subsetId == null) {
+                  try {
+                    const subResp = await ctx.ts.idsForPaths( {
+                      channel: ctx.channel,
+                      targetAddr: ctx.addr,
+                      paths: ['mLive']
+                    });
+                    const sid = Array.isArray(subResp?.payload) ? subResp.payload[0] : null;
+                    if (Number.isInteger(sid)) ctx.subsetId = sid;
+                  } catch {}
+                }
+                const subscribed = btn.data('subscribed') === true;
+                if (!subscribed) {
+                  const cre = await ctx.ts.create( {
+                    channel: ctx.channel,
+                    targetAddr: ctx.addr,
+                    endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
+                    value: fullPath
+                  });
+                  if (cre && cre.status >= 0x80 && cre.status < 0xA0) {
+                    btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
+                    saveUiSubscription(ctx.addr, fullPath, true).catch(() => {});
+                    emitSubscriptionEvent(ctx.addr, fullPath, true);
+                  } else {
+                    btn.text('subscribe');
+                  }
+                } else {
+                  const del = await ctx.ts.delete( {
+                    channel: ctx.channel,
+                    targetAddr: ctx.addr,
+                    endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
+                    value: fullPath
+                  });
+                  if (del && del.status >= 0x80 && del.status < 0xA0) {
+                    btn.data('subscribed', false).text('subscribe').toggleClass('btn-outline-danger btn-outline-primary');
+                    saveUiSubscription(ctx.addr, fullPath, false).catch(() => {});
+                    emitSubscriptionEvent(ctx.addr, fullPath, false);
+                  } else {
+                    btn.text('unsubscribe');
+                  }
+                }
+              } catch {
+                // ignore
+              } finally {
+                btn.prop('disabled', false);
+              }
+            });
+            // Initialize from saved state
+            try {
+              const fullPathInit = `${node.path}/${vk}`;
+              const savedSubbed = ctx?.uiState?.subscriptions && ctx.uiState.subscriptions[fullPathInit] === true;
+              if (savedSubbed) btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
+            } catch {}
+            right.append(btn);
+          }
+
+          if (isWritable && ctx?.ts && ctx?.addr != null && ctx?.channel) {
+            const input = $('<input type="text" class="form-control form-control-sm" style="max-width: 140px;">');
+            const send = $('<button class="btn btn-primary btn-sm">send</button>');
+            send.on('click', async () => {
+              const raw = String(input.val() ?? '').trim();
+              let val;
+              try {
+                if (raw === '') return;
+                if (/^(true|false|null)$/i.test(raw)) {
+                  val = JSON.parse(raw.toLowerCase());
+                } else if ((raw.startsWith('[') && raw.endsWith(']')) || (raw.startsWith('{') && raw.endsWith('}')) || (raw.startsWith('"') && raw.endsWith('"'))) {
+                  val = JSON.parse(raw);
+                } else {
+                  const num = parseFloat(raw);
+                  val = Number.isFinite(num) ? num : raw;
+                }
+              } catch { val = raw; }
+              try {
+                send.prop('disabled', true).text('sending…');
+                const resp = await ctx.ts.update( {
+                  channel: ctx.channel,
+                  targetAddr: ctx.addr,
+                  endpoint: node.path,
+                  values: { [vk]: val }
+                });
+                if (resp && resp.status >= 0x80 && resp.status < 0xA0) {
+                  right.children('code').remove();
+                  right.prepend($(valueToInline(val)));
+                }
+              } catch {
+                // ignore
+              } finally {
+                send.prop('disabled', false).text('send');
+              }
+            });
+            right.append(input, send);
+          }
+
+          row.append(left, right);
+          tbl.append(row);
+        }
+        body.append(tbl);
+      }
+
+      if (hasRecords) {
+        const recWrap = $('<div class="mb-1"></div>');
+        node.records.forEach((rec, i) => {
+          const detRec = $(`<details class="border rounded px-2 py-1 mb-1"><summary>Record ${i}</summary></details>`);
+          const inner = $('<div class="ms-2 mt-1"></div>');
+          for (const [rk, rv] of Object.entries(rec || {})) {
+            inner.append(`<div class="d-flex justify-content-between"><span>${escapeHtml(rk)}</span><span>${valueToInline(rv)}</span></div>`);
+          }
+          detRec.append(inner);
+          recWrap.append(detRec);
+        });
+        body.append(recWrap);
+      }
+
+      if (hasChildren) {
+        const kids = $('<div class="mt-1"></div>');
+        for (const [ck, cn] of Object.entries(node.children)) kids.append(renderNodeItem(ck, cn, ctx));
+        body.append(kids);
+      }
+
+      det.append(body);
+      item.append(det);
+    } else if (hasValue) {
+      const row = $(`<div class="d-flex align-items-center justify-content-between border rounded px-2 py-1 gap-2"></div>`);
+      const left = $(`<span><strong>${escapeHtml(String(title))}</strong>${node?.path ? ` <span class=\"badge bg-light text-dark\">${escapeHtml(node.path)}</span>` : ''}</span>`);
+      const right = $('<span class="d-flex align-items-center gap-2"></span>');
+      right.append($(valueToInline(node.value)));
+
+      const isReadable = typeof title === 'string' && title.startsWith('r');
+      const isWritable = typeof title === 'string' && title.startsWith('w');
+      if (isReadable && node?.path && ctx?.ts && ctx?.addr != null && ctx?.channel) {
+        const btn = $('<button class="btn btn-outline-primary btn-sm">subscribe</button>');
+        btn.on('click', async () => {
+          try {
+            btn.prop('disabled', true).text('working…');
+            const fullPath = node.path;
+            // Resolve subset ID per device if not cached
+            if (ctx.subsetId == null) {
+              try {
+                const subResp = await ctx.ts.idsForPaths( {
+                  channel: ctx.channel,
+                  targetAddr: ctx.addr,
+                  paths: ['mLive']
+                });
+                const sid = Array.isArray(subResp?.payload) ? subResp.payload[0] : null;
+                if (Number.isInteger(sid)) ctx.subsetId = sid;
+              } catch {}
+            }
+            const subscribed = btn.data('subscribed') === true;
+            if (!subscribed) {
+              const cre = await ctx.ts.create( {
+                channel: ctx.channel,
+                targetAddr: ctx.addr,
+                endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
+                value: fullPath
+              });
+              if (cre && cre.status >= 0x80 && cre.status < 0xA0) {
+                btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
+                saveUiSubscription(ctx.addr, fullPath, true).catch(() => {});
+                emitSubscriptionEvent(ctx.addr, fullPath, true);
+              } else {
+                btn.text('subscribe');
+              }
+            } else {
+              const del = await ctx.ts.delete( {
+                channel: ctx.channel,
+                targetAddr: ctx.addr,
+                endpoint: (ctx.subsetId != null ? ctx.subsetId : 'mLive'),
+                value: fullPath
+              });
+              if (del && del.status >= 0x80 && del.status < 0xA0) {
+                btn.data('subscribed', false).text('subscribe').toggleClass('btn-outline-danger btn-outline-primary');
+                saveUiSubscription(ctx.addr, fullPath, false).catch(() => {});
+                emitSubscriptionEvent(ctx.addr, fullPath, false);
+              } else {
+                btn.text('unsubscribe');
+              }
+            }
+          } catch {
+            // ignore
+          } finally { btn.prop('disabled', false); }
+        });
+        // Initialize from saved state
+        try {
+          const savedSubbed = ctx?.uiState?.subscriptions && ctx.uiState.subscriptions[node.path] === true;
+          if (savedSubbed) btn.data('subscribed', true).text('unsubscribe').toggleClass('btn-outline-primary btn-outline-danger');
+        } catch {}
+        right.append(btn);
+      }
+      if (isWritable && node?.path && ctx?.ts && ctx?.addr != null && ctx?.channel) {
+        const input = $('<input type="text" class="form-control form-control-sm" style="max-width: 140px;">');
+        const send = $('<button class="btn btn-primary btn-sm">send</button>');
+        send.on('click', async () => {
+          const key = title;
+          const parentPath = (node.path.includes('/')) ? node.path.substring(0, node.path.lastIndexOf('/')) : '';
+          const raw = String(input.val() ?? '').trim();
+          let val;
+          try {
+            if (raw === '') return;
+            if (/^(true|false|null)$/i.test(raw)) val = JSON.parse(raw.toLowerCase());
+            else if ((raw.startsWith('[') && raw.endsWith(']')) || (raw.startsWith('{') && raw.endsWith('}')) || (raw.startsWith('"') && raw.endsWith('"'))) val = JSON.parse(raw);
+            else { const num = parseFloat(raw); val = Number.isFinite(num) ? num : raw; }
+          } catch { val = raw; }
+          try {
+            send.prop('disabled', true).text('sending…');
+            const resp = await ctx.ts.update( {
+              channel: ctx.channel,
+              targetAddr: ctx.addr,
+              endpoint: parentPath,
+              values: { [key]: val }
+            });
+            if (resp && resp.status >= 0x80 && resp.status < 0xA0) {
+              right.children('code').remove();
+              right.prepend($(valueToInline(val)));
+            }
+          } catch {}
+          finally { send.prop('disabled', false).text('send'); }
+        });
+        right.append(input, send);
+      }
+
+      row.append(left, right);
+      item.append(row);
+    }
+    return item;
+  }
+
+  function toBool(v) {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase();
+      if (s === 'true' || s === '1' || s === 'yes' || s === 'on') return true;
+      if (s === 'false' || s === '0' || s === 'no' || s === 'off' || s === '') return false;
+    }
+    if (typeof v === 'number') return v !== 0;
+    return !!v;
+  }
+
+  function renderTree(rootNode, filterText = '', ctx) {
+    const wrap = $('<div class="d-flex flex-column"></div>');
+    if (!rootNode) return wrap.append('<div class="text-muted">No data</div>'), wrap;
+
+    const entries = rootNode.children && typeof rootNode.children === 'object'
+      ? Object.entries(rootNode.children)
+      : [];
+
+    const filtered = (filterText || '').trim().toLowerCase();
+    const match = (txt) => !filtered || (txt && String(txt).toLowerCase().includes(filtered));
+
+    for (const [k, n] of entries) {
+      if (!filtered) { wrap.append(renderNodeItem(k, n, ctx)); continue; }
+      const flatText = JSON.stringify(n).toLowerCase();
+      if (match(k) || match(n?.path) || flatText.includes(filtered)) wrap.append(renderNodeItem(k, n, ctx));
+    }
+    if (wrap.children().length === 0) wrap.append('<div class="text-muted">No matching nodes</div>');
+    return wrap;
+  }
+
+  async function scanAndBuild(channel) {
+    if (!canApi && !ipc) return { ok: false, reason: 'no-ipc' };
+    try {
+      if (navigator.userAgent.toLowerCase().includes('linux')) {
+        try {
+          if (canApi && canApi.setupLinux) await canApi.setupLinux();
+          else await ipc.invoke('can-setup-linux');
+        } catch (e) { /* user may cancel */ }
+      }
+      try {
+        if (canApi && canApi.open) await canApi.open({ channel });
+        else await ipc.invoke('can-open', { channel });
+      } catch {}
+      if (canApi && canApi.scanNodes) await canApi.scanNodes({ channel });
+      else await ipc.invoke('can-scan-nodes', { channel });
+      if (canApi && canApi.buildTrees) await canApi.buildTrees({ channel, maxDepth: 16 });
+      else await ipc.invoke('can-build-trees', { channel, maxDepth: 16 });
+      return { ok: true };
+    } catch (e) {
+      console.error('scanAndBuild failed', e);
+      return { ok: false, reason: e?.message || String(e) };
+    }
+  }
+
+  async function listDevices() {
+    const dir = thingsetDir();
+    if (!dir) return [];
+    const np = (paths && paths.join) ? paths.join(dir, 'nodes.json') : path.join(dir, 'nodes.json');
+    const mapping = await readJsonSafe(np) || {};
+    const out = [];
+    for (const [addrStr, uid] of Object.entries(mapping)) {
+      const addr = parseInt(addrStr, 10);
+      if (!Number.isFinite(addr)) continue;
+      const hex = `0x${addr.toString(16).toUpperCase().padStart(2, '0')}`;
+      out.push({ value: addr, label: `${hex} — ${uid}`, hex, uid });
+    }
+    out.sort((a, b) => a.value - b.value);
+    return out;
+  }
+
+  async function readTreeForAddr(addr) {
+    const dir = thingsetDir();
+    if (!dir) return null;
+    const hex = addr.toString(16).toUpperCase().padStart(2, '0');
+    const fp = (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
+    return readJsonSafe(fp);
+  }
+
+  function treeFilePathForAddr(addr) {
+    const dir = thingsetDir();
+    if (!dir) return null;
+    const hex = addr.toString(16).toUpperCase().padStart(2, '0');
+    return (paths && paths.join) ? paths.join(dir, `node_${hex}_tree.json`) : path.join(dir, `node_${hex}_tree.json`);
+  }
+
+  async function writeTreeForAddr(addr, treeObj) {
+    try {
+      const fp = treeFilePathForAddr(addr);
+      if (!fp) return false;
+      return await writeJsonSafe(fp, treeObj);
+    } catch (e) {
+      console.warn('writeTreeForAddr failed:', e?.message || e);
+      return false;
+    }
+  }
+
+  async function tsIdsForPaths(payload) {
+    if (thingsetApi && thingsetApi.idsForPaths) return thingsetApi.idsForPaths(payload);
+    if (ipc) return ipc.invoke('ts-ids-for-paths', payload);
+    return null;
+  }
+
+  async function tsCreate(payload) {
+    if (thingsetApi && thingsetApi.create) return thingsetApi.create(payload);
+    if (ipc) return ipc.invoke('ts-create', payload);
+    return null;
+  }
+
+  async function tsDelete(payload) {
+    if (thingsetApi && thingsetApi.delete) return thingsetApi.delete(payload);
+    if (ipc) return ipc.invoke('ts-delete', payload);
+    return null;
+  }
+
+  async function tsUpdate(payload) {
+    if (thingsetApi && thingsetApi.update) return thingsetApi.update(payload);
+    if (ipc) return ipc.invoke('ts-update', payload);
+    return null;
+  }
+
+  async function saveUiSubscription(addr, fullPath, subscribed) {
+    try {
+      const tree = await readTreeForAddr(addr);
+      if (!tree || !tree.root) return false;
+      tree.root._ui = tree.root._ui || {};
+      tree.root._ui.subscriptions = tree.root._ui.subscriptions || {};
+      if (subscribed) tree.root._ui.subscriptions[fullPath] = true;
+      else delete tree.root._ui.subscriptions[fullPath];
+      return await writeTreeForAddr(addr, tree);
+    } catch { return false; }
+  }
+
+  function emitSubscriptionEvent(addr, fullPath, subscribed) {
+    if (addr == null || !fullPath) return;
+    try {
+      window.dispatchEvent(new CustomEvent('thingset-subscriptions-updated', {
+        detail: { addr, path: fullPath, subscribed: !!subscribed }
+      }));
+    } catch {}
+  }
+
+  async function saveUiExpansion(addr, pathStr, expanded) {
+    try {
+      if (!pathStr) return false;
+      const tree = await readTreeForAddr(addr);
+      if (!tree || !tree.root) return false;
+      tree.root._ui = tree.root._ui || {};
+      tree.root._ui.expandedPaths = tree.root._ui.expandedPaths || {};
+      if (expanded) tree.root._ui.expandedPaths[pathStr] = true;
+      else delete tree.root._ui.expandedPaths[pathStr];
+      return await writeTreeForAddr(addr, tree);
+    } catch { return false; }
+  }
+
+  function findNodeByPathInTreeRoot(root, pathStr) {
+    if (!root || !pathStr) return null;
+    const segs = String(pathStr).split('/').filter(Boolean);
+    let cur = root;
+    for (const seg of segs) {
+      if (!cur.children || typeof cur.children !== 'object') return null;
+      cur = cur.children[seg];
+      if (!cur) return null;
+    }
+    return cur;
+  }
+
+  async function saveNodeValue(addr, pathStr, value) {
+    try {
+      const tree = await readTreeForAddr(addr);
+      if (!tree || !tree.root) return false;
+      const node = findNodeByPathInTreeRoot(tree.root, pathStr);
+      if (node) node.value = value;
+      // Mirror under _ui for quick reads
+      tree.root._ui = tree.root._ui || {};
+      tree.root._ui.reporting = tree.root._ui.reporting || {};
+      if (pathStr === '_Reporting/mLive/sEnable') tree.root._ui.reporting.sEnable = !!value;
+      return await writeTreeForAddr(addr, tree);
+    } catch { return false; }
+  }
+
+  freeboard.loadWidgetPlugin({
+    type_name: 'thingset_device_ui',
+    display_name: 'ThingSet Device UI',
+    description: 'Select a CAN device and render a UI from its datanodes (JSON tree).',
+    settings: [
+      { name: 'channel', display_name: 'Channel', type: 'text', default_value: 'can0' }
+    ],
+    newInstance: function (settings, newInstanceCallback) {
+      newInstanceCallback(new DeviceUIWidget(settings));
+    }
+  });
+
+  function DeviceUIWidget(settings) {
+    let current = settings || {};
+    const root = $('<div class="d-flex flex-column h-100 gap-2" style="min-height:0;"></div>');
+
+    const controls = $('<div class="d-flex flex-wrap gap-1 align-items-center"></div>');
+    const devSelect = $('<select class="form-select form-select-sm" style="max-width: 360px;"></select>');
+    const btnRefresh = $('<button class="btn btn-secondary btn-sm">Reload</button>');
+    const btnToggleReporting = $('<button class="btn btn-outline-success btn-sm">Enable reporting</button>');
+    const btnScanBuild = $('<button class="btn btn-primary btn-sm">Scan + Build</button>');
+    const btnExpandAll = $('<button class="btn btn-outline-secondary btn-sm">Expand all</button>');
+    const btnCollapseAll = $('<button class="btn btn-outline-secondary btn-sm">Collapse all</button>');
+    const filter = $('<input type="text" class="form-control form-control-sm" placeholder="Filter..." style="max-width: 240px;">');
+    const status = $('<div class="small text-muted"></div>');
+    const contentWrap = $('<div class="flex-fill" style="min-height:0; overflow:auto;"></div>');
+    const content = $('<div></div>');
+    contentWrap.append(content);
+
+    controls.append(
+      $('<span class="input-group-text">Device</span>'),
+      devSelect,
+      btnRefresh,
+      btnScanBuild,
+      btnExpandAll,
+      btnCollapseAll,
+      btnToggleReporting,
+      filter
+    );
+    root.append(controls, contentWrap, status);
+
+    async function populateDevices(selectFirst = false) {
+      const devices = await listDevices();
+      devSelect.empty();
+      devices.forEach(d => devSelect.append(`<option value="${d.value}">${d.label}</option>`));
+      if (selectFirst && devices.length) devSelect.val(String(devices[0].value));
+      status.text(devices.length ? `Found ${devices.length} device(s)` : 'No devices found. Use Scan + Build.');
+      return devices;
+    }
+
+    function findNodeByPath(root, pathStr) {
+      if (!root || !pathStr) return null;
+      const segs = String(pathStr).split('/').filter(Boolean);
+      let cur = root;
+      for (const seg of segs) {
+        if (!cur.children || typeof cur.children !== 'object') return null;
+        cur = cur.children[seg];
+        if (!cur) return null;
+      }
+      return cur;
+    }
+
+    function updateReportingButton(addr, tree) {
+      // Default disabled state when not available
+      btnToggleReporting.prop('disabled', true)
+        .removeClass('btn-success btn-outline-danger btn-outline-success')
+        .addClass('btn-outline-success')
+        .text('Enable reporting');
+
+      if (!addr || !tree || !tree.root) return;
+      const sEnableNode = findNodeByPath(tree.root, '_Reporting/mLive/sEnable');
+      if (!sEnableNode) return; // keep disabled if feature not present
+      const enabled = toBool(sEnableNode.value);
+      setReportingButtonState(enabled);
+    }
+
+    function setReportingButtonState(enabled) {
+      btnToggleReporting.prop('disabled', false)
+        .toggleClass('btn-outline-success', !enabled)
+        .toggleClass('btn-outline-danger', enabled)
+        .text(enabled ? 'Disable reporting' : 'Enable reporting')
+        .data('enabled', !!enabled);
+    }
+
+    function updateSenableValueInUI(enabled) {
+      try {
+        const pathBadge = content.find('span.badge.bg-light.text-dark').filter((i, el) => $(el).text() === '_Reporting/mLive/sEnable');
+        if (!pathBadge.length) return;
+        const row = pathBadge.closest('.d-flex.align-items-center.justify-content-between');
+        const codeEl = row.find('code').first();
+        if (codeEl && codeEl.length) codeEl.text(String(!!enabled));
+      } catch {}
+    }
+
+    async function toggleReporting(addr, channel, enable) {
+      if ((!thingsetApi && !ipc) || addr == null || !channel) return { ok: false };
+      try {
+        const resp = await tsUpdate({
+          channel,
+          targetAddr: addr,
+          endpoint: '_Reporting/mLive',
+          values: { sEnable: !!enable }
+        });
+        const ok = resp && resp.status >= 0x80 && resp.status < 0xA0;
+        return { ok };
+      } catch (e) {
+        return { ok: false, error: e?.message || String(e) };
+      }
+    }
+
+    async function renderSelected() {
+      const v = devSelect.val();
+      if (!v) { content.empty(); status.text('Select a device.'); return; }
+      const addr = parseInt(v, 10);
+      const tree = await readTreeForAddr(addr);
+      if (!tree || !tree.root) { content.empty(); status.text('No tree JSON for this device. Use Scan + Build.'); return; }
+      let subsetId = null;
+      try {
+        const idStr = tree?.root?.children?.mLive?.id;
+        if (typeof idStr === 'string' && idStr.startsWith('0x')) subsetId = parseInt(idStr, 16);
+      } catch {}
+      const ctx = {
+        ts: {
+          idsForPaths: tsIdsForPaths,
+          create: tsCreate,
+          delete: tsDelete,
+          update: tsUpdate
+        },
+        channel: current.channel || 'can0',
+        addr,
+        subsetId,
+        uiState: (tree?.root?._ui || {})
+      };
+      const ui = renderTree(tree.root, filter.val(), ctx);
+      content.empty().append(ui);
+      const hex = `0x${addr.toString(16).toUpperCase().padStart(2, '0')}`;
+      status.text(`Loaded ${hex} (${tree.node_uid || 'unknown uid'})`);
+
+      // Update reporting toggle button based on current tree
+      updateReportingButton(addr, tree);
+    }
+
+    async function setAllExpanded(open) {
+      const want = !!open;
+      try {
+        content.find('details').prop('open', want);
+        // Persist for nodes we know the path of
+        const addrVal = parseInt(devSelect.val(), 10);
+        if (addrVal) {
+          const tree = await readTreeForAddr(addrVal);
+          if (tree && tree.root) {
+            tree.root._ui = tree.root._ui || {};
+            tree.root._ui.expandedPaths = tree.root._ui.expandedPaths || {};
+            const map = tree.root._ui.expandedPaths;
+            content.find('details[data-path]').each((_, el) => {
+              const p = el.getAttribute ? el.getAttribute('data-path') : $(el).attr('data-path');
+              if (!p) return;
+              if (want) map[p] = true; else delete map[p];
+            });
+            await writeTreeForAddr(addrVal, tree);
+          }
+        }
+      } catch {}
+    }
+
+    this.render = function (container) {
+      const $container = $(container);
+      // Ensure the widget itself fills its parent; scrolling happens in contentWrap
+      $container.css({ overflow: 'hidden' });
+      $container.empty().append(root);
+      populateDevices(true).then(() => renderSelected()).catch(() => {});
+
+      btnRefresh.on('click', () => { populateDevices().then(() => renderSelected()).catch(() => {}); });
+
+      btnScanBuild.on('click', async () => {
+        status.text('Scanning and building trees...');
+        btnScanBuild.prop('disabled', true);
+        const ch = current.channel || 'can0';
+        const res = await scanAndBuild(ch);
+        btnScanBuild.prop('disabled', false);
+        if (!res.ok) status.text(`Scan failed: ${res.reason || 'unknown error'}`);
+        populateDevices().then(() => renderSelected()).catch(() => {});
+      });
+
+      btnToggleReporting.on('click', async () => {
+        const v = devSelect.val();
+        if (!v) return;
+        const addr = parseInt(v, 10);
+        const channel = current.channel || 'can0';
+        const willEnable = !(btnToggleReporting.data('enabled') === true);
+        btnToggleReporting.prop('disabled', true).text('Working…');
+      const res = await toggleReporting(addr, channel, willEnable);
+      if (res.ok) {
+        // Trust the requested state immediately and update button + inline value
+        const enabledNow = !!willEnable;
+        setReportingButtonState(enabledNow);
+        updateSenableValueInUI(enabledNow);
+        saveNodeValue(addr, '_Reporting/mLive/sEnable', enabledNow).catch(() => {});
+      } else {
+          // On failure, restore previous label from data
+          const prevEnabled = btnToggleReporting.data('enabled') === true;
+          setReportingButtonState(prevEnabled);
+        }
+      });
+
+      btnExpandAll.on('click', () => { setAllExpanded(true).catch(() => {}); });
+      btnCollapseAll.on('click', () => { setAllExpanded(false).catch(() => {}); });
+
+      devSelect.on('change', () => { renderSelected().catch(() => {}); });
+      filter.on('input', () => { renderSelected().catch(() => {}); });
+    };
+
+    this.onSettingsChanged = function (s) { current = s || {}; };
+    this.onDispose = function () {};
+    this.getHeight = function () { return 8; };
+  }
+}());
+
+
+
+
