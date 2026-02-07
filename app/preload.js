@@ -118,6 +118,7 @@ const api = {
         isAbsolute: (input) => path.isAbsolute(input),
         sep: path.sep,
         cwd: () => process.cwd(),
+        appDir: () => __dirname,
         toFileUrl: (input) => pathToFileURL(input).toString()
     },
     logger: {

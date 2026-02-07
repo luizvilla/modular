@@ -18,6 +18,7 @@
 
     function getDashboardRoot() {
         // Runtime assets moved under app/, so resolve dashboard from app/dashboard.
+        if (paths && paths.appDir && paths.join) return paths.join(paths.appDir(), 'dashboard');
         if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'dashboard');
         if (localDir && path) return path.join(localDir, '..');
         return null;
@@ -321,6 +322,7 @@
 
     function getWidgetsDocsRoot() {
         // Widget docs live under app/docs/widgets (outside the dashboard assets).
+        if (paths && paths.appDir && paths.join) return paths.join(paths.appDir(), 'docs', 'widgets');
         if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'docs', 'widgets');
         if (localDir && path) return path.join(localDir, '..', 'docs', 'widgets');
         return null;
