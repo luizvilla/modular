@@ -1,4 +1,35 @@
 (function () {
+  // Activity visibility toggle (default off).
+  const ACTIVITY_ENABLED_KEY = 'modular_activity_enabled';
+  let activityEnabled = false;
+
+  function loadActivityEnabled() {
+    try {
+      const raw = localStorage.getItem(ACTIVITY_ENABLED_KEY);
+      if (raw === null) return false;
+      return raw === '1' || raw === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  function setActivityEnabled(enabled) {
+    activityEnabled = !!enabled;
+    try {
+      localStorage.setItem(ACTIVITY_ENABLED_KEY, activityEnabled ? '1' : '0');
+    } catch { /* ignore */ }
+    if (!activityEnabled) {
+      const cont = document.querySelector('.toast-container.activity-toasts');
+      if (cont) cont.remove();
+      const btn = document.getElementById('activity-center-button');
+      if (btn) btn.remove();
+      const modal = document.getElementById('activityCenterModal');
+      if (modal) modal.remove();
+      return;
+    }
+    ensureActivityCenter();
+    adjustToastContainerOffset();
+  }
   // In-memory history of last N toasts
   const HISTORY_LIMIT = 10;
   const history = [];
@@ -48,6 +79,7 @@
   }
 
   function showToast({ variant = 'info', title = 'Activity', body = '', delay = 5000 }) {
+    if (!activityEnabled) return;
     const cont = ensureContainer();
     // Make sure container is offset if Activity button exists
     adjustToastContainerOffset();
@@ -111,6 +143,7 @@
   }
 
   function showProgressToast(key, { title = 'Task', label = '' } = {}) {
+    if (!activityEnabled) return null;
     const cont = ensureContainer();
     adjustToastContainerOffset();
     const el = document.createElement('div');
@@ -153,6 +186,7 @@
   }
 
   function updateProgressToast(key, pct) {
+    if (!activityEnabled) return;
     const ref = progressToasts.get(key);
     if (!ref) return;
     const bar = ref.el.querySelector('.progress-bar');
@@ -164,6 +198,7 @@
   }
 
   function completeProgressToast(key, success = true, detail = '') {
+    if (!activityEnabled) return;
     const ref = progressToasts.get(key);
     if (!ref) return;
     try {
@@ -198,6 +233,7 @@
   }
 
   function handleActivity(evt) {
+    if (!activityEnabled) return;
     if (!evt || !evt.state) return;
     const key = keyOf(evt);
     const label = evt.label || evt.id || 'Task';
@@ -262,6 +298,18 @@
       const ipc = window.require && window.require('electron') && window.require('electron').ipcRenderer;
       if (ipc && typeof ipc.on === 'function') {
         ipc.on('activity', (_e, evt) => handleActivity(evt));
+      }
+    }
+    if (activityApi && activityApi.onToggle) {
+      activityApi.onToggle((payload) => {
+        setActivityEnabled(!!payload && payload.enabled === true);
+      });
+    } else {
+      const ipc = window.require && window.require('electron') && window.require('electron').ipcRenderer;
+      if (ipc && typeof ipc.on === 'function') {
+        ipc.on('activity-toggle', (_e, payload) => {
+          setActivityEnabled(!!payload && payload.enabled === true);
+        });
       }
     }
 
@@ -412,11 +460,27 @@
   }
 
   // Initialize controls once DOM is ready
+  async function initActivityToggle() {
+    let enabled = loadActivityEnabled();
+    try {
+      const api = window.api || null;
+      const activityApi = api && api.activity ? api.activity : null;
+      if (activityApi && activityApi.getEnabled) {
+        const res = await activityApi.getEnabled();
+        if (res && typeof res.enabled === 'boolean') enabled = res.enabled;
+      }
+    } catch { /* ignore */ }
+    setActivityEnabled(enabled);
+    if (activityEnabled) {
+      ensureActivityCenter();
+      adjustToastContainerOffset();
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { ensureActivityCenter(); adjustToastContainerOffset(); });
+    document.addEventListener('DOMContentLoaded', () => { initActivityToggle(); });
   } else {
-    ensureActivityCenter();
-    adjustToastContainerOffset();
+    initActivityToggle();
   }
 
   // Keep layout correct on resize/orientation changes
@@ -427,7 +491,7 @@
     show: showToast,
     history: () => [...history],
     showCenter: showActivityCenter,
-    clear: () => { history.length = 0; updateActivityBadge(); }
+    clear: () => { history.length = 0; updateActivityBadge(); },
+    setEnabled: setActivityEnabled
   };
 })();
-

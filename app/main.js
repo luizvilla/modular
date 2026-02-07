@@ -250,6 +250,7 @@ ipcMain.on('widget-docs-ready', () => {
 function setAppMenu() {
     const examplesMenu = buildExamplesMenuItems();
     const widgetDocsMenu = buildWidgetDocsMenuItems();
+    // Activity toggle state (off by default to reduce UI noise).
     const template = [
         {
             label: 'File',
@@ -278,6 +279,18 @@ function setAppMenu() {
             label: 'Edit',
             submenu: [
                 {
+                    label: 'Toggle Activity',
+                    type: 'checkbox',
+                    checked: activityEnabled,
+                    click: (item) => {
+                        activityEnabled = !!item.checked;
+                        if (mainWindow && mainWindow.webContents) {
+                            mainWindow.webContents.send('activity-toggle', { enabled: activityEnabled });
+                        }
+                    }
+                },
+                { type: 'separator' },
+                {
                     label: 'Widget Categories',
                     click: () => {
                         if (mainWindow && mainWindow.webContents) {
@@ -304,16 +317,27 @@ function setAppMenu() {
     ];
 
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+    // Sync activity toggle state to the renderer on menu build.
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('activity-toggle', { enabled: activityEnabled });
+    }
 }
+
+// Activity toggle (default off to reduce UI noise).
+let activityEnabled = false;
 
 // Emit UI activity events to renderer (used for toasts/indicators)
 function emitActivity(evt) {
     try {
-        if (mainWindow && mainWindow.webContents) {
+        // Respect the activity toggle to avoid spamming the renderer.
+        if (activityEnabled && mainWindow && mainWindow.webContents) {
             mainWindow.webContents.send('activity', { ts: Date.now(), scope: 'can', ...evt });
         }
     } catch {}
 }
+
+// Allow renderer to query the current activity toggle state.
+ipcMain.handle('get-activity-enabled', () => ({ enabled: !!activityEnabled }));
 
 // Path to mcumgr binary, assumes it is bundled alongside the app in a tools folder
 const mcumgrBinary = process.platform === 'win32' ? 'mcumgr.exe'

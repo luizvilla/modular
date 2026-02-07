@@ -11,7 +11,9 @@ function on(channel, handler) {
 
 const api = {
     activity: {
-        on: (cb) => on('activity', cb)
+        on: (cb) => on('activity', cb),
+        onToggle: (cb) => on('activity-toggle', cb),
+        getEnabled: () => ipcRenderer.invoke('get-activity-enabled')
     },
     dashboard: {
         openDashboardDialog: () => ipcRenderer.invoke('show-open-dashboard'),
