@@ -371,7 +371,8 @@
       defs.forEach((d, i) => {
         const row = $('<div class="d-flex align-items-center justify-content-between border rounded px-2 py-1"></div>');
         const left = $('<div class="d-flex align-items-center gap-2"></div>');
-        const label = d.label || this._formatDefLabel(d, i);
+        const baseLabel = this._formatDefLabel(d, i);
+        const label = d.label ? `${d.label} · ${baseLabel}` : baseLabel;
         left.append($('<strong></strong>').text(label));
         const devALabel = (d.a.type === 'can_datasource') ? (d.a.device_uid || d.a.device || '') : '';
         left.append(`<span class="badge bg-light text-dark">${d.a.ds}${devALabel ? ' ' + devALabel : ''}</span>`);
