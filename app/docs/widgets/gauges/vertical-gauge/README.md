@@ -8,13 +8,7 @@ Single-channel vertical gauge with min/max bounds and optional alarm state.
 ![Creation](creation.png)
 
 - Title: Widget title shown above the gauge.
-- Minimum / Maximum: Scale range for the gauge.
-- Bar Color: Color theme for the fill bar.
-- Alarm Enabled: Enable alarm threshold highlighting.
-- Alarm Threshold: Value that triggers the alarm state.
-- Alarm Direction: Trip when above or below the threshold.
-- Refresh Rate: Polling interval in milliseconds.
-- Source (managed by Gauge Manager): Data source binding set by the Gauge Manager.
+- Helper Widgets: Auto-spawn the Vertical Gauge UI and/or Gauge Channel Manager when the gauge is created.
 
 ## Usage (in dashboard)
 ![Usage](usage.png)
@@ -23,4 +17,4 @@ Single-channel vertical gauge with min/max bounds and optional alarm state.
 - Min/Max labels: Show configured bounds.
 - Value: Numeric readout of the current value.
 - Alarm styling: Red highlight when the threshold is tripped.
-
+- Tuning: Use the Vertical Gauge UI for min/max, alarm, refresh, and color palette selection.

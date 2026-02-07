@@ -1,8 +1,8 @@
 <!-- Widget documentation (auto-generated from widget definitions). -->
-# Plot Series Manager
+# Plot Channel Manager
 
 ## What it does
-Manage plot series definitions: datasource, variables, and math operations for a target plot.
+Manage plot channel definitions: datasource, variables, and math operations for a target plot.
 
 ## Creation (settings)
 ![Creation](creation.png)
@@ -12,13 +12,12 @@ Manage plot series definitions: datasource, variables, and math operations for a
 ## Usage (in dashboard)
 ![Usage](usage.png)
 
-- Target Plot: Select the plot to edit series for.
+- Target Plot: Select the plot to edit channels for.
 - Update sources: Refresh datasources/devices/variables list.
 - Operation: Choose identity, scale, offset, or x*y math.
 - k / b: Parameter for scale or offset operations.
 - Source X / Source Y: Pick datasource/device/variable inputs.
-- Label: Optional series label.
-- Add series: Append a new series definition.
-- Reset all: Clear all series from the target plot.
-- Series list: Shows the active series definitions.
-
+- Label: Optional channel label.
+- Add channel: Append a new channel definition.
+- Reset channels: Clear all channels from the target plot.
+- Channel list: Shows the active channel definitions.

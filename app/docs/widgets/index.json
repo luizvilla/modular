@@ -1,5 +1,5 @@
 {
-  "_comment": "Widget docs index for Help menu + widget docs tabs. Serial port control and header editor removed.",
+  "_comment": "Widget docs index for Help menu + widget docs tabs. Channel manager naming aligned.",
   "widgets": [
     {
       "type": "owntech_plot_uplot",
@@ -17,7 +17,7 @@
     },
     {
       "type": "uplot_series_manager",
-      "title": "Plot Series Manager",
+      "title": "Plot Channel Manager",
       "category": "Plots",
       "doc": "plots/plot-series-manager/README.md",
       "requiresThingset": false
@@ -31,7 +31,7 @@
     },
     {
       "type": "vertical_gauge_manager",
-      "title": "Vertical Gauge Manager",
+      "title": "Gauge Channel Manager",
       "category": "Gauges",
       "doc": "gauges/vertical-gauge-manager/README.md",
       "requiresThingset": false

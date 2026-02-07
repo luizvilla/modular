@@ -18,5 +18,5 @@ Control panel for adjusting settings of a target Plot (uPlot) widget.
 - Y Axis Label: Label text shown on the Y axis.
 - Y Min / Y Max: Manual Y axis bounds (optional).
 - Show Legend: Toggle legend visibility.
+- Color palette: Select the palette used for plot series colors.
 - Apply Settings: Push updates to the target plot.
-

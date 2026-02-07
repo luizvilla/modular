@@ -1,5 +1,5 @@
 <!-- Widget documentation (auto-generated from widget definitions). -->
-# Vertical Gauge Manager
+# Gauge Channel Manager
 
 ## What it does
 Select datasource/channel for a target Vertical Gauge widget.
@@ -17,4 +17,3 @@ Select datasource/channel for a target Vertical Gauge widget.
 - Source: Select datasource, device, and variable.
 - Apply to Gauge: Write the selected source into the gauge settings.
 - Clear Source: Remove the gauge source binding.
-
