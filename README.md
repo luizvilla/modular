@@ -7,7 +7,6 @@ It is built on Electron + Freeboard with custom widgets for serial, plotting, an
 Modular is built for fast feedback loops: connect hardware, stream data, visualize behavior, and iterate
 without leaving the dashboard.
 
-## Hero
 
 ![Modular dashboard hero](app/docs/readme/readme-dashboard.png)
 
@@ -43,26 +42,26 @@ without leaving the dashboard.
 
 ## Dashboard preview
 
+The dashboard supports a plot and a gauge widgets.
+
 <!-- README media: generated from dev/tools/capture_readme_screenshots.js + screencasts. -->
 ![Modular dashboard](app/docs/readme/readme-dashboard.gif)
 
-### Plot
+The plot widget can be used to trace data (here a sine wave)
+
 ![Plot widget](app/docs/readme/readme-plot.gif)
 
-### Gauge
+The gauge widget can be used to create warnings. 
+
 ![Gauge widget](app/docs/readme/readme-gauge.gif)
 
-### Terminal
-![Terminal widget](app/docs/readme/readme-terminal.gif)
 
 ### Firmware upload
+
+Firmware upload is supported by mcuboot and Serial port. 
+
 ![Firmware upload mockup](app/docs/readme/readme-flash.gif)
 
-## Static screenshots
-
-![Plot widget screenshot](app/docs/readme/readme-plot.png)
-![Gauge widget screenshot](app/docs/readme/readme-gauge.png)
-![Terminal widget screenshot](app/docs/readme/readme-terminal.png)
 
 ## Quick start
 
