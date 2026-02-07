@@ -113,6 +113,7 @@
         _maybeSpawnHelpers() {
             const mode = this._resolveHelperWidgets(this.settings);
             if (mode === 'none') return;
+            if (this._helpersSpawned) return;
             const model = freeboard.getLiveModel && freeboard.getLiveModel();
             if (!model || typeof model.panes !== 'function') return;
 
@@ -147,7 +148,73 @@
             }
             if (!helpers.length) return;
 
-            pane.widgets.splice(widgetIndex + 1, 0, ...helpers);
+            // Spawn helpers in a separate pane to the right of the gauge.
+            const paneModel = panes[paneIndex];
+            const helperTypes = new Set(helpers.map(h => h.type));
+            const getPanePosition = (paneModelRef, paneCfgRef) => {
+                if (window.freeboardUI && typeof freeboardUI.getPositionForScreenSize === 'function') {
+                    const pos = freeboardUI.getPositionForScreenSize(paneModelRef);
+                    if (pos && typeof pos.row === 'number' && typeof pos.col === 'number') {
+                        return { row: pos.row, col: pos.col };
+                    }
+                }
+                if (paneCfgRef && typeof paneCfgRef.row === 'number' && typeof paneCfgRef.col === 'number') {
+                    return { row: paneCfgRef.row, col: paneCfgRef.col };
+                }
+                const rowKeys = paneModelRef && paneModelRef.row ? Object.keys(paneModelRef.row) : [];
+                const colKeys = paneModelRef && paneModelRef.col ? Object.keys(paneModelRef.col) : [];
+                const key = rowKeys[0] || colKeys[0];
+                return {
+                    row: key && paneModelRef.row ? (paneModelRef.row[key] || 1) : 1,
+                    col: key && paneModelRef.col ? (paneModelRef.col[key] || 1) : 1
+                };
+            };
+            const basePos = getPanePosition(paneModel, pane);
+            const targetRow = basePos.row;
+            const targetCol = basePos.col + 1;
+            const helperPaneExists = panes.some((paneRef, idx) => {
+                if (idx === paneIndex) return false;
+                const pos = getPanePosition(paneRef, cfg.panes[idx]);
+                if (!pos || pos.row !== targetRow || pos.col !== targetCol) return false;
+                return paneRef.widgets().some(widget => helperTypes.has(widget.type && widget.type()));
+            });
+            if (helperPaneExists) {
+                this._helpersSpawned = true;
+                return;
+            }
+
+            // Prevent duplicate pane creation during rapid re-renders or reloads.
+            const lockKey = `pane:${paneIndex}:widget:${widgetIndex}:helpers:${[...helperTypes].sort().join(',')}`;
+            window.__modularHelperSpawnLocks = window.__modularHelperSpawnLocks || {};
+            if (window.__modularHelperSpawnLocks[lockKey]) return;
+            window.__modularHelperSpawnLocks[lockKey] = true;
+
+            const helperPane = {
+                title: null,
+                width: pane.width,
+                row: {},
+                col: {},
+                col_width: pane.col_width || (paneModel.col_width ? Number(paneModel.col_width()) : 2),
+                widgets: helpers
+            };
+            const rowKeys = paneModel && paneModel.row ? Object.keys(paneModel.row) : [];
+            const colKeys = paneModel && paneModel.col ? Object.keys(paneModel.col) : [];
+            const keys = new Set([...rowKeys, ...colKeys]);
+            if (keys.size > 0) {
+                keys.forEach((key) => {
+                    const rowVal = paneModel.row && paneModel.row[key] ? paneModel.row[key] : targetRow;
+                    const colVal = paneModel.col && paneModel.col[key] ? paneModel.col[key] : basePos.col;
+                    helperPane.row[key] = rowVal;
+                    helperPane.col[key] = colVal + 1;
+                });
+            } else {
+                helperPane.row = targetRow;
+                helperPane.col = targetCol;
+            }
+
+            cfg.panes.splice(paneIndex + 1, 0, helperPane);
+            // Mark as spawned to prevent duplicate pane creation during reload.
+            this._helpersSpawned = true;
             freeboard.loadDashboard(cfg);
         }
 
