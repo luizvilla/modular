@@ -1,4 +1,4 @@
-const { SerialPort } = require('serialport');
+﻿const { SerialPort } = require('serialport');
 const { spawn } = require('child_process');
 
 let currentFlashProcess = null;
@@ -48,14 +48,74 @@ function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, 
         return false;
     };
 
+    const shouldSkipTouch = (err) => {
+        if (!err) return false;
+        if (process.platform !== 'win32') return false;
+        const msg = String(err.message || '');
+        if (msg.includes('SetCommState')) return true;
+        if (msg.includes('Unknown error code 433')) return true;
+        return false;
+    };
+
+    const startMcumgr = () => {
+        runMcumgrCommand(
+            mcumgrPath,
+            ['conn','add','serial','type=serial',`connstring=dev=${comPort},baud=115200,mtu=128`],
+            progressCallback,
+            progressCallback,
+            code => {
+                if (code !== 0) {
+                    progressCallback && progressCallback('Error: Failed to add connection.');
+                    cleanupCurrentProcess();
+                    finish();
+                    return;
+                }
+                runMcumgrCommand(
+                    mcumgrPath,
+                    ['-c','serial','image','upload',firmwarePath],
+                    progressCallback,
+                    progressCallback,
+                    code => {
+                        if (code !== 0) {
+                            progressCallback && progressCallback('Error: Firmware upload failed.');
+                            cleanupCurrentProcess();
+                            finish();
+                            return;
+                        }
+                        runMcumgrCommand(
+                            mcumgrPath,
+                            ['-c','serial','reset'],
+                            progressCallback,
+                            progressCallback,
+                            code => {
+                                if (code !== 0) {
+                                    progressCallback && progressCallback('Error: Reset failed.');
+                                } else {
+                                    progressCallback && progressCallback('Success: Flashing and reset complete!');
+                                }
+                                cleanupCurrentProcess();
+                                finish();
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    };
+
     const tryTouchPort = (attempt = 0) => {
         if (aborted) return finish();
         const touchPort = new SerialPort({ path: comPort, baudRate: 1200 }, err => {
             if (err) {
                 const base = `Error: Could not open port at 1200 baud. ${err.message}`;
                 if (shouldRetryTouch(err) && attempt < maxRetries) {
-                    progressCallback && progressCallback(`${base} Retrying (${attempt + 1}/${maxRetries})…`);
+                    progressCallback && progressCallback(`${base} Retrying (${attempt + 1}/${maxRetries})...`);
                     setTimeout(() => tryTouchPort(attempt + 1), retryDelayMs);
+                    return;
+                }
+                if (shouldSkipTouch(err)) {
+                    progressCallback && progressCallback(`${base} Continuing without 1200-baud touch (assuming bootloader is already active).`);
+                    setTimeout(() => startMcumgr(), 200);
                     return;
                 }
                 progressCallback && progressCallback(base);
@@ -68,51 +128,9 @@ function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, 
                     finish();
                     return;
                 }
-                progressCallback && progressCallback('Serial port touched at 1200 baud. Waiting for bootloader…');
+                progressCallback && progressCallback('Serial port touched at 1200 baud. Waiting for bootloader...');
                 setTimeout(() => {
-                    runMcumgrCommand(
-                        mcumgrPath,
-                        ['conn','add','serial','type=serial',`connstring=dev=${comPort},baud=115200,mtu=128`],
-                        progressCallback,
-                        progressCallback,
-                        code => {
-                            if (code !== 0) {
-                                progressCallback && progressCallback('Error: Failed to add connection.');
-                                cleanupCurrentProcess();
-                                finish();
-                                return;
-                            }
-                            runMcumgrCommand(
-                                mcumgrPath,
-                                ['-c','serial','image','upload',firmwarePath],
-                                progressCallback,
-                                progressCallback,
-                                code => {
-                                    if (code !== 0) {
-                                        progressCallback && progressCallback('Error: Firmware upload failed.');
-                                        cleanupCurrentProcess();
-                                        finish();
-                                        return;
-                                    }
-                                    runMcumgrCommand(
-                                        mcumgrPath,
-                                        ['-c','serial','reset'],
-                                        progressCallback,
-                                        progressCallback,
-                                        code => {
-                                            if (code !== 0) {
-                                                progressCallback && progressCallback('Error: Reset failed.');
-                                            } else {
-                                                progressCallback && progressCallback('Success: Flashing and reset complete!');
-                                            }
-                                            cleanupCurrentProcess();
-                                            finish();
-                                        }
-                                    );
-                                }
-                            );
-                        }
-                    );
+                    startMcumgr();
                 }, 500);
             });
         });

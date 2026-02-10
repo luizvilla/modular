@@ -36,7 +36,7 @@
   const tasks = new Map(); // key -> { title, label, variant, progress (0-100), startedAt }
   const progressToasts = new Map(); // key -> { el, toast }
   function ensureContainer() {
-    let cont = document.querySelector('.toast-container');
+    let cont = document.querySelector('.toast-container.activity-toasts');
     if (!cont) {
       cont = document.createElement('div');
       cont.className = 'toast-container activity-toasts position-fixed bottom-0 end-0 p-2';
@@ -329,6 +329,7 @@
         if (!t) return;
         t.progress = p;
         t.detail = `Progress: ${p}%`;
+        updateProgressToast(lastKey, p);
         renderActiveTasks();
       } catch {}
     };
