@@ -29,66 +29,96 @@ function runMcumgrCommand(mcumgrPath, args, onData, onError, onClose) {
 
 function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, onDone) {
     aborted = false;
-    const touchPort = new SerialPort({ path: comPort, baudRate: 1200 }, err => {
-        if (err) {
-            progressCallback && progressCallback(`Error: Could not open port at 1200 baud. ${err.message}`);
-            onDone && onDone();
-            return;
-        }
-        touchPort.close(closeErr => {
-            if (closeErr) {
-                progressCallback && progressCallback(`Error: Failed to close 1200 baud port. ${closeErr.message}`);
-                onDone && onDone();
+    let done = false;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        onDone && onDone();
+    };
+
+    const maxRetries = 8;
+    const retryDelayMs = 300;
+
+    const shouldRetryTouch = (err) => {
+        if (!err) return false;
+        const msg = String(err.message || '').toLowerCase();
+        if (err.code === 'EBUSY') return true;
+        if (msg.includes('resource temporarily unavailable')) return true;
+        if (msg.includes('cannot lock port')) return true;
+        return false;
+    };
+
+    const tryTouchPort = (attempt = 0) => {
+        if (aborted) return finish();
+        const touchPort = new SerialPort({ path: comPort, baudRate: 1200 }, err => {
+            if (err) {
+                const base = `Error: Could not open port at 1200 baud. ${err.message}`;
+                if (shouldRetryTouch(err) && attempt < maxRetries) {
+                    progressCallback && progressCallback(`${base} Retrying (${attempt + 1}/${maxRetries})…`);
+                    setTimeout(() => tryTouchPort(attempt + 1), retryDelayMs);
+                    return;
+                }
+                progressCallback && progressCallback(base);
+                finish();
                 return;
             }
-            progressCallback && progressCallback('Serial port touched at 1200 baud. Waiting for bootloader…');
-            setTimeout(() => {
-                runMcumgrCommand(
-                    mcumgrPath,
-                    ['conn','add','serial','type=serial',`connstring=dev=${comPort},baud=115200,mtu=128`],
-                    progressCallback,
-                    progressCallback,
-                    code => {
-                        if (code !== 0) {
-                            progressCallback && progressCallback('Error: Failed to add connection.');
-                            cleanupCurrentProcess();
-                            onDone && onDone();
-                            return;
-                        }
-                        runMcumgrCommand(
-                            mcumgrPath,
-                            ['-c','serial','image','upload',firmwarePath],
-                            progressCallback,
-                            progressCallback,
-                            code => {
-                                if (code !== 0) {
-                                    progressCallback && progressCallback('Error: Firmware upload failed.');
-                                    cleanupCurrentProcess();
-                                    onDone && onDone();
-                                    return;
-                                }
-                                runMcumgrCommand(
-                                    mcumgrPath,
-                                    ['-c','serial','reset'],
-                                    progressCallback,
-                                    progressCallback,
-                                    code => {
-                                        if (code !== 0) {
-                                            progressCallback && progressCallback('Error: Reset failed.');
-                                        } else {
-                                            progressCallback && progressCallback('Success: Flashing and reset complete!');
-                                        }
-                                        cleanupCurrentProcess();
-                                        onDone && onDone();
-                                    }
-                                );
+            touchPort.close(closeErr => {
+                if (closeErr) {
+                    progressCallback && progressCallback(`Error: Failed to close 1200 baud port. ${closeErr.message}`);
+                    finish();
+                    return;
+                }
+                progressCallback && progressCallback('Serial port touched at 1200 baud. Waiting for bootloader…');
+                setTimeout(() => {
+                    runMcumgrCommand(
+                        mcumgrPath,
+                        ['conn','add','serial','type=serial',`connstring=dev=${comPort},baud=115200,mtu=128`],
+                        progressCallback,
+                        progressCallback,
+                        code => {
+                            if (code !== 0) {
+                                progressCallback && progressCallback('Error: Failed to add connection.');
+                                cleanupCurrentProcess();
+                                finish();
+                                return;
                             }
-                        );
-                    }
-                );
-            }, 500);
+                            runMcumgrCommand(
+                                mcumgrPath,
+                                ['-c','serial','image','upload',firmwarePath],
+                                progressCallback,
+                                progressCallback,
+                                code => {
+                                    if (code !== 0) {
+                                        progressCallback && progressCallback('Error: Firmware upload failed.');
+                                        cleanupCurrentProcess();
+                                        finish();
+                                        return;
+                                    }
+                                    runMcumgrCommand(
+                                        mcumgrPath,
+                                        ['-c','serial','reset'],
+                                        progressCallback,
+                                        progressCallback,
+                                        code => {
+                                            if (code !== 0) {
+                                                progressCallback && progressCallback('Error: Reset failed.');
+                                            } else {
+                                                progressCallback && progressCallback('Success: Flashing and reset complete!');
+                                            }
+                                            cleanupCurrentProcess();
+                                            finish();
+                                        }
+                                    );
+                                }
+                            );
+                        }
+                    );
+                }, 500);
+            });
         });
-    });
+    };
+
+    tryTouchPort();
 }
 
 function cancelFlash() {

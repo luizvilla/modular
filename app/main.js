@@ -344,8 +344,18 @@ const mcumgrBinary = process.platform === 'win32' ? 'mcumgr.exe'
     : process.platform === 'darwin' ? 'mcumgr-mac' : 'mcumgr';
 const mcumgrPath = path.join(__dirname, 'tools', mcumgrBinary);
 
+function resolveMcumgrPath(userPath) {
+    if (userPath && typeof userPath === 'string') return userPath;
+    if (process.env.MCUMGR_PATH) return process.env.MCUMGR_PATH;
+    if (fs.existsSync(mcumgrPath)) return mcumgrPath;
+    // Fallback to PATH on Linux when bundled binary is missing.
+    return 'mcumgr';
+}
+
 const activeRecordings = new Map(); // Active CSV recordings mapped by port path
 const openPorts = new Map(); // key: path, value: SerialPort instance
+// Track ports that should not be opened (e.g., during flashing).
+const serialLocks = new Map(); // key: path, value: { reason, until }
 // Persist last-known serial settings per port so we can auto-reopen later.
 const portSettings = new Map(); // key: path, value: { baudRate, separator, eol, type }
 // Track pending auto-reopen timers and intent per port.
@@ -374,6 +384,27 @@ function decodeEolToken(token) {
     out = out.replace(/\\n/g, '\n');
     out = out.replace(/\\t/g, '\t');
     return out;
+}
+
+function lockSerialPort(path, reason = 'locked', ttlMs = 30000) {
+    if (!path) return;
+    const until = ttlMs ? Date.now() + ttlMs : null;
+    serialLocks.set(path, { reason, until });
+}
+
+function unlockSerialPort(path) {
+    if (!path) return;
+    serialLocks.delete(path);
+}
+
+function isSerialLocked(path) {
+    const lock = serialLocks.get(path);
+    if (!lock) return false;
+    if (lock.until && Date.now() > lock.until) {
+        serialLocks.delete(path);
+        return false;
+    }
+    return true;
 }
 
 
@@ -775,6 +806,13 @@ ipcMain.handle('get-thingset-nodes', async () => {
 // 🚪 Open serial port with tracking and buffer setup
 async function openSerialPortInternal({ path, baudRate, separator, eol, type = 'serialport_datasource' }) {
         emitActivity({ id: 'serial:open', title: path, state: 'start', label: 'Open serial port' });
+        if (isSerialLocked(path)) {
+                const lock = serialLocks.get(path);
+                const reason = lock && lock.reason ? lock.reason : 'locked';
+                console.warn(`Port ${path} is locked (${reason}).`);
+                emitActivity({ id: 'serial:open', title: path, state: 'error', label: 'Open serial port', detail: `locked (${reason})` });
+                return;
+        }
         if (openPorts.has(path)) {
                 console.warn(`Port ${path} is already open.`);
                 // ensure buffers for this datasource type exist
@@ -1354,6 +1392,17 @@ ipcMain.handle('choose-firmware-file', async () => {
 // 🔥 Flash firmware to a board over serial
 ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath: userPath }) => {
     emitActivity({ id: 'dfu:serial', title: comPort, state: 'start', label: 'Serial DFU', detail: firmwarePath });
+    // Prevent background serial datasources from reopening the port during flashing.
+    lockSerialPort(comPort, 'flash', 60000);
+    const resolvedMcumgr = resolveMcumgrPath(userPath);
+    if (resolvedMcumgr !== 'mcumgr' && !fs.existsSync(resolvedMcumgr)) {
+        const msg = `Error: mcumgr not found at ${resolvedMcumgr}`;
+        event.sender.send('flash-progress', msg);
+        emitActivity({ id: 'dfu:serial', title: comPort, state: 'error', label: 'Serial DFU', detail: msg });
+        unlockSerialPort(comPort);
+        event.sender.send('flash-complete');
+        return 'error';
+    }
     const existing = openPorts.get(comPort);
     if (existing && existing.isOpen) {
         await new Promise(res => existing.close(err => {
@@ -1366,7 +1415,7 @@ ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath:
 
     return new Promise(resolve => {
         flashFirmware(
-            { comPort, firmwarePath, mcumgrPath: userPath || mcumgrPath },
+            { comPort, firmwarePath, mcumgrPath: resolvedMcumgr },
             msg => {
                 const m = String(msg);
                 event.sender.send('flash-progress', m);
@@ -1377,6 +1426,7 @@ ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath:
             () => {
                 event.sender.send('flash-complete');
                 emitActivity({ id: 'dfu:serial', title: comPort, state: 'done', label: 'Serial DFU complete' });
+                unlockSerialPort(comPort);
             }
         );
         resolve();
