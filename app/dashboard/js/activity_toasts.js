@@ -228,6 +228,19 @@
   }
 
   const pending = new Map();
+  let lastDfuProgress = 0;
+
+  function extractProgressPercent(text) {
+    const matches = String(text || '').match(/(\d{1,3}(?:\.\d+)?)%/g);
+    if (!matches || !matches.length) return null;
+    let max = null;
+    for (const token of matches) {
+      const n = parseFloat(String(token).replace('%', ''));
+      if (!Number.isFinite(n)) continue;
+      if (max === null || n > max) max = n;
+    }
+    return max;
+  }
   function keyOf(evt) {
     return `${evt?.dsName || 'global'}|${evt?.id || 'activity'}`;
   }
@@ -252,6 +265,7 @@
       // Track active DFU tasks with progress bars
       if (evt.id && (evt.id.startsWith('dfu:'))) {
         tasks.set(key, { id: evt.id, title, label, variant: 'info', progress: 0, startedAt: Date.now() });
+        lastDfuProgress = 0;
         // Create a live progress toast for DFU tasks
         showProgressToast(key, { title, label });
         renderActiveTasks();
@@ -316,9 +330,11 @@
     const onProgress = (msg) => {
       try {
         const m = String(msg || '');
-        const pm = m.match(/(\d{1,3}(?:\.\d+)?)%/);
-        if (!pm) return;
-        const p = Math.max(0, Math.min(100, parseFloat(pm[1])));
+        const raw = extractProgressPercent(m);
+        if (raw === null) return;
+        const p = Math.max(0, Math.min(100, raw));
+        if (p < lastDfuProgress) return;
+        lastDfuProgress = p;
         // Pick the most recent active DFU task
         const keys = Array.from(tasks.keys()).filter(k => {
           const t = tasks.get(k); return t && t.id && t.id.startsWith('dfu:');

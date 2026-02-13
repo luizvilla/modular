@@ -60,17 +60,30 @@
     }
 
     // Progress handling mirrors the Activity Center DFU view.
-    function setProgress(percent) {
+    function setProgress(percent, allowDecrease = false) {
         const clamped = Math.max(0, Math.min(100, percent));
+        if (!allowDecrease && clamped < lastProgress) return;
         lastProgress = clamped;
         progressBar.style.width = `${clamped}%`;
         progressBar.setAttribute('aria-valuenow', String(clamped));
         progressBar.textContent = `${clamped}%`;
     }
 
+    function extractProgressPercent(text) {
+        const matches = String(text || '').match(/(\d{1,3}(?:\.\d+)?)%/g);
+        if (!matches || !matches.length) return null;
+        let max = null;
+        for (const token of matches) {
+            const n = parseFloat(String(token).replace('%', ''));
+            if (!Number.isFinite(n)) continue;
+            if (max === null || n > max) max = n;
+        }
+        return max;
+    }
+
     function resetProgress() {
         progressBar.classList.remove('bg-success', 'bg-danger');
-        setProgress(0);
+        setProgress(0, true);
         progressState.textContent = 'idle';
         progressLabel.textContent = 'No upload running';
         if (progressSpinner) progressSpinner.classList.add('d-none');
@@ -103,6 +116,13 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    function formatPortLabel(port) {
+        if (!port) return '';
+        const base = String(port.name || port.value || '');
+        if (!port.isOwntech) return base;
+        return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
     }
 
     function resolveAssetUrl(rawUrl, baseDir) {
@@ -353,7 +373,7 @@
             }
             ports.forEach((port) => {
                 const opt = document.createElement('option');
-                opt.textContent = port.name || port.value;
+                opt.textContent = formatPortLabel(port);
                 opt.value = port.value;
                 portSelect.appendChild(opt);
             });
@@ -412,25 +432,25 @@
     if (flashApi && flashApi.onProgress) {
         flashApi.onProgress((message) => {
             const text = String(message || '').trim();
-            const match = text.match(/(\d{1,3}(?:\.\d+)?)%/);
+            const pct = extractProgressPercent(text);
             if (/error|failed/i.test(text)) {
                 setFailure(text || 'Upload failed');
                 return;
             }
-            if (match) {
-                setProgress(Math.round(parseFloat(match[1])));
+            if (pct !== null) {
+                setProgress(Math.round(pct));
             }
         });
     } else if (ipcRenderer) {
         ipcRenderer.on('flash-progress', (_event, message) => {
             const text = String(message || '').trim();
-            const match = text.match(/(\d{1,3}(?:\.\d+)?)%/);
+            const pct = extractProgressPercent(text);
             if (/error|failed/i.test(text)) {
                 setFailure(text || 'Upload failed');
                 return;
             }
-            if (match) {
-                setProgress(Math.round(parseFloat(match[1])));
+            if (pct !== null) {
+                setProgress(Math.round(pct));
             }
         });
     }

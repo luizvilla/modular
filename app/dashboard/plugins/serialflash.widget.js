@@ -69,6 +69,7 @@
             this._progressListener = (_e, m) => this._onProgress(m);
             this._completeListener = () => this._onComplete();
             this._progressUnsub = null;
+            this._progressPeak = 0;
             this.debugLine = $('<div style="font-size:11px;color:#8b949e;"></div>');
         }
 
@@ -410,13 +411,13 @@
             this._log('progress', text);
             this.logArea.val(this.logArea.val() + text + '\n');
             this.logArea.scrollTop(this.logArea[0].scrollHeight);
-            const match = text.match(/(\d{1,3}(?:\.\d+)?)%/);
+            const pct = this._extractProgressPercent(text);
             if (/error|failed/i.test(text)) {
                 this._setFailure(text.trim() || 'Upload failed');
                 return;
             }
-            if (match) {
-                this._setProgress(Math.round(parseFloat(match[1])));
+            if (pct !== null) {
+                this._setProgress(Math.round(pct));
             }
         }
 
@@ -446,17 +447,32 @@
 
         _resetProgress() {
             this.uploadFailed = false;
+            this._progressPeak = 0;
             this.progressBar.css('background', '#2c4cff');
-            this._setProgress(0);
+            this._setProgress(0, true);
             this.progressState.text('idle');
             this.progressLabel.text('No upload running');
         }
 
-        _setProgress(pct) {
+        _setProgress(pct, allowDecrease = false) {
             const val = Math.max(0, Math.min(100, pct));
+            if (!allowDecrease && val < this._progressPeak) return;
+            this._progressPeak = val;
             this.progressBar.css('width', `${val}%`);
             this.progressBar.attr('aria-valuenow', String(val));
             this.progressBar.text(`${val}%`);
+        }
+
+        _extractProgressPercent(text) {
+            const matches = String(text || '').match(/(\d{1,3}(?:\.\d+)?)%/g);
+            if (!matches || !matches.length) return null;
+            let max = null;
+            for (const token of matches) {
+                const n = parseFloat(String(token).replace('%', ''));
+                if (!Number.isFinite(n)) continue;
+                if (max === null || n > max) max = n;
+            }
+            return max;
         }
 
         _setFailure(message) {
