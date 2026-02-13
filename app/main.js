@@ -676,10 +676,17 @@ app.whenReady().then(createWindow);
 // 🔌 List serial ports
 ipcMain.handle('get-serial-ports', async () => {
 	const ports = await SerialPort.list();
-	return ports.map(port => ({
-		name: port.path,
-		value: port.path
-	}));
+	return ports.map(port => {
+		// Keep labels simple; expose OwnTech detection for UI hints.
+		const vid = String(port.vendorId || '').toLowerCase();
+		const pid = String(port.productId || '').toLowerCase();
+		const isOwntech = vid === '2fe3' && pid === '0100';
+		return {
+			name: port.path,
+			value: port.path,
+			isOwntech
+		};
+	});
 });
 
 function orderSerialCandidates(list) {

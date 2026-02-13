@@ -3,6 +3,16 @@
   const serialApi = api && api.serial ? api.serial : null;
   const tsSerialApi = api && api.thingsetSerial ? api.thingsetSerial : null;
   const ipc = !api && window.require ? window.require('electron')?.ipcRenderer : null;
+  // Add a user-friendly tag for OwnTech devices without duplicating.
+  function formatPortLabel(port) {
+      if (port === null || port === undefined) return '';
+      if (typeof port === 'string') return port;
+      const base = String(port.name || port.value || port.path || '');
+      if (!port.isOwntech) return base;
+      return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+  }
+
+
 
   async function fetchSerialPortOptions() {
     if (!serialApi && !ipc) return [];
@@ -11,7 +21,7 @@
         ? await serialApi.listPorts()
         : await ipc.invoke('get-serial-ports');
       if (Array.isArray(ports) && ports.length) {
-        return ports.map((p) => ({ name: p.name || p.value || p.path || String(p), value: p.value || p.name || p.path || String(p) }));
+        return ports.map((p) => ({ name: formatPortLabel(p), value: p.value || p.name || p.path || String(p) }));
       }
     } catch (err) {
       console.warn('ThingSet Serial: failed to list serial ports', err);
@@ -302,7 +312,8 @@
   async function registerPlugin() {
     const portOptions = await fetchSerialPortOptions();
     const manualOptions = [{ name: 'Select a port…', value: '' }, ...portOptions];
-    freeboard.loadDatasourcePlugin({
+
+freeboard.loadDatasourcePlugin({
       type_name: 'thingset_serial_datasource',
       display_name: 'ThingSet Serial',
       description: 'Auto-detect a ThingSet shell over serial and expose its tree + numeric leaves.',

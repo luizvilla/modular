@@ -2,6 +2,16 @@
     const api = window.api || null;
     const serialApi = api && api.serial ? api.serial : null;
     const ipcRenderer = !api && window.require ? window.require('electron')?.ipcRenderer : null;
+    // Add a user-friendly tag for OwnTech devices without duplicating.
+    function formatPortLabel(port) {
+        if (port === null || port === undefined) return '';
+        if (typeof port === 'string') return port;
+        const base = String(port.name || port.value || port.path || '');
+        if (!port.isOwntech) return base;
+        return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+    }
+
+
     function FastFrameDatasource(settings, updateCallback) {
         let currentSettings = settings;
         let timer = null;
@@ -100,13 +110,13 @@
                 const ports = serialApi && serialApi.listPorts
                     ? await serialApi.listPorts()
                     : await ipcRenderer.invoke('get-serial-ports');
-                portOptions = ports.map(p => ({ name: p.name, value: p.value }));
+                portOptions = ports.map(p => ({ name: formatPortLabel(p), value: p.value }));
             } catch (e) {
                 console.error('Failed to list serial ports', e);
             }
         }
 
-        freeboard.loadDatasourcePlugin({
+freeboard.loadDatasourcePlugin({
             type_name: 'fast_frame_datasource',
             display_name: 'Fast Serial Frame',
             description: 'Parse fast record frames from serial',

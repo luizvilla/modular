@@ -2,6 +2,16 @@
         const api = window.api || null;
         const serialApi = api && api.serial ? api.serial : null;
         const ipcRenderer = !api && window.require ? window.require("electron")?.ipcRenderer : null;
+        // Add a user-friendly tag for OwnTech devices without duplicating.
+        function formatPortLabel(port) {
+            if (port === null || port === undefined) return '';
+            if (typeof port === 'string') return port;
+            const base = String(port.name || port.value || port.path || '');
+            if (!port.isOwntech) return base;
+            return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+        }
+
+
         // Keep a cached, auto-refreshing serial port list for dynamic dropdowns + reconnection.
         const instances = new Set();
         const portPollIntervalMs = 1500;
@@ -52,10 +62,17 @@
         async function refreshPortCache(force = false) {
                 try {
                         const ports = await listSerialPorts();
-                        const values = Array.isArray(ports) ? ports.map(normalizePortValue).filter(Boolean) : [];
+                        const portOptions = Array.isArray(ports)
+                                ? ports.map((p) => ({
+                                        name: formatPortLabel(p),
+                                        value: normalizePortValue(p),
+                                        isOwntech: !!p?.isOwntech
+                                }))
+                                : [];
+                        const values = portOptions.map((p) => p.value).filter(Boolean);
                         if (!force && portsEqual(values, lastPortValues)) return;
                         lastPortValues = values;
-                        cachedPortOptions = values.map((v) => ({ name: v, value: v }));
+                        cachedPortOptions = portOptions;
                         instances.forEach((inst) => {
                                 if (inst && typeof inst.onPortListUpdate === 'function') {
                                         inst.onPortListUpdate(cachedPortOptions);
@@ -210,7 +227,7 @@
         async function registerPlugin() {
                 startPortPolling();
 
-                freeboard.loadDatasourcePlugin({
+freeboard.loadDatasourcePlugin({
                         type_name: "serialport_datasource",
                         display_name: "Serial Port Reader",
                         description: "Reads data from a serial port",

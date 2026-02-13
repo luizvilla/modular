@@ -1,5 +1,6 @@
 ﻿const { SerialPort } = require('serialport');
 const { spawn } = require('child_process');
+const fs = require('fs');
 
 let currentFlashProcess = null;
 let aborted = false;
@@ -36,8 +37,17 @@ function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, 
         onDone && onDone();
     };
 
+    // Validate firmware path early to avoid misleading serial/bootloader errors.
+    if (!firmwarePath || !fs.existsSync(firmwarePath)) {
+        progressCallback && progressCallback('Error: Firmware file not found. Please reselect the file.');
+        finish();
+        return;
+    }
+
     const maxRetries = 8;
     const retryDelayMs = 300;
+    const bootloaderWaitMs = 1500;
+    const maxUploadRetries = 1;
 
     const shouldRetryTouch = (err) => {
         if (!err) return false;
@@ -57,7 +67,19 @@ function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, 
         return false;
     };
 
-    const startMcumgr = () => {
+    const isTransientUploadError = (msg) => {
+        if (!msg) return false;
+        const text = String(msg).toLowerCase();
+        if (text.includes('the system cannot find the file specified')) return true;
+        if (text.includes('cannot open')) return true;
+        if (text.includes('could not open')) return true;
+        if (text.includes('failed to open')) return true;
+        if (text.includes('no such file or directory')) return true;
+        return false;
+    };
+
+    const startMcumgr = (attempt = 0) => {
+        let lastUploadErr = '';
         runMcumgrCommand(
             mcumgrPath,
             ['conn','add','serial','type=serial',`connstring=dev=${comPort},baud=115200,mtu=128`],
@@ -74,9 +96,23 @@ function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, 
                     mcumgrPath,
                     ['-c','serial','image','upload',firmwarePath],
                     progressCallback,
-                    progressCallback,
+                    msg => {
+                        lastUploadErr = String(msg || '');
+                        if (attempt < maxUploadRetries && isTransientUploadError(lastUploadErr)) {
+                            // Suppress transient bootloader/port errors to avoid confusing the user.
+                            return;
+                        }
+                        progressCallback && progressCallback(msg);
+                    },
                     code => {
                         if (code !== 0) {
+                            if (attempt < maxUploadRetries && isTransientUploadError(lastUploadErr)) {
+                                // Retry once to allow bootloader port to enumerate after the 1200-baud touch.
+                                progressCallback && progressCallback('Device not ready yet. Retrying upload...');
+                                cleanupCurrentProcess();
+                                setTimeout(() => startMcumgr(attempt + 1), bootloaderWaitMs);
+                                return;
+                            }
                             progressCallback && progressCallback('Error: Firmware upload failed.');
                             cleanupCurrentProcess();
                             finish();
@@ -114,8 +150,8 @@ function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, 
                     return;
                 }
                 if (shouldSkipTouch(err)) {
-                    progressCallback && progressCallback(`${base} Continuing without 1200-baud touch (assuming bootloader is already active).`);
-                    setTimeout(() => startMcumgr(), 200);
+                    // Suppress 1200-baud touch errors on Windows; many devices don't require this step.
+                    setTimeout(() => startMcumgr(), bootloaderWaitMs);
                     return;
                 }
                 progressCallback && progressCallback(base);
@@ -131,7 +167,7 @@ function flashFirmware({ comPort, firmwarePath, mcumgrPath }, progressCallback, 
                 progressCallback && progressCallback('Serial port touched at 1200 baud. Waiting for bootloader...');
                 setTimeout(() => {
                     startMcumgr();
-                }, 500);
+                }, bootloaderWaitMs);
             });
         });
     };

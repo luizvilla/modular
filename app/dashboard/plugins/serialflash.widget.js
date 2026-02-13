@@ -1,4 +1,9 @@
 (function () {
+    try {
+        if (window.localStorage && window.localStorage.getItem('serial_flasher_debug') === '1') {
+            console.log('[serial_flasher] plugin script loaded');
+        }
+    } catch {}
     freeboard.loadWidgetPlugin({
         type_name: 'serial_flasher',
         display_name: 'Firmware Flasher',
@@ -14,13 +19,18 @@
     class SerialFlasher {
         constructor(settings) {
             this.settings = settings;
+            this.debug = (window.localStorage && window.localStorage.getItem('serial_flasher_debug') === '1');
+            this._log = (...args) => {
+                if (this.debug) console.log('[serial_flasher]', ...args);
+            };
             this.flashApi = window.api && window.api.flash ? window.api.flash : null;
             this.serialApi = window.api && window.api.serial ? window.api.serial : null;
             this.canApi = window.api && window.api.can ? window.api.can : null;
             this.ipc = (!this.flashApi && !this.serialApi && !this.canApi && window.require)
                 ? window.require('electron')?.ipcRenderer
                 : null;
-            this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
+            this.container = $('<div style="display:flex;flex-direction:column;height:100%;gap:8px;"></div>');
+            this.controls = $('<div style="display:flex;flex-direction:column;gap:6px;"></div>');
             this.portSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
             this.refreshBtn = $('<button class="btn btn-secondary btn-sm">Refresh</button>');
             this.mode = 'serial'; // 'serial' | 'can'
@@ -37,15 +47,33 @@
             this.selectedFilePath = null;
             this.startBtn = $('<button class="btn btn-primary btn-sm">Flash Firmware</button>');
             this.cancelBtn = $('<button class="btn btn-danger btn-sm" style="display:none;">Cancel</button>');
+            this.progressState = $('<small style="color:#9aa4b2;">idle</small>');
+            this.progressLabel = $('<div style="font-size:12px;color:#9aa4b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">No upload running</div>');
+            this.progressBar = $('<div role="progressbar" style="height:10px;width:0%;background:#2c4cff;color:#fff;font-size:10px;line-height:10px;text-align:center;border-radius:999px;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>');
+            this.progressWrap = $('<div style="height:10px;width:100%;background:#0b0f18;border:1px solid #2a3240;border-radius:999px;overflow:hidden;"></div>').append(this.progressBar);
+            // NOTE: Use a div (not section) so Gridster's .gridster section CSS doesn't
+            // force absolute positioning and cover the rest of the widget.
+            this.progressPanel = $('<div style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #2a3240;border-radius:8px;background:#0f121b;"></div>');
+            this.progressPanel.css('pointer-events', 'none');
+            this.progressPanel.append(
+                $('<div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;"></div>')
+                    .append('<strong>Serial DFU</strong>')
+                    .append(this.progressState),
+                this.progressLabel,
+                this.progressWrap
+            );
+            this.uploadFailed = false;
             // Progress bar moved to Activity Center. Keep a collapsible log.
             this.logToggle = $('<button class="btn btn-outline-secondary btn-sm">Show log</button>');
             this.logArea = $('<textarea class="form-control bg-dark text-light" readonly style="flex:1; display:none;"></textarea>');
             this._progressListener = (_e, m) => this._onProgress(m);
             this._completeListener = () => this._onComplete();
             this._progressUnsub = null;
+            this.debugLine = $('<div style="font-size:11px;color:#8b949e;"></div>');
         }
 
         render(el) {
+            this._log('render', { hasApi: !!this.flashApi, hasSerial: !!this.serialApi, hasCan: !!this.canApi });
             this._refreshPorts();
             this._refreshCan();
             this._refreshNodes();
@@ -53,24 +81,50 @@
             this.refreshCanBtn.on('click', () => this._refreshCan());
             this.refreshNodeBtn.on('click', () => this._refreshNodes(true));
             $(el).append(this.container);
-            const modeRow = $('<div class="input-group input-group-sm mb-1 align-items-center"></div>');
-            modeRow.append('<span class="input-group-text">Mode</span>');
+            const rowStyle = 'display:flex;align-items:center;gap:6px;';
+            const labelStyle = 'min-width:84px;font-size:12px;color:#9aa4b2;';
+            const fullSelect = (sel) => sel.css({ width: '100%' });
+            const makeRow = (labelText, ...items) => {
+                const row = $(`<div style="${rowStyle}"></div>`);
+                row.append(`<div style="${labelStyle}">${labelText}</div>`);
+                items.forEach(it => row.append(it));
+                return row;
+            };
+
             const modeBtns = $('<div class="btn-group" role="group"></div>');
             modeBtns.append(this.btnSerial, this.btnCan);
-            modeRow.append(modeBtns);
+            const modeRow = makeRow('Mode', modeBtns);
 
-            const portRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            portRow.append('<span class="input-group-text">Serial Port</span>', this.portSelect, this.refreshBtn);
+            fullSelect(this.portSelect);
+            const portRow = makeRow('Serial Port', this.portSelect, this.refreshBtn);
 
-            const canRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            canRow.append('<span class="input-group-text">CAN Interface</span>', this.canSelect, this.refreshCanBtn);
+            fullSelect(this.canSelect);
+            const canRow = makeRow('CAN Interface', this.canSelect, this.refreshCanBtn);
 
-            const nodeRow = $('<div class="input-group input-group-sm mb-1 align-items-center"></div>');
-            nodeRow.append('<span class="input-group-text">Target Node</span>', this.nodeSelect, this.refreshNodeBtn, this.flashModeBtn);
+            fullSelect(this.nodeSelect);
+            const nodeRow = makeRow('Target Node', this.nodeSelect, this.refreshNodeBtn, this.flashModeBtn);
 
-            const fileRow = $('<div class="input-group input-group-sm mb-1"></div>');
+            const fileRow = $('<div style="display:flex;align-items:center;gap:6px;"></div>');
             fileRow.append(this.fileBtn, this.fileLabel);
-            this.container.append(modeRow, portRow, canRow, nodeRow, fileRow, this.startBtn, this.cancelBtn, this.logToggle, this.logArea);
+
+            const buttonRow = $('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>');
+            buttonRow.append(this.startBtn, this.cancelBtn, this.logToggle);
+
+            this.controls.append(modeRow, portRow, canRow, nodeRow, fileRow, buttonRow, this.logArea);
+            this.container.append(this.controls, this.progressPanel);
+            if (this.debug) {
+                this.debugLine.text('debug: widget rendered');
+                this.container.append(this.debugLine);
+                this.container.css('outline', '1px dashed #6f42c1');
+                this.controls.css('outline', '1px dashed #198754');
+                this.progressPanel.css({ outline: '1px dashed #dc3545', pointerEvents: 'none' });
+                this.startBtn.css('outline', '1px dashed #0d6efd');
+                this.portSelect.css('outline', '1px dashed #ffc107');
+            }
+            this._log('layout appended', {
+                controlsChildren: this.controls.children().length,
+                containerChildren: this.container.children().length
+            });
 
             // Toggle UI by mode (hide/show rows)
             const updateModeUI = () => {
@@ -134,15 +188,40 @@
             });
         }
 
+        // Add a user-friendly tag for OwnTech devices without duplicating.
+        _formatPortLabel(port) {
+            if (!port) return '';
+            const base = String(port.name || port.value || '');
+            if (!port.isOwntech) return base;
+            return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+        }
+
+        // Prefer OwnTech VID/PID when available; fall back to current selection.
+        _pickPreferredPort(ports) {
+            if (!Array.isArray(ports) || !ports.length) return null;
+            const match = ports.find(p => p && p.isOwntech);
+            if (match) return match.value;
+            return null;
+        }
+
         async _refreshPorts() {
             if (!this.serialApi && !this.ipc) return;
             const ports = this.serialApi && this.serialApi.listPorts
                 ? await this.serialApi.listPorts()
                 : await this.ipc.invoke('get-serial-ports');
+            this._log('ports', ports);
+            const prev = this.portSelect.val();
             this.portSelect.empty();
             ports.forEach(p => {
-                this.portSelect.append(`<option value="${p.value}">${p.name}</option>`);
+                const label = this._formatPortLabel(p);
+                this.portSelect.append(`<option value="${p.value}">${label}</option>`);
             });
+            const preferred = this._pickPreferredPort(ports);
+            if (preferred) {
+                this.portSelect.val(preferred);
+            } else if (prev) {
+                this.portSelect.val(prev);
+            }
         }
 
         async _refreshCan() {
@@ -226,6 +305,7 @@
         }
 
         _startFlash() {
+            this._log('startFlash click', { mode: this.mode, port: this.portSelect.val() });
             const filePath = this.selectedFilePath;
             const useCan = (this.mode === 'can');
             const port = this.portSelect.val();
@@ -250,6 +330,9 @@
             if (this.logArea.is(':hidden')) this.logToggle.text('Show log');
             this.startBtn.hide();
             this.cancelBtn.show();
+            this._resetProgress();
+            this.progressLabel.text(`Starting upload to ${useCan ? (this.canSelect.val() || 'CAN') : port}`);
+            this.progressState.text('flashing');
             this.selectedFilePath = filePath;
             this._ensureProgressListener();
             if (useCan) {
@@ -323,13 +406,28 @@
         }
 
         _onProgress(message) {
-            this.logArea.val(this.logArea.val() + message + '\n');
+            const text = String(message || '');
+            this._log('progress', text);
+            this.logArea.val(this.logArea.val() + text + '\n');
             this.logArea.scrollTop(this.logArea[0].scrollHeight);
+            const match = text.match(/(\d{1,3}(?:\.\d+)?)%/);
+            if (/error|failed/i.test(text)) {
+                this._setFailure(text.trim() || 'Upload failed');
+                return;
+            }
+            if (match) {
+                this._setProgress(Math.round(parseFloat(match[1])));
+            }
         }
 
         _onComplete() {
             this.startBtn.show();
             this.cancelBtn.hide();
+            if (this.uploadFailed) {
+                this._setFailure(this.progressLabel.text() || 'Upload failed');
+            } else {
+                this._setSuccess();
+            }
         }
 
         onSettingsChanged(newSettings) {
@@ -346,6 +444,35 @@
             }
         }
 
-        getHeight() { return 5; }
+        _resetProgress() {
+            this.uploadFailed = false;
+            this.progressBar.css('background', '#2c4cff');
+            this._setProgress(0);
+            this.progressState.text('idle');
+            this.progressLabel.text('No upload running');
+        }
+
+        _setProgress(pct) {
+            const val = Math.max(0, Math.min(100, pct));
+            this.progressBar.css('width', `${val}%`);
+            this.progressBar.attr('aria-valuenow', String(val));
+            this.progressBar.text(`${val}%`);
+        }
+
+        _setFailure(message) {
+            this.uploadFailed = true;
+            this.progressBar.css('background', '#dc3545');
+            this.progressState.text('failed');
+            this.progressLabel.text(message || 'Upload failed');
+        }
+
+        _setSuccess() {
+            this.progressBar.css('background', '#198754');
+            this.progressState.text('done');
+            this.progressLabel.text('Upload complete');
+            this._setProgress(100);
+        }
+
+        getHeight() { return 7; }
     }
 })();
