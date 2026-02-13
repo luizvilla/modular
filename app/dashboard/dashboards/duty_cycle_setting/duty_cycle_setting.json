@@ -1,1 +1,123 @@
-{"version":1,"allow_edit":true,"plugins":[],"panes":[{"width":1,"row":{"3":1},"col":{"3":1},"col_width":2,"widgets":[{"type":"owntech_plot_uplot","settings":{"title":"Plot widget","seriesDefs":[{"label":"","op":"identity","param":0,"a":{"ds":"Test","type":"signal_generator_datasource","device":null,"device_uid":null,"var":0}},{"label":"","op":"identity","param":0,"a":{"ds":"S","type":"signal_generator_datasource","device":null,"device_uid":null,"var":0}},{"label":"","op":"identity","param":0,"a":{"ds":"T","type":"signal_generator_datasource","device":null,"device_uid":null,"var":0}}],"duration":2000,"refreshRate":10,"yLabel":"Value","showLegend":true}},{"type":"uplot_series_manager","settings":{"title":"Plot Series Manager"}},{"type":"uplot_config_panel","settings":{"title":"Plot UI controller"}}]},{"title":"","width":1,"row":{"3":1},"col":{"3":3},"col_width":1,"widgets":[{"type":"vertical_gauge","settings":{"title":"test","min":0,"max":1,"barColor":"blue","alarmEnabled":true,"alarmThreshold":0,"alarmDirection":"below","refreshRate":100,"sourceDef":{"ds":"test5","type":"signal_generator_datasource","device":null,"device_uid":null,"var":0}}},{"type":"vertical_gauge_manager","settings":{"title":"Gauge Channel Manager"}}]},{"width":1,"row":{"3":37},"col":{"3":1},"col_width":2,"widgets":[{"type":"serial_header_editor","settings":{"title":"Label and color editor"}},{"type":"serial_flasher","settings":{"title":"Firmware Flasher"}}]}],"datasources":[{"name":"Test","type":"signal_generator_datasource","settings":{"waveform":"sine","amplitude":1,"offset":0,"frequency":1,"phase":0,"dutyCycle":50,"refresh":100}},{"name":"test2","type":"signal_generator_datasource","settings":{"waveform":"square","amplitude":1,"offset":0,"frequency":1,"phase":0,"dutyCycle":50,"refresh":100}},{"name":"test3","type":"signal_generator_datasource","settings":{"waveform":"triangle","amplitude":1,"offset":0,"frequency":1,"phase":0,"dutyCycle":50,"refresh":100}},{"name":"test4","type":"signal_generator_datasource","settings":{"waveform":"sawtooth","amplitude":1,"offset":0,"frequency":1,"phase":0,"dutyCycle":50,"refresh":100}},{"name":"test5","type":"signal_generator_datasource","settings":{"waveform":"random","amplitude":1,"offset":0,"frequency":1,"phase":0,"dutyCycle":50,"refresh":10}},{"name":"S","type":"signal_generator_datasource","settings":{"waveform":"sine","amplitude":1,"offset":0,"frequency":1,"phase":120,"dutyCycle":50,"refresh":10}},{"name":"T","type":"signal_generator_datasource","settings":{"waveform":"sine","amplitude":1,"offset":0,"frequency":1,"phase":240,"dutyCycle":50,"refresh":10}}],"columns":3}
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "panes": [
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "owntech_plot_uplot",
+          "settings": {
+            "title": "duty_cycle_setting Plot",
+            "refreshRate": 100,
+            "duration": 20000,
+            "showLegend": true,
+            "yLabel": "Value",
+            "helperWidgets": "none",
+            "seriesDefs": [
+              {
+                "label": "duty_cycle",
+                "op": "identity",
+                "param": 0,
+                "a": {
+                  "ds": "Serial",
+                  "type": "serialport_datasource",
+                  "device": null,
+                  "device_uid": null,
+                  "var": 0
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 5
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "uplot_config_panel",
+          "settings": {
+            "title": "Plot UI controller"
+          }
+        },
+        {
+          "type": "uplot_series_manager",
+          "settings": {
+            "title": "Plot Series Manager"
+          }
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 3
+      },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "serial_terminal",
+          "settings": {
+            "title": "Serial Port",
+            "datasourceName": "Serial",
+            "refresh": 250,
+            "maxLines": 200,
+            "autoScroll": true,
+            "colorize": true
+          }
+        },
+        {
+          "type": "serial_command_buttons",
+          "settings": {
+            "buttons": [
+              {
+                "label": "duty cycle UP",
+                "command": "u"
+              },
+              {
+                "label": "duty cycle DOWN",
+                "command": "d"
+              }
+            ],
+            "layout": "vertical",
+            "datasource": "Serial"
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [
+    {
+      "name": "Serial",
+      "type": "serialport_datasource",
+      "settings": {
+        "portPath": "",
+        "baudRate": 115200,
+        "separator": ":",
+        "eol": "\\n",
+        "refresh": 250,
+        "paused": true
+      }
+    }
+  ],
+  "columns": 3
+}
