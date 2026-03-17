@@ -202,10 +202,48 @@ html.dashboard-mode #main-header {
     user-select: text;
 }
 
+.doc-content > :first-child {
+    margin-top: 0;
+}
+
+.doc-content h1,
+.doc-content h2,
+.doc-content h3,
+.doc-content h4,
+.doc-content h5,
+.doc-content h6 {
+    margin: 24px 0 16px;
+    line-height: 1.25;
+}
+
+.doc-content p,
+.doc-content ul,
+.doc-content ol,
+.doc-content blockquote,
+.doc-content table,
+.doc-content pre {
+    margin: 0 0 16px;
+}
+
+.doc-content a {
+    color: #8ab4ff;
+    text-decoration: none;
+}
+
+.doc-content a:hover {
+    text-decoration: underline;
+}
+
 .doc-content img {
     max-width: 100%;
     border-radius: 8px;
     border: 1px solid #2a3240;
+}
+
+.doc-content code {
+    background: #222836;
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
 .doc-content pre {
@@ -214,6 +252,48 @@ html.dashboard-mode #main-header {
     border-radius: 8px;
     padding: 12px;
     overflow: auto;
+}
+
+.doc-content pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+}
+
+.doc-content blockquote {
+    border-left: 4px solid #394052;
+    padding: 0 0 0 16px;
+    color: var(--tabs-muted);
+}
+
+.doc-content table,
+.doc-content .markdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+}
+
+.doc-content th,
+.doc-content td {
+    border: 1px solid #2a3240;
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.doc-content th {
+    background: #151923;
+}
+
+.doc-content hr {
+    border: 0;
+    border-top: 1px solid #2a3240;
+    margin: 24px 0;
+}
+
+.doc-content mjx-container {
+    margin: 0.15em 0;
 }
 
 /* Progress bar styles aligned with Activity Center */

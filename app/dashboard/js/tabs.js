@@ -188,23 +188,78 @@
         return rawUrl;
     }
 
-    function renderInline(text, baseDir) {
-        let out = escapeHtml(text);
-        out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
-        out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) => {
-            const resolved = resolveAssetUrl(url, baseDir);
-            return `<img alt="${escapeHtml(alt)}" src="${resolved}">`;
+    function normalizeRenderedMarkdown(html, baseDir) {
+        if (typeof document === 'undefined') return html;
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html;
+
+        wrapper.querySelectorAll('img[src]').forEach((img) => {
+            const src = img.getAttribute('src');
+            img.setAttribute('src', resolveAssetUrl(src, baseDir));
         });
-        out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) => {
-            const resolved = resolveAssetUrl(url, baseDir);
-            return `<a href="${resolved}">${label}</a>`;
+
+        wrapper.querySelectorAll('a[href]').forEach((anchor) => {
+            const href = anchor.getAttribute('href');
+            anchor.setAttribute('href', resolveAssetUrl(href, baseDir));
         });
+
+        wrapper.querySelectorAll('table').forEach((table) => {
+            table.classList.add('markdown-table');
+        });
+
+        return wrapper.innerHTML;
+    }
+
+    async function typesetMath(element) {
+        if (!element || !window.MathJax) return;
+        try {
+            if (typeof window.MathJax.typesetClear === 'function') {
+                window.MathJax.typesetClear([element]);
+            }
+            if (typeof window.MathJax.typesetPromise === 'function') {
+                await window.MathJax.typesetPromise([element]);
+                return;
+            }
+            if (typeof window.MathJax.typeset === 'function') {
+                window.MathJax.typeset([element]);
+            }
+        } catch (err) {
+            console.warn('[tabs] math typeset failed:', err?.message || err);
+        }
+    }
+
+    function renderInlineFallback(text, baseDir) {
+        const tokens = [];
+        function stash(html) {
+            const token = `@@MDTOKEN${tokens.length}@@`;
+            tokens.push(html);
+            return token;
+        }
+
+        let source = String(text || '');
+
+        source = source.replace(/`([^`]+)`/g, (_m, code) => stash(`<code>${escapeHtml(code)}</code>`));
+        source = source.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) => {
+            const resolved = resolveAssetUrl(url, baseDir);
+            return stash(`<img alt="${escapeHtml(alt)}" src="${resolved}">`);
+        });
+        source = source.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) => {
+            const resolved = resolveAssetUrl(url, baseDir);
+            return stash(`<a href="${resolved}">${escapeHtml(label)}</a>`);
+        });
+        source = source.replace(/\$([^$\n]+)\$/g, (_m, math) => {
+            return stash(`<span class="math-inline">${escapeHtml(math)}</span>`);
+        });
+
+        let out = escapeHtml(source);
+        out = out.replace(/\\([\\`*_{}\[\]()#+\-.!])/g, '$1');
         out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
         out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        out = out.replace(/@@MDTOKEN(\d+)@@/g, (_m, idx) => tokens[Number(idx)] || '');
         return out;
     }
 
-    function renderMarkdownBlocks(lines, baseDir) {
+    function renderMarkdownBlocksFallback(lines, baseDir) {
         const html = [];
         let i = 0;
 
@@ -244,7 +299,7 @@
                     bodyLines.push(lines[i].replace(/^\s{4}|\t/, ''));
                     i += 1;
                 }
-                const bodyHtml = renderMarkdownBlocks(bodyLines, baseDir).join('');
+                const bodyHtml = renderMarkdownBlocksFallback(bodyLines, baseDir).join('');
                 html.push(
                     `<div class="admonition ${type}">` +
                     `<div class="admonition-title">${escapeHtml(title)}</div>` +
@@ -257,7 +312,7 @@
             const headingMatch = line.match(/^(#{1,6})\s+(.*)/);
             if (headingMatch) {
                 const level = headingMatch[1].length;
-                const content = renderInline(headingMatch[2], baseDir);
+                const content = renderInlineFallback(headingMatch[2], baseDir);
                 html.push(`<h${level}>${content}</h${level}>`);
                 i += 1;
                 continue;
@@ -269,7 +324,7 @@
                 while (i < lines.length) {
                     const m = lines[i].match(/^\s*[-*+]\s+(.*)/);
                     if (!m) break;
-                    items.push(`<li>${renderInline(m[1], baseDir)}</li>`);
+                    items.push(`<li>${renderInlineFallback(m[1], baseDir)}</li>`);
                     i += 1;
                 }
                 html.push(`<ul>${items.join('')}</ul>`);
@@ -282,7 +337,7 @@
                 while (i < lines.length) {
                     const m = lines[i].match(/^\s*\d+\.\s+(.*)/);
                     if (!m) break;
-                    items.push(`<li>${renderInline(m[1], baseDir)}</li>`);
+                    items.push(`<li>${renderInlineFallback(m[1], baseDir)}</li>`);
                     i += 1;
                 }
                 html.push(`<ol>${items.join('')}</ol>`);
@@ -298,7 +353,7 @@
                 i += 1;
             }
             if (paragraphLines.length) {
-                html.push(`<p>${renderInline(paragraphLines.join(' '), baseDir)}</p>`);
+                html.push(`<p>${renderInlineFallback(paragraphLines.join(' '), baseDir)}</p>`);
             }
         }
 
@@ -308,8 +363,22 @@
     function renderMarkdown(markdown, baseDir) {
         // Strip HTML comments so internal notes don't render in docs.
         const cleaned = markdown.replace(/<!--[\s\S]*?-->/g, '');
+        if (window.marked && typeof window.marked.parse === 'function') {
+            const html = window.marked.parse(cleaned, {
+                gfm: true,
+                breaks: false,
+                mangle: false,
+                headerIds: false
+            });
+            return normalizeRenderedMarkdown(html, baseDir);
+        }
         const lines = cleaned.replace(/\r\n/g, '\n').split('\n');
-        return renderMarkdownBlocks(lines, baseDir).join('\n');
+        return renderMarkdownBlocksFallback(lines, baseDir).join('\n');
+    }
+
+    async function renderMarkdownInto(element, markdown, baseDir) {
+        element.innerHTML = renderMarkdown(markdown, baseDir);
+        await typesetMath(element);
     }
 
     async function loadExamplesIndex() {
@@ -470,7 +539,7 @@
                 ? await docsApi.readMarkdown(example.docPath)
                 : await fs.promises.readFile(example.docPath, 'utf8');
             const baseDir = paths && paths.dirname ? paths.dirname(example.docPath) : path.dirname(example.docPath);
-            docContent.innerHTML = renderMarkdown(markdown, baseDir);
+            await renderMarkdownInto(docContent, markdown, baseDir);
             setStatus('Ready.');
         } catch (err) {
             docContent.innerHTML = `<p>Failed to load documentation: ${escapeHtml(err?.message || String(err))}</p>`;
@@ -497,7 +566,7 @@
                 ? await docsApi.readMarkdown(doc.docPath)
                 : await fs.promises.readFile(doc.docPath, 'utf8');
             const baseDir = paths && paths.dirname ? paths.dirname(doc.docPath) : path.dirname(doc.docPath);
-            docContent.innerHTML = renderMarkdown(markdown, baseDir);
+            await renderMarkdownInto(docContent, markdown, baseDir);
             setStatus('Ready.');
         } catch (err) {
             docContent.innerHTML = `<p>Failed to load documentation: ${escapeHtml(err?.message || String(err))}</p>`;
