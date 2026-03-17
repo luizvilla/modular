@@ -1386,7 +1386,9 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
 
 // 📂 Open a dialog to choose a firmware binary file
 ipcMain.handle('choose-firmware-file', async () => {
+    const defaultFirmwareDir = path.join(__dirname, 'dashboard', 'binaries');
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        defaultPath: defaultFirmwareDir,
         properties: ['openFile'],
         filters: [{ name: 'Firmware', extensions: ['bin'] }]
     });

@@ -70,7 +70,6 @@
             this._completeListener = () => this._onComplete();
             this._progressUnsub = null;
             this._progressPeak = 0;
-            this.debugLine = $('<div style="font-size:11px;color:#8b949e;"></div>');
         }
 
         render(el) {
@@ -113,15 +112,6 @@
 
             this.controls.append(modeRow, portRow, canRow, nodeRow, fileRow, buttonRow, this.logArea);
             this.container.append(this.controls, this.progressPanel);
-            if (this.debug) {
-                this.debugLine.text('debug: widget rendered');
-                this.container.append(this.debugLine);
-                this.container.css('outline', '1px dashed #6f42c1');
-                this.controls.css('outline', '1px dashed #198754');
-                this.progressPanel.css({ outline: '1px dashed #dc3545', pointerEvents: 'none' });
-                this.startBtn.css('outline', '1px dashed #0d6efd');
-                this.portSelect.css('outline', '1px dashed #ffc107');
-            }
             this._log('layout appended', {
                 controlsChildren: this.controls.children().length,
                 containerChildren: this.container.children().length

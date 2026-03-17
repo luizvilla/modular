@@ -269,8 +269,8 @@ if (isMock) {
         api.flash = {
             chooseFirmwareFile: async () => {
                 if (mockFwMissing) return null;
-                // Resolve against the app bundle root so mock DFU works after the app/ move.
-                return path.join(__dirname, 'dashboard', 'binaries', 'test_example', 'test_example.mcuboot.bin');
+                // Keep mock mode returning a file path while avoiding the AC_client_server example bias.
+                return path.join(__dirname, 'dashboard', 'binaries', 'blinky', 'blinky.mcuboot.bin');
             },
             startFlash: async ({ firmwarePath }) => {
                 if (mockFwMissing || !firmwarePath) throw new Error('Missing firmware file');
