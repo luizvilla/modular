@@ -343,6 +343,10 @@ ipcMain.handle('get-activity-enabled', () => ({ enabled: !!activityEnabled }));
 const mcumgrBinary = process.platform === 'win32' ? 'mcumgr.exe'
     : process.platform === 'darwin' ? 'mcumgr-mac' : 'mcumgr';
 const mcumgrPath = path.join(__dirname, 'tools', mcumgrBinary);
+let activeFlashId = 0;
+let activeFlashSender = null;
+let activeFlashPort = null;
+let activeFlashCanceled = false;
 
 function resolveMcumgrPath(userPath) {
     if (userPath && typeof userPath === 'string') return userPath;
@@ -812,6 +816,9 @@ ipcMain.handle('get-thingset-nodes', async () => {
 
 // 🚪 Open serial port with tracking and buffer setup
 async function openSerialPortInternal({ path, baudRate, separator, eol, type = 'serialport_datasource' }) {
+        if (!path) {
+                throw new Error('Serial port path is required');
+        }
         emitActivity({ id: 'serial:open', title: path, state: 'start', label: 'Open serial port' });
         if (isSerialLocked(path)) {
                 const lock = serialLocks.get(path);
@@ -1400,15 +1407,24 @@ ipcMain.handle('choose-firmware-file', async () => {
 
 // 🔥 Flash firmware to a board over serial
 ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath: userPath }) => {
+    const flashId = ++activeFlashId;
     emitActivity({ id: 'dfu:serial', title: comPort, state: 'start', label: 'Serial DFU', detail: firmwarePath });
     // Prevent background serial datasources from reopening the port during flashing.
     lockSerialPort(comPort, 'flash', 60000);
+    activeFlashSender = event.sender;
+    activeFlashPort = comPort;
+    activeFlashCanceled = false;
     const resolvedMcumgr = resolveMcumgrPath(userPath);
     if (resolvedMcumgr !== 'mcumgr' && !fs.existsSync(resolvedMcumgr)) {
         const msg = `Error: mcumgr not found at ${resolvedMcumgr}`;
         event.sender.send('flash-progress', msg);
         emitActivity({ id: 'dfu:serial', title: comPort, state: 'error', label: 'Serial DFU', detail: msg });
         unlockSerialPort(comPort);
+        if (activeFlashId === flashId) {
+            activeFlashSender = null;
+            activeFlashPort = null;
+            activeFlashCanceled = false;
+        }
         event.sender.send('flash-complete');
         return 'error';
     }
@@ -1433,9 +1449,22 @@ ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath:
                 }
             },
             () => {
-                event.sender.send('flash-complete');
-                emitActivity({ id: 'dfu:serial', title: comPort, state: 'done', label: 'Serial DFU complete' });
+                if (activeFlashId !== flashId) {
+                    unlockSerialPort(comPort);
+                    return;
+                }
+                if (activeFlashSender && !activeFlashSender.isDestroyed()) {
+                    activeFlashSender.send('flash-complete');
+                }
+                if (activeFlashCanceled) {
+                    emitActivity({ id: 'dfu:serial', title: comPort, state: 'done', label: 'Serial DFU canceled' });
+                } else {
+                    emitActivity({ id: 'dfu:serial', title: comPort, state: 'done', label: 'Serial DFU complete' });
+                }
                 unlockSerialPort(comPort);
+                activeFlashSender = null;
+                activeFlashPort = null;
+                activeFlashCanceled = false;
             }
         );
         resolve();
@@ -1444,7 +1473,16 @@ ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath:
 
 // ❌ Cancel flashing
 ipcMain.on('cancel-flash', () => {
+    activeFlashCanceled = true;
     cancelFlash();
+    if (activeFlashSender && !activeFlashSender.isDestroyed()) {
+        activeFlashSender.send('flash-complete');
+    }
+    if (activeFlashPort) {
+        unlockSerialPort(activeFlashPort);
+    }
+    activeFlashSender = null;
+    activeFlashPort = null;
 });
 
 // 🔥 Flash firmware to a board over CAN (ThingSet DFU)

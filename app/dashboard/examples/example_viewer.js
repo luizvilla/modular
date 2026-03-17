@@ -41,6 +41,7 @@
 
     let currentExample = null;
     let isUploading = false;
+    let uploadCanceled = false;
     let uploadFailed = false;
     let lastProgress = 0;
 
@@ -107,6 +108,34 @@
         progressLabel.textContent = 'Upload complete';
         if (progressSpinner) progressSpinner.classList.add('d-none');
         setProgress(100);
+    }
+
+    function updateUploadButton() {
+        if (!uploadFirmwareBtn) return;
+        uploadFirmwareBtn.disabled = false;
+        uploadFirmwareBtn.textContent = isUploading ? 'Cancel upload' : 'Upload example to target';
+    }
+
+    async function cancelUpload() {
+        if (!isUploading) return;
+        uploadCanceled = true;
+        uploadFailed = false;
+        progressState.textContent = 'canceling';
+        progressLabel.textContent = 'Canceling upload...';
+        if (progressSpinner) progressSpinner.classList.remove('d-none');
+        setStatus('Canceling upload...');
+        try {
+            if (flashApi && flashApi.cancelFlash) {
+                await flashApi.cancelFlash();
+            } else if (ipcRenderer) {
+                ipcRenderer.send('cancel-flash');
+            }
+        } catch (err) {
+            setFailure(`Cancel failed: ${err?.message || String(err)}`);
+            setStatus('Cancel failed.');
+            isUploading = false;
+            updateUploadButton();
+        }
     }
 
     function escapeHtml(text) {
@@ -398,14 +427,20 @@
     }
 
     async function uploadFirmware() {
-        if (!currentExample || isUploading) return;
+        if (isUploading) {
+            await cancelUpload();
+            return;
+        }
+        if (!currentExample) return;
         const port = portSelect.value;
         if (!port) {
             setStatus('Select a target port before uploading.');
             return;
         }
         isUploading = true;
-        uploadFirmwareBtn.disabled = true;
+        uploadCanceled = false;
+        uploadFailed = false;
+        updateUploadButton();
         setStatus('Uploading firmware...');
         resetProgress();
         progressLabel.textContent = `Starting upload to ${port}`;
@@ -425,7 +460,7 @@
             setFailure(`Error: ${err?.message || String(err)}`);
             setStatus('Upload failed to start.');
             isUploading = false;
-            uploadFirmwareBtn.disabled = false;
+            updateUploadButton();
         }
     }
 
@@ -457,7 +492,13 @@
 
     if (flashApi && flashApi.onComplete) {
         flashApi.onComplete(() => {
-            if (uploadFailed) {
+            if (uploadCanceled) {
+                progressBar.classList.remove('bg-success', 'bg-danger');
+                progressState.textContent = 'canceled';
+                progressLabel.textContent = 'Upload canceled.';
+                if (progressSpinner) progressSpinner.classList.add('d-none');
+                setStatus('Upload canceled.');
+            } else if (uploadFailed) {
                 setFailure('Upload failed');
                 setStatus('Upload failed.');
             } else {
@@ -465,11 +506,17 @@
                 setStatus('Upload complete.');
             }
             isUploading = false;
-            uploadFirmwareBtn.disabled = false;
+            updateUploadButton();
         });
     } else if (ipcRenderer) {
         ipcRenderer.on('flash-complete', () => {
-            if (uploadFailed) {
+            if (uploadCanceled) {
+                progressBar.classList.remove('bg-success', 'bg-danger');
+                progressState.textContent = 'canceled';
+                progressLabel.textContent = 'Upload canceled.';
+                if (progressSpinner) progressSpinner.classList.add('d-none');
+                setStatus('Upload canceled.');
+            } else if (uploadFailed) {
                 setFailure('Upload failed');
                 setStatus('Upload failed.');
             } else {
@@ -477,7 +524,7 @@
                 setStatus('Upload complete.');
             }
             isUploading = false;
-            uploadFirmwareBtn.disabled = false;
+            updateUploadButton();
         });
     }
 
@@ -508,6 +555,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const requestedId = urlParams.get('id');
     resetProgress();
+    updateUploadButton();
     refreshPorts();
     loadExamplesIndex().then(() => {
         populateExampleSelect();

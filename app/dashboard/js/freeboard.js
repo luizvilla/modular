@@ -626,6 +626,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 				finishedCallback();
 			}
 
+			freeboard.emit("config_updated", self.getCurrentConfig());
 			freeboardUI.processResize(true);
 			freeboard.emit("activity", {
 				id: "dashboard:load",
@@ -857,6 +858,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.addDatasource = function(datasource)
 	{
 		self.datasources.push(datasource);
+		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
 	this.deleteDatasource = function(datasource)
@@ -864,6 +866,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		delete self.datasourceData[datasource.name()];
 		datasource.dispose();
 		self.datasources.remove(datasource);
+		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
 	this.createPane = function()
@@ -895,12 +898,14 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.addPane = function(pane)
 	{
 		self.panes.push(pane);
+		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
 	this.deletePane = function(pane)
 	{
 		pane.dispose();
 		self.panes.remove(pane);
+		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
 	this.deleteWidget = function(widget)
@@ -911,6 +916,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		});
 
 		widget.dispose();
+		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
 	this.setEditing = function(editing, animate)
@@ -2206,7 +2212,15 @@ PluginEditor = function(jsEditor, valueEditor)
 
 						function populateOptions(optionsList)
 						{
-							var selectedValue = (settingDef.name in currentSettingsValues) ? currentSettingsValues[settingDef.name] : input.val();
+							var selectedValue = input.val();
+							if(_.isUndefined(selectedValue) || selectedValue === null || selectedValue === "")
+							{
+								selectedValue = newSettings.settings[settingDef.name];
+							}
+							if(_.isUndefined(selectedValue) || selectedValue === null || selectedValue === "")
+							{
+								selectedValue = currentSettingsValues[settingDef.name];
+							}
 							var resolved = _.isArray(optionsList) ? optionsList : [];
 							input.empty();
 
@@ -2237,6 +2251,13 @@ PluginEditor = function(jsEditor, valueEditor)
 
 								$("<option></option>").text(optionName).attr("value", optionValue).appendTo(input);
 							});
+
+							// Preserve the current value during live option refreshes even if the source list
+							// temporarily omits it (for example while serial ports are re-enumerating).
+							if(!_.isUndefined(selectedValue) && selectedValue !== "" && !hasOptionValue(selectedValue))
+							{
+								$("<option></option>").text(selectedValue).attr("value", selectedValue).appendTo(input);
+							}
 
 							var nextValue = selectedValue;
 							if(_.isUndefined(nextValue) || nextValue === "" || !hasOptionValue(nextValue))

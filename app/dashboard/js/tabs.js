@@ -62,6 +62,7 @@
     let pendingOpenId = null;
     let pendingWidgetType = null;
     let isUploading = false;
+    let uploadCanceled = false;
     let uploadFailed = false;
     let progressPeak = 0;
     let headerObserver = null;
@@ -127,6 +128,34 @@
         progressLabel.textContent = 'Upload complete';
         if (progressSpinner) progressSpinner.classList.add('d-none');
         setProgress(100);
+    }
+
+    function updateUploadButton() {
+        if (!uploadFirmwareBtn) return;
+        uploadFirmwareBtn.disabled = false;
+        uploadFirmwareBtn.textContent = isUploading ? 'Cancel upload' : 'Upload example to target';
+    }
+
+    async function cancelUpload() {
+        if (!isUploading) return;
+        uploadCanceled = true;
+        uploadFailed = false;
+        progressState.textContent = 'canceling';
+        progressLabel.textContent = 'Canceling upload...';
+        if (progressSpinner) progressSpinner.classList.remove('d-none');
+        setStatus('Canceling upload...');
+        try {
+            if (flashApi && flashApi.cancelFlash) {
+                await flashApi.cancelFlash();
+            } else if (ipcRenderer) {
+                ipcRenderer.send('cancel-flash');
+            }
+        } catch (err) {
+            setFailure(`Cancel failed: ${err?.message || String(err)}`);
+            setStatus('Cancel failed.');
+            isUploading = false;
+            updateUploadButton();
+        }
     }
 
     function escapeHtml(text) {
@@ -518,7 +547,11 @@
 
     async function uploadFirmware() {
         const tab = tabs.get(activeTabId);
-        if (!tab || !tab.exampleId || isUploading) return;
+        if (isUploading) {
+            await cancelUpload();
+            return;
+        }
+        if (!tab || !tab.exampleId) return;
         const example = examplesById.get(tab.exampleId);
         const port = portSelect.value;
         if (!example || !port) {
@@ -526,7 +559,9 @@
             return;
         }
         isUploading = true;
-        uploadFirmwareBtn.disabled = true;
+        uploadCanceled = false;
+        uploadFailed = false;
+        updateUploadButton();
         setStatus('Uploading firmware...');
         resetProgress();
         progressLabel.textContent = `Starting upload to ${port}`;
@@ -546,7 +581,7 @@
             setFailure(`Error: ${err?.message || String(err)}`);
             setStatus('Upload failed to start.');
             isUploading = false;
-            uploadFirmwareBtn.disabled = false;
+            updateUploadButton();
         }
     }
 
@@ -578,7 +613,13 @@
 
     if (flashApi && flashApi.onComplete) {
         flashApi.onComplete(() => {
-            if (uploadFailed) {
+            if (uploadCanceled) {
+                progressBar.classList.remove('bg-success', 'bg-danger');
+                progressState.textContent = 'canceled';
+                progressLabel.textContent = 'Upload canceled.';
+                if (progressSpinner) progressSpinner.classList.add('d-none');
+                setStatus('Upload canceled.');
+            } else if (uploadFailed) {
                 setFailure('Upload failed');
                 setStatus('Upload failed.');
             } else {
@@ -586,11 +627,17 @@
                 setStatus('Upload complete.');
             }
             isUploading = false;
-            uploadFirmwareBtn.disabled = false;
+            updateUploadButton();
         });
     } else if (ipcRenderer) {
         ipcRenderer.on('flash-complete', () => {
-        if (uploadFailed) {
+        if (uploadCanceled) {
+            progressBar.classList.remove('bg-success', 'bg-danger');
+            progressState.textContent = 'canceled';
+            progressLabel.textContent = 'Upload canceled.';
+            if (progressSpinner) progressSpinner.classList.add('d-none');
+            setStatus('Upload canceled.');
+        } else if (uploadFailed) {
             setFailure('Upload failed');
             setStatus('Upload failed.');
         } else {
@@ -598,7 +645,7 @@
             setStatus('Upload complete.');
         }
         isUploading = false;
-        uploadFirmwareBtn.disabled = false;
+        updateUploadButton();
         });
     }
 
@@ -1068,6 +1115,7 @@
     loadDashboardBtn.addEventListener('click', loadDashboard);
     uploadFirmwareBtn.addEventListener('click', uploadFirmware);
     refreshPortsBtn.addEventListener('click', refreshPorts);
+    updateUploadButton();
 
     if (examplesApi && examplesApi.onOpenExampleTab) {
         examplesApi.onOpenExampleTab(({ id } = {}) => {
