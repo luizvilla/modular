@@ -1206,18 +1206,46 @@ function FreeboardUI()
 	{
 		// If widget has been added or removed
 		var calculatedHeight = viewModel.getCalculatedHeight();
+		var $element = $(element);
+		var coords = $element.data("coords");
 
-		var elementHeight = Number($(element).attr("data-sizey"));
-		var elementWidth = Number($(element).attr("data-sizex"));
+		// Some dashboard loads trigger a resize before Gridster has registered the pane.
+		// Rehydrate the grid metadata from the DOM instead of crashing on wgd.size_x.
+		if((!coords || !coords.grid) && grid && _.isFunction(grid.register_widget))
+		{
+			var fallbackPosition = getPositionForScreenSize(viewModel);
+			$element.attr("data-sizex", Math.min(viewModel.col_width(), grid.cols))
+				.attr("data-sizey", calculatedHeight)
+				.attr("data-col", fallbackPosition.col)
+				.attr("data-row", fallbackPosition.row);
+			try
+			{
+				grid.register_widget($element);
+				coords = $element.data("coords");
+			}
+			catch(err)
+			{
+				console.error("Pane grid registration failed:", err);
+				return;
+			}
+		}
+
+		if(!coords || !coords.grid)
+		{
+			return;
+		}
+
+		var elementHeight = Number($element.attr("data-sizey"));
+		var elementWidth = Number($element.attr("data-sizex"));
 
 		if(calculatedHeight != elementHeight || viewModel.col_width() !=  elementWidth)
 		{
-			grid.resize_widget($(element), viewModel.col_width(), calculatedHeight, function(){
+			grid.resize_widget($element, viewModel.col_width(), calculatedHeight, function(){
 				grid.set_dom_grid_height();
 			});
 			// If a resize introduces overlap (gridster doesn't resolve horizontal collisions on resize), rebuild layout.
-			var currentCol = Number($(element).attr("data-col"));
-			var currentRow = Number($(element).attr("data-row"));
+			var currentCol = Number($element.attr("data-col"));
+			var currentRow = Number($element.attr("data-row"));
 			if(!grid.can_move_to({ size_x: viewModel.col_width(), size_y: calculatedHeight }, currentCol, currentRow))
 			{
 				processResize(true);
