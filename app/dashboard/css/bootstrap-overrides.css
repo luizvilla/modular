@@ -318,7 +318,7 @@ textarea.form-control {
 /* Reserve space so tools don't overlap widget content */
 .sub-section {
   padding-right: 56px;
-  padding-top: 26px;
+  padding-top: 30px;
 }
 
 /* Keep tools aligned inside the reserved header space */
@@ -331,12 +331,24 @@ textarea.form-control {
   justify-content: space-between;
 }
 
+.sub-section-tools .board-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+.sub-section-tools .board-toolbar li {
+  float: none;
+  flex: 0 0 auto;
+}
+
 .sub-section-tools .widget-tools-title {
   color: #bfbfbf;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  max-width: 55%;
+  max-width: calc(100% - 116px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -369,6 +381,10 @@ textarea.form-control {
 
 .board-toolbar li.tool-delete:hover {
   background-color: rgba(160, 90, 90, 0.22);
+}
+
+.serial-command-buttons {
+  margin-top: 6px;
 }
 
 

@@ -62,6 +62,10 @@
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
             this.btnContainer = $('<div class="d-flex flex-wrap"></div>');
             this._configHandler = () => this._refreshDatasourceOptions();
+            if (freeboard && typeof freeboard.addStyle === 'function') {
+                freeboard.addStyle('.serial-command-buttons .btn', 'white-space:normal;word-break:break-word;');
+                freeboard.addStyle('.serial-command-buttons .d-flex', 'min-width:0;');
+            }
             freeboard.on && freeboard.on('config_updated', this._configHandler);
         }
 
