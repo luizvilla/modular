@@ -897,7 +897,40 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 	this.addPane = function(pane)
 	{
-		self.panes.push(pane);
+		var newPaneHeight = pane.getCalculatedHeight();
+
+		_.each(self.panes(), function(existingPane)
+		{
+			if(_.isNumber(existingPane.row) && _.isNumber(existingPane.col))
+			{
+				existingPane.row += newPaneHeight;
+				return;
+			}
+
+			if(!_.isObject(existingPane.row))
+			{
+				existingPane.row = {};
+			}
+
+			_.each(existingPane.row, function(rowValue, columnKey)
+			{
+				var currentRow = Number(rowValue) || 1;
+				existingPane.row[columnKey] = currentRow + newPaneHeight;
+			});
+		});
+
+		if(!_.isObject(pane.row))
+		{
+			pane.row = {};
+		}
+		if(!_.isObject(pane.col))
+		{
+			pane.col = {};
+		}
+
+		pane.row[1] = 1;
+		pane.col[1] = 1;
+		self.panes.unshift(pane);
 		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
@@ -1243,18 +1276,25 @@ function FreeboardUI()
 
 		var elementHeight = Number($element.attr("data-sizey"));
 		var elementWidth = Number($element.attr("data-sizex"));
+		var heightChanged = calculatedHeight != elementHeight;
+		var widthChanged = viewModel.col_width() != elementWidth;
 
-		if(calculatedHeight != elementHeight || viewModel.col_width() !=  elementWidth)
+		if(heightChanged || widthChanged)
 		{
 			grid.resize_widget($element, viewModel.col_width(), calculatedHeight, function(){
 				grid.set_dom_grid_height();
 			});
-			// If a resize introduces overlap (gridster doesn't resolve horizontal collisions on resize), rebuild layout.
-			var currentCol = Number($element.attr("data-col"));
-			var currentRow = Number($element.attr("data-row"));
-			if(!grid.can_move_to({ size_x: viewModel.col_width(), size_y: calculatedHeight }, currentCol, currentRow))
+
+			// Let Gridster keep vertical growth stable when widgets are added to a pane.
+			// Only fall back to a full relayout when the pane width changes.
+			if(widthChanged)
 			{
-				processResize(true);
+				var currentCol = Number($element.attr("data-col"));
+				var currentRow = Number($element.attr("data-row"));
+				if(!grid.can_move_to({ size_x: viewModel.col_width(), size_y: calculatedHeight }, currentCol, currentRow))
+				{
+					processResize(true);
+				}
 			}
 		}
 	}
