@@ -177,6 +177,7 @@
         _renderLegControls() {
             if (this.legWrap) this.legWrap.remove();
             const profile = this._profile();
+            const section = $('<div class="d-flex flex-column gap-2"></div>');
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
             const topActions = ['LEG', 'CAPA', 'DRIVER'];
             const bottomActions = ['BUCK', 'BOOST', null];
@@ -222,8 +223,10 @@
                 row.append(grid);
                 wrap.append(row);
             }
-            this.legWrap = wrap;
-            this.container.append($('<div class="fw-semibold">Leg toggles</div>'), wrap);
+            section.append($('<div class="fw-semibold">Leg toggles</div>'), wrap);
+            this.legWrap = section;
+            this.lastCmd.detach();
+            this.container.append(section, this.lastCmd);
         }
 
         onSettingsChanged(newSettings) {
