@@ -4,13 +4,14 @@
     const paths = api && api.paths ? api.paths : null;
     const docsApi = api && api.docs ? api.docs : null;
     const filesApi = api && api.files ? api.files : null;
+    const systemApi = api && api.system ? api.system : null;
     const dashboardApi = api && api.dashboard ? api.dashboard : null;
     const serialApi = api && api.serial ? api.serial : null;
     const flashApi = api && api.flash ? api.flash : null;
     const examplesApi = api && api.examples ? api.examples : null;
     const widgetsApi = api && api.widgets ? api.widgets : null;
 
-    const { ipcRenderer } = !api && window.require ? window.require('electron') : { ipcRenderer: null };
+    const { ipcRenderer, shell } = !api && window.require ? window.require('electron') : { ipcRenderer: null, shell: null };
     const fs = !api && window.require ? window.require('fs') : null;
     const path = !api && window.require ? window.require('path') : null;
     const { pathToFileURL } = !api && window.require ? window.require('url') : { pathToFileURL: null };
@@ -228,6 +229,36 @@
         }
     }
 
+    async function openExternalUrl(url) {
+        if (!url || !/^https?:\/\//i.test(String(url))) return false;
+        try {
+            if (systemApi && systemApi.openExternal) {
+                const result = await systemApi.openExternal(String(url));
+                return result ? result.ok !== false : true;
+            }
+            if (shell && shell.openExternal) {
+                await shell.openExternal(String(url));
+                return true;
+            }
+        } catch (err) {
+            console.warn('[tabs] openExternal failed:', err?.message || err);
+        }
+        return false;
+    }
+
+    function installDocLinkHandling(container) {
+        if (!container || container.dataset.externalLinkHandlingInstalled === 'true') return;
+        container.dataset.externalLinkHandlingInstalled = 'true';
+        container.addEventListener('click', async (event) => {
+            const anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+            if (!anchor) return;
+            const href = anchor.getAttribute('href') || '';
+            if (!/^https?:\/\//i.test(href)) return;
+            event.preventDefault();
+            await openExternalUrl(href);
+        });
+    }
+
     function renderInlineFallback(text, baseDir) {
         const tokens = [];
         function stash(html) {
@@ -378,6 +409,7 @@
 
     async function renderMarkdownInto(element, markdown, baseDir) {
         element.innerHTML = renderMarkdown(markdown, baseDir);
+        installDocLinkHandling(element);
         await typesetMath(element);
     }
 

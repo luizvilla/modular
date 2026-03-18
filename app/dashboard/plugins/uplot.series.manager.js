@@ -11,6 +11,10 @@
             return serial.getHeaders ? serial.getHeaders(payload.path, payload.type) : null;
           case 'get-serial-colors':
             return serial.getColors ? serial.getColors(payload.path, payload.type) : null;
+          case 'get-fast-dataset':
+            return serial.getFastDataset ? serial.getFastDataset(payload.path) : null;
+          case 'get-serial-buffer':
+            return serial.getBuffer ? serial.getBuffer(payload.path) : null;
           default:
             return null;
         }

@@ -111,10 +111,92 @@ textarea.form-control {
  * newly added panes to overlap or ignore placement.
  */
 .gridster section { position: absolute; top: 30px; bottom: 0; left: 0; right: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-.gridster section .sub-section .widget { height: 100%; }
+.gridster section .sub-section .widget {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 
 /* Help flex children inside widgets scroll correctly */
 .gridster section .sub-section .widget .flex-fill { min-height: 0; }
+
+/* Keep uPlot constrained to the widget bounds on initial example dashboards. */
+.uplot-widget-shell {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
+.uplot-chart-host {
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.uplot-widget-shell .uplot,
+.uplot-widget-shell .uplot > *,
+.uplot-widget-shell canvas {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.uplot-resize-handle {
+  height: 8px;
+  cursor: ns-resize;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(120, 128, 140, 0.18), rgba(120, 128, 140, 0.42), rgba(120, 128, 140, 0.18));
+}
+
+.uplot-readout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 14px;
+  align-content: start;
+}
+
+.uplot-readout-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  color: #c9ccd2;
+  font-size: 13px;
+}
+
+.uplot-readout-item.uplot-readout-time {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.uplot-readout-swatch {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #7aa2f7;
+  box-sizing: border-box;
+}
+
+.uplot-readout-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uplot-readout-value {
+  color: #e7eaef;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
 
 /*
  * Fix Freeboard toolbar hover alignment while keeping Bootstrap typography.

@@ -54,8 +54,12 @@
 class OwnTechPlotUPlot {
         constructor(settings) {
             this.settings = settings;
-            // Simple container for the plot only; series are managed by an external controller
-            this.container = $('<div class="w-100 h-100 overflow-auto"></div>');
+            // Keep the chart area stable and render channel values in a separate aligned grid.
+            this.container = $('<div class="uplot-widget-shell"></div>');
+            this.chartHost = $('<div class="uplot-chart-host"></div>');
+            this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
+            this.readoutHost = $('<div class="uplot-readout-grid"></div>');
+            this.container.append(this.chartHost, this.resizeHandle, this.readoutHost);
             this.plot = null;
             this.seriesCount = 0;
             this.dataBuffer = [[], []]; // [timestamps, [series1, series2, ...]]
@@ -63,8 +67,10 @@ class OwnTechPlotUPlot {
             this.lastRender = 0;
             this._resizeObs = null;
             this._resizeRAF = 0;
+            this._dragCleanup = null;
             this.pullTimer = null;
             this.localMode = false; // when true, we poll values ourselves
+            this.plotHeightPx = 240;
             this.seriesDefs = this._parseSeriesDefs((typeof settings.seriesDefs === 'function' ? settings.seriesDefs() : settings.seriesDefs));
             // Persist helper widget preference so we can optionally auto-spawn related widgets.
             this.helperWidgets = this._resolveHelperWidgets(settings);
@@ -225,6 +231,8 @@ class OwnTechPlotUPlot {
 
         render(containerElement) {
             this.container.appendTo(containerElement);
+            this._applyPlotHeight();
+            this._bindHeightDrag();
             // Optionally spawn helper widgets (UI controller / series manager) next to this plot.
             this._maybeSpawnHelpers();
             this._initPlot();
@@ -362,10 +370,10 @@ class OwnTechPlotUPlot {
 
             const opts = {
                 title: this.settings.title || "",
-                width: this.container.width(),
-                height: this.container.height() || 300,
+                width: this.chartHost.width() || this.container.width(),
+                height: this.plotHeightPx,
                 legend: {
-                    show: this.settings.showLegend !== false,
+                    show: false,
                 },
                 scales: {
                     x: { time: true },
@@ -385,18 +393,10 @@ class OwnTechPlotUPlot {
                 ],
                 series: resolvedSeries
             };
-            this.plot = new uPlot(opts, this.dataBuffer, this.container[0]);
-            // Ensure legend items wrap to keep all channels visible.
-            if (this.plot && this.plot.root) {
-                const legend = this.plot.root.querySelector('.u-legend');
-                if (legend) {
-                    legend.style.display = 'flex';
-                    legend.style.flexWrap = 'wrap';
-                    legend.style.gap = '6px 12px';
-                }
-            }
+            this.plot = new uPlot(opts, this.dataBuffer, this.chartHost[0]);
             // Apply initial Y range (manual or computed)
             this._applyYAxisRange();
+            this._renderReadouts();
             // In case layout settles after init, try an async resize tick
             this._requestResize();
         }
@@ -434,6 +434,7 @@ class OwnTechPlotUPlot {
                 this.plot.setData(this.dataBuffer);
                 // Update y-axis scaling if not fully manual
                 this._applyYAxisRange();
+                this._renderReadouts();
                 this.lastRender = now;
             }
         }
@@ -454,6 +455,7 @@ class OwnTechPlotUPlot {
             if (this.plot) {
                 this.plot.setData(this.dataBuffer);
                 this._applyYAxisRange();
+                this._renderReadouts();
                 this.lastRender = Date.now();
             }
         }
@@ -515,6 +517,7 @@ class OwnTechPlotUPlot {
             if (titleChanged && this.plot) {
                 const tEl = this.plot.root.querySelector('.u-title');
                 if (tEl) tEl.textContent = this.settings.title || '';
+                this._requestResize();
             }
             if (rateChanged) {
                 this.lastRender = 0;
@@ -571,6 +574,10 @@ class OwnTechPlotUPlot {
                 cancelAnimationFrame(this._resizeRAF);
                 this._resizeRAF = 0;
             }
+            if (this._dragCleanup) {
+                this._dragCleanup();
+                this._dragCleanup = null;
+            }
             // Remove fallback window resize handler if used
             try { $(window).off('resize.uplot-widget'); } catch {}
             if (this._configHandler && freeboard.off) {
@@ -579,7 +586,79 @@ class OwnTechPlotUPlot {
         }
 
         getHeight() {
-            return 6;
+            return 10;
+        }
+
+        _applyPlotHeight() {
+            const next = Math.max(160, Math.min(520, Number(this.plotHeightPx) || 240));
+            this.plotHeightPx = next;
+            this.chartHost.css('height', `${next}px`);
+        }
+
+        _bindHeightDrag() {
+            if (!this.resizeHandle || this.resizeHandle.data('uplot-bound')) return;
+            this.resizeHandle.data('uplot-bound', true);
+            this.resizeHandle.on('mousedown', (event) => {
+                event.preventDefault();
+                const startY = event.clientY;
+                const startHeight = this.plotHeightPx;
+                const onMove = (moveEvent) => {
+                    const delta = moveEvent.clientY - startY;
+                    this.plotHeightPx = startHeight + delta;
+                    this._applyPlotHeight();
+                    this._requestResize();
+                };
+                const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                    this._dragCleanup = null;
+                };
+                this._dragCleanup = onUp;
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+            });
+        }
+
+        _formatReadoutValue(value) {
+            if (!Number.isFinite(value)) return '---';
+            const abs = Math.abs(value);
+            if (abs >= 1000 || (abs > 0 && abs < 0.01)) return value.toExponential(2);
+            return Number(value.toFixed(3)).toString();
+        }
+
+        _formatReadoutTime(timestamp) {
+            if (!Number.isFinite(timestamp)) return '---';
+            return new Date(timestamp).toLocaleTimeString();
+        }
+
+        _renderReadouts() {
+            if (!this.readoutHost) return;
+            const lastTs = this.dataBuffer[0] && this.dataBuffer[0].length
+                ? this.dataBuffer[0][this.dataBuffer[0].length - 1]
+                : null;
+            const cards = [];
+            cards.push(
+                `<div class="uplot-readout-item uplot-readout-time">` +
+                `<span class="uplot-readout-label">Time</span>` +
+                `<span class="uplot-readout-value">${this._formatReadoutTime(lastTs)}</span>` +
+                `</div>`
+            );
+
+            for (let i = 0; i < this.seriesCount; i++) {
+                const arr = this.dataBuffer[i + 1] || [];
+                const latest = arr.length ? arr[arr.length - 1] : null;
+                const label = _.escape(this._getSeriesLabel(i));
+                const color = _.escape(this._getSeriesColor(i));
+                cards.push(
+                    `<div class="uplot-readout-item">` +
+                    `<span class="uplot-readout-swatch" style="border-color:${color};"></span>` +
+                    `<span class="uplot-readout-label">${label}</span>` +
+                    `<span class="uplot-readout-value">${this._formatReadoutValue(latest)}</span>` +
+                    `</div>`
+                );
+            }
+
+            this.readoutHost.html(cards.join(''));
         }
 
         _parseSeriesDefs(val) {
@@ -1214,28 +1293,13 @@ class OwnTechPlotUPlot {
         }
 
         _requestResize() {
-            if (!this.plot || !this.container) return;
+            if (!this.plot || !this.chartHost) return;
             if (this._resizeRAF) cancelAnimationFrame(this._resizeRAF);
             this._resizeRAF = requestAnimationFrame(() => {
                 this._resizeRAF = 0;
-                const w = Math.max(0, this.container.width());
-                let h = Math.max(0, this.container.height());
-                // Subtract non-plot vertical elements (title + legend) to avoid overflow
-                try {
-                    const root = this.plot.root;
-                    const titleEl = root.querySelector('.u-title');
-                    const legendEl = root.querySelector('.u-legend');
-                    if (legendEl) {
-                        legendEl.style.display = 'flex';
-                        legendEl.style.flexWrap = 'wrap';
-                        legendEl.style.gap = '6px 12px';
-                    }
-                    const titleH = titleEl && getComputedStyle(titleEl).display !== 'none' ? titleEl.offsetHeight : 0;
-                    const legendH = legendEl && getComputedStyle(legendEl).display !== 'none' ? legendEl.offsetHeight : 0;
-                    const extra = titleH + legendH;
-                    if (extra > 0) h = Math.max(0, h - extra);
-                } catch {}
-
+                const el = this.chartHost[0];
+                const w = Math.max(0, el ? el.clientWidth : this.chartHost.width());
+                const h = Math.max(160, el ? el.clientHeight : this.plotHeightPx);
                 if (w && h) {
                     try { this.plot.setSize({ width: w, height: h }); } catch {}
                 }

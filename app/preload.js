@@ -32,6 +32,9 @@ const api = {
         listDir: (dirPath) => ipcRenderer.invoke('files-list-dir', { dirPath }),
         writeText: (filePath, content) => ipcRenderer.invoke('files-write-text', { filePath, content })
     },
+    system: {
+        openExternal: (url) => ipcRenderer.invoke('open-external-url', { url })
+    },
     examples: {
         openExampleTab: (id) => ipcRenderer.send('open-example-tab', { id }),
         onOpenExampleTab: (cb) => on('open-example-tab', cb),
@@ -244,7 +247,11 @@ if (isMock) {
         api.can = null;
         api.thingset = null;
         api.thingsetSerial = null;
+        api.system = null;
     } else {
+        api.system = {
+            openExternal: async () => ({ ok: true })
+        };
         api.serial = {
             listPorts: async () => mockPorts,
             openPort: async ({ path: pathStr }) => { if (pathStr) mockSerial.openPorts.add(pathStr); return 'opened'; },

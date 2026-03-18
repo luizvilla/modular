@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
 const fs = require('fs');
@@ -220,6 +220,18 @@ ipcMain.handle('files-write-text', async (_event, { filePath, content } = {}) =>
         return { ok: true };
     } catch (err) {
         console.warn('files-write-text failed:', err?.message || err);
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
+
+ipcMain.handle('open-external-url', async (_event, { url } = {}) => {
+    if (!url || !/^https?:\/\//i.test(String(url))) {
+        return { ok: false, error: 'Invalid external URL' };
+    }
+    try {
+        await shell.openExternal(String(url));
+        return { ok: true };
+    } catch (err) {
         return { ok: false, error: err?.message || String(err) };
     }
 });
