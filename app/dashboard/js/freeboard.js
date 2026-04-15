@@ -1212,7 +1212,7 @@ function FreeboardUI()
 				widget_margins        : [PANE_MARGIN, PANE_MARGIN],
 				widget_base_dimensions: [PANE_WIDTH, 10],
 				draggable             : {
-					handle: '.pane-header h1, .pane-header h1 *',
+					handle: '.pane-drag-handle, .pane-drag-handle *',
 					start : function(event)
 					{
 						paneDebugLog("drag:start", {
@@ -1439,6 +1439,14 @@ function FreeboardUI()
 				target: event && event.target && event.target.className,
 				currentTarget: event && event.currentTarget && event.currentTarget.className,
 				text: $(this).text()
+			});
+		});
+
+		$pane.find(".pane-drag-handle").on("mousedown.freeboard-pane-debug", function(event)
+		{
+			paneDebugLog("mouse:drag-handle", {
+				target: event && event.target && event.target.className,
+				currentTarget: event && event.currentTarget && event.currentTarget.className
 			});
 		});
 

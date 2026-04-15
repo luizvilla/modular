@@ -490,4 +490,26 @@ body.pane-resize-active .pane-resize-handle {
 .gridster .gs_w > .pane-header > h1 {
   cursor: move;
   user-select: none;
+  pointer-events: none;
+  position: relative;
+  z-index: 2;
+}
+
+.gridster .gs_w > .pane-header {
+  position: relative;
+}
+
+.gridster .gs_w > .pane-header > .pane-drag-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 84px;
+  z-index: 1;
+  cursor: move;
+}
+
+.gridster .gs_w > .pane-header > .pane-tools {
+  position: relative;
+  z-index: 3;
 }
