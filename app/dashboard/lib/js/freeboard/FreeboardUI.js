@@ -193,6 +193,9 @@ function FreeboardUI()
 			grid = $(element).gridster({
 				widget_margins        : [PANE_MARGIN, PANE_MARGIN],
 				widget_base_dimensions: [PANE_WIDTH, 10],
+				draggable             : {
+					handle: '> header > h1'
+				},
 				resize: {
 					enabled : false,
 					axes : "x"

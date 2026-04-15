@@ -484,3 +484,8 @@ body.pane-resize-active .pane-resize-handle {
 .datasource-paused .datasource-name {
   text-decoration: line-through;
 }
+
+.gridster .gs_w > .pane-header > h1 {
+  cursor: move;
+  user-select: none;
+}
