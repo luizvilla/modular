@@ -4,11 +4,13 @@ function FreeboardUI()
 	var PANE_WIDTH = 300;
 	var MIN_COLUMNS = 3;
 	var COLUMN_WIDTH = PANE_MARGIN + PANE_WIDTH + PANE_MARGIN;
+	var ROW_HEIGHT = 30;
 
 	var userColumns = MIN_COLUMNS;
 
 	var loadingIndicator = $('<div class="wrapperloading"><div class="loading up" ></div><div class="loading down"></div></div>');
 	var grid;
+	var activePaneResize = null;
 
 	function processResize(layoutWidgets)
 	{
@@ -212,6 +214,7 @@ function FreeboardUI()
 		var height = Number(viewModel.getCalculatedHeight());
 
 		grid.add_widget(element, width, height, col, row);
+		attachPaneResizeHandles(element, viewModel);
 
 		if(isEditing)
 		{
@@ -285,12 +288,111 @@ function FreeboardUI()
 		{
 			$(".pane-tools").fadeIn(animateLength);//.css("display", "block").animate({opacity: 1.0}, animateLength);
 			$("#column-tools").fadeIn(animateLength);
+			$(".pane-resize-handle").fadeIn(animateLength);
 		}
 		else
 		{
 			$(".pane-tools").fadeOut(animateLength);//.animate({opacity: 0.0}, animateLength).css("display", "none");//, function()
 			$("#column-tools").fadeOut(animateLength);
+			$(".pane-resize-handle").fadeOut(animateLength);
 		}
+	}
+
+	function attachPaneResizeHandles(element, viewModel)
+	{
+		var $pane = $(element);
+		if($pane.data("pane-resize-bound"))
+		{
+			return;
+		}
+		$pane.data("pane-resize-bound", true);
+
+		var handles = [
+			{ direction: "e", title: "Drag to resize pane width" },
+			{ direction: "s", title: "Drag to resize pane height" },
+			{ direction: "se", title: "Drag to resize pane" }
+		];
+
+		_.each(handles, function(handle)
+		{
+			$('<div class="pane-resize-handle pane-resize-' + handle.direction + '"></div>')
+				.attr("title", handle.title)
+				.attr("data-resize-dir", handle.direction)
+				.hide()
+				.appendTo($pane);
+		});
+
+		$pane.on("mousedown.freeboard-pane-resize", ".pane-resize-handle", function(event)
+		{
+			event.preventDefault();
+			event.stopPropagation();
+
+			var dir = $(this).attr("data-resize-dir") || "";
+			var startWidth = Number($pane.attr("data-sizex")) || Number(viewModel.col_width()) || 1;
+			var startHeight = Number($pane.attr("data-sizey")) || Number(viewModel.getCalculatedHeight()) || 1;
+			activePaneResize = {
+				$pane: $pane,
+				viewModel: viewModel,
+				startX: event.clientX,
+				startY: event.clientY,
+				startWidth: startWidth,
+				startHeight: startHeight,
+				dir: dir,
+				lastWidth: startWidth,
+				lastHeight: startHeight
+			};
+
+			$("body").addClass("pane-resize-active");
+
+			$(window)
+				.on("mousemove.freeboard-pane-resize", paneResizeMove)
+				.on("mouseup.freeboard-pane-resize", paneResizeStop);
+		});
+	}
+
+	function paneResizeMove(event)
+	{
+		if(!activePaneResize)
+		{
+			return;
+		}
+
+		var deltaCols = activePaneResize.dir.indexOf("e") !== -1 ? Math.round((event.clientX - activePaneResize.startX) / COLUMN_WIDTH) : 0;
+		var deltaRows = activePaneResize.dir.indexOf("s") !== -1 ? Math.round((event.clientY - activePaneResize.startY) / ROW_HEIGHT) : 0;
+		var nextWidth = activePaneResize.startWidth + deltaCols;
+		var nextHeight = activePaneResize.startHeight + deltaRows;
+
+		nextWidth = Math.max(1, Math.min(nextWidth, grid.cols));
+		nextHeight = Math.max(1, nextHeight);
+
+		if(nextWidth === activePaneResize.lastWidth && nextHeight === activePaneResize.lastHeight)
+		{
+			return;
+		}
+
+		activePaneResize.lastWidth = nextWidth;
+		activePaneResize.lastHeight = nextHeight;
+
+		grid.resize_widget(activePaneResize.$pane, nextWidth, nextHeight, function(){
+			grid.set_dom_grid_height();
+		});
+	}
+
+	function paneResizeStop()
+	{
+		if(!activePaneResize)
+		{
+			return;
+		}
+
+		var finalWidth = Number(activePaneResize.$pane.attr("data-sizex")) || activePaneResize.lastWidth;
+		var finalHeight = Number(activePaneResize.$pane.attr("data-sizey")) || activePaneResize.lastHeight;
+		activePaneResize.viewModel.col_width(finalWidth);
+		activePaneResize.viewModel.row_height(finalHeight);
+
+		$(window).off(".freeboard-pane-resize");
+		$("body").removeClass("pane-resize-active");
+		activePaneResize = null;
 	}
 
 	function attachWidgetEditIcons(element)
