@@ -1385,10 +1385,12 @@ function FreeboardUI()
 		{
 			event.preventDefault();
 			event.stopPropagation();
+			event.stopImmediatePropagation();
 
 			var dir = $(this).attr("data-resize-dir") || "";
 			var startWidth = Number($pane.attr("data-sizex")) || Number(viewModel.col_width()) || 1;
 			var startHeight = Number($pane.attr("data-sizey")) || Number(viewModel.getCalculatedHeight()) || 1;
+			grid.disable();
 			activePaneResize = {
 				$pane: $pane,
 				viewModel: viewModel,
@@ -1452,6 +1454,7 @@ function FreeboardUI()
 
 		$(window).off(".freeboard-pane-resize");
 		$("body").removeClass("pane-resize-active");
+		grid.enable();
 		activePaneResize = null;
 	}
 
