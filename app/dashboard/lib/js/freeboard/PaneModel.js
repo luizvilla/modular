@@ -7,7 +7,12 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 	this.col = {};
 
     this.col_width = ko.observable(2);
+	this.row_height = ko.observable(null);
 	this.col_width.subscribe(function(newValue)
+	{
+		self.processSizeChange();
+	});
+	this.row_height.subscribe(function(newValue)
 	{
 		self.processSizeChange();
 	});
@@ -56,6 +61,12 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 	}
 
 	this.getCalculatedHeight = function () {
+		var fixedRows = Number(self.row_height());
+		if(_.isFinite(fixedRows) && fixedRows > 0)
+		{
+			return Math.max(1, Math.floor(fixedRows));
+		}
+
 		var sumHeights = _.reduce(self.widgets(), function (memo, widget) {
 			return memo + widget.height();
 		}, 0);
@@ -83,6 +94,7 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 			row: self.row,
 			col: self.col,
 			col_width: Number(self.col_width()),
+			row_height: _.isFinite(Number(self.row_height())) && Number(self.row_height()) > 0 ? Math.floor(Number(self.row_height())) : undefined,
 			widgets: widgets
 		};
 	}
@@ -94,6 +106,7 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 		self.row = object.row;
 		self.col = object.col;
         self.col_width(object.col_width || 2);
+		self.row_height(_.isFinite(Number(object.row_height)) && Number(object.row_height) > 0 ? Math.floor(Number(object.row_height)) : null);
 
 		_.each(object.widgets, function (widgetConfig) {
 			var widget = new WidgetModel(theFreeboardModel, widgetPlugins);

@@ -1571,7 +1571,12 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 	this.col = {};
 
     this.col_width = ko.observable(2);
+	this.row_height = ko.observable(null);
 	this.col_width.subscribe(function(newValue)
+	{
+		self.processSizeChange();
+	});
+	this.row_height.subscribe(function(newValue)
 	{
 		self.processSizeChange();
 	});
@@ -1620,6 +1625,12 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 	}
 
 	this.getCalculatedHeight = function () {
+		var fixedRows = Number(self.row_height());
+		if(_.isFinite(fixedRows) && fixedRows > 0)
+		{
+			return Math.max(1, Math.floor(fixedRows));
+		}
+
 		var sumHeights = _.reduce(self.widgets(), function (memo, widget) {
 			return memo + widget.height();
 		}, 0);
@@ -1647,6 +1658,7 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 			row: self.row,
 			col: self.col,
 			col_width: Number(self.col_width()),
+			row_height: _.isFinite(Number(self.row_height())) && Number(self.row_height()) > 0 ? Math.floor(Number(self.row_height())) : undefined,
 			widgets: widgets
 		};
 	}
@@ -1658,6 +1670,7 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 		self.row = object.row;
 		self.col = object.col;
         self.col_width(object.col_width || 2);
+		self.row_height(_.isFinite(Number(object.row_height)) && Number(object.row_height) > 0 ? Math.floor(Number(object.row_height)) : null);
 
 		_.each(object.widgets, function (widgetConfig) {
 			var widget = new WidgetModel(theFreeboardModel, widgetPlugins);
@@ -3574,6 +3587,7 @@ var freeboard = (function()
 						{
 							settings.title = viewModel.title();
 							settings.col_width = viewModel.col_width();
+							settings.row_height = viewModel.row_height();
 						}
 
 						types = {
@@ -3588,8 +3602,14 @@ var freeboard = (function()
 										name : "col_width",
 										display_name : "Columns",
 										type : "integer",
-                                    default_value : 2,
+                                        default_value : 2,
 										required : true
+									},
+									{
+										name : "row_height",
+										display_name : "Rows",
+										type : "integer",
+										description : "Leave blank to keep automatic pane height."
 									}
 								]
 							}
@@ -3640,6 +3660,8 @@ var freeboard = (function()
 							{
 								viewModel.title(newSettings.settings.title);
 								viewModel.col_width(newSettings.settings.col_width);
+								var paneRows = Number(newSettings.settings.row_height);
+								viewModel.row_height(_.isFinite(paneRows) && paneRows > 0 ? Math.floor(paneRows) : null);
 								freeboardUI.processResize(false);
 							}
 							else
