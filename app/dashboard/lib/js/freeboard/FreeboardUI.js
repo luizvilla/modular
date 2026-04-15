@@ -194,7 +194,7 @@ function FreeboardUI()
 				widget_margins        : [PANE_MARGIN, PANE_MARGIN],
 				widget_base_dimensions: [PANE_WIDTH, 10],
 				draggable             : {
-					handle: '> header, > header > h1, > header > h1 *'
+					handle: '.pane-header h1, .pane-header h1 *'
 				},
 				resize: {
 					enabled : false,
