@@ -251,8 +251,20 @@ function FreeboardUI()
 		{
 			grid.resize_widget($(element), viewModel.col_width(), calculatedHeight, function(){
 				grid.set_dom_grid_height();
+				notifyPaneSizeChanged(viewModel);
 			});
 		}
+	}
+
+	function notifyPaneSizeChanged(paneModel)
+	{
+		_.each(paneModel.widgets(), function(widget)
+		{
+			if(widget && _.isFunction(widget.processSizeChange))
+			{
+				widget.processSizeChange();
+			}
+		});
 	}
 
 	function updatePositionForScreenSize(paneModel, row, col)
@@ -375,6 +387,7 @@ function FreeboardUI()
 
 		grid.resize_widget(activePaneResize.$pane, nextWidth, nextHeight, function(){
 			grid.set_dom_grid_height();
+			notifyPaneSizeChanged(activePaneResize.viewModel);
 		});
 	}
 
