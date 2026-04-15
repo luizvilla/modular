@@ -1016,19 +1016,6 @@ function FreeboardUI()
 	var grid;
 	var activePaneResize = null;
 	var suppressRemove = false;
-	var paneDebugEnabled = true;
-
-	function paneDebugLog()
-	{
-		if(!paneDebugEnabled || !window.console || !console.log)
-		{
-			return;
-		}
-
-		var args = Array.prototype.slice.call(arguments);
-		args.unshift("[pane-debug]");
-		console.log.apply(console, args);
-	}
 
 	function processResize(layoutWidgets)
 	{
@@ -1212,33 +1199,13 @@ function FreeboardUI()
 				widget_margins        : [PANE_MARGIN, PANE_MARGIN],
 				widget_base_dimensions: [PANE_WIDTH, 10],
 				draggable             : {
-					handle: '.pane-drag-handle, .pane-drag-handle *',
-					start : function(event)
-					{
-						paneDebugLog("drag:start", {
-							target: event && event.target && event.target.className,
-							currentTarget: event && event.currentTarget && event.currentTarget.className
-						});
-					},
-					drag : function(event, ui)
-					{
-						paneDebugLog("drag:move", ui && ui.position);
-					},
-					stop : function(event, ui)
-					{
-						paneDebugLog("drag:stop", ui && ui.position);
-					}
+					handle: '.pane-drag-handle, .pane-drag-handle *'
 				},
 				resize: {
 					enabled : false,
 					axes : "x"
 				}
 			}).data("gridster");
-
-			paneDebugLog("grid:init", {
-				paneDebugEnabled: paneDebugEnabled,
-				cols: grid && grid.cols
-			});
 
 			processResize(false)
 
@@ -1255,13 +1222,6 @@ function FreeboardUI()
 		var height = Number(viewModel.getCalculatedHeight());
 
 		grid.add_widget(element, width, height, col, row);
-		paneDebugLog("pane:add", {
-			title: _.isFunction(viewModel.title) ? viewModel.title() : viewModel.title,
-			col: col,
-			row: row,
-			width: width,
-			height: height
-		});
 		attachPaneResizeHandles(element, viewModel);
 
 		if(isEditing)
@@ -1388,14 +1348,12 @@ function FreeboardUI()
 
 		if(show)
 		{
-			paneDebugLog("pane-tools:show");
 			$(".pane-tools").fadeIn(animateLength);//.css("display", "block").animate({opacity: 1.0}, animateLength);
 			$("#column-tools").fadeIn(animateLength);
 			$(".pane-resize-handle").fadeIn(animateLength);
 		}
 		else
 		{
-			paneDebugLog("pane-tools:hide");
 			$(".pane-tools").fadeOut(animateLength);//.animate({opacity: 0.0}, animateLength).css("display", "none");//, function()
 			$("#column-tools").fadeOut(animateLength);
 			$(".pane-resize-handle").fadeOut(animateLength);
@@ -1417,39 +1375,6 @@ function FreeboardUI()
 			{ direction: "se", title: "Drag to resize pane" }
 		];
 
-		$pane.on("mousedown.freeboard-pane-debug", function(event)
-		{
-			paneDebugLog("mouse:pane", {
-				target: event && event.target && event.target.className,
-				currentTarget: event && event.currentTarget && event.currentTarget.className
-			});
-		});
-
-		$pane.find(".pane-header").on("mousedown.freeboard-pane-debug", function(event)
-		{
-			paneDebugLog("mouse:header", {
-				target: event && event.target && event.target.className,
-				currentTarget: event && event.currentTarget && event.currentTarget.className
-			});
-		});
-
-		$pane.find(".pane-header h1").on("mousedown.freeboard-pane-debug", function(event)
-		{
-			paneDebugLog("mouse:title", {
-				target: event && event.target && event.target.className,
-				currentTarget: event && event.currentTarget && event.currentTarget.className,
-				text: $(this).text()
-			});
-		});
-
-		$pane.find(".pane-drag-handle").on("mousedown.freeboard-pane-debug", function(event)
-		{
-			paneDebugLog("mouse:drag-handle", {
-				target: event && event.target && event.target.className,
-				currentTarget: event && event.currentTarget && event.currentTarget.className
-			});
-		});
-
 		_.each(handles, function(handle)
 		{
 			var $handle = $('<div class="pane-resize-handle pane-resize-' + handle.direction + '"></div>')
@@ -1467,17 +1392,6 @@ function FreeboardUI()
 				var dir = $(this).attr("data-resize-dir") || "";
 				var startWidth = Number($pane.attr("data-sizex")) || Number(viewModel.col_width()) || 1;
 				var startHeight = Number($pane.attr("data-sizey")) || Number(viewModel.getCalculatedHeight()) || 1;
-				paneDebugLog("mouse:handle", {
-					dir: dir,
-					target: event && event.target && event.target.className,
-					currentTarget: event && event.currentTarget && event.currentTarget.className
-				});
-				paneDebugLog("resize:start", {
-					dir: dir,
-					target: event && event.target && event.target.className,
-					startWidth: startWidth,
-					startHeight: startHeight
-				});
 				grid.disable();
 				activePaneResize = {
 					$pane: $pane,
@@ -1497,11 +1411,6 @@ function FreeboardUI()
 					.on("mousemove.freeboard-pane-resize", paneResizeMove)
 					.on("mouseup.freeboard-pane-resize", paneResizeStop);
 			});
-		});
-
-		paneDebugLog("resize-handles:attached", {
-			title: _.isFunction(viewModel.title) ? viewModel.title() : viewModel.title,
-			count: $pane.find(".pane-resize-handle").length
 		});
 
 	}
@@ -1528,13 +1437,6 @@ function FreeboardUI()
 
 		activePaneResize.lastWidth = nextWidth;
 		activePaneResize.lastHeight = nextHeight;
-		paneDebugLog("resize:move", {
-			dir: activePaneResize.dir,
-			nextWidth: nextWidth,
-			nextHeight: nextHeight,
-			deltaCols: deltaCols,
-			deltaRows: deltaRows
-		});
 
 		grid.resize_widget(activePaneResize.$pane, nextWidth, nextHeight, function(){
 			grid.set_dom_grid_height();
@@ -1551,10 +1453,6 @@ function FreeboardUI()
 
 		var finalWidth = Number(activePaneResize.$pane.attr("data-sizex")) || activePaneResize.lastWidth;
 		var finalHeight = Number(activePaneResize.$pane.attr("data-sizey")) || activePaneResize.lastHeight;
-		paneDebugLog("resize:stop", {
-			finalWidth: finalWidth,
-			finalHeight: finalHeight
-		});
 		activePaneResize.viewModel.col_width(finalWidth);
 		activePaneResize.viewModel.row_height(finalHeight);
 
