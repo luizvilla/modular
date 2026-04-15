@@ -1016,17 +1016,7 @@ function FreeboardUI()
 	var grid;
 	var activePaneResize = null;
 	var suppressRemove = false;
-	var paneDebugEnabled = false;
-
-	try
-	{
-		paneDebugEnabled = /(?:\?|&)paneDebug=1(?:&|$)/.test(window.location.search) ||
-			window.localStorage.getItem("freeboardPaneDebug") === "1";
-	}
-	catch(err)
-	{
-		paneDebugEnabled = false;
-	}
+	var paneDebugEnabled = true;
 
 	function paneDebugLog()
 	{

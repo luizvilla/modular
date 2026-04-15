@@ -11,17 +11,7 @@ function FreeboardUI()
 	var loadingIndicator = $('<div class="wrapperloading"><div class="loading up" ></div><div class="loading down"></div></div>');
 	var grid;
 	var activePaneResize = null;
-	var paneDebugEnabled = false;
-
-	try
-	{
-		paneDebugEnabled = /(?:\?|&)paneDebug=1(?:&|$)/.test(window.location.search) ||
-			window.localStorage.getItem("freeboardPaneDebug") === "1";
-	}
-	catch(err)
-	{
-		paneDebugEnabled = false;
-	}
+	var paneDebugEnabled = true;
 
 	function paneDebugLog()
 	{
