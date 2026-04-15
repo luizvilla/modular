@@ -599,15 +599,21 @@ class OwnTechPlotUPlot {
         }
 
         _applyPlotHeight() {
-            const next = Number(this.plotHeightPx);
-            if (Number.isFinite(next)) {
+            const next = this.plotHeightPx;
+            if (typeof next === 'number' && Number.isFinite(next)) {
                 this.plotHeightPx = Math.max(160, next);
-                this.chartHost.css('height', `${this.plotHeightPx}px`);
+                this.chartHost.css({
+                    height: `${this.plotHeightPx}px`,
+                    flex: '0 0 auto'
+                });
                 return;
             }
             const autoHeight = this._measureAutoChartHeight();
             this.plotHeightPx = null;
-            this.chartHost.css('height', autoHeight > 0 ? `${autoHeight}px` : '');
+            this.chartHost.css({
+                height: autoHeight > 0 ? `${autoHeight}px` : '',
+                flex: '1 1 auto'
+            });
         }
 
         _measureAutoChartHeight() {
@@ -636,7 +642,6 @@ class OwnTechPlotUPlot {
                 - handleHeight
                 - (readoutHeight > 0 ? shellGap : 0)
                 - (handleHeight > 0 ? shellGap : 0);
-
             return Math.max(160, available);
         }
 
