@@ -593,6 +593,11 @@ class OwnTechPlotUPlot {
             return 10;
         }
 
+        onSizeChanged() {
+            this._applyPlotHeight();
+            this._requestResize();
+        }
+
         _applyPlotHeight() {
             const next = Number(this.plotHeightPx);
             if (Number.isFinite(next)) {
