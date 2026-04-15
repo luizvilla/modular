@@ -138,7 +138,8 @@ textarea.form-control {
 .uplot-chart-host {
   width: 100%;
   min-width: 0;
-  flex: 0 0 auto;
+  min-height: 160px;
+  flex: 1 1 auto;
   overflow: hidden;
 }
 
@@ -160,6 +161,7 @@ textarea.form-control {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px 14px;
+  flex: 0 0 auto;
   align-content: start;
 }
 
@@ -320,6 +322,16 @@ textarea.form-control {
   padding-right: 56px;
   padding-top: 30px;
 }
+
+/* Freeboard only ships sub-section-height-1..4, but several local widgets
+ * return larger heights. Define the missing classes so widget height() maps
+ * to a real section height instead of collapsing to content size. */
+.sub-section-height-5 { height: 300px; }
+.sub-section-height-6 { height: 360px; }
+.sub-section-height-7 { height: 420px; }
+.sub-section-height-8 { height: 480px; }
+.sub-section-height-9 { height: 540px; }
+.sub-section-height-10 { height: 600px; }
 
 /* Keep tools aligned inside the reserved header space */
 .sub-section-tools {

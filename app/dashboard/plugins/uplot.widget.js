@@ -70,7 +70,9 @@ class OwnTechPlotUPlot {
             this._dragCleanup = null;
             this.pullTimer = null;
             this.localMode = false; // when true, we poll values ourselves
-            this.plotHeightPx = 240;
+            this.plotHeightPx = null;
+            this.hostElement = null;
+            this.subSectionElement = null;
             this.seriesDefs = this._parseSeriesDefs((typeof settings.seriesDefs === 'function' ? settings.seriesDefs() : settings.seriesDefs));
             // Persist helper widget preference so we can optionally auto-spawn related widgets.
             this.helperWidgets = this._resolveHelperWidgets(settings);
@@ -230,6 +232,8 @@ class OwnTechPlotUPlot {
         }
 
         render(containerElement) {
+            this.hostElement = containerElement || null;
+            this.subSectionElement = containerElement?.closest?.('.sub-section') || null;
             this.container.appendTo(containerElement);
             this._applyPlotHeight();
             this._bindHeightDrag();
@@ -371,7 +375,7 @@ class OwnTechPlotUPlot {
             const opts = {
                 title: this.settings.title || "",
                 width: this.chartHost.width() || this.container.width(),
-                height: this.plotHeightPx,
+                height: Math.max(160, this.chartHost.height() || this.container.height() || 240),
                 legend: {
                     show: false,
                 },
@@ -590,9 +594,45 @@ class OwnTechPlotUPlot {
         }
 
         _applyPlotHeight() {
-            const next = Math.max(160, Math.min(520, Number(this.plotHeightPx) || 240));
-            this.plotHeightPx = next;
-            this.chartHost.css('height', `${next}px`);
+            const next = Number(this.plotHeightPx);
+            if (Number.isFinite(next)) {
+                this.plotHeightPx = Math.max(160, next);
+                this.chartHost.css('height', `${this.plotHeightPx}px`);
+                return;
+            }
+            const autoHeight = this._measureAutoChartHeight();
+            this.plotHeightPx = null;
+            this.chartHost.css('height', autoHeight > 0 ? `${autoHeight}px` : '');
+        }
+
+        _measureAutoChartHeight() {
+            const subSection = this.subSectionElement;
+            const shell = this.container?.[0];
+            const readout = this.readoutHost?.[0];
+            const handle = this.resizeHandle?.[0];
+            if (!subSection || !shell) return 0;
+
+            const subSectionStyles = window.getComputedStyle ? window.getComputedStyle(subSection) : null;
+            const shellStyles = window.getComputedStyle ? window.getComputedStyle(shell) : null;
+            const paddingTop = subSectionStyles ? parseFloat(subSectionStyles.paddingTop) || 0 : 0;
+            const paddingBottom = subSectionStyles ? parseFloat(subSectionStyles.paddingBottom) || 0 : 0;
+            const shellGap = shellStyles ? parseFloat(shellStyles.rowGap || shellStyles.gap) || 0 : 0;
+            const shellPaddingTop = shellStyles ? parseFloat(shellStyles.paddingTop) || 0 : 0;
+            const shellPaddingBottom = shellStyles ? parseFloat(shellStyles.paddingBottom) || 0 : 0;
+            const readoutHeight = readout ? readout.offsetHeight : 0;
+            const handleHeight = handle ? handle.offsetHeight : 0;
+
+            const available = subSection.clientHeight
+                - paddingTop
+                - paddingBottom
+                - shellPaddingTop
+                - shellPaddingBottom
+                - readoutHeight
+                - handleHeight
+                - (readoutHeight > 0 ? shellGap : 0)
+                - (handleHeight > 0 ? shellGap : 0);
+
+            return Math.max(160, available);
         }
 
         _bindHeightDrag() {
@@ -601,7 +641,7 @@ class OwnTechPlotUPlot {
             this.resizeHandle.on('mousedown', (event) => {
                 event.preventDefault();
                 const startY = event.clientY;
-                const startHeight = this.plotHeightPx;
+                const startHeight = this.chartHost[0]?.clientHeight || this.plotHeightPx || 240;
                 const onMove = (moveEvent) => {
                     const delta = moveEvent.clientY - startY;
                     this.plotHeightPx = startHeight + delta;
@@ -1282,13 +1322,19 @@ class OwnTechPlotUPlot {
 
         _bindResize() {
             if (this._resizeObs || !this.container || !this.container[0]) return;
-            const el = this.container[0];
+            const el = this.subSectionElement || this.container[0];
             if (typeof ResizeObserver !== 'undefined') {
-                this._resizeObs = new ResizeObserver(() => this._requestResize());
+                this._resizeObs = new ResizeObserver(() => {
+                    this._applyPlotHeight();
+                    this._requestResize();
+                });
                 this._resizeObs.observe(el);
             } else {
                 // Fallback: resize on window events
-                $(window).on('resize.uplot-widget', () => this._requestResize());
+                $(window).on('resize.uplot-widget', () => {
+                    this._applyPlotHeight();
+                    this._requestResize();
+                });
             }
         }
 
