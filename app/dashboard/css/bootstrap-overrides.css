@@ -152,6 +152,7 @@ textarea.form-control {
 
 .uplot-resize-handle {
   height: 8px;
+  flex: 0 0 auto;
   cursor: ns-resize;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(120, 128, 140, 0.18), rgba(120, 128, 140, 0.42), rgba(120, 128, 140, 0.18));

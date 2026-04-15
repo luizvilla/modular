@@ -16979,7 +16979,12 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 		$widgets.each($.proxy(function(i, w)
 		{
 			var $w = $(w);
-			var wgd = $w.coords().grid;
+			var coords = $w.coords && $w.coords();
+			var wgd = coords && coords.grid;
+			if(!wgd)
+			{
+				return;
+			}
 			if(this.can_go_widget_up(wgd))
 			{
 				$widgets_can_go_up = $widgets_can_go_up.add($w);
@@ -17551,6 +17556,11 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 	 */
 	fn.can_go_widget_up = function(widget_grid_data)
 	{
+		if(!widget_grid_data)
+		{
+			return false;
+		}
+
 		var p_bottom_row = widget_grid_data.row + widget_grid_data.size_y - 1;
 		var result = true;
 		var upper_rows = [];
@@ -17861,7 +17871,17 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 	 */
 	fn.move_widget_up = function($widget, y_units)
 	{
-		var el_grid_data = $widget.coords().grid;
+		if(!$widget)
+		{
+			return false;
+		}
+
+		var el_coords = $widget.coords && $widget.coords();
+		var el_grid_data = el_coords && el_coords.grid;
+		if(!el_grid_data)
+		{
+			return false;
+		}
 		var actual_row = el_grid_data.row;
 		var moved = [];
 		var can_go_up = true;
@@ -17877,7 +17897,7 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 			// can_go_up
 			if($.inArray($widget, moved) === -1)
 			{
-				var widget_grid_data = $widget.coords().grid;
+				var widget_grid_data = el_grid_data;
 				var next_row = actual_row - y_units;
 				next_row = this.can_go_up_to_row(widget_grid_data, col, next_row);
 
@@ -17898,7 +17918,13 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 
 				$next_widgets.each($.proxy(function(i, widget)
 				{
-					this.move_widget_up($(widget), y_units);
+					var $w = $(widget);
+					var wd_coords = $w.coords && $w.coords();
+					if(!(wd_coords && wd_coords.grid))
+					{
+						return;
+					}
+					this.move_widget_up($w, y_units);
 				}, this));
 			}
 		});
@@ -17917,20 +17943,25 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 	 */
 	fn.move_widget_down = function($widget, y_units)
 	{
-		var el_grid_data = $widget.coords().grid;
-		var actual_row = el_grid_data.row;
-		var moved = [];
-		var y_diff = y_units;
-
 		if(!$widget)
 		{
 			return false;
 		}
 
+		var el_coords = $widget.coords && $widget.coords();
+		var el_grid_data = el_coords && el_coords.grid;
+		if(!el_grid_data)
+		{
+			return false;
+		}
+		var actual_row = el_grid_data.row;
+		var moved = [];
+		var y_diff = y_units;
+
 		if($.inArray($widget, moved) === -1)
 		{
 
-			var widget_grid_data = $widget.coords().grid;
+			var widget_grid_data = el_grid_data;
 			var next_row = actual_row + y_units;
 			var $next_widgets = this.widgets_below($widget);
 
@@ -17939,7 +17970,12 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 			$next_widgets.each($.proxy(function(i, widget)
 			{
 				var $w = $(widget);
-				var wd = $w.coords().grid;
+				var wd_coords = $w.coords && $w.coords();
+				var wd = wd_coords && wd_coords.grid;
+				if(!wd)
+				{
+					return;
+				}
 				var tmp_y = this.displacement_diff(wd, widget_grid_data, y_diff);
 
 				if(tmp_y > 0)
@@ -18039,6 +18075,11 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 
 	fn.displacement_diff = function(widget_grid_data, parent_bgd, y_units)
 	{
+		if(!widget_grid_data || !parent_bgd)
+		{
+			return 0;
+		}
+
 		var actual_row = widget_grid_data.row;
 		var diffs = [];
 		var parent_max_y = parent_bgd.row + parent_bgd.size_y;

@@ -1489,6 +1489,15 @@ function FreeboardUI()
 	{
 		var cols = grid.cols;
 
+		if(!_.isObject(paneModel.row))
+		{
+			paneModel.row = {};
+		}
+		if(!_.isObject(paneModel.col))
+		{
+			paneModel.col = {};
+		}
+
 		if(_.isNumber(paneModel.row) && _.isNumber(paneModel.col)) // Support for legacy format
 		{
 			var obj = {};
@@ -1499,6 +1508,12 @@ function FreeboardUI()
 			obj = {};
 			obj[cols] = paneModel.col;
 			paneModel.col = obj;
+		}
+
+		if(_.isEmpty(paneModel.row) || _.isEmpty(paneModel.col))
+		{
+			paneModel.row[cols] = paneModel.row[cols] || 1;
+			paneModel.col[cols] = paneModel.col[cols] || 1;
 		}
 
 		var newColumnIndex = 1;
@@ -1789,8 +1804,8 @@ function PaneModel(theFreeboardModel, widgetPlugins) {
 		self.title(object.title);
 		self.width(object.width);
 
-		self.row = object.row;
-		self.col = object.col;
+		self.row = _.isObject(object.row) ? object.row : {};
+		self.col = _.isObject(object.col) ? object.col : {};
         self.col_width(object.col_width || 2);
 		self.row_height(_.isFinite(Number(object.row_height)) && Number(object.row_height) > 0 ? Math.floor(Number(object.row_height)) : null);
 
@@ -3380,7 +3395,10 @@ function WidgetModel(theFreeboardModel, widgetPlugins) {
 	}
 
 	this.dispose = function () {
-
+		disposeWidgetInstance();
+		self.shouldRender(false);
+		self.datasourceRefreshNotifications = {};
+		self.calculatedSettingScripts = {};
 	}
 
 	this.serialize = function () {
