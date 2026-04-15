@@ -370,13 +370,78 @@ function FreeboardUI()
 			{ direction: "se", title: "Drag to resize pane" }
 		];
 
+		$pane.on("mousedown.freeboard-pane-debug", function(event)
+		{
+			paneDebugLog("mouse:pane", {
+				target: event && event.target && event.target.className,
+				currentTarget: event && event.currentTarget && event.currentTarget.className
+			});
+		});
+
+		$pane.find(".pane-header").on("mousedown.freeboard-pane-debug", function(event)
+		{
+			paneDebugLog("mouse:header", {
+				target: event && event.target && event.target.className,
+				currentTarget: event && event.currentTarget && event.currentTarget.className
+			});
+		});
+
+		$pane.find(".pane-header h1").on("mousedown.freeboard-pane-debug", function(event)
+		{
+			paneDebugLog("mouse:title", {
+				target: event && event.target && event.target.className,
+				currentTarget: event && event.currentTarget && event.currentTarget.className,
+				text: $(this).text()
+			});
+		});
+
 		_.each(handles, function(handle)
 		{
-			$('<div class="pane-resize-handle pane-resize-' + handle.direction + '"></div>')
+			var $handle = $('<div class="pane-resize-handle pane-resize-' + handle.direction + '"></div>')
 				.attr("title", handle.title)
 				.attr("data-resize-dir", handle.direction)
 				.hide()
 				.appendTo($pane);
+
+			$handle.on("mousedown.freeboard-pane-resize", function(event)
+			{
+				event.preventDefault();
+				event.stopPropagation();
+				event.stopImmediatePropagation();
+
+				var dir = $(this).attr("data-resize-dir") || "";
+				var startWidth = Number($pane.attr("data-sizex")) || Number(viewModel.col_width()) || 1;
+				var startHeight = Number($pane.attr("data-sizey")) || Number(viewModel.getCalculatedHeight()) || 1;
+				paneDebugLog("mouse:handle", {
+					dir: dir,
+					target: event && event.target && event.target.className,
+					currentTarget: event && event.currentTarget && event.currentTarget.className
+				});
+				paneDebugLog("resize:start", {
+					dir: dir,
+					target: event && event.target && event.target.className,
+					startWidth: startWidth,
+					startHeight: startHeight
+				});
+				grid.disable();
+				activePaneResize = {
+					$pane: $pane,
+					viewModel: viewModel,
+					startX: event.clientX,
+					startY: event.clientY,
+					startWidth: startWidth,
+					startHeight: startHeight,
+					dir: dir,
+					lastWidth: startWidth,
+					lastHeight: startHeight
+				};
+
+				$("body").addClass("pane-resize-active");
+
+				$(window)
+					.on("mousemove.freeboard-pane-resize", paneResizeMove)
+					.on("mouseup.freeboard-pane-resize", paneResizeStop);
+			});
 		});
 
 		paneDebugLog("resize-handles:attached", {
@@ -384,40 +449,6 @@ function FreeboardUI()
 			count: $pane.find(".pane-resize-handle").length
 		});
 
-		$pane.on("mousedown.freeboard-pane-resize", ".pane-resize-handle", function(event)
-		{
-			event.preventDefault();
-			event.stopPropagation();
-			event.stopImmediatePropagation();
-
-			var dir = $(this).attr("data-resize-dir") || "";
-			var startWidth = Number($pane.attr("data-sizex")) || Number(viewModel.col_width()) || 1;
-			var startHeight = Number($pane.attr("data-sizey")) || Number(viewModel.getCalculatedHeight()) || 1;
-			paneDebugLog("resize:start", {
-				dir: dir,
-				target: event && event.target && event.target.className,
-				startWidth: startWidth,
-				startHeight: startHeight
-			});
-			grid.disable();
-			activePaneResize = {
-				$pane: $pane,
-				viewModel: viewModel,
-				startX: event.clientX,
-				startY: event.clientY,
-				startWidth: startWidth,
-				startHeight: startHeight,
-				dir: dir,
-				lastWidth: startWidth,
-				lastHeight: startHeight
-			};
-
-			$("body").addClass("pane-resize-active");
-
-			$(window)
-				.on("mousemove.freeboard-pane-resize", paneResizeMove)
-				.on("mouseup.freeboard-pane-resize", paneResizeStop);
-		});
 	}
 
 	function paneResizeMove(event)
