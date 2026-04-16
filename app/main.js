@@ -378,12 +378,14 @@ const portSettings = new Map(); // key: path, value: { baudRate, separator, eol,
 const pendingReopens = new Map(); // key: path, value: { timer: Timeout|null, settings }
 const terminalBuffers = new Map(); // key: path, value: array of raw lines
 const serialBuffers = new Map(); // key: path, value: array of parsed data arrays
+const parserSettings = new Map(); // key: path, value: { separator, eol }
 // header and color buffers keyed by "path||type" to support multiple
 // datasources on the same serial port
 const headerBuffers = new Map();
 const colorBuffers = new Map();
 const fastStates = new Map(); // key: path, value: state for fast frame parsing
 const fastBuffers = new Map(); // key: path, value: last parsed fast dataset
+const fastStatus = new Map(); // key: path, value: acquisition status metadata
 const FAST_IDLE = 0;
 const FAST_RECORD = 1;
 const MAX_BUFFER_SIZE = 1000;
@@ -423,13 +425,6 @@ function isSerialLocked(path) {
     return true;
 }
 
-
-
-let currentSettings = {
-	separator: ":",
-	eol: "\n"
-};
-
 function addToBuffer(portPath, parsedData) {
         if (!Array.isArray(parsedData)) return;
         let buf = serialBuffers.get(portPath);
@@ -443,9 +438,9 @@ function addToBuffer(portPath, parsedData) {
         }
 }
 
-function parseLine(line) {
+function parseLine(line, separator = ':') {
 	const clean = line.trim();
-	const rawItems = clean.split(currentSettings.separator).filter(s => s.trim() !== "");
+	const rawItems = clean.split(separator).filter(s => s.trim() !== "");
 	const values = rawItems.map(v => parseFloat(v)).filter(n => !isNaN(n));
 	return values;
 }
@@ -453,6 +448,23 @@ function parseLine(line) {
 function parseLineCustom(line, sep) {
         const clean = line.trim();
         return clean.split(sep).map(s => s.trim()).filter(s => s !== "");
+}
+
+function setFastStatus(path, partial = {}) {
+    const prev = fastStatus.get(path) || {
+        state: 'idle',
+        message: '',
+        updatedAt: Date.now(),
+        completedAt: null,
+        datasetPoints: 0
+    };
+    const next = {
+        ...prev,
+        ...partial,
+        updatedAt: Date.now()
+    };
+    fastStatus.set(path, next);
+    return next;
 }
 
 function handleFastLine(portPath, line) {
@@ -467,13 +479,35 @@ function handleFastLine(portPath, line) {
         st.header = null;
         st.idx = null;
         st.data = [];
+        setFastStatus(portPath, {
+            state: 'recording',
+            message: 'Receiving fast frame',
+            completedAt: null,
+            datasetPoints: 0
+        });
         return;
     }
 
     if (line.includes('end record')) {
         st.state = FAST_IDLE;
         const dataset = buildFastDataset(st);
-        if (dataset) fastBuffers.set(portPath, dataset);
+        if (dataset) {
+            dataset.capturedAt = Date.now();
+            fastBuffers.set(portPath, dataset);
+            setFastStatus(portPath, {
+                state: 'complete',
+                message: 'Fast frame ready',
+                completedAt: dataset.capturedAt,
+                datasetPoints: Array.isArray(dataset.timestamps) ? dataset.timestamps.length : 0
+            });
+        } else {
+            setFastStatus(portPath, {
+                state: 'error',
+                message: 'Fast frame ended without valid dataset',
+                completedAt: null,
+                datasetPoints: 0
+            });
+        }
         st.header = null;
         st.idx = null;
         st.data = [];
@@ -832,6 +866,11 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                 throw new Error('Serial port path is required');
         }
         emitActivity({ id: 'serial:open', title: path, state: 'start', label: 'Open serial port' });
+        const decodedEol = decodeEolToken(eol);
+        parserSettings.set(path, {
+                separator: separator || ":",
+                eol: decodedEol
+        });
         if (isSerialLocked(path)) {
                 const lock = serialLocks.get(path);
                 const reason = lock && lock.reason ? lock.reason : 'locked';
@@ -845,17 +884,18 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                 const key = dsKey(path, type);
                 if (!headerBuffers.has(key)) headerBuffers.set(key, []);
                 if (!colorBuffers.has(key)) colorBuffers.set(key, []);
+                if (type === 'fast_frame_datasource' && !fastStatus.has(path)) {
+                        setFastStatus(path, { state: 'idle', message: 'Fast frame port ready', completedAt: null, datasetPoints: 0 });
+                }
                 emitActivity({ id: 'serial:open', title: path, state: 'done', label: 'Serial already open' });
                 return;
         }
 
-	currentSettings.separator = separator || ":";
-        currentSettings.eol = decodeEolToken(eol);
         // Persist settings so a later auto-reopen uses the same config.
         portSettings.set(path, {
             baudRate: parseInt(baudRate),
             separator: separator || ":",
-            eol: decodeEolToken(eol),
+            eol: decodedEol,
             type
         });
 
@@ -883,14 +923,18 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
         colorBuffers.set(dsKey(path, type), []);
         fastStates.set(path, { state: FAST_IDLE, header: null, idx: null, data: [] });
         fastBuffers.delete(path);
+        if (type === 'fast_frame_datasource') {
+                setFastStatus(path, { state: 'idle', message: 'Fast frame port ready', completedAt: null, datasetPoints: 0 });
+        }
 
         port.on("data", chunk => {
+                        const parser = parserSettings.get(path) || { separator: ':', eol: '\n' };
                         rawBuffer += chunk.toString();
-                        const lines = rawBuffer.split(currentSettings.eol);
+                        const lines = rawBuffer.split(parser.eol);
                         rawBuffer = lines.pop(); // keep the last (possibly incomplete) line
                         const termBuf = terminalBuffers.get(path) || [];
                         for (const line of lines) {
-                                        const parsed = parseLine(line);
+                                        const parsed = parseLine(line, parser.separator);
                                         if (parsed.length) addToBuffer(path, parsed);
                                         handleFastLine(path, line);
                                         termBuf.push(line);
@@ -916,6 +960,8 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                         }
                         fastStates.delete(path);
                         fastBuffers.delete(path);
+                        fastStatus.delete(path);
+                        parserSettings.delete(path);
                         emitActivity({ id: 'serial:close', title: path, state: 'done', label: 'Serial closed' });
         });
 
@@ -934,6 +980,16 @@ ipcMain.handle("get-serial-buffer", (event, { path }) => {
 
 ipcMain.handle('get-fast-dataset', (event, { path }) => {
     return fastBuffers.get(path) || null;
+});
+
+ipcMain.handle('get-fast-frame-status', (_event, { path }) => {
+    return fastStatus.get(path) || {
+        state: 'idle',
+        message: 'No acquisition yet',
+        updatedAt: Date.now(),
+        completedAt: null,
+        datasetPoints: 0
+    };
 });
 
 // 📄 Get terminal lines for a port
@@ -1237,6 +1293,14 @@ ipcMain.handle("write-serial-port", async (event, { path, data }) => {
         // Pick specified port or default to the first one
         const targetPort = path ? openPorts.get(path) : openPorts.values().next().value;
         if (targetPort && targetPort.isOpen) {
+                if (path && fastStatus.has(path)) {
+                        setFastStatus(path, {
+                                state: 'awaiting_record',
+                                message: 'Trigger sent, waiting for fast frame',
+                                completedAt: null,
+                                datasetPoints: 0
+                        });
+                }
                 return new Promise((resolve, reject) => {
                         targetPort.write(data, err => {
                                 if (err) return reject(err.message);
@@ -1399,6 +1463,11 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
         }
         const content = out.join(eolStr) + eolStr;
         await fs.promises.writeFile(filePath, content);
+        setFastStatus(path, {
+                state: 'saved',
+                message: 'Fast frame saved to CSV',
+                datasetPoints: Array.isArray(dataset.timestamps) ? dataset.timestamps.length : 0
+        });
         emitActivity({ id: 'csv:save-fast', title: path, state: 'done', label: 'Saved fast dataset', detail: filePath });
         return 'saved';
 });
@@ -1542,6 +1611,7 @@ ipcMain.handle('flush-serial-buffers', async (_event, { path }) => {
     }
     fastStates.delete(path);
     fastBuffers.delete(path);
+    fastStatus.delete(path);
     return 'flushed';
 });
 

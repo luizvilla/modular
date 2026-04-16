@@ -71,6 +71,7 @@ const api = {
         getBuffer: (path) => ipcRenderer.invoke('get-serial-buffer', { path }),
         getTerminalBuffer: (path) => ipcRenderer.invoke('get-terminal-buffer', { path }),
         getFastDataset: (path) => ipcRenderer.invoke('get-fast-dataset', { path }),
+        getFastStatus: (path) => ipcRenderer.invoke('get-fast-frame-status', { path }),
         getHeaders: (path, type) => ipcRenderer.invoke('get-serial-headers', { path, type }),
         setHeaders: (path, headers, type) => ipcRenderer.invoke('set-serial-headers', { path, headers, type }),
         getColors: (path, type) => ipcRenderer.invoke('get-serial-colors', { path, type }),
@@ -171,7 +172,9 @@ if (isMock) {
         buffers: new Map(),
         terminals: new Map(),
         headers: new Map(),
-        colors: new Map()
+        colors: new Map(),
+        fastDatasets: new Map(),
+        fastStatus: new Map()
     };
     const mockFlash = { timer: null, cancel: false };
 
@@ -198,13 +201,32 @@ if (isMock) {
         return arr.slice(-50);
     }
 
-    function getFastDataset() {
+    function makeFastDataset() {
         return {
             timestamps: [0, 1, 2, 3],
             series: [
                 [1.1, 1.2, 1.3, 1.4],
                 [2.1, 2.2, 2.3, 2.4]
             ]
+        };
+    }
+
+    function getFastDataset(pathStr) {
+        if (!mockSerial.fastDatasets.has(pathStr)) {
+            const data = makeFastDataset();
+            data.capturedAt = Date.now();
+            mockSerial.fastDatasets.set(pathStr, data);
+        }
+        return mockSerial.fastDatasets.get(pathStr);
+    }
+
+    function getFastStatus(pathStr) {
+        return mockSerial.fastStatus.get(pathStr) || {
+            state: 'idle',
+            message: 'No acquisition yet',
+            updatedAt: Date.now(),
+            completedAt: null,
+            datasetPoints: 0
         };
     }
 
@@ -254,15 +276,54 @@ if (isMock) {
         };
         api.serial = {
             listPorts: async () => mockPorts,
-            openPort: async ({ path: pathStr }) => { if (pathStr) mockSerial.openPorts.add(pathStr); return 'opened'; },
+            openPort: async ({ path: pathStr, type }) => {
+                if (pathStr) {
+                    mockSerial.openPorts.add(pathStr);
+                    if (type === 'fast_frame_datasource') {
+                        mockSerial.fastStatus.set(pathStr, {
+                            state: 'idle',
+                            message: 'Fast frame port ready',
+                            updatedAt: Date.now(),
+                            completedAt: null,
+                            datasetPoints: 0
+                        });
+                    }
+                }
+                return 'opened';
+            },
             closePort: async (pathStr) => { if (pathStr) mockSerial.openPorts.delete(pathStr); return 'closed'; },
             reopenPort: async (pathStr) => { if (pathStr) mockSerial.openPorts.add(pathStr); return 'reopened'; },
             releasePort: async () => 'released',
             isOpen: async (pathStr) => mockSerial.openPorts.has(pathStr),
-            write: async (pathStr, data) => { addTerminalLine(pathStr, String(data)); return 'ok'; },
+            write: async (pathStr, data) => {
+                addTerminalLine(pathStr, String(data));
+                if (pathStr && mockSerial.openPorts.has(pathStr)) {
+                    mockSerial.fastStatus.set(pathStr, {
+                        state: 'awaiting_record',
+                        message: 'Trigger sent, waiting for fast frame',
+                        updatedAt: Date.now(),
+                        completedAt: null,
+                        datasetPoints: 0
+                    });
+                    setTimeout(() => {
+                        const dataset = makeFastDataset();
+                        dataset.capturedAt = Date.now();
+                        mockSerial.fastDatasets.set(pathStr, dataset);
+                        mockSerial.fastStatus.set(pathStr, {
+                            state: 'complete',
+                            message: 'Fast frame ready',
+                            updatedAt: Date.now(),
+                            completedAt: dataset.capturedAt,
+                            datasetPoints: dataset.timestamps.length
+                        });
+                    }, 150);
+                }
+                return 'ok';
+            },
             getBuffer: async (pathStr) => getSerialSample(pathStr),
             getTerminalBuffer: async (pathStr) => ensureArray(mockSerial.terminals, pathStr, []).slice(-50),
-            getFastDataset: async () => getFastDataset(),
+            getFastDataset: async (pathStr) => getFastDataset(pathStr),
+            getFastStatus: async (pathStr) => getFastStatus(pathStr),
             getHeaders: async (pathStr, type) => ensureArray(mockSerial.headers, bufferKey(pathStr, type), ['ch1', 'ch2', 'ch3']),
             setHeaders: async (pathStr, headers, type) => { mockSerial.headers.set(bufferKey(pathStr, type), headers || []); return 'ok'; },
             getColors: async (pathStr, type) => ensureArray(mockSerial.colors, bufferKey(pathStr, type), ['#ff0000', '#00ff00', '#0000ff']),
@@ -270,7 +331,16 @@ if (isMock) {
             flush: async (pathStr) => { mockSerial.buffers.delete(pathStr); mockSerial.terminals.delete(pathStr); return 'flushed'; },
             startCsvRecord: async () => 'started',
             stopCsvRecord: async () => 'stopped',
-            saveFastCsv: async () => 'saved'
+            saveFastCsv: async ({ path: pathStr }) => {
+                const status = getFastStatus(pathStr);
+                mockSerial.fastStatus.set(pathStr, {
+                    ...status,
+                    state: 'saved',
+                    message: 'Fast frame saved to CSV',
+                    updatedAt: Date.now()
+                });
+                return 'saved';
+            }
         };
 
         api.flash = {
