@@ -49,6 +49,89 @@
         return String(value || '').trim();
     }
 
+    function parseAxisBound(value) {
+        if (value === null || value === undefined || value === '') return null;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function parseCsvText(text) {
+        const rows = [];
+        let current = [];
+        let field = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (inQuotes) {
+                if (ch === '"') {
+                    if (text[i + 1] === '"') {
+                        field += '"';
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    field += ch;
+                }
+                continue;
+            }
+            if (ch === '"') {
+                inQuotes = true;
+                continue;
+            }
+            if (ch === ',') {
+                current.push(field);
+                field = '';
+                continue;
+            }
+            if (ch === '\n') {
+                current.push(field);
+                rows.push(current);
+                current = [];
+                field = '';
+                continue;
+            }
+            if (ch !== '\r') field += ch;
+        }
+
+        if (field.length || current.length) {
+            current.push(field);
+            rows.push(current);
+        }
+        return rows;
+    }
+
+    function buildCsvDataset(text) {
+        const rows = parseCsvText(String(text || ''));
+        if (!rows.length) {
+            return { headers: [], rows: [], columns: {} };
+        }
+        const headers = rows[0].map((value, index) => normalizePath(value) || `column_${index + 1}`);
+        const body = rows.slice(1).filter(row => row.some(cell => normalizePath(cell) !== ''));
+        const columns = Object.fromEntries(headers.map(header => [header, []]));
+
+        body.forEach((row, rowIndex) => {
+            headers.forEach((header, colIndex) => {
+                const raw = normalizePath(row[colIndex]);
+                const numeric = raw === '' ? null : Number(raw);
+                columns[header].push(Number.isFinite(numeric) ? numeric : null);
+            });
+            body[rowIndex] = row;
+        });
+
+        if (columns.duty_cycle && columns.V_high && !columns.V_Low_estim) {
+            columns.V_Low_estim = columns.duty_cycle.map((value, idx) => {
+                const duty = Number(value);
+                const high = Number(columns.V_high[idx]);
+                return Number.isFinite(duty) && Number.isFinite(high) ? duty * high : null;
+            });
+            headers.push('V_Low_estim');
+        }
+
+        return { headers, rows: body, columns };
+    }
+
     class FastFramePlot {
         constructor(settings) {
             this.settings = { ...settings };
@@ -58,6 +141,7 @@
             this.lastRenderedSignature = '';
             this.availableFiles = [];
             this.availableColumns = [];
+            this.dataset = null;
             this.container = $('<div class="fast-frame-plot h-100 overflow-auto p-2"></div>');
             this.status = $('<div class="small text-muted border rounded p-2 mb-2">Select a CSV file to plot.</div>');
             this.controls = $('<div class="fast-frame-plot-controls d-flex flex-column gap-2 mb-3"></div>');
@@ -146,10 +230,20 @@
 
         async _refresh() {
             await this._reloadCsvList();
+            await this._reloadCsvData();
             this._refreshControlState();
-            this.status.text(this.settings.csvPath
-                ? `Selected CSV: ${this._displayPath(this.settings.csvPath)}`
-                : 'Select a CSV file to plot.');
+            const selected = normalizePath(this.settings.csvPath);
+            if (!selected) {
+                this.status.text('Select a CSV file to plot.');
+                this._renderPlaceholder();
+                return;
+            }
+            if (!this.dataset) {
+                this.status.text(`Unable to parse ${this._displayPath(selected)}.`);
+                this._renderPlaceholder();
+                return;
+            }
+            this.status.text(`Loaded ${this.dataset.rows.length} rows from ${this._displayPath(selected)}.`);
             this._renderPlaceholder();
         }
 
@@ -175,7 +269,7 @@
             this.filePathInput.val(this.settings.csvPath || '');
             this.modeSelect.val(this.settings.plotMode || 'time_series');
             this._populateFileOptions();
-            this._populateColumnOptions([]);
+            this._populateColumnOptions(this.availableColumns);
         }
 
         _populateFileOptions() {
@@ -218,6 +312,23 @@
             this.settings = { ...this.settings };
             this.lastConfigSignature = '';
             this.lastRenderedSignature = '';
+        }
+
+        async _reloadCsvData() {
+            const filePath = normalizePath(this.settings.csvPath);
+            if (!filePath || !fileApi?.readText) {
+                this.dataset = null;
+                this.availableColumns = [];
+                return;
+            }
+            try {
+                const text = await fileApi.readText(filePath);
+                this.dataset = buildCsvDataset(text);
+                this.availableColumns = this.dataset.headers.filter(header => header !== 'k_acquire');
+            } catch {
+                this.dataset = null;
+                this.availableColumns = [];
+            }
         }
 
         _updateSettings(partial) {
