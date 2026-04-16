@@ -145,6 +145,7 @@
             this.dataset = null;
             this.container = $('<div class="fast-frame-plot h-100 overflow-auto p-2"></div>');
             this.status = $('<div class="small text-muted border rounded p-2 mb-2">Select a CSV file to plot.</div>');
+            this.summary = $('<div class="small text-muted border rounded p-2 mb-2"></div>');
             this.controls = $('<div class="fast-frame-plot-controls d-flex flex-column gap-2 mb-3"></div>');
             this.chartHost = $('<div class="fast-frame-plot-host"></div>');
             this.fileSelect = $('<select class="form-control form-control-sm"></select>');
@@ -155,6 +156,8 @@
             this.timeSelect = $('<select class="form-control form-control-sm"></select>');
             this.directoryInput = $('<input type="text" class="form-control form-control-sm" placeholder="Directory containing CSV files">');
             this.emptyState = $('<div class="small text-muted border rounded p-3">Select a CSV file and variables to render a plot.</div>');
+            this.timeWrap = null;
+            this.xWrap = null;
             this._configHandler = () => this._syncFromSettings();
 
             if (freeboard?.on) freeboard.on('config_updated', this._configHandler);
@@ -163,12 +166,13 @@
                 freeboard.addStyle('.fast-frame-plot .fast-frame-control-grid', 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;');
                 freeboard.addStyle('.fast-frame-plot .fast-frame-control-grid .full-span', 'grid-column:1 / -1;');
                 freeboard.addStyle('.fast-frame-plot .fast-frame-plot-host', 'min-height:260px;');
+                freeboard.addStyle('.fast-frame-plot .is-hidden', 'display:none;');
             }
         }
 
         render(containerElement) {
             this._buildControls();
-            this.container.empty().append(this.status, this.controls, this.chartHost);
+            this.container.empty().append(this.status, this.summary, this.controls, this.chartHost);
             $(containerElement).append(this.container);
             this._syncFromSettings();
             this._startPolling();
@@ -209,8 +213,10 @@
             grid.append(this._makeControl('CSV File', this.fileSelect, true));
             grid.append(this._makeControl('CSV Path', this.filePathInput, true));
             grid.append(this._makeControl('Mode', this.modeSelect));
-            grid.append(this._makeControl('Time Column', this.timeSelect));
-            grid.append(this._makeControl('X Variable', this.xSelect));
+            this.timeWrap = this._makeControl('Time Column', this.timeSelect);
+            this.xWrap = this._makeControl('X Variable', this.xSelect);
+            grid.append(this.timeWrap);
+            grid.append(this.xWrap);
             grid.append(this._makeControl('Y Variable', this.ySelect));
             this.controls.append(grid);
         }
@@ -278,6 +284,10 @@
             this.modeSelect.val(this.settings.plotMode || 'time_series');
             this._populateFileOptions();
             this._populateColumnOptions(this.availableColumns);
+            const xyMode = (this.settings.plotMode || 'time_series') === 'xy';
+            this.timeWrap?.toggleClass('is-hidden', xyMode);
+            this.xWrap?.toggleClass('is-hidden', !xyMode);
+            this.summary.text(this._summaryText());
         }
 
         _populateFileOptions() {
@@ -314,6 +324,15 @@
                 if (rel && !rel.startsWith('..')) return rel;
             }
             return filePath;
+        }
+
+        _summaryText() {
+            const mode = this.settings.plotMode || 'time_series';
+            const file = this.settings.csvPath ? this._displayPath(this.settings.csvPath) : 'none';
+            if (mode === 'xy') {
+                return `File: ${file} | Mode: X vs Y | X: ${this.settings.xVariable || '--'} | Y: ${this.settings.yVariable || '--'}`;
+            }
+            return `File: ${file} | Mode: Y vs Time | Time: ${this.settings.timeColumn || 'Row index'} | Y: ${this.settings.yVariable || '--'}`;
         }
 
         _syncFromSettings() {
