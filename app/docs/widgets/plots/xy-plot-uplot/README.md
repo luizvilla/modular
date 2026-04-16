@@ -14,4 +14,5 @@ Plots live `x` versus `y` data as a trajectory with trailing history.
 
 ## Usage (in dashboard)
 - Plot area: Displays the `x` vs `y` trajectory.
+- Trailing history: Retains the latest points so motion and drift remain visible.
 - Clear history: Removes the current trail without changing sources.

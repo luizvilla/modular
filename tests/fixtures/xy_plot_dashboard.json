@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "panes": [
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "xy_plot_uplot",
+          "settings": {
+            "title": "XY Trail",
+            "historyLength": 40,
+            "refreshRate": 100,
+            "xLabel": "X",
+            "yLabel": "Y",
+            "helperWidgets": "none",
+            "xSourceDef": {
+              "ds": "XWave",
+              "type": "signal_generator_datasource",
+              "device": null,
+              "device_uid": null,
+              "var": 0,
+              "op": "identity",
+              "param": 0
+            },
+            "ySourceDef": {
+              "ds": "YWave",
+              "type": "signal_generator_datasource",
+              "device": null,
+              "device_uid": null,
+              "var": 0,
+              "op": "identity",
+              "param": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 2
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "xy_plot_source_manager",
+          "settings": {}
+        }
+      ]
+    }
+  ],
+  "datasources": [
+    {
+      "name": "XWave",
+      "type": "signal_generator_datasource",
+      "settings": {
+        "waveform": "sine",
+        "amplitude": 1,
+        "offset": 0,
+        "frequency": 0.5,
+        "phase": 0,
+        "dutyCycle": 50,
+        "refresh": 100
+      }
+    },
+    {
+      "name": "YWave",
+      "type": "signal_generator_datasource",
+      "settings": {
+        "waveform": "sine",
+        "amplitude": 1,
+        "offset": 0,
+        "frequency": 0.5,
+        "phase": 90,
+        "dutyCycle": 50,
+        "refresh": 100
+      }
+    }
+  ],
+  "columns": 3
+}
