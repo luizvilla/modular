@@ -231,6 +231,7 @@
         async _refresh() {
             await this._reloadCsvList();
             await this._reloadCsvData();
+            this._reconcileSelections();
             this._refreshControlState();
             const selected = normalizePath(this.settings.csvPath);
             if (!selected) {
@@ -240,6 +241,12 @@
             }
             if (!this.dataset) {
                 this.status.text(`Unable to parse ${this._displayPath(selected)}.`);
+                this._renderPlaceholder();
+                return;
+            }
+            const invalid = this._invalidSelections();
+            if (invalid.length) {
+                this.status.text(`Missing column selection: ${invalid.join(', ')}.`);
                 this._renderPlaceholder();
                 return;
             }
@@ -331,9 +338,58 @@
             }
         }
 
+        _reconcileSelections() {
+            if (!this.dataset) return;
+            const next = {};
+            const columns = this.availableColumns.slice();
+            const mode = this.settings.plotMode || 'time_series';
+            const has = (name) => !!name && columns.includes(name);
+            const preferredTime = has(this.settings.timeColumn)
+                ? this.settings.timeColumn
+                : (columns.includes('time_ms') ? 'time_ms' : '');
+            const preferredY = has(this.settings.yVariable)
+                ? this.settings.yVariable
+                : columns.find(column => column !== preferredTime) || '';
+            const preferredX = mode === 'xy'
+                ? (has(this.settings.xVariable)
+                    ? this.settings.xVariable
+                    : columns.find(column => column !== preferredY) || '')
+                : this.settings.xVariable || '';
+
+            if ((this.settings.timeColumn || '') !== preferredTime) next.timeColumn = preferredTime;
+            if ((this.settings.yVariable || '') !== preferredY) next.yVariable = preferredY;
+            if ((this.settings.xVariable || '') !== preferredX) next.xVariable = preferredX;
+
+            if (Object.keys(next).length) {
+                this.settings = { ...this.settings, ...next };
+                this._persistCurrentSettings();
+            }
+        }
+
+        _invalidSelections() {
+            if (!this.dataset) return [];
+            const missing = [];
+            const mode = this.settings.plotMode || 'time_series';
+            const has = (name) => !name || this.availableColumns.includes(name);
+            if (mode === 'xy') {
+                if (!this.settings.xVariable) missing.push('X variable');
+                else if (!has(this.settings.xVariable)) missing.push(`X variable (${this.settings.xVariable})`);
+            } else if (this.settings.timeColumn && !has(this.settings.timeColumn)) {
+                missing.push(`Time column (${this.settings.timeColumn})`);
+            }
+            if (!this.settings.yVariable) missing.push('Y variable');
+            else if (!has(this.settings.yVariable)) missing.push(`Y variable (${this.settings.yVariable})`);
+            return missing;
+        }
+
         _updateSettings(partial) {
             const updated = { ...this.settings, ...partial };
             this.settings = updated;
+            this._persistCurrentSettings();
+        }
+
+        _persistCurrentSettings() {
+            const updated = { ...this.settings };
             const model = freeboard.getLiveModel?.();
             if (!model || typeof model.panes !== 'function') {
                 this.onSettingsChanged(updated);
