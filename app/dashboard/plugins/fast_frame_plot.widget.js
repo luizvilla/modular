@@ -55,6 +55,15 @@
         return Number.isFinite(parsed) ? parsed : null;
     }
 
+    function hashText(text) {
+        let hash = 2166136261;
+        for (let i = 0; i < text.length; i++) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(16);
+    }
+
     function parseCsvText(text) {
         const rows = [];
         let current = [];
@@ -140,6 +149,7 @@
             this.lastConfigSignature = '';
             this.lastRenderedSignature = '';
             this.lastFileSignature = '';
+            this.lastLoadedAt = null;
             this.availableFiles = [];
             this.availableColumns = [];
             this.dataset = null;
@@ -330,9 +340,13 @@
             const mode = this.settings.plotMode || 'time_series';
             const file = this.settings.csvPath ? this._displayPath(this.settings.csvPath) : 'none';
             if (mode === 'xy') {
-                return `File: ${file} | Mode: X vs Y | X: ${this.settings.xVariable || '--'} | Y: ${this.settings.yVariable || '--'}`;
+                return `File: ${file} | Mode: X vs Y | X: ${this.settings.xVariable || '--'} | Y: ${this.settings.yVariable || '--'} | Updated: ${this._updatedLabel()}`;
             }
-            return `File: ${file} | Mode: Y vs Time | Time: ${this.settings.timeColumn || 'Row index'} | Y: ${this.settings.yVariable || '--'}`;
+            return `File: ${file} | Mode: Y vs Time | Time: ${this.settings.timeColumn || 'Row index'} | Y: ${this.settings.yVariable || '--'} | Updated: ${this._updatedLabel()}`;
+        }
+
+        _updatedLabel() {
+            return this.lastLoadedAt ? new Date(this.lastLoadedAt).toLocaleTimeString() : '--';
         }
 
         _syncFromSettings() {
@@ -340,6 +354,7 @@
             this.lastConfigSignature = '';
             this.lastRenderedSignature = '';
             this.lastFileSignature = '';
+            this.lastLoadedAt = null;
         }
 
         async _reloadCsvData() {
@@ -348,20 +363,23 @@
                 this.dataset = null;
                 this.availableColumns = [];
                 this.lastFileSignature = '';
+                this.lastLoadedAt = null;
                 return;
             }
             try {
                 const text = await fileApi.readText(filePath);
-                const signature = `${text.length}:${text.slice(0, 128)}:${text.slice(-128)}`;
+                const signature = `${text.length}:${hashText(text)}`;
                 if (signature === this.lastFileSignature) return;
                 this.dataset = buildCsvDataset(text);
                 this.availableColumns = this.dataset.headers.filter(header => header !== 'k_acquire');
                 this.lastFileSignature = signature;
                 this.lastRenderedSignature = '';
+                this.lastLoadedAt = Date.now();
             } catch {
                 this.dataset = null;
                 this.availableColumns = [];
                 this.lastFileSignature = '';
+                this.lastLoadedAt = null;
             }
         }
 
@@ -437,6 +455,7 @@
             this.lastConfigSignature = '';
             this.lastRenderedSignature = '';
             this.lastFileSignature = '';
+            this.lastLoadedAt = null;
             this._refreshControlState();
             this._startPolling();
         }
