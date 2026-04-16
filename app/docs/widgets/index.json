@@ -72,6 +72,13 @@
       "requiresThingset": false
     },
     {
+      "type": "fast_frame_control",
+      "title": "Fast Frame Control",
+      "category": "Serial",
+      "doc": "serial/fast-frame-control/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "serial_flasher",
       "title": "Serial Flasher",
       "category": "Serial",
