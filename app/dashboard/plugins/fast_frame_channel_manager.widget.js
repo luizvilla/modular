@@ -132,6 +132,9 @@
             if (!chosen) return;
             this.selectedCsvPath = chosen;
             this.controls.csvName.text(this._csvLabel(chosen));
+            this.applySource();
+            this.populateVariables();
+            this.renderSeriesList();
         }
 
         _csvLabel(filePath) {
