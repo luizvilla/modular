@@ -86,6 +86,27 @@
       "requiresThingset": false
     },
     {
+      "type": "fast_frame_xy_plot",
+      "title": "Fast Frame XY Plot",
+      "category": "Fast Frame",
+      "doc": "serial/fast-frame-xy-plot/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "fast_frame_plot_ui",
+      "title": "Fast Frame UI",
+      "category": "Fast Frame",
+      "doc": "serial/fast-frame-ui/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "fast_frame_channel_manager",
+      "title": "Fast Frame Channel Manager",
+      "category": "Fast Frame",
+      "doc": "serial/fast-frame-channel-manager/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "serial_flasher",
       "title": "Serial Flasher",
       "category": "Serial",

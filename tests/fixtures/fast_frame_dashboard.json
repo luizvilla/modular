@@ -20,9 +20,56 @@
             "csvDirectory": "tests/fixtures",
             "csvPath": "tests/fixtures/fast_frame_plot.csv",
             "refreshRate": 150,
-            "plotMode": "time_series",
             "timeColumn": "time_ms",
-            "yVariable": "V_high"
+            "seriesDefs": [
+              {
+                "variable": "V_high",
+                "label": "V_high",
+                "color": "#4e79a7",
+                "visible": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 3
+      },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "fast_frame_plot_ui",
+          "settings": {}
+        },
+        {
+          "type": "fast_frame_channel_manager",
+          "settings": {}
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 9
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "fast_frame_xy_plot",
+          "settings": {
+            "title": "Fast XY Plot",
+            "csvDirectory": "tests/fixtures",
+            "csvPath": "tests/fixtures/fast_frame_plot.csv",
+            "refreshRate": 150
           }
         }
       ]

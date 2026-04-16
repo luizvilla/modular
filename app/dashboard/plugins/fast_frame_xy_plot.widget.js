@@ -2,46 +2,46 @@
     const shared = window.FastFrameShared;
 
     freeboard.loadWidgetPlugin({
-        type_name: 'fast_frame_plot',
-        display_name: 'Fast Frame Plot',
+        type_name: 'fast_frame_xy_plot',
+        display_name: 'Fast Frame XY Plot',
         category: 'Fast Frame',
-        description: 'Plots multiple CSV-backed fast-frame channels against time or sample index',
+        description: 'Plots one CSV-backed fast-frame signal against another signal',
         external_scripts: [
             'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js',
             'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css'
         ],
         settings: [
-            { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame Plot' },
+            { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame XY Plot' },
             { name: 'csvDirectory', display_name: 'CSV Directory', type: 'text', default_value: shared.defaultCsvDirectory() },
             { name: 'csvPath', display_name: 'CSV File Path', type: 'text', default_value: '' },
             { name: 'refreshRate', display_name: 'Refresh Rate (ms)', type: 'number', default_value: 500 },
-            { name: 'timeColumn', display_name: 'Time Column', type: 'text', default_value: '' },
-            { name: 'yLabel', display_name: 'Y Axis Label', type: 'text', default_value: '' },
+            { name: 'xVariable', display_name: 'X Variable', type: 'text', default_value: '' },
+            { name: 'yVariable', display_name: 'Y Variable', type: 'text', default_value: '' },
             { name: 'xLabel', display_name: 'X Axis Label', type: 'text', default_value: '' },
+            { name: 'yLabel', display_name: 'Y Axis Label', type: 'text', default_value: '' },
             { name: 'xMin', display_name: 'X Min', type: 'text', default_value: '' },
             { name: 'xMax', display_name: 'X Max', type: 'text', default_value: '' },
             { name: 'yMin', display_name: 'Y Min', type: 'text', default_value: '' },
-            { name: 'yMax', display_name: 'Y Max', type: 'text', default_value: '' },
-            { name: 'showLegend', display_name: 'Show Legend', type: 'boolean', default_value: true }
+            { name: 'yMax', display_name: 'Y Max', type: 'text', default_value: '' }
         ],
-        newInstance: function (settings, cb) { cb(new FastFramePlot(settings)); }
+        newInstance: function (settings, cb) { cb(new FastFrameXYPlot(settings)); }
     });
 
-    class FastFramePlot {
+    class FastFrameXYPlot {
         constructor(settings) {
             this.settings = { ...settings };
             this.pollTimer = null;
             this.plot = null;
             this.lastFileSignature = '';
-            this.lastRenderedSignature = '';
             this.availableFiles = [];
             this.availableColumns = [];
             this.dataset = null;
-            this.container = $('<div class="fast-frame-plot h-100 overflow-auto p-2"></div>');
-            this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure this plot with the Fast Frame UI and Channel Manager widgets.</div>');
+            this.lastRenderedSignature = '';
+            this.container = $('<div class="fast-frame-xy-plot h-100 overflow-auto p-2"></div>');
+            this.status = $('<div class="small text-muted border rounded p-2 mb-2">Select X and Y variables.</div>');
             this.summary = $('<div class="small text-muted border rounded p-2 mb-2"></div>');
             this.chartHost = $('<div class="fast-frame-plot-host"></div>');
-            this.emptyState = $('<div class="small text-muted border rounded p-3">Use the Fast Frame Channel Manager to add channels to this plot.</div>');
+            this.emptyState = $('<div class="small text-muted border rounded p-3">Configure the XY pair with the Fast Frame UI widget.</div>');
         }
 
         render(el) {
@@ -66,26 +66,19 @@
                 this.availableColumns = this.dataset ? this.dataset.headers.filter(header => header !== 'k_acquire') : [];
                 this.lastRenderedSignature = '';
             }
-            const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns);
-            this.summary.text(`File: ${this.settings.csvPath ? shared.displayPath(this.settings.csvPath) : 'none'} | Time: ${this.settings.timeColumn || 'Row index'} | Channels: ${defs.map(def => def.label).join(', ') || '--'}`);
+            this.summary.text(`File: ${this.settings.csvPath ? shared.displayPath(this.settings.csvPath) : 'none'} | X: ${this.settings.xVariable || '--'} | Y: ${this.settings.yVariable || '--'}`);
             if (!this.dataset) {
-                this.status.text('Select a CSV file with the Fast Frame UI widget.');
+                this.status.text('Select a CSV file to plot.');
                 this._renderPlaceholder();
                 return;
             }
-            if (!defs.length) {
-                this.status.text('Add at least one channel with the Fast Frame Channel Manager.');
-                this._renderPlaceholder();
-                return;
-            }
-            const invalid = defs.filter(def => !this.availableColumns.includes(def.variable));
-            if (invalid.length) {
-                this.status.text(`Missing columns: ${invalid.map(def => def.variable).join(', ')}`);
+            if (!this.availableColumns.includes(this.settings.xVariable) || !this.availableColumns.includes(this.settings.yVariable)) {
+                this.status.text('Select valid X and Y variables.');
                 this._renderPlaceholder();
                 return;
             }
             this.status.text(`Loaded ${this.dataset.rows.length} rows from ${shared.displayPath(this.settings.csvPath)}.`);
-            this._renderPlot(defs);
+            this._renderPlot();
         }
 
         _renderPlaceholder() {
@@ -95,30 +88,15 @@
             this.chartHost.empty().append(this.emptyState);
         }
 
-        _renderPlot(defs) {
-            const xValues = Array.isArray(this.dataset.columns[this.settings.timeColumn])
-                ? this.dataset.columns[this.settings.timeColumn].map(value => Number.isFinite(value) ? value : null)
-                : this.dataset.rows.map((_row, index) => index);
-            const data = [xValues];
-            const series = [{ label: this.settings.xLabel || this.settings.timeColumn || 'Sample' }];
-
-            defs.forEach((def) => {
-                data.push(this.dataset.columns[def.variable] || []);
-                series.push({
-                    label: def.label,
-                    stroke: def.color,
-                    width: 2,
-                    show: def.visible !== false
-                });
-            });
-
+        _renderPlot() {
+            const xValues = this.dataset.columns[this.settings.xVariable] || [];
+            const yValues = this.dataset.columns[this.settings.yVariable] || [];
+            const pairs = xValues.map((x, index) => [x, yValues[index]]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
             const signature = JSON.stringify({
                 file: this.lastFileSignature,
-                timeColumn: this.settings.timeColumn || '',
-                defs,
-                sample: data.map(values => Array.isArray(values) && values.length ? [values[0], values[Math.floor(values.length / 2)], values[values.length - 1]] : null),
-                xLabel: this.settings.xLabel || '',
-                yLabel: this.settings.yLabel || ''
+                x: this.settings.xVariable,
+                y: this.settings.yVariable,
+                sample: [pairs[0] || null, pairs[Math.floor(pairs.length / 2)] || null, pairs[pairs.length - 1] || null]
             });
             if (signature === this.lastRenderedSignature) return;
             this.lastRenderedSignature = signature;
@@ -127,20 +105,23 @@
             const host = $('<div></div>');
             this.chartHost.append(host);
             this.plot = new uPlot({
-                title: this.settings.title || 'Fast Frame Plot',
+                title: this.settings.title || 'Fast Frame XY Plot',
                 width: Math.max(320, this.chartHost.width() || this.container.width() || 640),
                 height: Math.max(260, this.chartHost.height() || 320),
-                legend: { show: !!this.settings.showLegend },
+                legend: { show: true },
                 scales: {
                     x: { time: false, min: shared.parseAxisBound(this.settings.xMin), max: shared.parseAxisBound(this.settings.xMax) },
                     y: { min: shared.parseAxisBound(this.settings.yMin), max: shared.parseAxisBound(this.settings.yMax) }
                 },
                 axes: [
-                    { stroke: '#666', grid: { show: true }, label: this.settings.xLabel || this.settings.timeColumn || 'Sample' },
-                    { stroke: '#666', grid: { show: true }, label: this.settings.yLabel || 'Value' }
+                    { stroke: '#666', grid: { show: true }, label: this.settings.xLabel || this.settings.xVariable || 'X' },
+                    { stroke: '#666', grid: { show: true }, label: this.settings.yLabel || this.settings.yVariable || 'Y' }
                 ],
-                series
-            }, data, host[0]);
+                series: [
+                    { label: this.settings.xLabel || this.settings.xVariable || 'X' },
+                    { label: this.settings.yVariable || 'Y', stroke: shared.DEFAULT_COLORS[0], width: 2, points: { show: true, size: 6 } }
+                ]
+            }, [pairs.map(pair => pair[0]), pairs.map(pair => pair[1])], host[0]);
         }
 
         _destroyPlot() {
