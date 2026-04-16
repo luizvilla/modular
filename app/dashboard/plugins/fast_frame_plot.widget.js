@@ -12,17 +12,12 @@
         ],
         settings: [
             { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame Plot' },
-            { name: 'csvDirectory', display_name: 'CSV Directory', type: 'text', default_value: shared.defaultCsvDirectory() },
-            { name: 'csvPath', display_name: 'CSV File Path', type: 'text', default_value: '' },
-            { name: 'refreshRate', display_name: 'Refresh Rate (ms)', type: 'number', default_value: 500 },
-            { name: 'timeColumn', display_name: 'Time Column', type: 'text', default_value: '' },
-            { name: 'yLabel', display_name: 'Y Axis Label', type: 'text', default_value: '' },
-            { name: 'xLabel', display_name: 'X Axis Label', type: 'text', default_value: '' },
-            { name: 'xMin', display_name: 'X Min', type: 'text', default_value: '' },
-            { name: 'xMax', display_name: 'X Max', type: 'text', default_value: '' },
-            { name: 'yMin', display_name: 'Y Min', type: 'text', default_value: '' },
-            { name: 'yMax', display_name: 'Y Max', type: 'text', default_value: '' },
-            { name: 'showLegend', display_name: 'Show Legend', type: 'boolean', default_value: true }
+            { name: 'helperWidgets', display_name: 'Helper Widgets', type: 'option', default_value: 'both', options: [
+                { name: 'None', value: 'none' },
+                { name: 'UI Controller', value: 'ui' },
+                { name: 'Channel Manager', value: 'channels' },
+                { name: 'Both', value: 'both' }
+            ] }
         ],
         newInstance: function (settings, cb) { cb(new FastFramePlot(settings)); }
     });
@@ -34,6 +29,8 @@
             this.plot = null;
             this.lastFileSignature = '';
             this.lastRenderedSignature = '';
+            this._helpersSpawned = false;
+            this._helperSpawnTimer = null;
             this.availableFiles = [];
             this.availableColumns = [];
             this.dataset = null;
@@ -47,7 +44,96 @@
         render(el) {
             $(el).append(this.container);
             this.container.empty().append(this.status, this.summary, this.chartHost);
+            this._scheduleHelperSpawn();
             this._startPolling();
+        }
+
+        _scheduleHelperSpawn(delay = 0) {
+            if (this._helpersSpawned || this._helperSpawnTimer) return;
+            this._helperSpawnTimer = setTimeout(() => {
+                this._helperSpawnTimer = null;
+                this._maybeSpawnHelpers();
+            }, delay);
+        }
+
+        _resolveHelperWidgets(settings) {
+            const raw = (typeof settings.helperWidgets === 'function' ? settings.helperWidgets() : settings.helperWidgets) || 'none';
+            return String(raw).toLowerCase();
+        }
+
+        _maybeSpawnHelpers() {
+            const mode = this._resolveHelperWidgets(this.settings);
+            if (mode === 'none' || this._helpersSpawned) return;
+
+            const helperTypes = [];
+            if (mode === 'ui' || mode === 'both') helperTypes.push('fast_frame_plot_ui');
+            if (mode === 'channels' || mode === 'both') helperTypes.push('fast_frame_channel_manager');
+            if (!helperTypes.length) return;
+
+            const model = freeboard.getLiveModel && freeboard.getLiveModel();
+            if (!model || typeof model.panes !== 'function') return;
+
+            let paneIndex = -1;
+            let widgetIndex = -1;
+            const panes = model.panes();
+            for (let p = 0; p < panes.length; p++) {
+                const widgets = panes[p].widgets();
+                for (let w = 0; w < widgets.length; w++) {
+                    if (widgets[w].widgetInstance === this) {
+                        paneIndex = p;
+                        widgetIndex = w;
+                        break;
+                    }
+                }
+                if (paneIndex >= 0) break;
+            }
+            if (paneIndex < 0 || widgetIndex < 0) {
+                this._scheduleHelperSpawn(50);
+                return;
+            }
+
+            const cfg = freeboard.serialize();
+            const pane = cfg.panes[paneIndex];
+            if (!pane) return;
+
+            const missingHelpers = helperTypes.filter((helperType) => {
+                return !cfg.panes.some((existingPane) => Array.isArray(existingPane.widgets) && existingPane.widgets.some((widget) => widget.type === helperType));
+            });
+            if (!missingHelpers.length) {
+                this._helpersSpawned = true;
+                return;
+            }
+
+            const paneModel = panes[paneIndex];
+            const helperPane = {
+                title: null,
+                width: pane.width,
+                row: {},
+                col: {},
+                col_width: pane.col_width || (paneModel.col_width ? Number(paneModel.col_width()) : 1),
+                widgets: missingHelpers.map((type) => ({ type, settings: {} }))
+            };
+
+            const rowKeys = paneModel && paneModel.row ? Object.keys(paneModel.row) : [];
+            const colKeys = paneModel && paneModel.col ? Object.keys(paneModel.col) : [];
+            const keys = new Set([...rowKeys, ...colKeys]);
+            const paneWidth = Math.max(1, Number(pane.width || (paneModel.width && paneModel.width()) || 1));
+
+            if (keys.size > 0) {
+                keys.forEach((key) => {
+                    const rowVal = paneModel.row && paneModel.row[key] ? paneModel.row[key] : 1;
+                    const colVal = paneModel.col && paneModel.col[key] ? paneModel.col[key] : 1;
+                    helperPane.row[key] = rowVal;
+                    helperPane.col[key] = colVal + paneWidth;
+                });
+            } else {
+                helperPane.row = 1;
+                helperPane.col = 1 + paneWidth;
+            }
+
+            cfg.panes.splice(paneIndex + 1, 0, helperPane);
+            this._helpersSpawned = true;
+            freeboard.loadDashboard(cfg);
         }
 
         _startPolling() {
@@ -153,11 +239,13 @@
             this.settings = { ...newSettings };
             this.lastFileSignature = '';
             this.lastRenderedSignature = '';
+            this._scheduleHelperSpawn();
             this._startPolling();
         }
 
         onDispose() {
             if (this.pollTimer) clearInterval(this.pollTimer);
+            if (this._helperSpawnTimer) clearTimeout(this._helperSpawnTimer);
             this._destroyPlot();
         }
 

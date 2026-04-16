@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "panes": [
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "fast_frame_plot",
+          "settings": {
+            "title": "Fast Plot",
+            "helperWidgets": "both"
+          }
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 9
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "fast_frame_xy_plot",
+          "settings": {
+            "title": "Fast XY Plot",
+            "helperWidgets": "both"
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [],
+  "columns": 3
+}

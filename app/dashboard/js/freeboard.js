@@ -2690,6 +2690,13 @@ PluginEditor = function(jsEditor, valueEditor)
 							"uplot_series_manager": 1,
 							"uplot_config_panel": 2
 						},
+						"Fast Frame": {
+							"fast_frame_plot": 0,
+							"fast_frame_xy_plot": 1,
+							"fast_frame_channel_manager": 2,
+							"fast_frame_plot_ui": 3,
+							"fast_frame_control": 4
+						},
 						"Vertical gauge": {
 							"vertical_gauge": 0,
 							"vertical_gauge_manager": 1,

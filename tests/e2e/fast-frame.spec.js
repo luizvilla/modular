@@ -128,3 +128,25 @@ test('fast frame plot detects colon-separated files', async () => {
 
   await app.close();
 });
+
+test('fast frame plots auto-spawn helper widgets', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+
+  await loadDashboard(page, fixturePath('fast_frame_helpers_dashboard.json'));
+
+  await page.waitForFunction(() => {
+    const panes = window.freeboard.getLiveModel().panes();
+    return panes.some((pane) => pane.widgets().some((widget) => widget.type() === 'fast_frame_plot_ui'))
+      && panes.some((pane) => pane.widgets().some((widget) => widget.type() === 'fast_frame_channel_manager'));
+  });
+
+  await page.waitForFunction(() => {
+    const panes = window.freeboard.getLiveModel().panes();
+    const plotUiCount = panes.flatMap((pane) => pane.widgets()).filter((widget) => widget.type() === 'fast_frame_plot_ui').length;
+    const managerCount = panes.flatMap((pane) => pane.widgets()).filter((widget) => widget.type() === 'fast_frame_channel_manager').length;
+    return plotUiCount === 1 && managerCount === 1;
+  });
+
+  await app.close();
+});
