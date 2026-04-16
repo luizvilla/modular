@@ -252,7 +252,7 @@
                 return;
             }
             this.status.text(`Loaded ${this.dataset.rows.length} rows from ${this._displayPath(selected)}.`);
-            this._renderPlaceholder();
+            this._renderPlot();
         }
 
         async _reloadCsvList() {
@@ -441,6 +441,107 @@
             this.lastRenderedSignature = signature;
             this._destroyPlot();
             this.chartHost.empty().append(this.emptyState);
+        }
+
+        _renderPlot() {
+            const payload = this._buildPlotPayload();
+            if (!payload) {
+                this._renderPlaceholder();
+                return;
+            }
+            const signature = JSON.stringify({
+                csvPath: this.settings.csvPath || '',
+                plotMode: this.settings.plotMode || 'time_series',
+                xVariable: this.settings.xVariable || '',
+                yVariable: this.settings.yVariable || '',
+                timeColumn: this.settings.timeColumn || '',
+                fileSignature: this.lastFileSignature || '',
+                sample: this._sampleSignature(payload.data),
+                xLabel: payload.xLabel,
+                yLabel: payload.yLabel,
+                xMin: payload.scales.x.min,
+                xMax: payload.scales.x.max,
+                yMin: payload.scales.y.min,
+                yMax: payload.scales.y.max
+            });
+            if (signature === this.lastRenderedSignature) return;
+            this.lastRenderedSignature = signature;
+            this._destroyPlot();
+            this.chartHost.empty();
+
+            const host = $('<div class="fast-frame-plot-canvas"></div>');
+            this.chartHost.append(host);
+            const opts = {
+                title: this.settings.title || 'Fast Frame Plot',
+                width: Math.max(320, this.chartHost.width() || this.container.width() || 640),
+                height: Math.max(260, this.chartHost.height() || 320),
+                legend: { show: true },
+                scales: payload.scales,
+                axes: [
+                    { stroke: '#666', grid: { show: true }, label: payload.xLabel },
+                    { stroke: '#666', grid: { show: true }, label: payload.yLabel }
+                ],
+                series: [
+                    { label: payload.xLabel },
+                    {
+                        label: payload.seriesLabel,
+                        stroke: '#4e79a7',
+                        width: 2,
+                        points: { show: payload.points }
+                    }
+                ]
+            };
+            this.plot = new uPlot(opts, payload.data, host[0]);
+        }
+
+        _buildPlotPayload() {
+            if (!this.dataset) return null;
+            const mode = this.settings.plotMode || 'time_series';
+            const yName = this.settings.yVariable;
+            const yValues = this.dataset.columns[yName];
+            if (!Array.isArray(yValues)) return null;
+
+            if (mode === 'xy') {
+                const xName = this.settings.xVariable;
+                const xValues = this.dataset.columns[xName];
+                if (!Array.isArray(xValues)) return null;
+                const pairs = xValues.map((x, index) => [x, yValues[index]])
+                    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+                return {
+                    data: [pairs.map(pair => pair[0]), pairs.map(pair => pair[1])],
+                    xLabel: this.settings.xLabel || xName || 'X',
+                    yLabel: this.settings.yLabel || yName || 'Y',
+                    seriesLabel: `${yName} vs ${xName}`,
+                    points: { show: true, size: 6 },
+                    scales: {
+                        x: { time: false, min: parseAxisBound(this.settings.xMin), max: parseAxisBound(this.settings.xMax) },
+                        y: { min: parseAxisBound(this.settings.yMin), max: parseAxisBound(this.settings.yMax) }
+                    }
+                };
+            }
+
+            const timeName = this.settings.timeColumn;
+            const xValues = Array.isArray(this.dataset.columns[timeName])
+                ? this.dataset.columns[timeName].map(value => Number.isFinite(value) ? value : null)
+                : yValues.map((_value, index) => index);
+            return {
+                data: [xValues, yValues],
+                xLabel: this.settings.xLabel || (timeName || 'Sample'),
+                yLabel: this.settings.yLabel || yName || 'Value',
+                seriesLabel: yName,
+                points: { show: false },
+                scales: {
+                    x: { time: false, min: parseAxisBound(this.settings.xMin), max: parseAxisBound(this.settings.xMax) },
+                    y: { min: parseAxisBound(this.settings.yMin), max: parseAxisBound(this.settings.yMax) }
+                }
+            };
+        }
+
+        _sampleSignature(data) {
+            return data.map(series => {
+                if (!Array.isArray(series) || !series.length) return null;
+                return [series[0], series[Math.floor(series.length / 2)], series[series.length - 1]];
+            });
         }
 
         _destroyPlot() {
