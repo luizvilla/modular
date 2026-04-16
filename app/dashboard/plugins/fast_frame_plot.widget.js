@@ -139,6 +139,7 @@
             this.plot = null;
             this.lastConfigSignature = '';
             this.lastRenderedSignature = '';
+            this.lastFileSignature = '';
             this.availableFiles = [];
             this.availableColumns = [];
             this.dataset = null;
@@ -319,6 +320,7 @@
             this.settings = { ...this.settings };
             this.lastConfigSignature = '';
             this.lastRenderedSignature = '';
+            this.lastFileSignature = '';
         }
 
         async _reloadCsvData() {
@@ -326,15 +328,21 @@
             if (!filePath || !fileApi?.readText) {
                 this.dataset = null;
                 this.availableColumns = [];
+                this.lastFileSignature = '';
                 return;
             }
             try {
                 const text = await fileApi.readText(filePath);
+                const signature = `${text.length}:${text.slice(0, 128)}:${text.slice(-128)}`;
+                if (signature === this.lastFileSignature) return;
                 this.dataset = buildCsvDataset(text);
                 this.availableColumns = this.dataset.headers.filter(header => header !== 'k_acquire');
+                this.lastFileSignature = signature;
+                this.lastRenderedSignature = '';
             } catch {
                 this.dataset = null;
                 this.availableColumns = [];
+                this.lastFileSignature = '';
             }
         }
 
@@ -409,6 +417,7 @@
             this.settings = { ...newSettings };
             this.lastConfigSignature = '';
             this.lastRenderedSignature = '';
+            this.lastFileSignature = '';
             this._refreshControlState();
             this._startPolling();
         }
@@ -420,6 +429,7 @@
                 xVariable: this.settings.xVariable || '',
                 yVariable: this.settings.yVariable || '',
                 timeColumn: this.settings.timeColumn || '',
+                fileSignature: this.lastFileSignature || '',
                 xLabel: this.settings.xLabel || '',
                 yLabel: this.settings.yLabel || '',
                 xMin: this.settings.xMin || '',
