@@ -23,6 +23,20 @@
       "requiresThingset": false
     },
     {
+      "type": "xy_plot_uplot",
+      "title": "XY Plot",
+      "category": "Plots",
+      "doc": "plots/xy-plot-uplot/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "xy_plot_source_manager",
+      "title": "XY Source Manager",
+      "category": "Plots",
+      "doc": "plots/xy-plot-source-manager/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "vertical_gauge",
       "title": "Vertical Gauge",
       "category": "Gauges",
