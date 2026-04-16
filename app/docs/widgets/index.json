@@ -74,14 +74,14 @@
     {
       "type": "fast_frame_control",
       "title": "Fast Frame Control",
-      "category": "Serial",
+      "category": "Fast Frame",
       "doc": "serial/fast-frame-control/README.md",
       "requiresThingset": false
     },
     {
       "type": "fast_frame_plot",
       "title": "Fast Frame Plot",
-      "category": "Serial",
+      "category": "Fast Frame",
       "doc": "serial/fast-frame-plot/README.md",
       "requiresThingset": false
     },

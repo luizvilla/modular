@@ -1827,7 +1827,7 @@ var WIDGET_CATEGORY_STORAGE_KEY = "freeboard.widget_categories";
 
 function _getDefaultWidgetCategories()
 {
-	return ["Serial", "ThingSet", "Plots", "Controls", "Other"];
+	return ["Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Other"];
 }
 
 function _normalizeCategories(categories)
@@ -1852,6 +1852,10 @@ function _normalizeCategories(categories)
 	var name = (typeName || "").toLowerCase();
 	var display = (pluginType && pluginType.display_name ? pluginType.display_name : "").toLowerCase();
 
+	if(name.indexOf("fast_frame") === 0 || display.indexOf("fast frame") > -1)
+	{
+		return "Fast Frame";
+	}
 	if(name.indexOf("serial") === 0 || name.indexOf("_serial") > -1 || display.indexOf("serial") > -1)
 	{
 		return "Serial";

@@ -6,6 +6,7 @@
     freeboard.loadWidgetPlugin({
         type_name: 'fast_frame_plot',
         display_name: 'Fast Frame Plot',
+        category: 'Fast Frame',
         description: 'Plots one CSV-backed fast-frame signal as time series or XY data',
         external_scripts: [
             'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js',

@@ -2,6 +2,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "fast_frame_control",
         display_name: "Fast Frame Control",
+        category: "Fast Frame",
         description: "Trigger, monitor, and export fast serial frame acquisitions",
         settings: [
             {
