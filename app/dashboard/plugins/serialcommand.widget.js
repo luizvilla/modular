@@ -44,7 +44,8 @@
         const options = [];
         live.datasources().forEach(ds => {
             try {
-                if (ds.type && ds.type() === 'serialport_datasource') {
+                const type = ds.type && ds.type();
+                if (type === 'serialport_datasource' || type === 'fast_frame_datasource') {
                     const name = ds.name();
                     options.push({ name, value: name });
                 }
@@ -92,7 +93,8 @@
             this.dsSelect.empty();
             list.forEach(ds => {
                 try {
-                    if (ds.type && ds.type() === 'serialport_datasource') {
+                    const type = ds.type && ds.type();
+                    if (type === 'serialport_datasource' || type === 'fast_frame_datasource') {
                         const name = ds.name();
                         this.dsSelect.append(`<option value="${name}">${name}</option>`);
                     }
