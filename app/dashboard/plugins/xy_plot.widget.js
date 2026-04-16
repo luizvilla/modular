@@ -148,7 +148,7 @@
             const pane = cfg.panes[paneIndex];
             if (!pane || !Array.isArray(pane.widgets)) return;
             const helperType = 'xy_plot_source_manager';
-            const alreadyExists = pane.widgets.some(w => w.type === helperType);
+            const alreadyExists = cfg.panes.some(existingPane => Array.isArray(existingPane.widgets) && existingPane.widgets.some(w => w.type === helperType));
             if (alreadyExists) {
                 this._helpersSpawned = true;
                 return;
