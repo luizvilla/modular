@@ -61,3 +61,42 @@ test('fast frame plot reloads a csv and supports time and xy modes', async () =>
 
   await app.close();
 });
+
+test('fast frame plot detects colon-separated files', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  const csvPath = fixturePath('fast_frame_plot.csv');
+
+  await page.evaluate(async (targetPath) => {
+    await window.api.files.writeText(targetPath, [
+      'time_ms:V2:I2',
+      '0:31.5:-1.55',
+      '1:31.6:-1.56',
+      '2:31.7:-1.57',
+    ].join('\n'));
+  }, csvPath);
+
+  await loadDashboard(page, fixturePath('fast_frame_dashboard.json'));
+
+  await page.waitForFunction(() => {
+    const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+    return widget && widget.availableColumns && widget.availableColumns.includes('V2') && widget.availableColumns.includes('I2');
+  });
+
+  await page.evaluate(() => {
+    const widgetModel = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+    widgetModel.settings({
+      ...widgetModel.settings(),
+      plotMode: 'time_series',
+      timeColumn: 'time_ms',
+      yVariable: 'V2'
+    });
+  });
+
+  await page.waitForFunction(() => {
+    const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+    return widget && widget.plot && widget.plot.data[0][0] === 0 && widget.plot.data[1][0] === 31.5;
+  });
+
+  await app.close();
+});

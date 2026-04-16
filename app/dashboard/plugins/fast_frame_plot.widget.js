@@ -64,7 +64,22 @@
         return (hash >>> 0).toString(16);
     }
 
-    function parseCsvText(text) {
+    function detectDelimiter(text) {
+        const sample = String(text || '').split(/\r?\n/, 1)[0] || '';
+        const delimiters = [':', ',', ';', '\t'];
+        let best = ',';
+        let bestCount = -1;
+        delimiters.forEach((delimiter) => {
+            const count = sample.split(delimiter).length - 1;
+            if (count > bestCount) {
+                best = delimiter;
+                bestCount = count;
+            }
+        });
+        return best;
+    }
+
+    function parseCsvText(text, delimiter = ',') {
         const rows = [];
         let current = [];
         let field = '';
@@ -89,7 +104,7 @@
                 inQuotes = true;
                 continue;
             }
-            if (ch === ',') {
+            if (ch === delimiter) {
                 current.push(field);
                 field = '';
                 continue;
@@ -112,7 +127,8 @@
     }
 
     function buildCsvDataset(text) {
-        const rows = parseCsvText(String(text || ''));
+        const source = String(text || '');
+        const rows = parseCsvText(source, detectDelimiter(source));
         if (!rows.length) {
             return { headers: [], rows: [], columns: {} };
         }
