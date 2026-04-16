@@ -28,7 +28,13 @@
             },
             { name: 'timeColumn', display_name: 'Time Column', type: 'text', default_value: '' },
             { name: 'xVariable', display_name: 'X Variable', type: 'text', default_value: '' },
-            { name: 'yVariable', display_name: 'Y Variable', type: 'text', default_value: '' }
+            { name: 'yVariable', display_name: 'Y Variable', type: 'text', default_value: '' },
+            { name: 'xLabel', display_name: 'X Axis Label', type: 'text', default_value: '' },
+            { name: 'yLabel', display_name: 'Y Axis Label', type: 'text', default_value: '' },
+            { name: 'xMin', display_name: 'X Min', type: 'text', default_value: '' },
+            { name: 'xMax', display_name: 'X Max', type: 'text', default_value: '' },
+            { name: 'yMin', display_name: 'Y Min', type: 'text', default_value: '' },
+            { name: 'yMax', display_name: 'Y Max', type: 'text', default_value: '' }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new FastFramePlot(settings));
@@ -49,6 +55,7 @@
             this.pollTimer = null;
             this.plot = null;
             this.lastConfigSignature = '';
+            this.lastRenderedSignature = '';
             this.availableFiles = [];
             this.availableColumns = [];
             this.container = $('<div class="fast-frame-plot h-100 overflow-auto p-2"></div>');
@@ -62,6 +69,7 @@
             this.ySelect = $('<select class="form-control form-control-sm"></select>');
             this.timeSelect = $('<select class="form-control form-control-sm"></select>');
             this.directoryInput = $('<input type="text" class="form-control form-control-sm" placeholder="Directory containing CSV files">');
+            this.emptyState = $('<div class="small text-muted border rounded p-3">Select a CSV file and variables to render a plot.</div>');
             this._configHandler = () => this._syncFromSettings();
 
             if (freeboard?.on) freeboard.on('config_updated', this._configHandler);
@@ -142,6 +150,7 @@
             this.status.text(this.settings.csvPath
                 ? `Selected CSV: ${this._displayPath(this.settings.csvPath)}`
                 : 'Select a CSV file to plot.');
+            this._renderPlaceholder();
         }
 
         async _reloadCsvList() {
@@ -208,6 +217,7 @@
         _syncFromSettings() {
             this.settings = { ...this.settings };
             this.lastConfigSignature = '';
+            this.lastRenderedSignature = '';
         }
 
         _updateSettings(partial) {
@@ -231,15 +241,40 @@
         onSettingsChanged(newSettings) {
             this.settings = { ...newSettings };
             this.lastConfigSignature = '';
+            this.lastRenderedSignature = '';
             this._refreshControlState();
             this._startPolling();
         }
 
+        _renderPlaceholder() {
+            const signature = JSON.stringify({
+                csvPath: this.settings.csvPath || '',
+                plotMode: this.settings.plotMode || 'time_series',
+                xVariable: this.settings.xVariable || '',
+                yVariable: this.settings.yVariable || '',
+                timeColumn: this.settings.timeColumn || '',
+                xLabel: this.settings.xLabel || '',
+                yLabel: this.settings.yLabel || '',
+                xMin: this.settings.xMin || '',
+                xMax: this.settings.xMax || '',
+                yMin: this.settings.yMin || '',
+                yMax: this.settings.yMax || ''
+            });
+            if (signature === this.lastRenderedSignature) return;
+            this.lastRenderedSignature = signature;
+            this._destroyPlot();
+            this.chartHost.empty().append(this.emptyState);
+        }
+
+        _destroyPlot() {
+            if (!this.plot) return;
+            try { this.plot.destroy(); } catch {}
+            this.plot = null;
+        }
+
         onDispose() {
             if (this.pollTimer) clearInterval(this.pollTimer);
-            if (this.plot) {
-                try { this.plot.destroy(); } catch {}
-            }
+            this._destroyPlot();
             if (this._configHandler && freeboard?.off) {
                 freeboard.off('config_updated', this._configHandler);
             }
