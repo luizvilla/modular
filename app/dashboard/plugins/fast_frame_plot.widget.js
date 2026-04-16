@@ -1,255 +1,252 @@
 (function () {
     const api = window.api || null;
-    const ipcShim = (function createIpcShim(apiRef) {
-        if (!apiRef) return null;
-        const serial = apiRef.serial || null;
-        if (!serial) return null;
-        return {
-            invoke: async (channel, payload = {}) => {
-                switch (channel) {
-                    case 'get-fast-dataset':
-                        return serial.getFastDataset ? serial.getFastDataset(payload.path) : null;
-                    case 'get-fast-frame-status':
-                        return serial.getFastStatus ? serial.getFastStatus(payload.path) : null;
-                    case 'get-serial-headers':
-                        return serial.getHeaders ? serial.getHeaders(payload.path, payload.type) : null;
-                    default:
-                        return null;
-                }
-            }
-        };
-    })(api);
+    const pathApi = api?.paths || null;
+    const fileApi = api?.files || null;
 
     freeboard.loadWidgetPlugin({
         type_name: 'fast_frame_plot',
         display_name: 'Fast Frame Plot',
-        description: 'Plots the latest fast-frame dataset using voltage/current/other groups',
+        description: 'Plots one CSV-backed fast-frame signal as time series or XY data',
         external_scripts: [
             'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js',
             'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css'
         ],
         settings: [
+            { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame Plot' },
+            { name: 'csvDirectory', display_name: 'CSV Directory', type: 'text', default_value: defaultCsvDirectory() },
+            { name: 'csvPath', display_name: 'CSV File Path', type: 'text', default_value: '' },
+            { name: 'refreshRate', display_name: 'Refresh Rate (ms)', type: 'number', default_value: 500 },
             {
-                name: 'datasource',
-                display_name: 'Datasource Name',
+                name: 'plotMode',
+                display_name: 'Plot Mode',
                 type: 'option',
-                options: getFastFrameDatasourceOptions,
-                optionsRefreshMs: 1000
+                options: [
+                    { name: 'Y vs Time', value: 'time_series' },
+                    { name: 'X vs Y', value: 'xy' }
+                ],
+                default_value: 'time_series'
             },
-            { name: 'refreshRate', display_name: 'Refresh Rate (ms)', type: 'number', default_value: 250 },
-            { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame Plot' }
+            { name: 'timeColumn', display_name: 'Time Column', type: 'text', default_value: '' },
+            { name: 'xVariable', display_name: 'X Variable', type: 'text', default_value: '' },
+            { name: 'yVariable', display_name: 'Y Variable', type: 'text', default_value: '' }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new FastFramePlot(settings));
         }
     });
 
-    function getFastFrameDatasourceOptions() {
-        const live = freeboard.getLiveModel?.();
-        if (!live || typeof live.datasources !== 'function') return [];
-        const out = [];
-        live.datasources().forEach(ds => {
-            try {
-                if (ds.type && ds.type() === 'fast_frame_datasource') {
-                    const name = ds.name();
-                    out.push({ name, value: name });
-                }
-            } catch {}
-        });
-        return out;
+    function defaultCsvDirectory() {
+        return pathApi?.cwd ? pathApi.cwd() : '';
+    }
+
+    function normalizePath(value) {
+        return String(value || '').trim();
     }
 
     class FastFramePlot {
         constructor(settings) {
-            this.settings = settings;
-            this.ipc = ipcShim || window.require?.('electron')?.ipcRenderer;
+            this.settings = { ...settings };
             this.pollTimer = null;
-            this.status = $('<div class="small text-muted border rounded p-2 mb-2">Waiting for fast-frame acquisition.</div>');
+            this.plot = null;
+            this.lastConfigSignature = '';
+            this.availableFiles = [];
+            this.availableColumns = [];
             this.container = $('<div class="fast-frame-plot h-100 overflow-auto p-2"></div>');
-            this.plotsHost = $('<div class="d-flex flex-column gap-3"></div>');
-            this.plots = [];
-            this.headers = [];
-            this.lastSignature = '';
-            this._configHandler = () => this._syncDatasourceOptions();
-            freeboard.on && freeboard.on('config_updated', this._configHandler);
-            if (freeboard && typeof freeboard.addStyle === 'function') {
-                freeboard.addStyle('.fast-frame-plot .uplot-title', 'font-weight:600;margin-bottom:4px;');
+            this.status = $('<div class="small text-muted border rounded p-2 mb-2">Select a CSV file to plot.</div>');
+            this.controls = $('<div class="fast-frame-plot-controls d-flex flex-column gap-2 mb-3"></div>');
+            this.chartHost = $('<div class="fast-frame-plot-host"></div>');
+            this.fileSelect = $('<select class="form-control form-control-sm"></select>');
+            this.filePathInput = $('<input type="text" class="form-control form-control-sm" placeholder="CSV file path">');
+            this.modeSelect = $('<select class="form-control form-control-sm"></select>');
+            this.xSelect = $('<select class="form-control form-control-sm"></select>');
+            this.ySelect = $('<select class="form-control form-control-sm"></select>');
+            this.timeSelect = $('<select class="form-control form-control-sm"></select>');
+            this.directoryInput = $('<input type="text" class="form-control form-control-sm" placeholder="Directory containing CSV files">');
+            this._configHandler = () => this._syncFromSettings();
+
+            if (freeboard?.on) freeboard.on('config_updated', this._configHandler);
+            if (freeboard?.addStyle) {
+                freeboard.addStyle('.fast-frame-plot-controls label', 'font-size:12px;color:#aaa;margin-bottom:4px;');
+                freeboard.addStyle('.fast-frame-plot .fast-frame-control-grid', 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;');
+                freeboard.addStyle('.fast-frame-plot .fast-frame-control-grid .full-span', 'grid-column:1 / -1;');
+                freeboard.addStyle('.fast-frame-plot .fast-frame-plot-host', 'min-height:260px;');
             }
         }
 
         render(containerElement) {
-            this.container.empty().append(this.status, this.plotsHost);
+            this._buildControls();
+            this.container.empty().append(this.status, this.controls, this.chartHost);
             $(containerElement).append(this.container);
+            this._syncFromSettings();
             this._startPolling();
         }
 
-        _syncDatasourceOptions() {
-            if (!this.settings.datasource) {
-                const options = getFastFrameDatasourceOptions();
-                if (options.length) this.settings.datasource = options[0].value;
-            }
+        _buildControls() {
+            this.controls.empty();
+            this.modeSelect.empty()
+                .append('<option value="time_series">Y vs Time</option>')
+                .append('<option value="xy">X vs Y</option>');
+
+            this.fileSelect.off('change').on('change', () => {
+                const selected = this.fileSelect.val();
+                if (!selected) return;
+                this._updateSettings({ csvPath: selected });
+            });
+            this.filePathInput.off('change').on('change', () => {
+                this._updateSettings({ csvPath: normalizePath(this.filePathInput.val()) });
+            });
+            this.directoryInput.off('change').on('change', () => {
+                this._updateSettings({ csvDirectory: normalizePath(this.directoryInput.val()) || defaultCsvDirectory() });
+            });
+            this.modeSelect.off('change').on('change', () => {
+                this._updateSettings({ plotMode: this.modeSelect.val() || 'time_series' });
+            });
+            this.xSelect.off('change').on('change', () => {
+                this._updateSettings({ xVariable: this.xSelect.val() || '' });
+            });
+            this.ySelect.off('change').on('change', () => {
+                this._updateSettings({ yVariable: this.ySelect.val() || '' });
+            });
+            this.timeSelect.off('change').on('change', () => {
+                this._updateSettings({ timeColumn: this.timeSelect.val() || '' });
+            });
+
+            const grid = $('<div class="fast-frame-control-grid"></div>');
+            grid.append(this._makeControl('CSV Directory', this.directoryInput, true));
+            grid.append(this._makeControl('CSV File', this.fileSelect, true));
+            grid.append(this._makeControl('CSV Path', this.filePathInput, true));
+            grid.append(this._makeControl('Mode', this.modeSelect));
+            grid.append(this._makeControl('Time Column', this.timeSelect));
+            grid.append(this._makeControl('X Variable', this.xSelect));
+            grid.append(this._makeControl('Y Variable', this.ySelect));
+            this.controls.append(grid);
         }
 
-        _portPath() {
-            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
-            return dsSettings.portPath || this.settings.datasource;
+        _makeControl(label, input, fullSpan = false) {
+            const wrap = $('<div></div>');
+            if (fullSpan) wrap.addClass('full-span');
+            wrap.append($(`<label>${label}</label>`), input);
+            return wrap;
         }
 
         _startPolling() {
-            if (this.pollTimer) {
-                clearInterval(this.pollTimer);
-                this.pollTimer = null;
-            }
-            const rate = Math.max(100, parseInt(this.settings.refreshRate, 10) || 250);
+            if (this.pollTimer) clearInterval(this.pollTimer);
+            const rate = Math.max(100, parseInt(this.settings.refreshRate, 10) || 500);
             this.pollTimer = setInterval(() => this._refresh(), rate);
             this._refresh();
         }
 
         async _refresh() {
-            const path = this._portPath();
-            if (!path || !this.ipc) {
-                this.status.text('Select a fast-frame datasource.');
-                return;
-            }
-            const [status, headers, dataset] = await Promise.all([
-                this.ipc.invoke('get-fast-frame-status', { path }),
-                this.ipc.invoke('get-serial-headers', { path, type: 'fast_frame_datasource' }),
-                this.ipc.invoke('get-fast-dataset', { path })
-            ]);
-            this.headers = Array.isArray(headers) ? headers : [];
-            if (!dataset || !Array.isArray(dataset.timestamps) || !Array.isArray(dataset.series)) {
-                this.status.text(status?.message || 'Waiting for fast-frame acquisition.');
-                return;
-            }
-
-            const derived = this._deriveDataset(dataset);
-            const acquisitionMarker = dataset.capturedAt || status?.completedAt || null;
-            const acquisitionId = dataset.acquisitionId || status?.acquisitionId || 0;
-            const signature = JSON.stringify({
-                acquisitionId,
-                lengths: [derived.timestamps.length, ...derived.series.map(s => s.values.length)],
-                capturedAt: acquisitionMarker,
-                headers: derived.series.map(s => s.name),
-                sample: this._datasetFingerprint(derived)
-            });
-            const statusParts = [
-                `Showing ${derived.timestamps.length} points`,
-                acquisitionId ? `Acq: ${acquisitionId}` : null,
-                status?.state ? `State: ${status.state}` : null,
-                acquisitionMarker ? `Completed: ${new Date(acquisitionMarker).toLocaleTimeString()}` : null
-            ].filter(Boolean);
-            this.status.text(statusParts.join(' | '));
-            if (signature === this.lastSignature) return;
-            this.lastSignature = signature;
-            this._renderPlots(derived);
+            await this._reloadCsvList();
+            this._refreshControlState();
+            this.status.text(this.settings.csvPath
+                ? `Selected CSV: ${this._displayPath(this.settings.csvPath)}`
+                : 'Select a CSV file to plot.');
         }
 
-        _deriveDataset(dataset) {
-            const names = this.headers.length
-                ? this.headers.slice(0, dataset.series.length)
-                : dataset.series.map((_, i) => `ch${i + 1}`);
-            const baseSeries = names.map((name, idx) => ({
-                name,
-                values: Array.isArray(dataset.series[idx]) ? dataset.series[idx].slice() : []
-            }));
-            const byName = new Map(baseSeries.map(s => [s.name, s.values]));
-            const filtered = baseSeries.filter(s => s.name !== 'k_acquire');
-            if (byName.has('duty_cycle') && byName.has('V_high')) {
-                const duty = byName.get('duty_cycle');
-                const high = byName.get('V_high');
-                const values = duty.map((v, i) => (Number(v) || 0) * (Number(high[i]) || 0));
-                filtered.push({ name: 'V_Low_estim', values });
+        async _reloadCsvList() {
+            const dir = normalizePath(this.settings.csvDirectory) || defaultCsvDirectory();
+            if (!dir || !fileApi?.listDir) {
+                this.availableFiles = [];
+                return;
             }
-            return {
-                timestamps: Array.isArray(dataset.timestamps) ? dataset.timestamps.slice() : [],
-                groups: {
-                    voltage: filtered.filter(s => s.name.startsWith('V')),
-                    current: filtered.filter(s => s.name.startsWith('I')),
-                    other: filtered.filter(s => !s.name.startsWith('V') && !s.name.startsWith('I'))
-                },
-                series: filtered
+            try {
+                const names = await fileApi.listDir(dir);
+                this.availableFiles = (Array.isArray(names) ? names : [])
+                    .filter(name => /\.csv$/i.test(name))
+                    .sort((a, b) => a.localeCompare(b))
+                    .map(name => pathApi?.join ? pathApi.join(dir, name) : `${dir}/${name}`);
+            } catch {
+                this.availableFiles = [];
+            }
+        }
+
+        _refreshControlState() {
+            this.directoryInput.val(this.settings.csvDirectory || defaultCsvDirectory());
+            this.filePathInput.val(this.settings.csvPath || '');
+            this.modeSelect.val(this.settings.plotMode || 'time_series');
+            this._populateFileOptions();
+            this._populateColumnOptions([]);
+        }
+
+        _populateFileOptions() {
+            const selected = normalizePath(this.settings.csvPath);
+            this.fileSelect.empty().append('<option value="">Select CSV file</option>');
+            this.availableFiles.forEach(filePath => {
+                const label = this._displayPath(filePath);
+                this.fileSelect.append($('<option></option>').attr('value', filePath).text(label));
+            });
+            if (selected && !this.availableFiles.includes(selected)) {
+                this.fileSelect.append($('<option></option>').attr('value', selected).text(this._displayPath(selected)));
+            }
+            this.fileSelect.val(selected || '');
+        }
+
+        _populateColumnOptions(columns) {
+            const opts = Array.isArray(columns) ? columns : [];
+            const fill = (select, value, placeholder) => {
+                select.empty().append($('<option></option>').attr('value', '').text(placeholder));
+                opts.forEach(column => {
+                    select.append($('<option></option>').attr('value', column).text(column));
+                });
+                select.val(value || '');
             };
+            fill(this.timeSelect, this.settings.timeColumn, 'Row index');
+            fill(this.xSelect, this.settings.xVariable, 'Select X variable');
+            fill(this.ySelect, this.settings.yVariable, 'Select Y variable');
         }
 
-        _renderPlots(derived) {
-            this._destroyPlots();
-            this.plotsHost.empty();
-            const groups = [
-                { key: 'voltage', title: 'Voltages' },
-                { key: 'current', title: 'Currents' },
-                { key: 'other', title: 'Other Signals' }
-            ];
-            groups.forEach((group, groupIndex) => {
-                const entries = derived.groups[group.key];
-                if (!entries.length) return;
-                const block = $('<div class="fast-frame-plot-block"></div>');
-                const title = $(`<div class="uplot-title">${group.title}</div>`);
-                const host = $('<div class="fast-frame-plot-host"></div>');
-                block.append(title, host);
-                this.plotsHost.append(block);
-
-                const palette = (typeof ColorBlind10 !== 'undefined' && Array.isArray(ColorBlind10))
-                    ? ColorBlind10
-                    : ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f'];
-                const data = [derived.timestamps, ...entries.map(s => s.values)];
-                const series = [{ label: 'Samples' }].concat(entries.map((entry, idx) => ({
-                    label: entry.name,
-                    stroke: palette[(groupIndex * 3 + idx) % palette.length],
-                    width: 2
-                })));
-                const opts = {
-                    title: '',
-                    width: Math.max(320, host.width() || this.container.width() || 640),
-                    height: 220,
-                    legend: { show: true },
-                    scales: { x: { time: false }, y: {} },
-                    axes: [
-                        { stroke: '#666', grid: { show: true }, label: 'Sample' },
-                        { stroke: '#666', grid: { show: true }, label: group.title }
-                    ],
-                    series
-                };
-                this.plots.push(new uPlot(opts, data, host[0]));
-            });
+        _displayPath(filePath) {
+            const cwd = defaultCsvDirectory();
+            if (cwd && pathApi?.relative) {
+                const rel = pathApi.relative(cwd, filePath);
+                if (rel && !rel.startsWith('..')) return rel;
+            }
+            return filePath;
         }
 
-        _datasetFingerprint(derived) {
-            return derived.series.map((entry) => {
-                const values = entry.values || [];
-                if (!values.length) return [entry.name, null];
-                const first = values[0];
-                const middle = values[Math.floor(values.length / 2)];
-                const last = values[values.length - 1];
-                return [entry.name, first, middle, last];
-            });
+        _syncFromSettings() {
+            this.settings = { ...this.settings };
+            this.lastConfigSignature = '';
         }
 
-        _destroyPlots() {
-            this.plots.forEach(plot => {
-                try { plot.destroy(); } catch {}
-            });
-            this.plots = [];
+        _updateSettings(partial) {
+            const updated = { ...this.settings, ...partial };
+            this.settings = updated;
+            const model = freeboard.getLiveModel?.();
+            if (!model || typeof model.panes !== 'function') {
+                this.onSettingsChanged(updated);
+                return;
+            }
+            for (const pane of model.panes()) {
+                for (const widget of pane.widgets()) {
+                    if (widget.widgetInstance !== this) continue;
+                    widget.settings(updated);
+                    return;
+                }
+            }
+            this.onSettingsChanged(updated);
         }
 
         onSettingsChanged(newSettings) {
-            this.settings = newSettings;
-            this.lastSignature = '';
+            this.settings = { ...newSettings };
+            this.lastConfigSignature = '';
+            this._refreshControlState();
             this._startPolling();
         }
 
         onDispose() {
-            if (this.pollTimer) {
-                clearInterval(this.pollTimer);
-                this.pollTimer = null;
+            if (this.pollTimer) clearInterval(this.pollTimer);
+            if (this.plot) {
+                try { this.plot.destroy(); } catch {}
             }
-            this._destroyPlots();
-            if (this._configHandler && freeboard.off) {
+            if (this._configHandler && freeboard?.off) {
                 freeboard.off('config_updated', this._configHandler);
             }
         }
 
         getHeight() {
-            return 10;
+            return 8;
         }
     }
 }());
