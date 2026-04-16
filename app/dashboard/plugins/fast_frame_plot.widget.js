@@ -124,7 +124,9 @@
 
             const derived = this._deriveDataset(dataset);
             const acquisitionMarker = dataset.capturedAt || status?.completedAt || null;
+            const acquisitionId = dataset.acquisitionId || status?.acquisitionId || 0;
             const signature = JSON.stringify({
+                acquisitionId,
                 lengths: [derived.timestamps.length, ...derived.series.map(s => s.values.length)],
                 capturedAt: acquisitionMarker,
                 headers: derived.series.map(s => s.name),
@@ -132,6 +134,7 @@
             });
             const statusParts = [
                 `Showing ${derived.timestamps.length} points`,
+                acquisitionId ? `Acq: ${acquisitionId}` : null,
                 status?.state ? `State: ${status.state}` : null,
                 acquisitionMarker ? `Completed: ${new Date(acquisitionMarker).toLocaleTimeString()}` : null
             ].filter(Boolean);

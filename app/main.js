@@ -386,6 +386,7 @@ const colorBuffers = new Map();
 const fastStates = new Map(); // key: path, value: state for fast frame parsing
 const fastBuffers = new Map(); // key: path, value: last parsed fast dataset
 const fastStatus = new Map(); // key: path, value: acquisition status metadata
+const fastAcquisitionSeq = new Map(); // key: path, value: monotonically increasing acquisition id
 const FAST_IDLE = 0;
 const FAST_RECORD = 1;
 const MAX_BUFFER_SIZE = 1000;
@@ -456,7 +457,8 @@ function setFastStatus(path, partial = {}) {
         message: '',
         updatedAt: Date.now(),
         completedAt: null,
-        datasetPoints: 0
+        datasetPoints: 0,
+        acquisitionId: 0
     };
     const next = {
         ...prev,
@@ -492,13 +494,16 @@ function handleFastLine(portPath, line) {
         st.state = FAST_IDLE;
         const dataset = buildFastDataset(st);
         if (dataset) {
+            const acquisitionId = fastAcquisitionSeq.get(portPath) || 0;
+            dataset.acquisitionId = acquisitionId;
             dataset.capturedAt = Date.now();
             fastBuffers.set(portPath, dataset);
             setFastStatus(portPath, {
                 state: 'complete',
                 message: 'Fast frame ready',
                 completedAt: dataset.capturedAt,
-                datasetPoints: Array.isArray(dataset.timestamps) ? dataset.timestamps.length : 0
+                datasetPoints: Array.isArray(dataset.timestamps) ? dataset.timestamps.length : 0,
+                acquisitionId
             });
         } else {
             setFastStatus(portPath, {
@@ -988,7 +993,8 @@ ipcMain.handle('get-fast-frame-status', (_event, { path }) => {
         message: 'No acquisition yet',
         updatedAt: Date.now(),
         completedAt: null,
-        datasetPoints: 0
+        datasetPoints: 0,
+        acquisitionId: 0
     };
 });
 
@@ -1294,11 +1300,14 @@ ipcMain.handle("write-serial-port", async (event, { path, data }) => {
         const targetPort = path ? openPorts.get(path) : openPorts.values().next().value;
         if (targetPort && targetPort.isOpen) {
                 if (path && fastStatus.has(path)) {
+                        const nextAcquisitionId = (fastAcquisitionSeq.get(path) || 0) + 1;
+                        fastAcquisitionSeq.set(path, nextAcquisitionId);
                         setFastStatus(path, {
                                 state: 'awaiting_record',
                                 message: 'Trigger sent, waiting for fast frame',
                                 completedAt: null,
-                                datasetPoints: 0
+                                datasetPoints: 0,
+                                acquisitionId: nextAcquisitionId
                         });
                 }
                 return new Promise((resolve, reject) => {
@@ -1612,6 +1621,7 @@ ipcMain.handle('flush-serial-buffers', async (_event, { path }) => {
     fastStates.delete(path);
     fastBuffers.delete(path);
     fastStatus.delete(path);
+    fastAcquisitionSeq.delete(path);
     return 'flushed';
 });
 
