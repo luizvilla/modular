@@ -12,10 +12,22 @@
                 optionsRefreshMs: 1000
             },
             {
-                name: "triggerCommand",
-                display_name: "Trigger Command",
+                name: "armCommand",
+                display_name: "Arm Command",
+                type: "text",
+                default_value: "t"
+            },
+            {
+                name: "retrieveCommand",
+                display_name: "Retrieve Command",
                 type: "text",
                 default_value: "r"
+            },
+            {
+                name: "retrieveDelayMs",
+                display_name: "Retrieve Delay (ms)",
+                type: "number",
+                default_value: 100
             },
             {
                 name: "filePath",
@@ -77,16 +89,20 @@
             this.container.empty();
 
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
-            this.triggerInput = $('<input type="text" class="form-control form-control-sm">');
+            this.armInput = $('<input type="text" class="form-control form-control-sm">');
+            this.retrieveInput = $('<input type="text" class="form-control form-control-sm">');
+            this.delayInput = $('<input type="number" class="form-control form-control-sm">');
             this.fileInput = $('<input type="text" class="form-control form-control-sm">');
             this.autoSaveCheck = $('<input type="checkbox">');
             this.statusBox = $('<div class="small text-muted border rounded p-2">Idle.</div>');
-            this.triggerBtn = $('<button class="btn btn-primary btn-sm">Send Trigger</button>');
+            this.triggerBtn = $('<button class="btn btn-primary btn-sm">Trigger + Retrieve</button>');
             this.saveBtn = $('<button class="btn btn-outline-secondary btn-sm">Save Latest CSV</button>');
 
             this.container.append(
                 this._makeRow('Datasource', this.dsSelect),
-                this._makeRow('Trigger', this.triggerInput),
+                this._makeRow('Arm', this.armInput),
+                this._makeRow('Retrieve', this.retrieveInput),
+                this._makeRow('Delay', this.delayInput),
                 this._makeRow('CSV File', this.fileInput),
                 this._makeCheckRow('Auto-save', this.autoSaveCheck),
                 $('<div class="d-flex gap-1"></div>').append(this.triggerBtn, this.saveBtn),
@@ -100,7 +116,9 @@
                 this.autoSaveDoneForCycle = false;
                 this._refreshStatus();
             });
-            this.triggerInput.on('change', () => { this.settings.triggerCommand = this.triggerInput.val(); });
+            this.armInput.on('change', () => { this.settings.armCommand = this.armInput.val(); });
+            this.retrieveInput.on('change', () => { this.settings.retrieveCommand = this.retrieveInput.val(); });
+            this.delayInput.on('change', () => { this.settings.retrieveDelayMs = parseInt(this.delayInput.val(), 10) || 100; });
             this.fileInput.on('change', () => { this.settings.filePath = this.fileInput.val(); });
             this.autoSaveCheck.on('change', () => { this.settings.autoSave = this.autoSaveCheck.prop('checked'); });
 
@@ -127,7 +145,9 @@
         _syncControls() {
             this._refreshDatasourceOptions();
             this.dsSelect.val(this.settings.datasource || '');
-            this.triggerInput.val(this.settings.triggerCommand || 'r');
+            this.armInput.val(this.settings.armCommand || 't');
+            this.retrieveInput.val(this.settings.retrieveCommand || 'r');
+            this.delayInput.val(this.settings.retrieveDelayMs ?? 100);
             this.fileInput.val(this.settings.filePath || 'fast_frame.csv');
             this.autoSaveCheck.prop('checked', !!this.settings.autoSave);
         }
@@ -156,16 +176,27 @@
             return dsSettings.portPath || this.settings.datasource;
         }
 
-        async _sendTrigger() {
-            const path = this._portPath();
-            const command = this.triggerInput.val() || this.settings.triggerCommand || 'r';
+        async _writeCommand(path, command) {
             if (!path || !command) return;
-            this.autoSaveDoneForCycle = false;
             if (this.serialApi && this.serialApi.write) {
                 await this.serialApi.write(path, command);
             } else if (this.ipc) {
                 await this.ipc.invoke('write-serial-port', { path, data: command });
             }
+        }
+
+        async _sendTrigger() {
+            const path = this._portPath();
+            const armCommand = this.armInput.val() || this.settings.armCommand || 't';
+            const retrieveCommand = this.retrieveInput.val() || this.settings.retrieveCommand || 'r';
+            const retrieveDelayMs = Math.max(0, parseInt(this.delayInput.val(), 10) || this.settings.retrieveDelayMs || 100);
+            if (!path) return;
+            this.autoSaveDoneForCycle = false;
+            await this._writeCommand(path, armCommand);
+            if (retrieveDelayMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, retrieveDelayMs));
+            }
+            await this._writeCommand(path, retrieveCommand);
             await this._refreshStatus();
         }
 
