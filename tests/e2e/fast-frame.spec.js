@@ -1,28 +1,63 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./helpers');
 
-test('fast frame control triggers acquisition and saves latest csv', async () => {
+test('fast frame plot reloads a csv and supports time and xy modes', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
+  const csvPath = fixturePath('fast_frame_plot.csv');
+
+  await page.evaluate(async (targetPath) => {
+    await window.api.files.writeText(targetPath, [
+      'time_ms,V_high,I_in,duty_cycle',
+      '0,10,1,0.2',
+      '1,11,2,0.3',
+      '2,12,3,0.4',
+      '3,13,4,0.5',
+    ].join('\n'));
+  }, csvPath);
+
   await loadDashboard(page, fixturePath('fast_frame_dashboard.json'));
 
   await page.waitForSelector('.uplot', { timeout: 15_000 });
-
-  await page.getByRole('button', { name: 'Send Trigger' }).click();
-  await page.waitForFunction(async () => {
-    const status = await window.api.serial.getFastStatus('COM_MOCK');
-    return status && status.state === 'complete';
+  await page.waitForFunction(() => {
+    const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+    return widget && widget.plot && widget.plot.data[1][0] === 10;
   });
 
-  await page.waitForFunction(() => document.querySelectorAll('.fast-frame-plot .uplot').length > 0);
-  const plotCount = await page.locator('.fast-frame-plot .uplot').count();
-  expect(plotCount).toBeGreaterThan(0);
+  await page.evaluate(async (targetPath) => {
+    await window.api.files.writeText(targetPath, [
+      'time_ms,V_high,I_in,duty_cycle',
+      '0,20,5,0.2',
+      '1,21,6,0.3',
+      '2,22,7,0.4',
+      '3,23,8,0.5',
+    ].join('\n'));
+  }, csvPath);
 
-  await page.getByRole('button', { name: 'Save Latest CSV' }).click();
-  await page.waitForFunction(async () => {
-    const status = await window.api.serial.getFastStatus('COM_MOCK');
-    return status && status.state === 'saved';
+  await page.waitForFunction(() => {
+    const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+    return widget && widget.plot && widget.plot.data[1][0] === 20 && widget.settings.yVariable === 'V_high';
   });
+
+  await page.evaluate(() => {
+    const widgetModel = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+    widgetModel.settings({
+      ...widgetModel.settings(),
+      plotMode: 'xy',
+      xVariable: 'I_in',
+      yVariable: 'V_high'
+    });
+  });
+
+  await page.waitForFunction(() => {
+    const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+    return widget && widget.plot && widget.plot.data[0][0] === 5 && widget.plot.data[1][0] === 20;
+  });
+
+  const summary = await page.locator('.fast-frame-plot').textContent();
+  expect(summary).toContain('Mode: X vs Y');
+  expect(summary).toContain('X: I_in');
+  expect(summary).toContain('Y: V_high');
 
   await app.close();
 });

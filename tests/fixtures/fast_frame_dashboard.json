@@ -17,47 +17,17 @@
           "type": "fast_frame_plot",
           "settings": {
             "title": "Fast Plot",
-            "datasource": "MockFast",
-            "refreshRate": 150
-          }
-        }
-      ]
-    },
-    {
-      "width": 1,
-      "row": {
-        "3": 1
-      },
-      "col": {
-        "3": 3
-      },
-      "col_width": 1,
-      "widgets": [
-        {
-          "type": "fast_frame_control",
-          "settings": {
-            "datasource": "MockFast",
-            "triggerCommand": "TRIGGER",
-            "filePath": "fast.csv",
-            "autoSave": false,
-            "pollMs": 100
+            "csvDirectory": "tests/fixtures",
+            "csvPath": "tests/fixtures/fast_frame_plot.csv",
+            "refreshRate": 150,
+            "plotMode": "time_series",
+            "timeColumn": "time_ms",
+            "yVariable": "V_high"
           }
         }
       ]
     }
   ],
-  "datasources": [
-    {
-      "name": "MockFast",
-      "type": "fast_frame_datasource",
-      "settings": {
-        "portPath": "COM_MOCK",
-        "baudRate": 115200,
-        "separator": ":",
-        "eol": "\\n",
-        "refresh": 100
-      }
-    }
-  ],
+  "datasources": [],
   "columns": 3
 }
