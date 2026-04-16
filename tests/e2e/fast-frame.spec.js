@@ -14,12 +14,9 @@ test('fast frame control triggers acquisition and saves latest csv', async () =>
     return status && status.state === 'complete';
   });
 
-  const plotPointCount = await page.evaluate(() => {
-    const model = window.freeboard.getLiveModel();
-    const widget = model.panes().flatMap((p) => p.widgets()).find((w) => w.type() === 'owntech_plot_uplot');
-    return widget.widgetInstance.dataBuffer[0].length;
-  });
-  expect(plotPointCount).toBeGreaterThan(0);
+  await page.waitForFunction(() => document.querySelectorAll('.fast-frame-plot .uplot').length > 0);
+  const plotCount = await page.locator('.fast-frame-plot .uplot').count();
+  expect(plotCount).toBeGreaterThan(0);
 
   await page.getByRole('button', { name: 'Save Latest CSV' }).click();
   await page.waitForFunction(async () => {

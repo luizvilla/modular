@@ -79,6 +79,13 @@
       "requiresThingset": false
     },
     {
+      "type": "fast_frame_plot",
+      "title": "Fast Frame Plot",
+      "category": "Serial",
+      "doc": "serial/fast-frame-plot/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "serial_flasher",
       "title": "Serial Flasher",
       "category": "Serial",

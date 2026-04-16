@@ -14,25 +14,11 @@
       "col_width": 2,
       "widgets": [
         {
-          "type": "owntech_plot_uplot",
+          "type": "fast_frame_plot",
           "settings": {
             "title": "Fast Plot",
-            "seriesDefs": [
-              {
-                "label": "fast-1",
-                "op": "identity",
-                "param": 0,
-                "a": {
-                  "ds": "MockFast",
-                  "type": "fast_frame_datasource",
-                  "device": null,
-                  "device_uid": null,
-                  "var": 0
-                }
-              }
-            ],
-            "refreshRate": 150,
-            "yLabel": "Value"
+            "datasource": "MockFast",
+            "refreshRate": 150
           }
         }
       ]
