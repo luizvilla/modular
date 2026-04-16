@@ -123,14 +123,21 @@
             }
 
             const derived = this._deriveDataset(dataset);
+            const acquisitionMarker = dataset.capturedAt || status?.completedAt || null;
             const signature = JSON.stringify({
                 lengths: [derived.timestamps.length, ...derived.series.map(s => s.values.length)],
-                capturedAt: dataset.capturedAt || null,
-                headers: derived.series.map(s => s.name)
+                capturedAt: acquisitionMarker,
+                headers: derived.series.map(s => s.name),
+                sample: this._datasetFingerprint(derived)
             });
+            const statusParts = [
+                `Showing ${derived.timestamps.length} points`,
+                status?.state ? `State: ${status.state}` : null,
+                acquisitionMarker ? `Completed: ${new Date(acquisitionMarker).toLocaleTimeString()}` : null
+            ].filter(Boolean);
+            this.status.text(statusParts.join(' | '));
             if (signature === this.lastSignature) return;
             this.lastSignature = signature;
-            this.status.text(`Showing ${derived.timestamps.length} points from the latest fast-frame acquisition.`);
             this._renderPlots(derived);
         }
 
@@ -192,7 +199,7 @@
                     width: Math.max(320, host.width() || this.container.width() || 640),
                     height: 220,
                     legend: { show: true },
-                    scales: { x: {}, y: {} },
+                    scales: { x: { time: false }, y: {} },
                     axes: [
                         { stroke: '#666', grid: { show: true }, label: 'Sample' },
                         { stroke: '#666', grid: { show: true }, label: group.title }
@@ -200,6 +207,17 @@
                     series
                 };
                 this.plots.push(new uPlot(opts, data, host[0]));
+            });
+        }
+
+        _datasetFingerprint(derived) {
+            return derived.series.map((entry) => {
+                const values = entry.values || [];
+                if (!values.length) return [entry.name, null];
+                const first = values[0];
+                const middle = values[Math.floor(values.length / 2)];
+                const last = values[values.length - 1];
+                return [entry.name, first, middle, last];
             });
         }
 
