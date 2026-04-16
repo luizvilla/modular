@@ -16,6 +16,7 @@
             this.container = $('<div class="h-100 overflow-auto p-2 d-flex flex-column gap-2"></div>');
             this.controls = {};
             this.selectedCsvPath = '';
+            this.availableColumns = [];
             if (freeboard?.addStyle) {
                 freeboard.addStyle('.fast-frame-channel-manager .input-group-text', 'min-width:130px;justify-content:center;');
                 freeboard.addStyle('.fast-frame-channel-item', 'border:1px solid #444;border-radius:4px;padding:6px;');
@@ -29,8 +30,6 @@
             this.controls.target = $('<select class="form-select form-select-sm"></select>');
             this.controls.csvButton = $('<button class="btn btn-outline-secondary btn-sm w-100">Choose CSV File</button>');
             this.controls.csvName = $('<div class="small text-muted border rounded p-2">No file selected.</div>');
-            this.controls.timeColumn = $('<select class="form-select form-select-sm"></select>');
-            this.controls.variable = $('<select class="form-select form-select-sm"></select>');
             this.controls.xVariable = $('<select class="form-select form-select-sm"></select>');
             this.controls.yVariable = $('<select class="form-select form-select-sm"></select>');
             this.controls.label = $('<input type="text" class="form-control form-control-sm" placeholder="Optional label">');
@@ -40,8 +39,6 @@
 
             const makeRow = (label, control) => $('<div class="input-group input-group-sm fast-frame-channel-manager"></div>').append(`<span class="input-group-text">${label}</span>`, control);
             this.csvRow = $('<div class="d-flex flex-column gap-1"></div>').append(this.controls.csvButton, this.controls.csvName);
-            this.timeRow = makeRow('Time Column', this.controls.timeColumn);
-            this.variableRow = makeRow('Variable', this.controls.variable);
             this.xRow = makeRow('X Variable', this.controls.xVariable);
             this.yRow = makeRow('Y Variable', this.controls.yVariable);
             this.labelRow = makeRow('Label', this.controls.label);
@@ -54,8 +51,6 @@
             this.container.append(
                 makeRow('Target Plot', this.controls.target),
                 this.csvRow,
-                this.timeRow,
-                this.variableRow,
                 this.xRow,
                 this.yRow,
                 this.labelRow,
@@ -101,28 +96,24 @@
             const isXY = widget?.type() === 'fast_frame_xy_plot';
             const settings = widget?.settings() || {};
             this.selectedCsvPath = settings.csvPath || '';
+            this.availableColumns = Array.isArray(widget?.widgetInstance?.availableColumns) ? widget.widgetInstance.availableColumns.slice() : [];
             this.controls.csvName.text(this._csvLabel(this.selectedCsvPath));
-            this.timeRow.toggleClass('is-hidden', isXY);
-            this.variableRow.toggleClass('is-hidden', isXY);
             this.labelRow.toggleClass('is-hidden', isXY);
             this.colorRow.toggleClass('is-hidden', isXY);
             this.visibleRow.toggleClass('is-hidden', isXY);
-            this.xRow.toggleClass('is-hidden', !isXY);
-            this.yRow.toggleClass('is-hidden', !isXY);
             const addBtn = this.actions.find('.btn-primary');
             const resetBtn = this.actions.find('.btn-outline-danger');
-            addBtn.toggleClass('is-hidden', isXY);
+            addBtn.toggleClass('is-hidden', false);
             resetBtn.toggleClass('is-hidden', isXY);
-            const columns = Array.isArray(widget?.widgetInstance?.availableColumns) ? widget.widgetInstance.availableColumns : [];
+            const columns = this._currentColumns(widget);
             const fill = (select, value, placeholder) => {
                 select.empty().append(`<option value="">${placeholder}</option>`);
                 columns.forEach(column => select.append(`<option value="${column}">${column}</option>`));
-                select.val(value || '');
+                if (value && select.find(`option[value="${value}"]`).length) select.val(value);
+                else if (!value && columns.length) select.val(columns[0]);
             };
-            fill(this.controls.timeColumn, settings.timeColumn, 'Row index');
-            fill(this.controls.variable, '', 'Select variable');
-            fill(this.controls.xVariable, settings.xVariable, 'Select X variable');
-            fill(this.controls.yVariable, settings.yVariable, 'Select Y variable');
+            fill(this.controls.xVariable, isXY ? settings.xVariable : settings.timeColumn, 'Row index');
+            fill(this.controls.yVariable, isXY ? settings.yVariable : '', 'Select Y variable');
         }
 
         async chooseCsvFile() {
@@ -132,6 +123,7 @@
             if (!chosen) return;
             this.selectedCsvPath = chosen;
             this.controls.csvName.text(this._csvLabel(chosen));
+            await this._loadColumnsForPath(chosen);
             this.applySource();
             this.populateVariables();
             this.renderSeriesList();
@@ -143,19 +135,30 @@
             return parts[parts.length - 1] || filePath;
         }
 
+        _currentColumns(widget) {
+            if (this.availableColumns.length) return this.availableColumns.slice();
+            return Array.isArray(widget?.widgetInstance?.availableColumns) ? widget.widgetInstance.availableColumns : [];
+        }
+
+        async _loadColumnsForPath(filePath) {
+            const loaded = await shared.loadCsvDataset(filePath, '');
+            this.availableColumns = loaded.dataset ? loaded.dataset.headers.filter(header => header !== 'k_acquire') : [];
+            return this.availableColumns;
+        }
+
         populateVariables() {
             const widget = this._targetWidget();
-            const columns = Array.isArray(widget?.widgetInstance?.availableColumns) ? widget.widgetInstance.availableColumns : [];
+            const isXY = widget?.type() === 'fast_frame_xy_plot';
+            const settings = widget?.settings() || {};
+            const columns = this._currentColumns(widget);
             const fill = (select, current, placeholder) => {
                 select.empty().append(`<option value="">${placeholder}</option>`);
                 columns.forEach(column => select.append(`<option value="${column}">${column}</option>`));
                 if (current && select.find(`option[value="${current}"]`).length) select.val(current);
                 else if (!current && columns.length) select.val(columns[0]);
             };
-            fill(this.controls.variable, this.controls.variable.val(), 'Select variable');
-            fill(this.controls.xVariable, this.controls.xVariable.val(), 'Select X variable');
-            fill(this.controls.yVariable, this.controls.yVariable.val(), 'Select Y variable');
-            fill(this.controls.timeColumn, this.controls.timeColumn.val(), 'Row index');
+            fill(this.controls.xVariable, this.controls.xVariable.val() || (isXY ? settings.xVariable : settings.timeColumn), 'Row index');
+            fill(this.controls.yVariable, this.controls.yVariable.val() || settings.yVariable, 'Select Y variable');
         }
 
         applySource() {
@@ -167,7 +170,7 @@
             shared.updateWidgetSettings(widget, {
                 csvDirectory,
                 csvPath,
-                timeColumn: isXY ? widget.settings().timeColumn : (this.controls.timeColumn.val() || ''),
+                timeColumn: isXY ? widget.settings().timeColumn : (this.controls.xVariable.val() || ''),
                 xVariable: isXY ? (this.controls.xVariable.val() || '') : widget.settings().xVariable,
                 yVariable: isXY ? (this.controls.yVariable.val() || '') : widget.settings().yVariable
             });
@@ -175,9 +178,9 @@
 
         addChannel() {
             const widget = this._targetWidget();
-            const variable = this.controls.variable.val();
+            const variable = this.controls.yVariable.val();
             if (!widget || widget.type() !== 'fast_frame_plot' || !variable) return;
-            const defs = shared.normalizeSeriesDefs(widget.settings(), widget.widgetInstance?.availableColumns || []);
+            const defs = shared.normalizeSeriesDefs(widget.settings(), this._currentColumns(widget));
             const csvPath = this.selectedCsvPath || widget.settings().csvPath || '';
             const csvDirectory = csvPath ? (shared.pathApi?.dirname ? shared.pathApi.dirname(csvPath) : shared.defaultCsvDirectory()) : (widget.settings().csvDirectory || shared.defaultCsvDirectory());
             defs.push({
@@ -189,7 +192,7 @@
             shared.updateWidgetSettings(widget, {
                 csvDirectory,
                 csvPath,
-                timeColumn: this.controls.timeColumn.val() || '',
+                timeColumn: this.controls.xVariable.val() || '',
                 seriesDefs: defs
             });
             this.renderSeriesList();
@@ -219,7 +222,7 @@
                 this.list.append(`<div class="small text-muted">XY Pair: ${settings.xVariable || '--'} vs ${settings.yVariable || '--'}</div>`);
                 return;
             }
-            const defs = widget ? shared.normalizeSeriesDefs(widget.settings(), widget.widgetInstance?.availableColumns || []) : [];
+            const defs = widget ? shared.normalizeSeriesDefs(widget.settings(), this._currentColumns(widget)) : [];
             defs.forEach((def, index) => {
                 const row = $('<div class="fast-frame-channel-item d-flex justify-content-between align-items-center gap-2"></div>');
                 row.append(`<div>${def.label} <span class="text-muted">(${def.variable})</span></div>`);

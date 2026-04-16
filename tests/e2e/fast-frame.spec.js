@@ -29,7 +29,7 @@ test('fast frame plot reloads a csv and supports time and xy modes', async () =>
     manager.controls.target.val('Fast Plot');
     manager.syncTargetState();
     manager.populateVariables();
-    manager.controls.variable.val('I_in');
+    manager.controls.yVariable.val('I_in');
     manager.controls.label.val('Input current');
     manager.controls.color.val('#ff0000');
     manager.addChannel();
@@ -114,9 +114,9 @@ test('fast frame plot detects colon-separated files', async () => {
     const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
     manager.controls.target.val('Fast Plot');
     manager.syncTargetState();
-    manager.controls.timeColumn.val('time_ms');
     manager.populateVariables();
-    manager.controls.variable.val('V2');
+    manager.controls.xVariable.val('time_ms');
+    manager.controls.yVariable.val('V2');
     manager.controls.label.val('V2');
     manager.addChannel();
   });
@@ -124,6 +124,47 @@ test('fast frame plot detects colon-separated files', async () => {
   await page.waitForFunction(() => {
     const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
     return widget && widget.plot && widget.plot.data[0][0] === 0 && widget.plot.data[1][0] === 31.5;
+  });
+
+  await app.close();
+});
+
+test('fast frame channel manager refreshes variables immediately after csv selection', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  const csvPath = fixturePath('fast_frame_plot.csv');
+
+  await page.evaluate(async (targetPath) => {
+    await window.api.files.writeText(targetPath, [
+      'sample,alpha,beta',
+      '0,1,2',
+      '1,3,4',
+    ].join('\n'));
+  }, csvPath);
+
+  await loadDashboard(page, fixturePath('fast_frame_dashboard.json'));
+
+  await page.waitForFunction(() => {
+    const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+    return widget && widget.availableColumns && widget.availableColumns.includes('alpha');
+  });
+
+  await page.evaluate(async (targetPath) => {
+    const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
+    manager.controls.target.val('Fast Plot');
+    manager.syncTargetState();
+    manager.selectedCsvPath = targetPath;
+    manager.controls.csvName.text('fast_frame_plot.csv');
+    await manager._loadColumnsForPath(targetPath);
+    manager.applySource();
+    manager.populateVariables();
+  }, csvPath);
+
+  await page.waitForFunction(() => {
+    const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
+    const xOptions = manager.controls.xVariable.find('option').toArray().map((option) => option.value);
+    const yOptions = manager.controls.yVariable.find('option').toArray().map((option) => option.value);
+    return xOptions.includes('sample') && xOptions.includes('alpha') && yOptions.includes('beta');
   });
 
   await app.close();
