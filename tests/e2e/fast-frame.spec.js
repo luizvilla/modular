@@ -27,6 +27,7 @@ test('fast frame plot reloads a csv and supports time and xy modes', async () =>
   await page.evaluate(() => {
     const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
     manager.controls.target.val('Fast Plot');
+    manager.syncTargetState();
     manager.populateVariables();
     manager.controls.variable.val('I_in');
     manager.controls.label.val('Input current');
@@ -69,12 +70,12 @@ test('fast frame plot reloads a csv and supports time and xy modes', async () =>
   });
 
   await page.evaluate(() => {
-    const ui = window.freeboard.getLiveModel().panes()[1].widgets()[0].widgetInstance;
-    ui.controls.target.val('Fast XY Plot');
-    ui.syncFromSelectedWidget();
-    ui.controls.xVariable.val('I_in');
-    ui.controls.yVariable.val('V_high');
-    ui.applySettings();
+    const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
+    manager.controls.target.val('Fast XY Plot');
+    manager.syncTargetState();
+    manager.controls.xVariable.val('I_in');
+    manager.controls.yVariable.val('V_high');
+    manager.applySource();
   });
 
   await page.waitForFunction(() => {
@@ -110,14 +111,10 @@ test('fast frame plot detects colon-separated files', async () => {
   });
 
   await page.evaluate(() => {
-    const ui = window.freeboard.getLiveModel().panes()[1].widgets()[0].widgetInstance;
-    ui.controls.target.val('Fast Plot');
-    ui.syncFromSelectedWidget();
-    ui.controls.timeColumn.val('time_ms');
-    ui.applySettings();
-
     const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
     manager.controls.target.val('Fast Plot');
+    manager.syncTargetState();
+    manager.controls.timeColumn.val('time_ms');
     manager.populateVariables();
     manager.controls.variable.val('V2');
     manager.controls.label.val('V2');

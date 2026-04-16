@@ -9,8 +9,5 @@ Controls the settings of a target Fast Frame Plot or Fast Frame XY Plot widget.
 
 ## Usage (in dashboard)
 - Choose the target fast-frame plot widget.
-- Choose the CSV file with the file picker. The dialog opens in the current working directory by default.
-- For time plots, choose the time column.
-- For XY plots, choose the X and Y variables.
-- For time plots, Y channels are managed only through the Fast Frame Channel Manager.
+- Use this widget only for title and axis configuration.
 - Click `Apply Settings` to push the configuration into the target plot widget.
