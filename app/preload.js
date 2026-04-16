@@ -30,7 +30,8 @@ const api = {
     files: {
         readText: (filePath) => ipcRenderer.invoke('files-read-text', { filePath }),
         listDir: (dirPath) => ipcRenderer.invoke('files-list-dir', { dirPath }),
-        writeText: (filePath, content) => ipcRenderer.invoke('files-write-text', { filePath, content })
+        writeText: (filePath, content) => ipcRenderer.invoke('files-write-text', { filePath, content }),
+        chooseCsvFile: () => ipcRenderer.invoke('choose-csv-file')
     },
     system: {
         openExternal: (url) => ipcRenderer.invoke('open-external-url', { url })
@@ -273,6 +274,10 @@ if (isMock) {
     } else {
         api.system = {
             openExternal: async () => ({ ok: true })
+        };
+        api.files = {
+            ...(api.files || {}),
+            chooseCsvFile: async () => path.join(process.cwd(), 'tests', 'fixtures', 'fast_frame_plot.csv')
         };
         api.serial = {
             listPorts: async () => mockPorts,

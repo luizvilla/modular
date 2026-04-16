@@ -53,6 +53,17 @@ ipcMain.handle('show-open-dashboard', async () => {
     return filePaths[0];
 });
 
+ipcMain.handle('choose-csv-file', async () => {
+    if (!mainWindow) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        defaultPath: process.cwd(),
+        properties: ['openFile'],
+        filters: [{ name: 'CSV', extensions: ['csv'] }]
+    });
+    if (canceled || !filePaths || filePaths.length === 0) return null;
+    return filePaths[0];
+});
+
 // Bridge renderer logs to the terminal for debugging.
 ipcMain.on('renderer-log', (_event, { level = 'log', args = [] } = {}) => {
     const prefix = '[renderer]';
