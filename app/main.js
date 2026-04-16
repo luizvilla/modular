@@ -1329,7 +1329,7 @@ ipcMain.handle('start-csv-record', async (event, { path, filePath, separator, eo
                 return 'already recording';
         }
         const sep = separator || ',';
-        const eolStr = eol ? JSON.parse(`"${eol}"`) : '\n';
+        const eolStr = decodeEolToken(eol);
         const headers = headerBuffers.get(dsKey(path, type)) || [];
         const recording = {
                 order,
@@ -1437,7 +1437,7 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
         }
         const headers = headerBuffers.get(dsKey(path, 'fast_frame_datasource')) || [];
         const sep = separator || ',';
-        const eolStr = eol ? JSON.parse(`"${eol}"`) : '\n';
+        const eolStr = decodeEolToken(eol);
         const out = [];
         if (addHeader) {
                 const h = [];

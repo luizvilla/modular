@@ -15,7 +15,7 @@
                 name: "triggerCommand",
                 display_name: "Trigger Command",
                 type: "text",
-                default_value: "trigger"
+                default_value: "r"
             },
             {
                 name: "filePath",
@@ -127,7 +127,7 @@
         _syncControls() {
             this._refreshDatasourceOptions();
             this.dsSelect.val(this.settings.datasource || '');
-            this.triggerInput.val(this.settings.triggerCommand || 'trigger');
+            this.triggerInput.val(this.settings.triggerCommand || 'r');
             this.fileInput.val(this.settings.filePath || 'fast_frame.csv');
             this.autoSaveCheck.prop('checked', !!this.settings.autoSave);
         }
@@ -158,7 +158,7 @@
 
         async _sendTrigger() {
             const path = this._portPath();
-            const command = this.triggerInput.val() || this.settings.triggerCommand || 'trigger';
+            const command = this.triggerInput.val() || this.settings.triggerCommand || 'r';
             if (!path || !command) return;
             this.autoSaveDoneForCycle = false;
             if (this.serialApi && this.serialApi.write) {
