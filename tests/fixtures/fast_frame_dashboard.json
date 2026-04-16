@@ -52,27 +52,6 @@
           "settings": {}
         }
       ]
-    },
-    {
-      "width": 1,
-      "row": {
-        "3": 9
-      },
-      "col": {
-        "3": 1
-      },
-      "col_width": 2,
-      "widgets": [
-        {
-          "type": "fast_frame_xy_plot",
-          "settings": {
-            "title": "Fast XY Plot",
-            "csvDirectory": "tests/fixtures",
-            "csvPath": "tests/fixtures/fast_frame_plot.csv",
-            "refreshRate": 150
-          }
-        }
-      ]
     }
   ],
   "datasources": [],

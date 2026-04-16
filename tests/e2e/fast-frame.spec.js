@@ -1,7 +1,7 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./helpers');
 
-test('fast frame plot reloads a csv and supports time and xy modes', async () => {
+test('fast frame plot reloads a csv and supports multiple y channels', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
   const csvPath = fixturePath('fast_frame_plot.csv');
@@ -67,20 +67,6 @@ test('fast frame plot reloads a csv and supports time and xy modes', async () =>
   await page.waitForFunction(() => {
     const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
     return widget && widget.plot && widget.plot.data[1][0] === 20 && widget.plot.data[2][0] === 5;
-  });
-
-  await page.evaluate(() => {
-    const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
-    manager.controls.target.val('Fast XY Plot');
-    manager.syncTargetState();
-    manager.controls.xVariable.val('I_in');
-    manager.controls.yVariable.val('V_high');
-    manager.applySource();
-  });
-
-  await page.waitForFunction(() => {
-    const widget = window.freeboard.getLiveModel().panes()[2].widgets()[0].widgetInstance;
-    return widget && widget.plot && widget.plot.data[0][0] === 5 && widget.plot.data[1][0] === 20;
   });
 
   const summary = await page.locator('.fast-frame-plot').textContent();

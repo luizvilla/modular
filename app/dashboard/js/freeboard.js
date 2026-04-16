@@ -2692,10 +2692,9 @@ PluginEditor = function(jsEditor, valueEditor)
 						},
 						"Fast Frame": {
 							"fast_frame_plot": 0,
-							"fast_frame_xy_plot": 1,
-							"fast_frame_channel_manager": 2,
-							"fast_frame_plot_ui": 3,
-							"fast_frame_control": 4
+							"fast_frame_channel_manager": 1,
+							"fast_frame_plot_ui": 2,
+							"fast_frame_control": 3
 						},
 						"Vertical gauge": {
 							"vertical_gauge": 0,

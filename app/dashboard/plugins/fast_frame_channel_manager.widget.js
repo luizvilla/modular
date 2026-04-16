@@ -5,7 +5,7 @@
         type_name: 'fast_frame_channel_manager',
         display_name: 'Fast Frame Channel Manager',
         category: 'Fast Frame',
-        description: 'Manage multiple fast-frame channels on a target time plot',
+        description: 'Manage fast-frame CSV source and plotted channels on a target plot',
         settings: [],
         newInstance: function (settings, cb) { cb(new FastFrameChannelManager(settings)); }
     });
@@ -79,12 +79,12 @@
         }
 
         _targetWidget() {
-            return shared.findWidgetByTitle(this.controls.target.val(), ['fast_frame_plot', 'fast_frame_xy_plot']);
+            return shared.findWidgetByTitle(this.controls.target.val(), ['fast_frame_plot']);
         }
 
         populateTargets() {
             const current = this.controls.target.val();
-            const targets = shared.listWidgetsByType(['fast_frame_plot', 'fast_frame_xy_plot']);
+            const targets = shared.listWidgetsByType(['fast_frame_plot']);
             this.controls.target.empty();
             targets.forEach(entry => this.controls.target.append(`<option value="${entry.title}">${entry.title}</option>`));
             if (current && this.controls.target.find(`option[value="${current}"]`).length) this.controls.target.val(current);
@@ -93,18 +93,17 @@
 
         syncTargetState() {
             const widget = this._targetWidget();
-            const isXY = widget?.type() === 'fast_frame_xy_plot';
             const settings = widget?.settings() || {};
             this.selectedCsvPath = settings.csvPath || '';
             this.availableColumns = Array.isArray(widget?.widgetInstance?.availableColumns) ? widget.widgetInstance.availableColumns.slice() : [];
             this.controls.csvName.text(this._csvLabel(this.selectedCsvPath));
-            this.labelRow.toggleClass('is-hidden', isXY);
-            this.colorRow.toggleClass('is-hidden', isXY);
-            this.visibleRow.toggleClass('is-hidden', isXY);
+            this.labelRow.removeClass('is-hidden');
+            this.colorRow.removeClass('is-hidden');
+            this.visibleRow.removeClass('is-hidden');
             const addBtn = this.actions.find('.btn-primary');
             const resetBtn = this.actions.find('.btn-outline-danger');
-            addBtn.toggleClass('is-hidden', false);
-            resetBtn.toggleClass('is-hidden', isXY);
+            addBtn.removeClass('is-hidden');
+            resetBtn.removeClass('is-hidden');
             const columns = this._currentColumns(widget);
             const fill = (select, value, placeholder) => {
                 select.empty().append(`<option value="">${placeholder}</option>`);
@@ -112,8 +111,8 @@
                 if (value && select.find(`option[value="${value}"]`).length) select.val(value);
                 else if (!value && columns.length) select.val(columns[0]);
             };
-            fill(this.controls.xVariable, isXY ? settings.xVariable : settings.timeColumn, 'Row index');
-            fill(this.controls.yVariable, isXY ? settings.yVariable : '', 'Select Y variable');
+            fill(this.controls.xVariable, settings.timeColumn, 'Row index');
+            fill(this.controls.yVariable, '', 'Select Y variable');
         }
 
         async chooseCsvFile() {
@@ -148,7 +147,6 @@
 
         populateVariables() {
             const widget = this._targetWidget();
-            const isXY = widget?.type() === 'fast_frame_xy_plot';
             const settings = widget?.settings() || {};
             const columns = this._currentColumns(widget);
             const fill = (select, current, placeholder) => {
@@ -157,22 +155,21 @@
                 if (current && select.find(`option[value="${current}"]`).length) select.val(current);
                 else if (!current && columns.length) select.val(columns[0]);
             };
-            fill(this.controls.xVariable, this.controls.xVariable.val() || (isXY ? settings.xVariable : settings.timeColumn), 'Row index');
+            fill(this.controls.xVariable, this.controls.xVariable.val() || settings.timeColumn, 'Row index');
             fill(this.controls.yVariable, this.controls.yVariable.val() || settings.yVariable, 'Select Y variable');
         }
 
         applySource() {
             const widget = this._targetWidget();
             if (!widget) return;
-            const isXY = widget.type() === 'fast_frame_xy_plot';
             const csvPath = this.selectedCsvPath || widget.settings().csvPath || '';
             const csvDirectory = csvPath ? (shared.pathApi?.dirname ? shared.pathApi.dirname(csvPath) : shared.defaultCsvDirectory()) : (widget.settings().csvDirectory || shared.defaultCsvDirectory());
             shared.updateWidgetSettings(widget, {
                 csvDirectory,
                 csvPath,
-                timeColumn: isXY ? widget.settings().timeColumn : (this.controls.xVariable.val() || ''),
-                xVariable: isXY ? (this.controls.xVariable.val() || '') : widget.settings().xVariable,
-                yVariable: isXY ? (this.controls.yVariable.val() || '') : widget.settings().yVariable
+                timeColumn: this.controls.xVariable.val() || '',
+                xVariable: widget.settings().xVariable,
+                yVariable: widget.settings().yVariable
             });
         }
 
@@ -217,11 +214,6 @@
         renderSeriesList() {
             const widget = this._targetWidget();
             this.list.empty();
-            if (widget?.type() === 'fast_frame_xy_plot') {
-                const settings = widget.settings();
-                this.list.append(`<div class="small text-muted">XY Pair: ${settings.xVariable || '--'} vs ${settings.yVariable || '--'}</div>`);
-                return;
-            }
             const defs = widget ? shared.normalizeSeriesDefs(widget.settings(), this._currentColumns(widget)) : [];
             defs.forEach((def, index) => {
                 const row = $('<div class="fast-frame-channel-item d-flex justify-content-between align-items-center gap-2"></div>');

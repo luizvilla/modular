@@ -21,25 +21,6 @@
           }
         }
       ]
-    },
-    {
-      "width": 1,
-      "row": {
-        "3": 9
-      },
-      "col": {
-        "3": 1
-      },
-      "col_width": 2,
-      "widgets": [
-        {
-          "type": "fast_frame_xy_plot",
-          "settings": {
-            "title": "Fast XY Plot",
-            "helperWidgets": "both"
-          }
-        }
-      ]
     }
   ],
   "datasources": [],

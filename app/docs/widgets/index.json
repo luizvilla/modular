@@ -86,13 +86,6 @@
       "requiresThingset": false
     },
     {
-      "type": "fast_frame_xy_plot",
-      "title": "Fast Frame XY Plot",
-      "category": "Fast Frame",
-      "doc": "serial/fast-frame-xy-plot/README.md",
-      "requiresThingset": false
-    },
-    {
       "type": "fast_frame_plot_ui",
       "title": "Fast Frame UI",
       "category": "Fast Frame",

@@ -1,6 +1,6 @@
 (function () {
     const shared = window.FastFrameShared;
-    const TARGET_TYPES = ['fast_frame_plot', 'fast_frame_xy_plot'];
+    const TARGET_TYPES = ['fast_frame_plot'];
 
     freeboard.loadWidgetPlugin({
         type_name: 'fast_frame_plot_ui',
@@ -81,8 +81,6 @@
             const widget = this._targetWidget();
             if (!widget) return;
             const s = widget.settings();
-            const isXY = widget.type() === 'fast_frame_xy_plot';
-            this.legendRow.toggleClass('is-hidden', isXY);
 
             this.controls.title.val(s.title || '');
             this.controls.xLabel.val(s.xLabel || '');
@@ -92,12 +90,12 @@
             this.controls.yMin.val(s.yMin ?? '');
             this.controls.yMax.val(s.yMax ?? '');
             this.controls.showLegend.prop('checked', !!s.showLegend);
+            this.legendRow.removeClass('is-hidden');
         }
 
         applySettings() {
             const widget = this._targetWidget();
             if (!widget) return;
-            const isXY = widget.type() === 'fast_frame_xy_plot';
             shared.updateWidgetSettings(widget, {
                 title: this.controls.title.val() || widget.settings().title,
                 xLabel: this.controls.xLabel.val() || '',
@@ -106,7 +104,7 @@
                 xMax: this.controls.xMax.val(),
                 yMin: this.controls.yMin.val(),
                 yMax: this.controls.yMax.val(),
-                showLegend: isXY ? widget.settings().showLegend : this.controls.showLegend.prop('checked')
+                showLegend: this.controls.showLegend.prop('checked')
             });
         }
 

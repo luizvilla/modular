@@ -2,7 +2,7 @@
 # Fast Frame UI
 
 ## What it does
-Controls the settings of a target Fast Frame Plot or Fast Frame XY Plot widget.
+Controls the settings of a target Fast Frame Plot widget.
 
 ## Creation (settings)
 - No creation-time settings. Select the target plot in the widget body.
