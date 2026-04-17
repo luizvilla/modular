@@ -78,10 +78,12 @@
         }
 
         _targetWidget() {
+            if (!this.controls?.target) return null;
             return shared.findWidgetByTitle(this.controls.target.val(), ['fast_frame_plot']);
         }
 
         populateTargets() {
+            if (!this.controls?.target) return;
             const current = this.controls.target.val();
             const targets = shared.listWidgetsByType(['fast_frame_plot']);
             this.controls.target.empty();
@@ -91,6 +93,7 @@
         }
 
         syncTargetState() {
+            if (!this.controls?.csvName || !this.controls?.xVariable || !this.actions) return;
             const widget = this._targetWidget();
             const settings = widget?.settings() || {};
             this.selectedCsvPath = settings.csvPath || '';
@@ -145,6 +148,7 @@
         }
 
         populateVariables() {
+            if (!this.controls?.xVariable || !this.controls?.yVariable) return;
             const widget = this._targetWidget();
             const settings = widget?.settings() || {};
             const columns = this._currentColumns(widget);
@@ -159,6 +163,7 @@
         }
 
         applySource() {
+            if (!this.controls?.xVariable) return;
             const widget = this._targetWidget();
             if (!widget) return;
             const csvPath = this.selectedCsvPath || widget.settings().csvPath || '';
@@ -173,6 +178,7 @@
         }
 
         addChannel() {
+            if (!this.controls?.yVariable || !this.controls?.label || !this.controls?.color || !this.controls?.visible) return;
             const widget = this._targetWidget();
             const variable = this.controls.yVariable.val();
             if (!widget || widget.type() !== 'fast_frame_plot' || !variable) return;
@@ -211,6 +217,7 @@
         }
 
         renderSeriesList() {
+            if (!this.list) return;
             const widget = this._targetWidget();
             this.list.empty();
             const defs = widget ? shared.normalizeSeriesDefs(widget.settings(), this._currentColumns(widget)) : [];

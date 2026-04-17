@@ -63,6 +63,7 @@
         }
 
         populateTargets() {
+            if (!this.controls?.target) return;
             const current = this.controls.target.val();
             const targets = shared.listWidgetsByType(TARGET_TYPES);
             this.controls.target.empty();
@@ -73,10 +74,12 @@
         }
 
         _targetWidget() {
+            if (!this.controls?.target) return null;
             return shared.findWidgetByTitle(this.controls.target.val(), TARGET_TYPES);
         }
 
         syncFromSelectedWidget() {
+            if (!this.controls?.title || !this.controls?.showLegend) return;
             const widget = this._targetWidget();
             if (!widget) return;
             const s = widget.settings();
@@ -93,6 +96,7 @@
         }
 
         applySettings() {
+            if (!this.controls?.title || !this.controls?.showLegend) return;
             const widget = this._targetWidget();
             if (!widget) return;
             shared.updateWidgetSettings(widget, {

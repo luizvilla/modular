@@ -94,6 +94,7 @@
         }
 
         syncFromSelectedWidget() {
+            if (!this.controls?.target_widget_title || !this.controls?.duration || !this.controls?.showLegend) return;
             const model = freeboard.getLiveModel();
             const title = this.controls.target_widget_title.val();
             const widget = model.panes().flatMap(p => p.widgets()).find(w => {
@@ -114,6 +115,7 @@
         }
 
         populateWidgetDropdown() {
+            if (!this.controls?.target_widget_title) return;
             const titleSelect = this.controls.target_widget_title;
             const widgets = [];
             const model = freeboard.getLiveModel();
@@ -134,6 +136,7 @@
         }
 
         applySettings() {
+            if (!this.controls?.target_widget_title || !this.controls?.duration || !this.controls?.showLegend) return;
             const model = freeboard.getLiveModel();
             const title = this.controls.target_widget_title.val();
             const widget = model.panes().flatMap(p => p.widgets()).find(w => {
@@ -158,6 +161,7 @@
         }
 
         _applyPalette() {
+            if (!this.paletteSelect) return;
             const pal = this.colorThemes[this.paletteSelect.val()] || this.colorThemes.ColorBlind10;
             window.PlotColorPalette = pal.slice();
         }
