@@ -14,6 +14,8 @@
             this.settings = settings;
             this.container = $('<div class="h-100 overflow-auto p-2"></div>');
             this.controls = {};
+            this._initializedHandler = () => this.populateWidgetDropdown();
+            this._configHandler = () => this.populateWidgetDropdown();
             // Keep a local palette selector for plot series colors.
             this.colorThemes = {
                 ColorBlind10: ColorBlind10,
@@ -30,6 +32,8 @@
                 freeboard.addStyle('.uplot-ui .input-group-text', 'min-width:180px;justify-content:center;');
                 freeboard.addStyle('.uplot-ui .form-control, .uplot-ui .form-select', 'min-width:180px;');
             }
+            freeboard.on?.('initialized', this._initializedHandler);
+            freeboard.on?.('config_updated', this._configHandler);
         }
 
         render(containerElement) {
@@ -80,12 +84,9 @@
 
             this.container.append(form, palRow, btn);
             $(containerElement).append(this.container);
-
-            freeboard.on('initialized', () => this.populateWidgetDropdown());
-            freeboard.on('config_updated', () => this.populateWidgetDropdown());
             this.populateWidgetDropdown();
 
-            this.paletteSelect.on('change', () => {
+            this.paletteSelect.off('change.uplot-ui').on('change.uplot-ui', () => {
                 this._applyPalette();
             });
             if (!this.paletteSelect.val()) this.paletteSelect.val('ColorBlind10');
@@ -163,6 +164,13 @@
 
         onSettingsChanged(newSettings) { this.settings = newSettings; }
         getHeight() { return 7; }
-        onDispose() {}
+        onDispose() {
+            if (this._initializedHandler && freeboard.off) {
+                freeboard.off('initialized', this._initializedHandler);
+            }
+            if (this._configHandler && freeboard.off) {
+                freeboard.off('config_updated', this._configHandler);
+            }
+        }
     }
 })();

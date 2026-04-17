@@ -16,11 +16,13 @@
             this.settings = settings;
             this.container = $('<div class="h-100 overflow-auto p-2"></div>');
             this.controls = {};
+            this._configHandler = () => this.populateTargets();
             if (freeboard?.addStyle) {
                 freeboard.addStyle('.fast-frame-plot-ui .input-group-text', 'min-width:150px;justify-content:center;');
                 freeboard.addStyle('.fast-frame-plot-ui .form-control, .fast-frame-plot-ui .form-select', 'min-width:150px;');
                 freeboard.addStyle('.fast-frame-plot-ui .is-hidden', 'display:none;');
             }
+            freeboard.on?.('config_updated', this._configHandler);
         }
 
         render(el) {
@@ -57,9 +59,6 @@
             applyBtn.on('click', () => this.applySettings());
             this.controls.target.on('change', () => this.syncFromSelectedWidget());
             this.container.append(form, applyBtn);
-
-            const refresh = () => this.populateTargets();
-            freeboard.on?.('config_updated', refresh);
             this.populateTargets();
         }
 
@@ -110,6 +109,10 @@
 
         onSettingsChanged(s) { this.settings = s; }
         getHeight() { return 8; }
-        onDispose() {}
+        onDispose() {
+            if (this._configHandler && freeboard.off) {
+                freeboard.off('config_updated', this._configHandler);
+            }
+        }
     }
 }());

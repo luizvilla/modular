@@ -273,6 +273,12 @@ class OwnTechPlotUPlot {
             return String(raw).toLowerCase();
         }
 
+        _resolveHelperSpawnKey(helperTypes) {
+            const title = ((typeof this.settings.title === 'function' ? this.settings.title() : this.settings.title) || '').trim();
+            if (!title) return null;
+            return `uplot:${title}:${helperTypes.slice().sort().join(',')}`;
+        }
+
         _maybeSpawnHelpers() {
             const mode = this._resolveHelperWidgets(this.settings);
             if (mode === 'none') return;
@@ -310,10 +316,18 @@ class OwnTechPlotUPlot {
                 helpers.push({ type: 'uplot_series_manager', settings: {} });
             }
             if (!helpers.length) return;
+            const helperTypesSorted = helpers.map((helper) => helper.type);
+            const spawnKey = this._resolveHelperSpawnKey(helperTypesSorted);
+            if (!spawnKey) return;
+            window.__modularHelperSpawnLocks = window.__modularHelperSpawnLocks || {};
+            if (window.__modularHelperSpawnLocks[spawnKey]) {
+                this._helpersSpawned = true;
+                return;
+            }
 
             // Spawn helpers in a separate pane to the right of the plot.
             const paneModel = panes[paneIndex];
-            const helperTypes = new Set(helpers.map(h => h.type));
+            const helperTypes = new Set(helperTypesSorted);
             const getPanePosition = (paneModelRef, paneCfgRef) => {
                 if (window.freeboardUI && typeof freeboardUI.getPositionForScreenSize === 'function') {
                     const pos = freeboardUI.getPositionForScreenSize(paneModelRef);
@@ -343,15 +357,10 @@ class OwnTechPlotUPlot {
                 return paneRef.widgets().some(widget => helperTypes.has(widget.type && widget.type()));
             });
             if (helperPaneExists) {
+                window.__modularHelperSpawnLocks[spawnKey] = true;
                 this._helpersSpawned = true;
                 return;
             }
-
-            // Prevent duplicate pane creation during rapid re-renders or reloads.
-            const lockKey = `pane:${paneIndex}:widget:${widgetIndex}:helpers:${[...helperTypes].sort().join(',')}`;
-            window.__modularHelperSpawnLocks = window.__modularHelperSpawnLocks || {};
-            if (window.__modularHelperSpawnLocks[lockKey]) return;
-            window.__modularHelperSpawnLocks[lockKey] = true;
 
             const helperPane = {
                 title: null,
@@ -378,6 +387,7 @@ class OwnTechPlotUPlot {
 
             cfg.panes.splice(paneIndex + 1, 0, helperPane);
             // Mark as spawned to prevent duplicate pane creation during reload.
+            window.__modularHelperSpawnLocks[spawnKey] = true;
             this._helpersSpawned = true;
             freeboard.loadDashboard(cfg);
         }

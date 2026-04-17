@@ -77,14 +77,14 @@
         render(containerElement) {
             $(containerElement).append(this.container);
             this._refreshDatasourceOptions();
-            this.dsSelect.on('change', () => {
+            this.dsSelect.off('change.serial-terminal').on('change.serial-terminal', () => {
                 this.settings.datasourceName = this.dsSelect.val();
                 this._refreshColors(true);
             });
-            this.colorCheck.on('change', () => {
+            this.colorCheck.off('change.serial-terminal').on('change.serial-terminal', () => {
                 this.settings.colorize = this.colorCheck.prop('checked');
             });
-            this.autoScrollCheck.on('change', () => {
+            this.autoScrollCheck.off('change.serial-terminal').on('change.serial-terminal', () => {
                 this.settings.autoScroll = this.autoScrollCheck.prop('checked');
             });
             this.colorCheck.prop('checked', !!this.settings.colorize);

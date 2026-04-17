@@ -17,11 +17,18 @@
             this.controls = {};
             this.selectedCsvPath = '';
             this.availableColumns = [];
+            this._configHandler = () => {
+                this.populateTargets();
+                this.syncTargetState();
+                this.populateVariables();
+                this.renderSeriesList();
+            };
             if (freeboard?.addStyle) {
                 freeboard.addStyle('.fast-frame-channel-manager .input-group-text', 'min-width:130px;justify-content:center;');
                 freeboard.addStyle('.fast-frame-channel-item', 'border:1px solid #444;border-radius:4px;padding:6px;');
                 freeboard.addStyle('.fast-frame-channel-manager .is-hidden', 'display:none;');
             }
+            freeboard.on?.('config_updated', this._configHandler);
         }
 
         render(el) {
@@ -67,15 +74,7 @@
                 this.renderSeriesList();
             });
             this.controls.csvButton.on('click', () => this.chooseCsvFile());
-
-            const refresh = () => {
-                this.populateTargets();
-                this.syncTargetState();
-                this.populateVariables();
-                this.renderSeriesList();
-            };
-            freeboard.on?.('config_updated', refresh);
-            refresh();
+            this._configHandler();
         }
 
         _targetWidget() {
@@ -228,6 +227,10 @@
 
         onSettingsChanged(s) { this.settings = s; }
         getHeight() { return 7; }
-        onDispose() {}
+        onDispose() {
+            if (this._configHandler && freeboard.off) {
+                freeboard.off('config_updated', this._configHandler);
+            }
+        }
     }
 }());

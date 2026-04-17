@@ -34,6 +34,7 @@
             this.availableFiles = [];
             this.availableColumns = [];
             this.dataset = null;
+            this._helperSpawnKey = null;
             this.container = $('<div class="fast-frame-plot h-100 overflow-auto p-2"></div>');
             this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure this plot with the Fast Frame UI and Channel Manager widgets.</div>');
             this.summary = $('<div class="small text-muted border rounded p-2 mb-2"></div>');
@@ -61,6 +62,12 @@
             return String(raw).toLowerCase();
         }
 
+        _resolveHelperSpawnKey(helperTypes) {
+            const title = ((typeof this.settings.title === 'function' ? this.settings.title() : this.settings.title) || '').trim();
+            if (!title) return null;
+            return `fast-frame:${title}:${helperTypes.slice().sort().join(',')}`;
+        }
+
         _maybeSpawnHelpers() {
             const mode = this._resolveHelperWidgets(this.settings);
             if (mode === 'none' || this._helpersSpawned) return;
@@ -69,6 +76,13 @@
             if (mode === 'ui' || mode === 'both') helperTypes.push('fast_frame_plot_ui');
             if (mode === 'channels' || mode === 'both') helperTypes.push('fast_frame_channel_manager');
             if (!helperTypes.length) return;
+            const spawnKey = this._resolveHelperSpawnKey(helperTypes);
+            if (!spawnKey) return;
+            window.__modularHelperSpawnLocks = window.__modularHelperSpawnLocks || {};
+            if (window.__modularHelperSpawnLocks[spawnKey]) {
+                this._helpersSpawned = true;
+                return;
+            }
 
             const model = freeboard.getLiveModel && freeboard.getLiveModel();
             if (!model || typeof model.panes !== 'function') return;
@@ -100,6 +114,7 @@
                 return !cfg.panes.some((existingPane) => Array.isArray(existingPane.widgets) && existingPane.widgets.some((widget) => widget.type === helperType));
             });
             if (!missingHelpers.length) {
+                window.__modularHelperSpawnLocks[spawnKey] = true;
                 this._helpersSpawned = true;
                 return;
             }
@@ -132,6 +147,8 @@
             }
 
             cfg.panes.splice(paneIndex + 1, 0, helperPane);
+            window.__modularHelperSpawnLocks[spawnKey] = true;
+            this._helperSpawnKey = spawnKey;
             this._helpersSpawned = true;
             freeboard.loadDashboard(cfg);
         }
@@ -239,6 +256,7 @@
             this.settings = { ...newSettings };
             this.lastFileSignature = '';
             this.lastRenderedSignature = '';
+            this._helperSpawnKey = null;
             this._scheduleHelperSpawn();
             this._startPolling();
         }

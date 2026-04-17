@@ -126,15 +126,15 @@
         render(containerElement) {
             this._syncControls();
             $(containerElement).append(this.container);
-            this.button.on('click', () => this._toggleRecord());
+            this.button.off('click.serial-recorder').on('click.serial-recorder', () => this._toggleRecord());
 
-            this.orderSelect.on('change', () => {
+            this.orderSelect.off('change.serial-recorder').on('change.serial-recorder', () => {
                 this.settings.order = this.orderSelect.val();
             });
-            this.headerCheck.on('change', () => {
+            this.headerCheck.off('change.serial-recorder').on('change.serial-recorder', () => {
                 this.settings.addHeader = this.headerCheck.prop('checked');
             });
-            this.timeSelect.on('change', () => {
+            this.timeSelect.off('change.serial-recorder').on('change.serial-recorder', () => {
                 this.settings.timestampMode = this.timeSelect.val();
             });
         }
