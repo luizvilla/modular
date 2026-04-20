@@ -1,196 +1,327 @@
 # App Functional Diagram
 
-This document is a first-pass map of how the app works.
-It is meant to make the runtime structure visible so the system can be refined and documented in more detail later.
+This document describes the app in terms of workflows rather than modules.
 
-## Functional Diagram
+## Workflow Split
+
+The top-level workflow split is:
+
+- `Serial`: standard line-based serial streaming, terminal logging, plotting, gauges, and CSV recording.
+- `Fast Serial`: structured fast-frame acquisition over serial, stored separately from normal line streaming.
+- `ThingSet`: structured device access, but it exists in two transport variants:
+  - ThingSet over serial shell
+  - ThingSet over CAN
+- `Firmware flashing`: operational workflow that temporarily takes control of a device port or CAN target.
+
+## Shared Runtime Structure
+
+All workflows pass through the same top-level application layers:
 
 ```mermaid
 flowchart LR
-    U[User] --> UI[Dashboard UI<br/>Freeboard + custom widgets<br/>app/dashboard/index.html]
-    UI --> PRELOAD[Preload bridge<br/>window.api<br/>app/preload.js]
-    PRELOAD --> IPC[Electron main process<br/>IPC handlers + orchestration<br/>app/main.js]
-
-    IPC --> DOCS[Docs and examples<br/>README/docs/widget tabs<br/>local filesystem]
-    IPC --> SERIAL[Serial manager<br/>port open/close, parsing, buffers, CSV]
-    IPC --> FLASH[Serial firmware flashing<br/>app/flasher.js + mcumgr]
-    IPC --> TSSERIAL[ThingSet serial shell<br/>detect, tree, get/set/create/delete/exec]
-    IPC --> CAN[CAN manager<br/>bus open/close, scan, tree build]
-    IPC --> AGG[CAN broadcast aggregator<br/>live node snapshots]
-    IPC --> DIAG[Diagnostics and activity events]
-
-    SERIAL --> HW1[Serial-connected device]
-    FLASH --> HW1
-    TSSERIAL --> HW1
-
-    CAN --> HW2[CAN / ThingSet nodes]
-    AGG --> HW2
-
-    CAN --> TSFILES[thingset/*.json<br/>node discovery + tree cache]
-    AGG --> TSFILES
-    DOCS --> FILES[Dashboard JSON, CSV, markdown, binaries]
-    SERIAL --> FILES
-    FLASH --> FILES
+    U[User] --> UI[Renderer UI<br/>Freeboard dashboards and widgets]
+    UI --> PRELOAD[Preload bridge<br/>window.api in app/preload.js]
+    PRELOAD --> MAIN[Electron main process<br/>IPC and orchestration in app/main.js]
 ```
 
-## Main Parts
+- The renderer collects user actions and renders dashboards, docs, and widgets.
+- The preload layer exposes a safe API and forwards IPC calls.
+- The main process owns hardware access, file access, shared buffers, and long-running operations.
 
-### 1. Dashboard UI
+## Workflow 1: Serial
 
-The renderer is the operator-facing layer loaded from `app/dashboard/index.html`.
-It provides the visible dashboard, widgets, documentation tabs, example views, and actions such as opening dashboards, recording CSV files, or starting firmware flashing.
+This is the standard serial telemetry path.
+It is used when a device emits text or delimited numeric data continuously and the dashboard consumes it as a stream.
 
-Broadly, this layer is responsible for:
+```mermaid
+flowchart LR
+    U[User]
 
-- Rendering dashboards and widgets.
-- Collecting user actions and settings.
-- Displaying streamed values, terminal logs, plots, gauges, and status messages.
-- Calling the preload API instead of touching Node or Electron directly.
+    U --> DSMENU[Datasource menu]
+    U --> CSVUI[CSV recorder widget]
+    U --> PLOTUI[Plot widget]
+    U --> GAUGEUI[Gauge widget]
+    U --> TERMUI[Terminal widget]
 
-### 2. Preload Bridge
+    DSMENU --> DSRUN[Serial datasource runtime]
+    DSRUN --> PRELOAD[Preload bridge<br/>window.api.serial]
+    CSVUI --> PRELOAD
+    PLOTUI --> PRELOAD
+    GAUGEUI --> PRELOAD
+    TERMUI --> PRELOAD
 
-`app/preload.js` exposes a controlled `window.api` object to the renderer.
-This is the boundary between the browser-like UI and the privileged Electron main process.
+    PRELOAD --> ACCESS[Read accessors<br/>getBuffer getTerminalBuffer]
+    PRELOAD --> MAIN[Main-process serial handlers]
+    ACCESS --> MAIN
+    MAIN --> PORT[Serial port connection]
+    PORT --> DEV[Serial device]
 
-Broadly, it works by:
+    DEV --> PORT
+    PORT --> PARSE[Line parsing<br/>separator plus EOL]
+    PARSE --> BUFFERS[Main-process buffers<br/>numeric plus terminal]
+    PORT --> CSVLISTENER[Dedicated CSV listener]
+    CSVLISTENER --> CSVFILE[CSV file creation]
 
-- Defining grouped APIs such as `dashboard`, `serial`, `flash`, `can`, `thingset`, and `docs`.
-- Translating renderer requests into `ipcRenderer.invoke(...)` or `ipcRenderer.send(...)` calls.
-- Forwarding main-process events like flash progress and activity updates back into the UI.
+    BUFFERS --> ACCESS
+    PRELOAD --> CSVCTL[CSV start and stop handlers]
+    CSVCTL --> CSVLISTENER
+```
 
-This keeps the renderer isolated while still allowing the app to access serial ports, files, and native tools.
+### How this workflow works
 
-### 3. Electron Main Process
+- The user configures a serial datasource in the datasource menu.
+- The serial datasource plugin opens the port through `window.api.serial.openPort(...)` or the matching IPC call.
+- The main process opens the port, stores parser settings, and starts reading bytes.
+- Incoming data is split into lines using the configured end-of-line token.
+- Each line is parsed into values for plots and gauges, and also copied into a terminal buffer.
+- The datasource runtime polls the latest parsed values and publishes them into Freeboard datasource state.
+- Widgets depend on that datasource state for normal dashboard behavior.
+- Some widgets also read main-process buffers through explicit accessors such as `getBuffer` and `getTerminalBuffer`.
+- Those accessor calls go through the preload bridge first, using `window.api.serial`, which then invokes the corresponding IPC handlers in `main.js`.
+- CSV recording is separate: the recorder widget calls `startCsvRecord` or `stopCsvRecord`, and the main process attaches a dedicated `data` listener to the serial port to write rows to disk.
 
-`app/main.js` is the runtime coordinator.
-It creates the application window, builds menus, owns most IPC handlers, and decides which backend service should handle each request.
+### Main functions in this workflow
 
-Broadly, it works by:
+- `get-serial-ports`: lists available ports for the UI.
+- `open-serial-port`: opens and configures a serial connection.
+- `write-serial-port`: sends manual commands or control values.
+- `get-serial-buffer`: exposes parsed numeric samples.
+- `get-terminal-buffer`: exposes the raw line history for terminal widgets.
+- `start-csv-record` and `stop-csv-record`: attach and remove a dedicated recording listener on the port and persist streamed data to CSV.
+- `flush-serial-buffers`: resets state for a port.
 
-- Creating the main Electron window and loading the dashboard UI.
-- Registering IPC handlers for files, serial, flashing, docs, examples, CAN, ThingSet, and diagnostics.
-- Holding shared runtime state such as open serial ports, fast-frame buffers, CAN buses, and aggregators.
-- Emitting activity/progress events so the renderer can show status to the user.
+### Implementation Notes
 
-This file is effectively the control plane of the desktop app.
+- Serial port opening is driven by the datasource, not by the widgets.
+- In the code, `serialport_datasource` calls `openPort()` during datasource initialization and on settings changes.
+- Serial widgets do not have direct access to the main-process buffers.
+- In the intended architecture they fetch buffer contents through the preload bridge, for example `window.api.serial.getBuffer(...)` and `window.api.serial.getTerminalBuffer(...)`.
+- The preload bridge then calls `ipcRenderer.invoke(...)`, which reaches the IPC handlers in `main.js`.
+- Many widgets also rely on Freeboard datasource values produced by the datasource runtime, which is another reason they should not be shown as owning the port connection.
+- The CSV recorder also does not read from those buffers.
+- Instead, `start-csv-record` installs its own serial-port `data` listener in the main process and writes directly to the target CSV file.
 
-### 4. Serial Data Path
+### What this workflow is for
 
-The serial subsystem lets dashboards talk to boards over COM/TTY ports.
-It is used for normal streaming, terminal-style logs, fast-frame capture, and CSV recording.
+- Generic text-based telemetry.
+- Dashboard plots and gauges from line-oriented data.
+- Serial terminal interaction.
+- Simple recording of streamed values.
 
-Broadly, it works by:
+## Workflow 2: Fast Serial
 
-- Listing available serial ports with `serialport`.
-- Opening a port and storing parser settings such as separator and end-of-line.
-- Reading incoming bytes, splitting them into lines, parsing values, and updating in-memory buffers.
-- Exposing those buffers back to widgets through IPC for plots, terminals, gauges, and recorders.
-- Saving captured datasets to CSV when requested.
+This is a separate acquisition mode with its own state, buffers, headers, and export path.
 
-This is the main live telemetry path for serial-connected hardware.
+```mermaid
+flowchart LR
+    U[User]
 
-### 5. Serial Firmware Flashing
+    U --> FFDS[Fast-frame datasource]
+    U --> FFCTRL[Fast-frame control widget]
+    U --> FFPLOT[Fast-frame plot widget]
+    U --> FFMGR[Channel manager or helpers]
 
-Serial firmware flashing is handled by [`app/flasher.js`](/home/luiz-villa/code/modular/app/flasher.js) and coordinated from [`app/main.js`](/home/luiz-villa/code/modular/app/main.js).
-It uses `mcumgr` and temporarily takes ownership of the serial port.
+    FFDS --> PRELOAD[Preload bridge<br/>window.api.serial]
+    FFCTRL --> PRELOAD
+    FFPLOT --> PRELOAD
+    FFMGR --> PRELOAD
 
-Broadly, it works by:
+    PRELOAD --> FFACCESS[Fast read accessors<br/>getFastDataset getFastStatus getHeaders]
+    PRELOAD --> MAIN[Main-process fast-frame handlers]
+    FFACCESS --> MAIN
+    MAIN --> PORT[Serial port connection]
+    PORT --> DEV[Serial device]
 
-- Asking the user for a firmware `.bin` file.
-- Locking the target serial port so dashboard datasources do not interfere.
-- Touching the port at 1200 baud when needed to trigger bootloader entry.
-- Running `mcumgr` commands to add the connection, upload the image, and reset the board.
-- Streaming progress and error text back to the UI.
+    DEV --> PORT
+    PORT --> FAST[Fast-frame decoder/state machine]
+    FAST --> DATASET[Fast dataset<br/>timestamps + series + headers]
+    DATASET --> FFACCESS
 
-This path is separate from normal telemetry because flashing needs exclusive access and a stricter sequence.
+    PRELOAD --> FFSAVE[Fast CSV save handler]
+    FFSAVE --> CSVFILE[CSV file creation]
+```
 
-### 6. ThingSet Over Serial
+### How this workflow works
 
-The app also supports a command-oriented ThingSet serial shell.
-This is different from passive serial streaming because it actively queries and modifies device state.
+- The user opens a datasource or widget configured for `fast_frame_datasource`.
+- The datasource owns the serial port connection, just like in the normal serial workflow.
+- The main process opens the same physical kind of serial port, but tracks it with fast-frame-specific state.
+- Incoming lines are interpreted by the fast-frame parser instead of being treated only as ordinary streaming values.
+- Captured acquisitions are stored as structured datasets with timestamps and multiple series.
+- Widgets and helper controls read the dataset and acquisition status through the preload bridge, using accessors such as `getFastDataset`, `getFastStatus`, `getHeaders`, and `getColors`.
 
-Broadly, it works by:
+### Main functions in this workflow
 
-- Probing candidate serial ports to detect a ThingSet-capable shell.
-- Entering the shell and reading device identity fields such as node UID, name, and address.
-- Performing operations like tree discovery, get, set, create, delete, and exec through IPC helpers.
+- `open-serial-port` with `type = fast_frame_datasource`: prepares the port for fast-frame use.
+- `get-fast-dataset`: returns the captured dataset.
+- `get-fast-frame-status`: returns acquisition state and progress.
+- `save-fast-csv`: exports the dataset after capture.
+- `get-serial-headers` and `set-serial-headers`: manage channel labels used by fast-frame views.
+- `get-serial-colors` and `set-serial-colors`: manage display color metadata.
 
-This path is useful when the UI needs structured device interaction instead of raw line parsing.
+### What this workflow is for
 
-### 7. CAN and ThingSet Over CAN
+- Burst capture rather than only continuous text streaming.
+- Multi-channel measurement datasets.
+- Plot widgets that expect structured sampled data instead of ad hoc parsed rows.
 
-CAN support is built around a shared bus abstraction in [`app/js/can_adapter.js`](/home/luiz-villa/code/modular/app/js/can_adapter.js) and ThingSet client helpers in `app/js/`.
-On Linux, the app uses SocketCAN; Windows support is planned via vendor bindings.
+## Workflow 3: ThingSet
 
-Broadly, it works by:
+This workflow has two concrete implementations:
 
-- Opening a CAN channel such as `can0`.
-- Creating a reusable ThingSet client for request/response operations.
-- Scanning the bus for nodes and writing discovery results to `thingset/nodes.json`.
-- Building node trees and caching them as JSON for later lookup and path resolution.
-- Executing ThingSet operations like get, fetch, update, create, delete, and exec over CAN.
+- ThingSet over serial shell.
+- ThingSet over CAN.
 
-This subsystem gives the app a structured network view of multiple embedded nodes instead of a single serial endpoint.
+In both cases the interaction model is structured: paths, IDs, values, trees, commands, and reports.
 
-### 8. CAN Broadcast Aggregator
+### 3A. ThingSet Over Serial
 
-The CAN broadcast aggregator listens for asynchronous ThingSet report traffic and turns raw frames into a usable node snapshot.
+```mermaid
+flowchart LR
+    U[User]
 
-Broadly, it works by:
+    U --> TSDS[Serial datasource or ThingSet serial datasource]
+    U --> TSW[ThingSet serial widgets]
 
-- Subscribing to incoming CAN frames on an open bus.
-- Reassembling multi-frame reports and decoding single-frame reports.
-- Resolving numeric item IDs into readable paths using cached ThingSet tree files.
-- Maintaining a per-node snapshot that the renderer can request through IPC.
+    TSDS --> PRELOAD[Preload bridge<br/>window.api.thingsetSerial]
+    TSW --> PRELOAD
 
-This lets the UI consume live network state without polling every value individually.
+    PRELOAD --> TSACCESS[ThingSet serial accessors<br/>tree getValue setValue create delete exec]
+    TSACCESS --> MAIN[IPC ThingSet serial handlers]
+    MAIN --> SHELL[ThingSetSerialShell]
+    SHELL --> DEV[Serial ThingSet device]
 
-### 9. Documentation and Examples
+    DEV --> SHELL
+    SHELL --> TREE[Tree discovery<br/>node identity + paths]
+    TREE --> TSACCESS
+    SHELL --> OPS[get set create delete exec]
+    OPS --> TSACCESS
+```
 
-The app includes built-in docs and examples rather than treating them as separate website content.
-Menus and tabs are populated from markdown files and widget metadata inside the repository.
+#### How this workflow works
 
-Broadly, it works by:
+- The app probes serial ports for a ThingSet-capable shell.
+- Once detected, it enters the ThingSet shell mode.
+- The app can read node identity, build a tree, and run structured commands against device paths.
+- Widgets call into `window.api.thingsetSerial`, and the preload bridge forwards those requests to `main.js`.
+- Tree data and read or write results come back through the same path.
 
-- Discovering markdown files under `app/docs/` and `app/dashboard/docs/`.
-- Building menu entries for examples and widget documentation.
-- Opening those docs in tabs or a dedicated example window.
-- Reading and writing supporting files through IPC when needed.
+#### Main functions in this workflow
 
-This makes the app partly self-documenting, which is useful for onboarding and repeatable lab workflows.
+- `ts-serial-detect`: probes ports for a ThingSet shell.
+- `ts-serial-tree`: reads the available object tree.
+- `ts-serial-get-value`: reads a structured value.
+- `ts-serial-set-value`: updates a value.
+- `ts-serial-create`, `ts-serial-delete`, `ts-serial-exec`: perform object operations.
 
-## Core Workflows
+### 3B. ThingSet Over CAN
 
-### Live monitoring
+```mermaid
+flowchart LR
+    U[User]
 
-1. The user configures a dashboard widget in the renderer.
-2. The widget calls the preload API.
-3. The main process opens a serial port or CAN channel.
-4. Data is buffered, parsed, and exposed back to the renderer.
-5. Widgets render plots, gauges, logs, or controls from that live state.
+    U --> CANDS[CAN datasource]
+    U --> TSCW[ThingSet CAN widgets]
 
-### Firmware update
+    CANDS --> PRELOAD[Preload bridge<br/>window.api.can and window.api.thingset]
+    TSCW --> PRELOAD
 
-1. The user selects a board and firmware file.
-2. The renderer requests a flash through IPC.
-3. The main process locks the serial port and starts the flasher.
-4. `mcumgr` uploads and resets the target.
-5. Progress events flow back to the UI until completion.
+    PRELOAD --> CANACCESS[CAN read accessors<br/>aggregateSnapshot getThingSetNodes files APIs]
+    PRELOAD --> MAIN[IPC CAN and ThingSet handlers]
+    CANACCESS --> MAIN
+    MAIN --> BUS[CAN bus adapter + ThingSetCAN client]
+    BUS --> NODES[ThingSet CAN nodes]
 
-### ThingSet network exploration
+    BUS --> SCAN[Node scan]
+    SCAN --> FILES[thingset/nodes.json]
 
-1. The user opens CAN support or a ThingSet workflow.
-2. The app scans nodes and writes `thingset/nodes.json`.
-3. The app builds node tree JSON files for discovered devices.
-4. Future reads, updates, and broadcast decoding use those cached trees.
+    BUS --> TREE[Tree build and query]
+    TREE --> FILES2[node_XX_tree.json]
 
-## Working Assumption For Later Iterations
+    BUS --> OPS[get fetch update create delete exec]
+    OPS --> CANACCESS
 
-For now, the app can be understood as:
+    NODES --> REPORTS[Broadcast reports]
+    REPORTS --> AGG[CanBroadcastAggregator]
+    AGG --> SNAP[Snapshot by node and path]
+    SNAP --> CANACCESS
+```
 
-- A Freeboard-based renderer for dashboards and docs.
-- A preload bridge that exposes safe app capabilities.
-- A main-process orchestration layer that owns hardware access.
-- A set of transport backends for serial, firmware flashing, ThingSet serial, and ThingSet CAN.
+#### How this workflow works
 
-Future iterations can refine this into sequence diagrams, per-widget responsibilities, and a clearer separation between generic dashboard behavior and OwnTech-specific protocols.
+- The app opens a CAN bus and constructs a `ThingSetCAN` client.
+- It scans the bus for nodes and saves discovery results in `thingset/nodes.json`.
+- It can build per-node tree files used later for path lookup and decoding.
+- It sends structured ThingSet requests such as `get`, `fetch`, or `update`.
+- Separately, the broadcast aggregator listens for report frames and keeps a live node snapshot.
+- Widgets and CAN datasources call into the preload bridge first. In normal operation they use `window.api.can`, `window.api.thingset`, `window.api.files`, and `window.api.paths`.
+
+#### Main functions in this workflow
+
+- `can-open` and `can-close`: manage the CAN transport.
+- `can-scan-nodes`: discovers available ThingSet nodes.
+- `can-build-trees`: builds cached JSON trees for nodes.
+- `ts-get`, `ts-fetch`, `ts-update`, `ts-create`, `ts-delete`, `ts-exec`: structured ThingSet operations over CAN.
+- `ts-paths-for-ids` and `ts-ids-for-paths`: map between numeric IDs and logical paths.
+- `can-aggregate-start`, `can-aggregate-stop`, `can-aggregate-snapshot`: manage live broadcast decoding.
+
+### What the ThingSet workflow is for
+
+- Structured device control.
+- Tree-based inspection instead of free-form serial parsing.
+- Multi-node networks over CAN.
+- Persistent mapping between node IDs, paths, and live values.
+
+## Firmware Flashing
+
+It is a maintenance operation that temporarily interrupts or bypasses normal telemetry.
+
+```mermaid
+flowchart LR
+    U[User]
+
+    U --> FLASHUI[Flash widget]
+
+    FLASHUI --> PRELOAD[Preload bridge<br/>window.api.flash plus serial and can APIs]
+    PRELOAD --> MAIN[Flash handlers in app/main.js]
+    MAIN --> LOCK[Port lock or CAN target selection]
+    LOCK --> DFU[flasher.js or ThingSet CAN DFU]
+    DFU --> BIN[Firmware binary]
+    DFU --> DEV[Target device]
+    DFU --> STATUS[Progress and completion events]
+    STATUS --> PRELOAD
+    PRELOAD --> FLASHUI
+```
+
+### How this workflow works
+
+- The user selects a firmware image and a target.
+- The main process prevents conflicting access to the same device.
+- For serial flashing, the app uses `mcumgr` through [`flasher.js`](/home/luiz-villa/code/modular/app/flasher.js).
+- For CAN flashing, the app uses the ThingSet DFU path.
+- The flash widget uses the preload bridge for command and event flow, then progress returns to the widget through preload callbacks.
+
+## Preload Usage Across Workflows
+
+All workflows use the preload bridge in the primary architecture.
+
+- Serial widgets use `window.api.serial`.
+- Fast-frame widgets use `window.api.serial`.
+- ThingSet serial widgets use `window.api.thingsetSerial`.
+- CAN datasources and ThingSet CAN widgets use `window.api.can`, `window.api.thingset`, `window.api.files`, and `window.api.paths`.
+- Firmware flashing uses `window.api.flash`, plus serial and CAN APIs for selection helpers.
+
+Compatibility note:
+
+- Several plugins still keep a fallback to raw `window.require('electron').ipcRenderer` when `window.api` is unavailable.
+- That is a compatibility path, not the intended primary structure.
+- For documentation purposes, the diagrams should continue to show `renderer -> preload -> main process`.
+
+## Recommended Mental Model
+
+The app can be summarized as:
+
+- `Serial`: passive or lightly interactive stream processing.
+- `Fast Serial`: structured high-rate serial acquisition.
+- `ThingSet`: structured object-oriented device access over serial shell or CAN.
+- `Flashing`: device update workflow with exclusive access requirements.
