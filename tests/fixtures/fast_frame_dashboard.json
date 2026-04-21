@@ -17,6 +17,7 @@
           "type": "fast_frame_plot",
           "settings": {
             "title": "Fast Plot",
+            "csvSourceMode": "fixed",
             "csvDirectory": "tests/fixtures",
             "csvPath": "tests/fixtures/fast_frame_plot.csv",
             "refreshRate": 150,

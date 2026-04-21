@@ -19,6 +19,7 @@ async function launchApp(envOverrides = {}) {
     MOCK_HW: envOverrides.MOCK_HW ?? '1',
     ...envOverrides,
   };
+  delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ args: ['.'], env });
   const page = await pickAppPage(app);
   const errors = [];

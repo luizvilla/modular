@@ -24,11 +24,11 @@ test('fast frame plot reloads a csv and supports multiple y channels', async () 
     return widget && widget.plot && widget.plot.data[1][0] === 10;
   });
 
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
     manager.controls.target.val('Fast Plot');
     manager.syncTargetState();
-    manager.populateVariables();
+    await manager.populateVariables();
     manager.controls.yVariable.val('I_in');
     manager.controls.label.val('Input current');
     manager.controls.color.val('#ff0000');
@@ -96,11 +96,11 @@ test('fast frame plot detects colon-separated files', async () => {
     return widget && widget.availableColumns && widget.availableColumns.includes('V2') && widget.availableColumns.includes('I2');
   });
 
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
     manager.controls.target.val('Fast Plot');
     manager.syncTargetState();
-    manager.populateVariables();
+    await manager.populateVariables();
     manager.controls.xVariable.val('time_ms');
     manager.controls.yVariable.val('V2');
     manager.controls.label.val('V2');
@@ -143,7 +143,7 @@ test('fast frame channel manager refreshes variables immediately after csv selec
     manager.controls.csvName.text('fast_frame_plot.csv');
     await manager._loadColumnsForPath(targetPath);
     manager.applySource();
-    manager.populateVariables();
+    await manager.populateVariables();
   }, csvPath);
 
   await page.waitForFunction(() => {
@@ -173,6 +173,48 @@ test('fast frame plots auto-spawn helper widgets', async () => {
     const plotUiCount = panes.flatMap((pane) => pane.widgets()).filter((widget) => widget.type() === 'fast_frame_plot_ui').length;
     const managerCount = panes.flatMap((pane) => pane.widgets()).filter((widget) => widget.type() === 'fast_frame_channel_manager').length;
     return plotUiCount === 1 && managerCount === 1;
+  });
+
+  await app.close();
+});
+
+test('fast frame plot can follow the latest timestamped csv in a directory', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  const olderCsvPath = fixturePath('2026-04-20_10-00-00-fast_frame_plot.csv');
+  const latestCsvPath = fixturePath('2026-04-20_10-00-01-fast_frame_plot.csv');
+
+  await page.evaluate(async ({ olderPath, latestPath }) => {
+    await window.api.files.writeText(olderPath, [
+      'time_ms,V_high',
+      '0,10',
+      '1,11',
+    ].join('\n'));
+    await window.api.files.writeText(latestPath, [
+      'time_ms,V_high',
+      '0,20',
+      '1,21',
+    ].join('\n'));
+  }, { olderPath: olderCsvPath, latestPath: latestCsvPath });
+
+  await loadDashboard(page, fixturePath('fast_frame_dashboard.json'));
+
+  await page.evaluate(async (olderPath) => {
+    const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
+    manager.controls.target.val('Fast Plot');
+    manager.syncTargetState();
+    manager.controls.sourceMode.val('latest');
+    manager.selectedCsvPath = olderPath;
+    manager.applySource();
+    await manager.populateVariables();
+  }, olderCsvPath);
+
+  await page.waitForFunction(() => {
+    const widget = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+    return widget
+      && widget.plot
+      && widget.plot.data[1][0] === 20
+      && widget.summary.text().includes('Latest CSV');
   });
 
   await app.close();

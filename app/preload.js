@@ -128,6 +128,9 @@ const api = {
     },
     logger: {
         log: (level, args) => ipcRenderer.send('renderer-log', { level, args })
+    },
+    diagnostics: {
+        captureSnapshot: () => ipcRenderer.invoke('diagnostics-capture-snapshot')
     }
 };
 
@@ -271,9 +274,62 @@ if (isMock) {
         api.thingset = null;
         api.thingsetSerial = null;
         api.system = null;
+        api.diagnostics = null;
     } else {
         api.system = {
             openExternal: async () => ({ ok: true })
+        };
+        api.diagnostics = {
+            captureSnapshot: async () => ({
+                timestamp: Date.now(),
+                process: {
+                    pid: process.pid,
+                    uptimeSec: process.uptime(),
+                    platform: process.platform,
+                    versions: {
+                        electron: process.versions.electron,
+                        chrome: process.versions.chrome,
+                        node: process.versions.node
+                    },
+                    memory: process.memoryUsage()
+                },
+                renderer: {
+                    webContentsId: null,
+                    url: null,
+                    processMemory: null
+                },
+                windows: {
+                    main: null,
+                    example: null
+                },
+                state: {
+                    openPorts: mockSerial.openPorts.size,
+                    activeRecordings: 0,
+                    serialLocks: 0,
+                    portSettings: 0,
+                    pendingReopens: 0,
+                    serialBuffers: {
+                        entries: mockSerial.buffers.size,
+                        totalItems: Array.from(mockSerial.buffers.values()).reduce((sum, value) => sum + (Array.isArray(value) ? value.length : 0), 0),
+                        maxItems: Array.from(mockSerial.buffers.values()).reduce((max, value) => Math.max(max, Array.isArray(value) ? value.length : 0), 0)
+                    },
+                    terminalBuffers: {
+                        entries: mockSerial.terminals.size,
+                        totalItems: Array.from(mockSerial.terminals.values()).reduce((sum, value) => sum + (Array.isArray(value) ? value.length : 0), 0),
+                        maxItems: Array.from(mockSerial.terminals.values()).reduce((max, value) => Math.max(max, Array.isArray(value) ? value.length : 0), 0)
+                    },
+                    headerBuffers: { entries: mockSerial.headers.size },
+                    colorBuffers: { entries: mockSerial.colors.size },
+                    fastStates: { entries: 0 },
+                    fastBuffers: {
+                        entries: mockSerial.fastDatasets.size,
+                        totalPoints: Array.from(mockSerial.fastDatasets.values()).reduce((sum, value) => sum + (Array.isArray(value?.timestamps) ? value.timestamps.length : 0), 0),
+                        maxPoints: Array.from(mockSerial.fastDatasets.values()).reduce((max, value) => Math.max(max, Array.isArray(value?.timestamps) ? value.timestamps.length : 0), 0)
+                    },
+                    fastStatus: { entries: mockSerial.fastStatus.size }
+                },
+                appMetrics: []
+            })
         };
         api.files = {
             ...(api.files || {}),
@@ -336,15 +392,19 @@ if (isMock) {
             flush: async (pathStr) => { mockSerial.buffers.delete(pathStr); mockSerial.terminals.delete(pathStr); return 'flushed'; },
             startCsvRecord: async () => 'started',
             stopCsvRecord: async () => 'stopped',
-            saveFastCsv: async ({ path: pathStr }) => {
+            saveFastCsv: async ({ path: pathStr, filePath, useTimestampedFileName }) => {
                 const status = getFastStatus(pathStr);
+                const resolvedFilePath = useTimestampedFileName
+                    ? `${new Date().toISOString().slice(0, 19).replace(/:/g, '-').replace('T', '_')}-${path.basename(filePath || 'fast_frame.csv', path.extname(filePath || 'fast_frame.csv'))}${path.extname(filePath || 'fast_frame.csv') || '.csv'}`
+                    : (filePath || 'fast_frame.csv');
                 mockSerial.fastStatus.set(pathStr, {
                     ...status,
                     state: 'saved',
                     message: 'Fast frame saved to CSV',
-                    updatedAt: Date.now()
+                    updatedAt: Date.now(),
+                    filePath: resolvedFilePath
                 });
-                return 'saved';
+                return { status: 'saved', filePath: resolvedFilePath };
             }
         };
 

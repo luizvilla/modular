@@ -161,6 +161,43 @@
         return filePath;
     }
 
+    function getCsvSourceMode(settings) {
+        const mode = String(settings?.csvSourceMode || 'fixed').trim().toLowerCase();
+        return mode === 'latest' ? 'latest' : 'fixed';
+    }
+
+    function selectLatestCsvPath(files) {
+        const list = Array.isArray(files) ? files.filter(Boolean) : [];
+        if (!list.length) return '';
+        const timestamped = list.filter((filePath) => {
+            const name = String(filePath).split(/[\\/]/).pop() || '';
+            return /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-.+\.csv$/i.test(name);
+        });
+        const preferred = timestamped.length ? timestamped : list;
+        return preferred
+            .slice()
+            .sort((a, b) => String(a).localeCompare(String(b)))
+            .pop() || '';
+    }
+
+    function resolveCsvSource(settings, files) {
+        const mode = getCsvSourceMode(settings);
+        const explicitPath = normalizePath(settings?.csvPath);
+        if (mode === 'latest') {
+            const latestPath = selectLatestCsvPath(files);
+            return {
+                mode,
+                filePath: latestPath || explicitPath,
+                fallbackPath: explicitPath
+            };
+        }
+        return {
+            mode,
+            filePath: explicitPath,
+            fallbackPath: explicitPath
+        };
+    }
+
     function widgetTitle(widget) {
         let title = widget?.settings?.().title;
         if (typeof title === 'function') title = title();
@@ -228,6 +265,9 @@
         listCsvFiles,
         loadCsvDataset,
         displayPath,
+        getCsvSourceMode,
+        selectLatestCsvPath,
+        resolveCsvSource,
         listWidgetsByType,
         findWidgetByTitle,
         updateWidgetSettings,

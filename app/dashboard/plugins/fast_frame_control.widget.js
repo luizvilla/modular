@@ -32,9 +32,15 @@
             },
             {
                 name: "filePath",
-                display_name: "CSV File Path",
+                display_name: "CSV Base File Path",
                 type: "text",
                 default_value: "fast_frame.csv"
+            },
+            {
+                name: "timestampedFileName",
+                display_name: "Timestamped file name",
+                type: "boolean",
+                default_value: true
             },
             {
                 name: "autoSave",
@@ -94,6 +100,7 @@
             this.retrieveInput = $('<input type="text" class="form-control form-control-sm">');
             this.delayInput = $('<input type="number" class="form-control form-control-sm">');
             this.fileInput = $('<input type="text" class="form-control form-control-sm">');
+            this.timestampedCheck = $('<input type="checkbox">');
             this.autoSaveCheck = $('<input type="checkbox">');
             this.statusBox = $('<div class="small text-muted border rounded p-2">Idle.</div>');
             this.triggerBtn = $('<button class="btn btn-primary btn-sm">Trigger + Retrieve</button>');
@@ -105,6 +112,7 @@
                 this._makeRow('Retrieve', this.retrieveInput),
                 this._makeRow('Delay', this.delayInput),
                 this._makeRow('CSV File', this.fileInput),
+                this._makeCheckRow('Timestamped', this.timestampedCheck),
                 this._makeCheckRow('Auto-save', this.autoSaveCheck),
                 $('<div class="d-flex gap-1"></div>').append(this.triggerBtn, this.saveBtn),
                 this.statusBox
@@ -121,6 +129,7 @@
             this.retrieveInput.on('change', () => { this.settings.retrieveCommand = this.retrieveInput.val(); });
             this.delayInput.on('change', () => { this.settings.retrieveDelayMs = parseInt(this.delayInput.val(), 10) || 100; });
             this.fileInput.on('change', () => { this.settings.filePath = this.fileInput.val(); });
+            this.timestampedCheck.on('change', () => { this.settings.timestampedFileName = this.timestampedCheck.prop('checked'); });
             this.autoSaveCheck.on('change', () => { this.settings.autoSave = this.autoSaveCheck.prop('checked'); });
 
             this.triggerBtn.on('click', () => this._sendTrigger());
@@ -150,6 +159,7 @@
             this.retrieveInput.val(this.settings.retrieveCommand || 'r');
             this.delayInput.val(this.settings.retrieveDelayMs ?? 100);
             this.fileInput.val(this.settings.filePath || 'fast_frame.csv');
+            this.timestampedCheck.prop('checked', this.settings.timestampedFileName !== false);
             this.autoSaveCheck.prop('checked', !!this.settings.autoSave);
         }
 
@@ -211,7 +221,8 @@
                 separator: dsSettings.separator || ':',
                 eol: dsSettings.eol || '\\n',
                 addHeader: true,
-                timestampMode: 'relative'
+                timestampMode: 'relative',
+                useTimestampedFileName: this.timestampedCheck.prop('checked')
             };
             if (this.serialApi && this.serialApi.saveFastCsv) {
                 await this.serialApi.saveFastCsv(payload);

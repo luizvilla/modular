@@ -42,6 +42,20 @@ let exampleDockLastOverlap = false;
 let exampleDockingInProgress = false;
 let pendingWidgetDocType = null; // Track widget doc tab requests before renderer init.
 
+function buildTimestampStamp(date = new Date()) {
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+}
+
+function resolveTimestampedCsvPath(filePath) {
+    const target = String(filePath || '').trim();
+    if (!target) return target;
+    const parsed = path.parse(target);
+    const ext = parsed.ext || '.csv';
+    const baseName = parsed.name || 'fast_frame';
+    return path.join(parsed.dir || '.', `${buildTimestampStamp()}-${baseName}${ext}`);
+}
+
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
     if (!mainWindow) return null;
@@ -361,6 +375,7 @@ function emitActivity(evt) {
 
 // Allow renderer to query the current activity toggle state.
 ipcMain.handle('get-activity-enabled', () => ({ enabled: !!activityEnabled }));
+ipcMain.handle('diagnostics-capture-snapshot', async () => captureDiagnosticsSnapshot());
 
 // Path to mcumgr binary, assumes it is bundled alongside the app in a tools folder
 const mcumgrBinary = process.platform === 'win32' ? 'mcumgr.exe'
@@ -405,6 +420,119 @@ const MAX_TERMINAL_LINES = 200;
 
 function dsKey(path, type = 'serialport_datasource') {
     return `${path}||${type}`;
+}
+
+function summarizeArrayMap(map) {
+    let entries = 0;
+    let totalItems = 0;
+    let maxItems = 0;
+    for (const value of map.values()) {
+        entries += 1;
+        const length = Array.isArray(value) ? value.length : 0;
+        totalItems += length;
+        if (length > maxItems) maxItems = length;
+    }
+    return { entries, totalItems, maxItems };
+}
+
+function summarizeFastBuffers(map) {
+    let entries = 0;
+    let totalPoints = 0;
+    let maxPoints = 0;
+    for (const value of map.values()) {
+        entries += 1;
+        const points = Array.isArray(value?.timestamps) ? value.timestamps.length : 0;
+        totalPoints += points;
+        if (points > maxPoints) maxPoints = points;
+    }
+    return { entries, totalPoints, maxPoints };
+}
+
+function summarizeMapEntries(map) {
+    return { entries: map.size };
+}
+
+async function captureDiagnosticsSnapshot() {
+    const memory = process.memoryUsage();
+    const cpu = process.cpuUsage();
+    const resource = typeof process.resourceUsage === 'function' ? process.resourceUsage() : null;
+    const appMetrics = typeof app.getAppMetrics === 'function'
+        ? app.getAppMetrics().map((metric) => ({
+            pid: metric.pid,
+            type: metric.type,
+            serviceName: metric.serviceName,
+            name: metric.name,
+            creationTime: metric.creationTime,
+            cpu: metric.cpu ? {
+                percentCPUUsage: metric.cpu.percentCPUUsage,
+                idleWakeupsPerSecond: metric.cpu.idleWakeupsPerSecond
+            } : null,
+            memory: metric.memory ? {
+                workingSetSize: metric.memory.workingSetSize,
+                peakWorkingSetSize: metric.memory.peakWorkingSetSize,
+                privateBytes: metric.memory.privateBytes,
+                sharedBytes: metric.memory.sharedBytes
+            } : null
+        }))
+        : [];
+
+    let rendererProcessMemory = null;
+    try {
+        if (mainWindow?.webContents?.getProcessMemoryInfo) {
+            rendererProcessMemory = await mainWindow.webContents.getProcessMemoryInfo();
+        }
+    } catch (err) {
+        rendererProcessMemory = { error: err?.message || String(err) };
+    }
+
+    return {
+        timestamp: Date.now(),
+        process: {
+            pid: process.pid,
+            uptimeSec: process.uptime(),
+            platform: process.platform,
+            versions: {
+                electron: process.versions.electron,
+                chrome: process.versions.chrome,
+                node: process.versions.node
+            },
+            memory,
+            cpu,
+            resource
+        },
+        renderer: {
+            webContentsId: mainWindow?.webContents?.id ?? null,
+            url: mainWindow?.webContents?.getURL?.() ?? null,
+            processMemory: rendererProcessMemory
+        },
+        windows: {
+            main: mainWindow ? {
+                visible: mainWindow.isVisible(),
+                focused: mainWindow.isFocused(),
+                bounds: mainWindow.getBounds()
+            } : null,
+            example: exampleWindow ? {
+                visible: exampleWindow.isVisible(),
+                focused: exampleWindow.isFocused(),
+                bounds: exampleWindow.getBounds()
+            } : null
+        },
+        state: {
+            openPorts: openPorts.size,
+            activeRecordings: activeRecordings.size,
+            serialLocks: serialLocks.size,
+            portSettings: portSettings.size,
+            pendingReopens: pendingReopens.size,
+            serialBuffers: summarizeArrayMap(serialBuffers),
+            terminalBuffers: summarizeArrayMap(terminalBuffers),
+            headerBuffers: summarizeMapEntries(headerBuffers),
+            colorBuffers: summarizeMapEntries(colorBuffers),
+            fastStates: summarizeMapEntries(fastStates),
+            fastBuffers: summarizeFastBuffers(fastBuffers),
+            fastStatus: summarizeMapEntries(fastStatus)
+        },
+        appMetrics
+    };
 }
 
 function decodeEolToken(token) {
@@ -1447,7 +1575,7 @@ ipcMain.handle('stop-csv-record', async (event, { path }) => {
 });
 
 // 💾 Save the latest fast frame dataset to CSV
-ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, addHeader = true, timestampMode = 'none' }) => {
+ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, addHeader = true, timestampMode = 'none', useTimestampedFileName = false }) => {
         emitActivity({ id: 'csv:save-fast', title: path, state: 'start', label: 'Save fast dataset', detail: filePath });
         const dataset = fastBuffers.get(path);
         if (!dataset || !Array.isArray(dataset.series)) {
@@ -1455,6 +1583,7 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
                 emitActivity({ id: 'csv:save-fast', title: path, state: 'error', label: 'Save fast dataset', detail: err });
                 throw new Error(err);
         }
+        const resolvedFilePath = useTimestampedFileName ? resolveTimestampedCsvPath(filePath) : filePath;
         const headers = headerBuffers.get(dsKey(path, 'fast_frame_datasource')) || [];
         const sep = separator || ',';
         const eolStr = decodeEolToken(eol);
@@ -1482,14 +1611,15 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
                 out.push(row.join(sep));
         }
         const content = out.join(eolStr) + eolStr;
-        await fs.promises.writeFile(filePath, content);
+        await fs.promises.writeFile(resolvedFilePath, content);
         setFastStatus(path, {
                 state: 'saved',
                 message: 'Fast frame saved to CSV',
-                datasetPoints: Array.isArray(dataset.timestamps) ? dataset.timestamps.length : 0
+                datasetPoints: Array.isArray(dataset.timestamps) ? dataset.timestamps.length : 0,
+                filePath: resolvedFilePath
         });
-        emitActivity({ id: 'csv:save-fast', title: path, state: 'done', label: 'Saved fast dataset', detail: filePath });
-        return 'saved';
+        emitActivity({ id: 'csv:save-fast', title: path, state: 'done', label: 'Saved fast dataset', detail: resolvedFilePath });
+        return { status: 'saved', filePath: resolvedFilePath };
 });
 
 // 📂 Open a dialog to choose a firmware binary file

@@ -35,6 +35,9 @@
             $(el).append(this.container);
             this.container.empty();
             this.controls.target = $('<select class="form-select form-select-sm"></select>');
+            this.controls.sourceMode = $('<select class="form-select form-select-sm"></select>')
+                .append('<option value="latest">Latest CSV in directory</option>')
+                .append('<option value="fixed">Fixed CSV file</option>');
             this.controls.csvButton = $('<button class="btn btn-outline-secondary btn-sm w-100">Choose CSV File</button>');
             this.controls.csvName = $('<div class="small text-muted border rounded p-2">No file selected.</div>');
             this.controls.xVariable = $('<select class="form-select form-select-sm"></select>');
@@ -57,6 +60,7 @@
                 .append($('<button class="btn btn-outline-danger btn-sm">Reset Channels</button>').on('click', () => this.resetChannels()));
             this.container.append(
                 makeRow('Target Plot', this.controls.target),
+                makeRow('CSV Source', this.controls.sourceMode),
                 this.csvRow,
                 this.xRow,
                 this.yRow,
@@ -72,6 +76,10 @@
                 this.syncTargetState();
                 this.populateVariables();
                 this.renderSeriesList();
+            });
+            this.controls.sourceMode.on('change', () => {
+                this._syncSourceModeUi();
+                this.populateVariables();
             });
             this.controls.csvButton.on('click', () => this.chooseCsvFile());
             this._configHandler();
@@ -97,8 +105,10 @@
             const widget = this._targetWidget();
             const settings = widget?.settings() || {};
             this.selectedCsvPath = settings.csvPath || '';
+            this.controls.sourceMode.val(shared.getCsvSourceMode(settings));
             this.availableColumns = Array.isArray(widget?.widgetInstance?.availableColumns) ? widget.widgetInstance.availableColumns.slice() : [];
             this.controls.csvName.text(this._csvLabel(this.selectedCsvPath));
+            this._syncSourceModeUi();
             this.labelRow.removeClass('is-hidden');
             this.colorRow.removeClass('is-hidden');
             this.visibleRow.removeClass('is-hidden');
@@ -123,7 +133,9 @@
             const chosen = await chooser();
             if (!chosen) return;
             this.selectedCsvPath = chosen;
+            this.controls.sourceMode.val('fixed');
             this.controls.csvName.text(this._csvLabel(chosen));
+            this._syncSourceModeUi();
             await this._loadColumnsForPath(chosen);
             this.applySource();
             this.populateVariables();
@@ -134,6 +146,12 @@
             if (!filePath) return 'No file selected.';
             const parts = String(filePath).split(/[\\/]/);
             return parts[parts.length - 1] || filePath;
+        }
+
+        _syncSourceModeUi() {
+            const mode = this.controls?.sourceMode?.val?.() || 'fixed';
+            const buttonLabel = mode === 'latest' ? 'Choose Fallback CSV / Directory Anchor' : 'Choose CSV File';
+            if (this.controls?.csvButton) this.controls.csvButton.text(buttonLabel);
         }
 
         _currentColumns(widget) {
@@ -147,10 +165,18 @@
             return this.availableColumns;
         }
 
-        populateVariables() {
+        async populateVariables() {
             if (!this.controls?.xVariable || !this.controls?.yVariable) return;
             const widget = this._targetWidget();
             const settings = widget?.settings() || {};
+            const source = shared.resolveCsvSource({
+                ...settings,
+                csvPath: this.selectedCsvPath || settings.csvPath || '',
+                csvSourceMode: this.controls?.sourceMode?.val?.() || shared.getCsvSourceMode(settings)
+            }, widget?.widgetInstance?.availableFiles || []);
+            if (source.filePath) {
+                await this._loadColumnsForPath(source.filePath);
+            }
             const columns = this._currentColumns(widget);
             const fill = (select, current, placeholder) => {
                 select.empty().append(`<option value="">${placeholder}</option>`);
@@ -167,8 +193,10 @@
             const widget = this._targetWidget();
             if (!widget) return;
             const csvPath = this.selectedCsvPath || widget.settings().csvPath || '';
+            const csvSourceMode = this.controls.sourceMode.val() || shared.getCsvSourceMode(widget.settings());
             const csvDirectory = csvPath ? (shared.pathApi?.dirname ? shared.pathApi.dirname(csvPath) : shared.defaultCsvDirectory()) : (widget.settings().csvDirectory || shared.defaultCsvDirectory());
             shared.updateWidgetSettings(widget, {
+                csvSourceMode,
                 csvDirectory,
                 csvPath,
                 timeColumn: this.controls.xVariable.val() || '',
@@ -184,6 +212,7 @@
             if (!widget || widget.type() !== 'fast_frame_plot' || !variable) return;
             const defs = shared.normalizeSeriesDefs(widget.settings(), this._currentColumns(widget));
             const csvPath = this.selectedCsvPath || widget.settings().csvPath || '';
+            const csvSourceMode = this.controls.sourceMode.val() || shared.getCsvSourceMode(widget.settings());
             const csvDirectory = csvPath ? (shared.pathApi?.dirname ? shared.pathApi.dirname(csvPath) : shared.defaultCsvDirectory()) : (widget.settings().csvDirectory || shared.defaultCsvDirectory());
             defs.push({
                 variable,
@@ -192,6 +221,7 @@
                 visible: this.controls.visible.prop('checked')
             });
             shared.updateWidgetSettings(widget, {
+                csvSourceMode,
                 csvDirectory,
                 csvPath,
                 timeColumn: this.controls.xVariable.val() || '',

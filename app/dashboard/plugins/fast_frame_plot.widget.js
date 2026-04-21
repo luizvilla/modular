@@ -162,7 +162,8 @@
 
         async _refresh() {
             this.availableFiles = await shared.listCsvFiles(this.settings.csvDirectory);
-            const loaded = await shared.loadCsvDataset(this.settings.csvPath, this.lastFileSignature);
+            const source = shared.resolveCsvSource(this.settings, this.availableFiles);
+            const loaded = await shared.loadCsvDataset(source.filePath, this.lastFileSignature);
             if (loaded.changed) {
                 this.dataset = loaded.dataset;
                 this.lastFileSignature = loaded.signature;
@@ -170,7 +171,9 @@
                 this.lastRenderedSignature = '';
             }
             const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns);
-            this.summary.text(`File: ${this.settings.csvPath ? shared.displayPath(this.settings.csvPath) : 'none'} | Time: ${this.settings.timeColumn || 'Row index'} | Channels: ${defs.map(def => def.label).join(', ') || '--'}`);
+            const sourceLabel = source.mode === 'latest' ? 'Latest CSV' : 'Fixed CSV';
+            const fileLabel = source.filePath ? shared.displayPath(source.filePath) : 'none';
+            this.summary.text(`Source: ${sourceLabel} | File: ${fileLabel} | Time: ${this.settings.timeColumn || 'Row index'} | Channels: ${defs.map(def => def.label).join(', ') || '--'}`);
             if (!this.dataset) {
                 this.status.text('Select a CSV file with the Fast Frame UI widget.');
                 this._renderPlaceholder();
@@ -187,7 +190,7 @@
                 this._renderPlaceholder();
                 return;
             }
-            this.status.text(`Loaded ${this.dataset.rows.length} rows from ${shared.displayPath(this.settings.csvPath)}.`);
+            this.status.text(`Loaded ${this.dataset.rows.length} rows from ${shared.displayPath(source.filePath)}.`);
             this._renderPlot(defs);
         }
 
