@@ -35,16 +35,28 @@
             this.availableColumns = [];
             this.dataset = null;
             this._helperSpawnKey = null;
-            this.container = $('<div class="fast-frame-plot h-100 overflow-auto p-2"></div>');
+            this._resizeObs = null;
+            this._resizeRAF = 0;
+            this._dragCleanup = null;
+            this.plotHeightPx = null;
+            this.hostElement = null;
+            this.container = $('<div class="fast-frame-plot h-100 d-flex flex-column gap-2 p-2"></div>');
             this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure this plot with the Fast Frame UI and Channel Manager widgets.</div>');
             this.summary = $('<div class="small text-muted border rounded p-2 mb-2"></div>');
-            this.chartHost = $('<div class="fast-frame-plot-host"></div>');
+            this.chartShell = $('<div class="d-flex flex-column flex-grow-1 gap-2"></div>');
+            this.chartHost = $('<div class="fast-frame-plot-host flex-grow-1" style="min-height:220px;"></div>');
+            this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.emptyState = $('<div class="small text-muted border rounded p-3">Use the Fast Frame Channel Manager to add channels to this plot.</div>');
+            this.chartShell.append(this.chartHost, this.resizeHandle);
         }
 
         render(el) {
+            this.hostElement = el || null;
             $(el).append(this.container);
-            this.container.empty().append(this.status, this.summary, this.chartHost);
+            this.container.empty().append(this.status, this.summary, this.chartShell);
+            this._applyPlotHeight();
+            this._bindHeightDrag();
+            this._bindResize();
             this._scheduleHelperSpawn();
             this._startPolling();
         }
@@ -247,12 +259,79 @@
                 ],
                 series
             }, data, host[0]);
+            this._requestResize();
         }
 
         _destroyPlot() {
             if (!this.plot) return;
             try { this.plot.destroy(); } catch {}
             this.plot = null;
+        }
+
+        _bindResize() {
+            if (this._resizeObs) {
+                try { this._resizeObs.disconnect(); } catch {}
+                this._resizeObs = null;
+            }
+            if (typeof ResizeObserver !== 'function') return;
+            this._resizeObs = new ResizeObserver(() => this._requestResize());
+            if (this.hostElement) this._resizeObs.observe(this.hostElement);
+            if (this.chartHost?.[0]) this._resizeObs.observe(this.chartHost[0]);
+        }
+
+        _requestResize() {
+            if (this._resizeRAF) cancelAnimationFrame(this._resizeRAF);
+            this._resizeRAF = requestAnimationFrame(() => {
+                this._resizeRAF = 0;
+                this._resizePlot();
+            });
+        }
+
+        _resizePlot() {
+            if (!this.plot) return;
+            const width = Math.max(320, this.chartHost.width() || this.container.width() || 640);
+            const height = Math.max(220, this.chartHost.height() || 320);
+            try {
+                this.plot.setSize({ width, height });
+            } catch {}
+        }
+
+        _applyPlotHeight() {
+            if (typeof this.plotHeightPx === 'number' && Number.isFinite(this.plotHeightPx)) {
+                this.chartHost.css({
+                    height: `${Math.max(160, this.plotHeightPx)}px`,
+                    flex: '0 0 auto'
+                });
+            } else {
+                this.chartHost.css({
+                    height: '',
+                    flex: '1 1 auto'
+                });
+            }
+        }
+
+        _bindHeightDrag() {
+            if (!this.resizeHandle || this.resizeHandle.data('fast-frame-bound')) return;
+            this.resizeHandle.data('fast-frame-bound', true);
+            this.resizeHandle.on('mousedown', (event) => {
+                event.preventDefault();
+                const startY = event.clientY;
+                const startHeight = this.chartHost[0]?.clientHeight || this.plotHeightPx || 320;
+                const onMove = (moveEvent) => {
+                    this.plotHeightPx = Math.max(160, startHeight + (moveEvent.clientY - startY));
+                    this._applyPlotHeight();
+                    this._requestResize();
+                };
+                const onUp = () => {
+                    $(window)
+                        .off('mousemove.fast-frame-plot-resize', onMove)
+                        .off('mouseup.fast-frame-plot-resize', onUp);
+                };
+                $(window)
+                    .on('mousemove.fast-frame-plot-resize', onMove)
+                    .on('mouseup.fast-frame-plot-resize', onUp);
+                this._dragCleanup = onUp;
+            });
         }
 
         onSettingsChanged(newSettings) {
@@ -262,11 +341,29 @@
             this._helperSpawnKey = null;
             this._scheduleHelperSpawn();
             this._startPolling();
+            this._requestResize();
+        }
+
+        onSizeChanged() {
+            this._applyPlotHeight();
+            this._requestResize();
         }
 
         onDispose() {
             if (this.pollTimer) clearInterval(this.pollTimer);
             if (this._helperSpawnTimer) clearTimeout(this._helperSpawnTimer);
+            if (this._resizeObs) {
+                try { this._resizeObs.disconnect(); } catch {}
+                this._resizeObs = null;
+            }
+            if (this._resizeRAF) {
+                cancelAnimationFrame(this._resizeRAF);
+                this._resizeRAF = 0;
+            }
+            if (this._dragCleanup) {
+                this._dragCleanup();
+                this._dragCleanup = null;
+            }
             this._destroyPlot();
         }
 

@@ -131,7 +131,7 @@
             titleSelect.empty();
             widgets.forEach(t => titleSelect.append($('<option>').val(t).text(t)));
             if (selected && titleSelect.find(`option[value="${selected}"]`).length) titleSelect.val(selected);
-            else if (!selected && widgets.length === 1) titleSelect.val(widgets[0]);
+            else if (!titleSelect.val() && widgets.length) titleSelect.val(widgets[0]);
             if (titleSelect.val()) this.syncFromSelectedWidget();
         }
 

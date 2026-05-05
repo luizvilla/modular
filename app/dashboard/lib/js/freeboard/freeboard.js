@@ -219,6 +219,110 @@ var freeboard = (function()
 		}
 	};
 
+	function getWidgetDefaultTitle(typeName)
+	{
+		var widgetType = widgetPlugins[typeName];
+		if(!widgetType)
+		{
+			return String(typeName || "Widget");
+		}
+
+		var titleSetting = _.find(widgetType.settings || [], function(settingDef)
+		{
+			return settingDef.name === "title";
+		});
+		if(titleSetting && !_.isUndefined(titleSetting.default_value) && titleSetting.default_value !== "")
+		{
+			return String(titleSetting.default_value);
+		}
+
+		return String(widgetType.display_name || widgetType.type_name || typeName || "Widget");
+	}
+
+	function buildUniqueWidgetTitle(baseTitle, widgetToIgnore)
+	{
+		var base = String(baseTitle || "Widget").trim() || "Widget";
+		var titles = [];
+
+		_.each(theFreeboardModel.panes(), function(pane)
+		{
+			_.each(pane.widgets(), function(widget)
+			{
+				if(widgetToIgnore && widget === widgetToIgnore)
+				{
+					return;
+				}
+
+				var title = widget.settings && widget.settings().title;
+				if(_.isFunction(title))
+				{
+					title = title();
+				}
+				title = String(title || "").trim();
+				if(title)
+				{
+					titles.push(title);
+				}
+			});
+		});
+
+		if(!_.contains(titles, base))
+		{
+			return base;
+		}
+
+		var suffix = 2;
+		while(_.contains(titles, base + " " + suffix))
+		{
+			suffix++;
+		}
+
+		return base + " " + suffix;
+	}
+
+	function ensureUniqueWidgetTitle(typeName, settings, widgetToIgnore)
+	{
+		var widgetType = widgetPlugins[typeName];
+		if(!widgetType)
+		{
+			return settings;
+		}
+
+		var hasTitle = _.some(widgetType.settings || [], function(settingDef)
+		{
+			return settingDef.name === "title";
+		});
+		if(!hasTitle)
+		{
+			return settings;
+		}
+
+		var baseTitle = String(settings.title || "").trim() || getWidgetDefaultTitle(typeName);
+		settings.title = buildUniqueWidgetTitle(baseTitle, widgetToIgnore);
+		return settings;
+	}
+
+	function normalizeWidgetSettingsForType(typeName, settings)
+	{
+		var widgetType = widgetPlugins[typeName];
+		var source = _.clone(settings || {});
+		if(!widgetType || !_.isArray(widgetType.settings))
+		{
+			return source;
+		}
+
+		var normalized = {};
+		_.each(widgetType.settings, function(settingDef)
+		{
+			if(!_.isUndefined(source[settingDef.name]))
+			{
+				normalized[settingDef.name] = source[settingDef.name];
+			}
+		});
+
+		return normalized;
+	}
+
 	ko.bindingHandlers.pluginEditor = {
 		init: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
 		{
@@ -269,6 +373,7 @@ var freeboard = (function()
 				else
 				{
 					var instanceType = undefined;
+					var settings = undefined;
 
 					if(options.type == 'datasource')
 					{
@@ -292,7 +397,7 @@ var freeboard = (function()
 						else
 						{
 							instanceType = viewModel.type();
-							settings = viewModel.settings();
+							settings = normalizeWidgetSettingsForType(instanceType, viewModel.settings());
 						}
 					}
 					else if(options.type == 'pane')
@@ -350,6 +455,7 @@ var freeboard = (function()
 							else if(options.type == 'widget')
 							{
 								var newViewModel = new WidgetModel(theFreeboardModel, widgetPlugins);
+								newSettings.settings = ensureUniqueWidgetTitle(newSettings.type, newSettings.settings, null);
 								newViewModel.settings(newSettings.settings);
 								newViewModel.type(newSettings.type);
 
@@ -374,6 +480,10 @@ var freeboard = (function()
 								{
 									viewModel.name(newSettings.settings.name);
 									delete newSettings.settings.name;
+								}
+								else if(options.type == 'widget')
+								{
+									newSettings.settings = ensureUniqueWidgetTitle(newSettings.type, newSettings.settings, viewModel);
 								}
 
 								viewModel.type(newSettings.type);

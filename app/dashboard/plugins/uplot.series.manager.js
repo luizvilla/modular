@@ -116,6 +116,8 @@
         widgetSelect.empty();
         s.forEach(t => widgetSelect.append($('<option>').val(t).text(t)));
         if (cur && widgetSelect.find(`option[value="${cur}"]`).length) widgetSelect.val(cur);
+        if (!widgetSelect.val() && s.length) widgetSelect.val(s[0]);
+        this._renderList(this._findTargetPlot(widgetSelect.val()), list);
       };
 
       const refreshDatasources = (selectEl) => {
@@ -147,6 +149,10 @@
       srcB.ds.on('change', () => onDsChange(srcB.ds, srcB.dev, srcB.vsel));
       srcB.dev.on('change', () => onDsChange(srcB.ds, srcB.dev, srcB.vsel));
       opSelect.on('change', () => { if (opSelect.val() === 'mulvar') srcB.row.show(); else srcB.row.hide(); });
+      widgetSelect.on('change', () => {
+        const widget = this._findTargetPlot(widgetSelect.val());
+        this._renderList(widget, list);
+      });
 
       addBtn.on('click', () => {
         const def = this._buildDefFromInputs(opSelect, paramInput, srcARow, srcB, labelInput);

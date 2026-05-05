@@ -39,7 +39,7 @@
         settings: [
             { name: "title", display_name: "Title", type: "text" },
             // Keep the widget config slim; advanced tuning is handled via helper widgets.
-            { name: "helperWidgets", display_name: "Helper Widgets", type: "option", default_value: "none", options: [
+            { name: "helperWidgets", display_name: "Helper Widgets", type: "option", default_value: "both", options: [
                 { name: "None", value: "none" },
                 { name: "UI Controller", value: "ui" },
                 { name: "Series Manager", value: "series" },
