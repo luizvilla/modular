@@ -4019,6 +4019,12 @@ var freeboard = (function()
 
 			var $section = $(element).find('section').addClass('widget-sort-section');
 
+			function ddLog() {
+				var msg = '[drag-drop] ' + Array.prototype.join.call(arguments, ' ');
+				if (window.api && window.api.logger) { window.api.logger.log('log', [msg]); }
+				console.log(msg);
+			}
+
 			$section.sortable({
 				connectWith     : '.widget-sort-section',
 				handle          : '.sub-section-tools',
@@ -4028,31 +4034,53 @@ var freeboard = (function()
 				disabled        : !theFreeboardModel.isEditing(),
 				start: function(event, ui) {
 					ui.placeholder.height(ui.item.outerHeight());
+					var w = ui.item.data('ko-widget');
+					var p = ui.item.data('ko-pane');
+					ddLog('start | widget=' + (w ? w.type() : 'NULL') +
+						' pane="' + (p ? p.title() : 'NULL') + '"' +
+						' ko-widget set=' + !!w + ' ko-pane set=' + !!p);
 				},
 				receive: function(event, ui) {
 					var widget     = ui.item.data('ko-widget');
 					var sourcePane = ui.item.data('ko-pane');
-					if (!widget || !sourcePane) return;
-					// Read desired position while jQuery UI has placed the item in target.
-					// Do NOT call ui.item.remove() — sourcePane.widgets.remove() triggers
-					// Knockout to call ko.removeNode() on the same node (now in target),
-					// removing it from the DOM cleanly before splice re-creates it.
+					ddLog('receive | widget=' + (widget ? widget.type() : 'NULL') +
+						' sourcePane="' + (sourcePane ? sourcePane.title() : 'NULL') + '"' +
+						' targetPane="' + viewModel.title() + '"');
+					if (!widget || !sourcePane) {
+						ddLog('receive | ABORT: missing widget or sourcePane');
+						return;
+					}
 					var newIndex = $(this).children('.sub-section').index(ui.item[0]);
+					ddLog('receive | newIndex=' + newIndex +
+						' targetChildren=' + $(this).children('.sub-section').length +
+						' sourceWidgets(before)=' + sourcePane.widgets().length +
+						' targetWidgets(before)=' + viewModel.widgets().length);
 					sourcePane.widgets.remove(widget);
+					ddLog('receive | sourceWidgets(after remove)=' + sourcePane.widgets().length);
 					viewModel.widgets.splice(newIndex, 0, widget);
-					// shouldRender is false after the first render; force a re-draw in the new container.
+					ddLog('receive | targetWidgets(after splice)=' + viewModel.widgets().length +
+						' shouldRender(before)=' + widget.shouldRender());
 					widget.shouldRender(true);
+					ddLog('receive | shouldRender(after)=' + widget.shouldRender() + ' — done');
 				},
 				update: function(event, ui) {
 					if (ui.sender) return; // cross-pane move handled by receive
 					var widget = ui.item.data('ko-widget');
-					if (!widget) return;
-					// jQuery UI has already moved the node to newIndex; Knockout removes it
-					// from that position and re-inserts via splice, then we force a re-draw.
+					ddLog('update (within-pane) | widget=' + (widget ? widget.type() : 'NULL') +
+						' pane="' + viewModel.title() + '"');
+					if (!widget) {
+						ddLog('update | ABORT: widget is NULL');
+						return;
+					}
 					var newIndex = $(this).children('.sub-section').index(ui.item[0]);
+					ddLog('update | newIndex=' + newIndex +
+						' widgets(before)=' + viewModel.widgets().length);
 					viewModel.widgets.remove(widget);
 					viewModel.widgets.splice(newIndex, 0, widget);
+					ddLog('update | widgets(after)=' + viewModel.widgets().length +
+						' shouldRender(before)=' + widget.shouldRender());
 					widget.shouldRender(true);
+					ddLog('update | shouldRender(after)=' + widget.shouldRender() + ' — done');
 				}
 			});
 
@@ -4085,9 +4113,15 @@ var freeboard = (function()
 			}
 			// Store references on the .sub-section wrapper so drag-and-drop handlers can look them up
 			$(element).closest('.sub-section').data('ko-widget', viewModel).data('ko-pane', bindingContext.$parent);
+			var _ddMsg = '[drag-drop] widget.init | type=' + viewModel.type() + ' shouldRender=' + viewModel.shouldRender();
+			if (window.api && window.api.logger) { window.api.logger.log('log', [_ddMsg]); }
+			console.log(_ddMsg);
 		},
 		update: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
 		{
+			var _ddMsg = '[drag-drop] widget.update | type=' + viewModel.type() + ' shouldRender=' + viewModel.shouldRender();
+			if (window.api && window.api.logger) { window.api.logger.log('log', [_ddMsg]); }
+			console.log(_ddMsg);
 			if(viewModel.shouldRender())
 			{
 				$(element).empty();
