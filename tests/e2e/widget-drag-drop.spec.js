@@ -5,6 +5,24 @@ const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./h
 // enough time, plus headroom for slow Electron/Chromium startup.
 test.setTimeout(180_000);
 
+/**
+ * Drag the first widget in `fromSection` to `toSection`.
+ *
+ * freeboard.js hides .sub-section-tools via jQuery fadeOut(250) on mouseleave,
+ * writing an inline display:none that overrides the CSS display:flex.  After
+ * a prior drag's mouseout event the tools are invisible.  We trigger the
+ * jQuery mouseenter handler by hovering the parent .sub-section first, then
+ * wait for the tools to become visible before dragging.
+ */
+async function dragFirstWidget(page, fromSection, toSection) {
+  const subSection = fromSection.locator('.sub-section').first();
+  await subSection.scrollIntoViewIfNeeded();
+  await subSection.hover();
+  const tools = fromSection.locator('.sub-section-tools').first();
+  await expect(tools).toBeVisible({ timeout: 2000 });
+  await tools.dragTo(toSection);
+}
+
 test('widget drag-and-drop — all types move from pane 0 to pane 1 and back', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
@@ -31,7 +49,7 @@ test('widget drag-and-drop — all types move from pane 0 to pane 1 and back', a
       window.freeboard.getLiveModel().panes()[0].widgets()[0]?.type() ?? '(unknown)'
     );
     await test.step(`→ pane 1: ${type}`, async () => {
-      await section0.locator('.sub-section-tools').first().dragTo(section1);
+      await dragFirstWidget(page, section0, section1);
       await expect(section0.locator('.sub-section')).toHaveCount(widgetCount - i - 1, { timeout: 8000 });
       await expect(section1.locator('.sub-section')).toHaveCount(i + 1,              { timeout: 8000 });
     });
@@ -43,7 +61,7 @@ test('widget drag-and-drop — all types move from pane 0 to pane 1 and back', a
       window.freeboard.getLiveModel().panes()[1].widgets()[0]?.type() ?? '(unknown)'
     );
     await test.step(`← pane 0: ${type}`, async () => {
-      await section1.locator('.sub-section-tools').first().dragTo(section0);
+      await dragFirstWidget(page, section1, section0);
       await expect(section1.locator('.sub-section')).toHaveCount(widgetCount - i - 1, { timeout: 8000 });
       await expect(section0.locator('.sub-section')).toHaveCount(i + 1,              { timeout: 8000 });
     });
@@ -71,18 +89,37 @@ test('widget drag-and-drop — within-pane reorder changes widget order', async 
   );
   expect(before.length).toBeGreaterThanOrEqual(2);
 
-  // Drag the first widget's handle on top of the second widget to swap them.
+  // Hover to reveal tools on the first widget.
+  const subSection0 = section0.locator('.sub-section').nth(0);
+  await subSection0.hover();
   const handle0 = section0.locator('.sub-section-tools').nth(0);
+  await expect(handle0).toBeVisible({ timeout: 2000 });
+
+  // Use page.mouse directly so we can move in many steps — jQuery UI sortable
+  // needs smooth movement to update the placeholder, and locator.dragTo with
+  // targetPosition can land exactly on the midpoint boundary.
+  // Target: 90 % down widget 1 (clearly in the lower half → placeholder after).
+  const handleBox = await handle0.boundingBox();
+  const startX   = handleBox.x + handleBox.width  / 2;
+  const startY   = handleBox.y + handleBox.height / 2;
+
   const target1  = section0.locator('.sub-section').nth(1);
-  await handle0.dragTo(target1);
+  const t1Box    = await target1.boundingBox();
+  const endX     = t1Box.x + t1Box.width  / 2;
+  const endY     = t1Box.y + t1Box.height * 0.9;
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(endX, endY, { steps: 20 });
+  await page.mouse.up();
 
   const after = await page.evaluate(() =>
     window.freeboard.getLiveModel().panes()[0].widgets().map(w => w.type())
   );
 
-  // Widget count must be preserved and at least the first position must differ.
+  // Widget count must be preserved and the order must have changed.
   expect(after.length).toBe(before.length);
-  expect(after[0]).not.toBe(before[0]);
+  expect(after).not.toEqual(before);
 
   await app.close();
 });
