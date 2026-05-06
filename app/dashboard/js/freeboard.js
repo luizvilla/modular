@@ -4054,6 +4054,11 @@ var freeboard = (function()
 						' targetChildren=' + $(this).children('.sub-section').length +
 						' sourceWidgets(before)=' + sourcePane.widgets().length +
 						' targetWidgets(before)=' + viewModel.widgets().length);
+					// Detach the jQuery UI-repositioned node before Knockout array ops.
+					// jQuery UI's _clear() places ui.item back in the DOM (before the
+					// placeholder) prior to firing receive/update; without detaching here,
+					// Knockout's removeNode leaves that node as a visible ghost widget.
+					ui.item.detach();
 					sourcePane.widgets.remove(widget);
 					ddLog('receive | sourceWidgets(after remove)=' + sourcePane.widgets().length);
 					viewModel.widgets.splice(newIndex, 0, widget);
@@ -4074,6 +4079,7 @@ var freeboard = (function()
 						' widget=' + (widget ? widget.type() : 'NULL'));
 					if (!widget || newIndex === -1) return; // -1 = source exit for cross-pane drag
 					ddLog('update | within-pane reorder widgets(before)=' + viewModel.widgets().length);
+					ui.item.detach(); // prevent ghost — same reason as receive handler
 					viewModel.widgets.remove(widget);
 					viewModel.widgets.splice(newIndex, 0, widget);
 					ddLog('update | widgets(after)=' + viewModel.widgets().length);
