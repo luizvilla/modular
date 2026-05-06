@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "columns": 2,
+  "panes": [
+    {
+      "title": "Source",
+      "width": 1,
+      "row": { "2": 1 },
+      "col": { "2": 1 },
+      "col_width": 1,
+      "widgets": [
+        { "type": "serial_terminal",         "settings": { "title": "Terminal",        "datasourceName": "MockSerial", "colorize": true, "autoScroll": true, "refresh": 200, "maxLines": 20 } },
+        { "type": "serial_csv_recorder",     "settings": { "filePath": "record.csv", "separator": ":", "eol": "\\n", "order": "old", "addHeader": true, "timestampMode": "none", "datasource": "MockSerial" } },
+        { "type": "serial_command_buttons",  "settings": { "buttons": [], "layout": "vertical", "datasource": "MockSerial" } },
+        { "type": "serial_flasher",          "settings": { "title": "Flasher" } },
+        { "type": "owntech_plot_uplot",      "settings": { "title": "Plot", "seriesDefs": [], "duration": 2000, "refreshRate": 500, "yLabel": "V", "showLegend": false } },
+        { "type": "uplot_series_manager",    "settings": { "title": "Series Mgr" } },
+        { "type": "uplot_config_panel",      "settings": {} },
+        { "type": "xy_plot_uplot",           "settings": { "title": "XY Plot", "helperWidgets": "none" } },
+        { "type": "xy_plot_source_manager",  "settings": {} },
+        { "type": "fast_frame_plot",         "settings": { "title": "FF Plot", "helperWidgets": "none", "csvSourceMode": "fixed", "csvDirectory": "tests/fixtures", "csvPath": "tests/fixtures/fast_frame_plot.csv", "refreshRate": 150, "timeColumn": "time_ms", "seriesDefs": [] } },
+        { "type": "fast_frame_plot_ui",      "settings": {} },
+        { "type": "fast_frame_channel_manager", "settings": {} },
+        { "type": "fast_frame_control",      "settings": { "datasource": "MockFast", "armCommand": "t", "retrieveCommand": "r", "retrieveDelayMs": 100 } },
+        { "type": "twist_actions_panel",     "settings": { "title": "Twist Actions",    "deviceType": "TWIST", "datasource": "MockSerial" } },
+        { "type": "twist_setpoints_panel",   "settings": { "title": "Twist Setpoints",  "deviceType": "TWIST", "datasource": "MockSerial" } },
+        { "type": "twist_calibration_panel", "settings": { "title": "Twist Calibration","deviceType": "TWIST", "datasource": "MockSerial" } },
+        { "type": "vertical_gauge",          "settings": { "title": "Gauge", "min": 0, "max": 10, "barColor": "blue", "alarmEnabled": false, "refreshRate": 200, "sourceDef": { "ds": "MockSerial", "type": "serialport_datasource", "device": null, "device_uid": null, "var": 0 } } },
+        { "type": "vertical_gauge_manager",       "settings": { "title": "Gauge Manager" } },
+        { "type": "vertical_gauge_config_panel",  "settings": {} },
+        { "type": "thingset_device_ui",      "settings": { "channel": "can0" } },
+        { "type": "thingset_serial_device_ui","settings": { "datasource": "MockThingSetSerial", "autoRefresh": true } },
+        { "type": "thingset_mode_button",    "settings": { "channel": "can0", "labelOn": "On", "labelOff": "Off" } },
+        { "type": "thingset_control_panel",  "settings": { "channel": "can0", "autoHeight": false } },
+        { "type": "thingset_measurements",   "settings": { "channel": "can0" } },
+        { "type": "text_widget",  "settings": { "title": "Text",  "size": "regular", "value": "0",    "sparkline": false, "animate": false, "units": "" } },
+        { "type": "gauge",        "settings": { "title": "Gauge", "value": "50",     "units": "%",    "min_value": 0, "max_value": 100 } },
+        { "type": "sparkline",    "settings": { "title": "Spark", "value": "1",      "include_legend": false, "legend": "" } },
+        { "type": "pointer",      "settings": { "direction": "90", "value_text": "E", "units": "deg" } },
+        { "type": "indicator",    "settings": { "title": "Indicator", "value": "true", "on_text": "On", "off_text": "Off" } },
+        { "type": "google_map",   "settings": { "lat": "0", "lon": "0" } }
+      ]
+    },
+    {
+      "title": "Target",
+      "width": 1,
+      "row": { "2": 1 },
+      "col": { "2": 2 },
+      "col_width": 1,
+      "widgets": []
+    }
+  ],
+  "datasources": [
+    { "name": "MockSerial",       "type": "serialport_datasource",   "settings": { "portPath": "COM_MOCK", "baudRate": 115200, "separator": ":", "eol": "\\n", "refresh": 500 } },
+    { "name": "MockFast",         "type": "fast_frame_datasource",   "settings": { "portPath": "COM_MOCK", "baudRate": 115200, "separator": ":", "eol": "\\n", "refresh": 500 } },
+    { "name": "MockThingSetSerial","type": "thingset_serial_datasource","settings": { "autoDetect": true, "portPath": "COM_MOCK", "baudRate": 115200, "usePrefix": false, "refresh": 1000, "debug": false } },
+    { "name": "MockCan",          "type": "can_datasource",          "settings": { "channel": "can0", "device": "auto", "refresh": 500, "debug": false } }
+  ]
+}
