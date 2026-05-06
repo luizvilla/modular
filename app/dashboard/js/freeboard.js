@@ -4022,7 +4022,6 @@ var freeboard = (function()
 			function ddLog() {
 				var msg = '[drag-drop] ' + Array.prototype.join.call(arguments, ' ');
 				if (window.api && window.api.logger) { window.api.logger.log('log', [msg]); }
-				console.log(msg);
 			}
 
 			$section.sortable({
@@ -4064,23 +4063,22 @@ var freeboard = (function()
 					ddLog('receive | shouldRender(after)=' + widget.shouldRender() + ' — done');
 				},
 				update: function(event, ui) {
-					if (ui.sender) return; // cross-pane move handled by receive
+					// ui.sender is set on the RECEIVING list, not the SENDING list.
+					// When an item leaves this pane for another, update fires here with
+					// ui.sender=null and ui.item already gone → newIndex=-1.  Skip it;
+					// the receive handler on the target pane owns the cross-pane move.
+					if (ui.sender) return; // skip target's update — handled by receive
 					var widget = ui.item.data('ko-widget');
-					ddLog('update (within-pane) | widget=' + (widget ? widget.type() : 'NULL') +
-						' pane="' + viewModel.title() + '"');
-					if (!widget) {
-						ddLog('update | ABORT: widget is NULL');
-						return;
-					}
 					var newIndex = $(this).children('.sub-section').index(ui.item[0]);
-					ddLog('update | newIndex=' + newIndex +
-						' widgets(before)=' + viewModel.widgets().length);
+					ddLog('update | newIndex=' + newIndex + ' sender=' + !!ui.sender +
+						' widget=' + (widget ? widget.type() : 'NULL'));
+					if (!widget || newIndex === -1) return; // -1 = source exit for cross-pane drag
+					ddLog('update | within-pane reorder widgets(before)=' + viewModel.widgets().length);
 					viewModel.widgets.remove(widget);
 					viewModel.widgets.splice(newIndex, 0, widget);
-					ddLog('update | widgets(after)=' + viewModel.widgets().length +
-						' shouldRender(before)=' + widget.shouldRender());
+					ddLog('update | widgets(after)=' + viewModel.widgets().length);
 					widget.shouldRender(true);
-					ddLog('update | shouldRender(after)=' + widget.shouldRender() + ' — done');
+					ddLog('update | done');
 				}
 			});
 
@@ -4115,13 +4113,11 @@ var freeboard = (function()
 			$(element).closest('.sub-section').data('ko-widget', viewModel).data('ko-pane', bindingContext.$parent);
 			var _ddMsg = '[drag-drop] widget.init | type=' + viewModel.type() + ' shouldRender=' + viewModel.shouldRender();
 			if (window.api && window.api.logger) { window.api.logger.log('log', [_ddMsg]); }
-			console.log(_ddMsg);
 		},
 		update: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
 		{
 			var _ddMsg = '[drag-drop] widget.update | type=' + viewModel.type() + ' shouldRender=' + viewModel.shouldRender();
 			if (window.api && window.api.logger) { window.api.logger.log('log', [_ddMsg]); }
-			console.log(_ddMsg);
 			if(viewModel.shouldRender())
 			{
 				$(element).empty();
