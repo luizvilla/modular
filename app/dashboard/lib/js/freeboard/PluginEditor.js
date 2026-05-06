@@ -261,6 +261,57 @@ PluginEditor = function(jsEditor, valueEditor)
 			settings: {}
 		};
 
+		function debugTitleState(context, extra)
+		{
+			try
+			{
+				var titleInput = $("#setting-value-container-title").find("input[type='text']").first();
+				var payload = _.extend({
+					currentTypeName: currentTypeName,
+					selectedType: selectedType ? selectedType.type_name : undefined,
+					currentSettingsTitle: currentSettingsValues ? currentSettingsValues.title : undefined,
+					pendingSettingsTitle: newSettings && newSettings.settings ? newSettings.settings.title : undefined,
+					inputValue: titleInput.length ? titleInput.val() : undefined
+				}, extra || {});
+				if(!window.__pluginEditorTitleTrace)
+				{
+					window.__pluginEditorTitleTrace = [];
+				}
+				window.__pluginEditorTitleTrace.push({
+					timestamp: new Date().toISOString(),
+					context: context,
+					payload: payload
+				});
+				if(titleDebugPanel && titleDebugPanel.length)
+				{
+					titleDebugPanel.show();
+					titleDebugPanel.prepend($('<div></div>').text("[" + context + "] " + JSON.stringify(payload)));
+				}
+				console.log("[PluginEditor:title]", context, payload);
+			}
+			catch(err) {}
+		}
+
+		function setWidgetTitleValue(titleValue)
+		{
+			var normalizedTitle = String(titleValue || "").trim();
+			debugTitleState("before-auto-title-set", {
+				nextTitle: normalizedTitle
+			});
+			currentSettingsValues = _.clone(currentSettingsValues || {});
+			currentSettingsValues.title = normalizedTitle;
+			newSettings.settings.title = normalizedTitle;
+
+			var titleInput = $("#setting-value-container-title").find("input[type='text']").first();
+			if(titleInput.length)
+			{
+				titleInput.val(normalizedTitle).trigger("change");
+			}
+			debugTitleState("after-auto-title-set", {
+				appliedTitle: normalizedTitle
+			});
+		}
+
 		function createSettingRow(name, displayName)
 		{
 			var tr = $('<div id="setting-row-' + name + '" class="form-row"></div>').appendTo(form);
@@ -271,9 +322,11 @@ PluginEditor = function(jsEditor, valueEditor)
 
 		var selectedType;
 		var form = $('<div></div>');
+		var titleDebugPanel = $('<div id="plugin-editor-title-debug" style="display:none; margin:8px 0; padding:8px; border:1px solid #555; background:#111; color:#ddd; font:12px/1.4 monospace; white-space:pre-wrap; max-height:180px; overflow:auto;"></div>');
 
 		var pluginDescriptionElement = $('<div id="plugin-description"></div>').hide();
 		form.append(pluginDescriptionElement);
+		form.append(titleDebugPanel);
 		// Widget docs button shows alongside the widget type picker.
 		var docsButton = $('<button type="button" class="btn btn-sm btn-outline-light widget-docs-btn">Open widget docs</button>').hide();
 		form.append(docsButton);
@@ -507,6 +560,7 @@ PluginEditor = function(jsEditor, valueEditor)
 						{
 							var input = $('<input type="text">').appendTo(valueCell).change(function()
 							{
+								var previousValue = newSettings.settings[settingDef.name];
 								if(settingDef.type == "number")
 								{
 									newSettings.settings[settingDef.name] = Number($(this).val());
@@ -515,11 +569,27 @@ PluginEditor = function(jsEditor, valueEditor)
 								{
 									newSettings.settings[settingDef.name] = $(this).val();
 								}
+
+								if(settingDef.name === "title")
+								{
+									currentSettingsValues = _.clone(currentSettingsValues || {});
+									currentSettingsValues.title = newSettings.settings[settingDef.name];
+									debugTitleState("manual-title-change", {
+										previousValue: previousValue,
+										newValue: newSettings.settings[settingDef.name]
+									});
+								}
 							});
 
 							if(settingDef.name in currentSettingsValues)
 							{
 								input.val(currentSettingsValues[settingDef.name]);
+								if(settingDef.name === "title")
+								{
+									debugTitleState("title-input-initialized", {
+										initialValue: currentSettingsValues[settingDef.name]
+									});
+								}
 							}
 
 							if(typeaheadSource && settingDef.typeahead_data_field){
@@ -699,22 +769,28 @@ PluginEditor = function(jsEditor, valueEditor)
 
 			typeSelect.change(function()
 			{
-				var previousTypeName = selectedType ? selectedType.type_name : currentTypeName;
 				var nextTypeName = $(this).val();
+				debugTitleState("type-dropdown-change-start", {
+					nextTypeName: nextTypeName
+				});
 				newSettings.type = $(this).val();
 				newSettings.settings = {};
 
 				if(isWidgetType && !_.isUndefined(pluginTypes[nextTypeName]))
 				{
-					var shouldResetTitle = _.isUndefined(currentTypeName) || previousTypeName !== nextTypeName;
-					if(shouldResetTitle)
-					{
-						currentSettingsValues = {};
-						currentSettingsValues.title = _buildUniqueWidgetTitle(
-							_getDefaultWidgetTitle(nextTypeName, pluginTypes),
-							""
-						);
-					}
+					var computedTitle = _buildUniqueWidgetTitle(
+						_getDefaultWidgetTitle(nextTypeName, pluginTypes),
+						""
+					);
+					console.log("[PluginEditor:title] auto-title-computed", {
+						nextTypeName: nextTypeName,
+						computedTitle: computedTitle
+					});
+					currentSettingsValues = {};
+					setWidgetTitleValue(_buildUniqueWidgetTitle(
+						_getDefaultWidgetTitle(nextTypeName, pluginTypes),
+						""
+					));
 				}
 
 				// Remove all the previous settings
@@ -744,6 +820,9 @@ PluginEditor = function(jsEditor, valueEditor)
 
 					$("#dialog-ok").show();
 					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
+					debugTitleState("type-dropdown-change-finished", {
+						nextTypeName: nextTypeName
+					});
 				}
 
 				if(isWidgetType)
@@ -769,10 +848,10 @@ PluginEditor = function(jsEditor, valueEditor)
 			newSettings.settings = {};
 			if(isWidgetType && _.isUndefined(currentTypeName))
 			{
-				currentSettingsValues.title = _buildUniqueWidgetTitle(
+				setWidgetTitleValue(_buildUniqueWidgetTitle(
 					_getDefaultWidgetTitle(selectedType.type_name, pluginTypes),
 					currentSettingsValues.title
-				);
+				));
 			}
 			createSettingsFromDefinition(selectedType.settings);
 			if(isWidgetType)

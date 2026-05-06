@@ -2141,6 +2141,100 @@ PluginEditor = function(jsEditor, valueEditor)
 		return !isNaN(parseFloat(n)) && isFinite(n);
 	}
 
+	function _getWidgetTitleSetting(pluginType)
+	{
+		if(!pluginType || !_.isArray(pluginType.settings))
+		{
+			return undefined;
+		}
+
+		return _.find(pluginType.settings, function(settingDef)
+		{
+			return settingDef.name === "title";
+		});
+	}
+
+	function _getDefaultWidgetTitle(typeName, pluginTypes)
+	{
+		var pluginType = pluginTypes && pluginTypes[typeName];
+		var titleSetting = _getWidgetTitleSetting(pluginType);
+		if(titleSetting && !_.isUndefined(titleSetting.default_value) && titleSetting.default_value !== "")
+		{
+			return String(titleSetting.default_value);
+		}
+		if(pluginType && pluginType.display_name)
+		{
+			return String(pluginType.display_name);
+		}
+		return String(typeName || "Widget");
+	}
+
+	function _getExistingWidgetTitles()
+	{
+		var titles = [];
+		try
+		{
+			var model = freeboard.getLiveModel && freeboard.getLiveModel();
+			if(!model || !_.isFunction(model.panes))
+			{
+				return titles;
+			}
+
+			_.each(model.panes(), function(pane)
+			{
+				_.each(pane.widgets(), function(widget)
+				{
+					var title = widget.settings && widget.settings().title;
+					if(_.isFunction(title))
+					{
+						title = title();
+					}
+					title = String(title || "").trim();
+					if(title)
+					{
+						titles.push(title);
+					}
+				});
+			});
+		}
+		catch(err) {}
+
+		return titles;
+	}
+
+	function _buildUniqueWidgetTitle(baseTitle, ignoreTitle)
+	{
+		var base = String(baseTitle || "Widget").trim() || "Widget";
+		var ignore = String(ignoreTitle || "").trim();
+		var titles = _getExistingWidgetTitles();
+		if(ignore)
+		{
+			var ignored = false;
+			titles = _.filter(titles, function(title)
+			{
+				if(!ignored && title === ignore)
+				{
+					ignored = true;
+					return false;
+				}
+				return true;
+			});
+		}
+
+		if(!_.contains(titles, base))
+		{
+			return base;
+		}
+
+		var suffix = 2;
+		while(_.contains(titles, base + " " + suffix))
+		{
+			suffix++;
+		}
+
+		return base + " " + suffix;
+	}
+
 	function _appendCalculatedSettingRow(valueCell, newSettings, settingDef, currentValue, includeRemove)
 	{
 		var input = $('<textarea></textarea>');
@@ -2204,10 +2298,26 @@ PluginEditor = function(jsEditor, valueEditor)
 
 	function createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType)
 	{
+		currentSettingsValues = _.clone(currentSettingsValues || {});
+
 		var newSettings = {
 			type    : currentTypeName,
 			settings: {}
 		};
+
+		function setWidgetTitleValue(titleValue)
+		{
+			var normalizedTitle = String(titleValue || "").trim();
+			currentSettingsValues = _.clone(currentSettingsValues || {});
+			currentSettingsValues.title = normalizedTitle;
+			newSettings.settings.title = normalizedTitle;
+
+			var titleInput = $("#setting-value-container-title").find("input[type='text']").first();
+			if(titleInput.length)
+			{
+				titleInput.val(normalizedTitle).trigger("change");
+			}
+		}
 
 		function createSettingRow(name, displayName)
 		{
@@ -2528,6 +2638,12 @@ PluginEditor = function(jsEditor, valueEditor)
 								{
 									newSettings.settings[settingDef.name] = rawVal;
 								}
+
+								if(settingDef.name === "title")
+								{
+									currentSettingsValues = _.clone(currentSettingsValues || {});
+									currentSettingsValues.title = newSettings.settings[settingDef.name];
+								}
 							});
 
 							if(settingDef.name in currentSettingsValues)
@@ -2740,8 +2856,18 @@ PluginEditor = function(jsEditor, valueEditor)
 
 			typeSelect.change(function()
 			{
-				newSettings.type = $(this).val();
+				var nextTypeName = $(this).val();
+				newSettings.type = nextTypeName;
 				newSettings.settings = {};
+
+				if(isWidgetType && !_.isUndefined(pluginTypes[nextTypeName]))
+				{
+					currentSettingsValues = {};
+					setWidgetTitleValue(_buildUniqueWidgetTitle(
+						_getDefaultWidgetTitle(nextTypeName, pluginTypes),
+						""
+					));
+				}
 
 				// Remove all the previous settings
 				_removeSettingsRows();
@@ -2793,6 +2919,13 @@ PluginEditor = function(jsEditor, valueEditor)
 			selectedType = pluginTypes[pluginTypeNames[0]];
 			newSettings.type = selectedType.type_name;
 			newSettings.settings = {};
+			if(isWidgetType && _.isUndefined(currentTypeName))
+			{
+				setWidgetTitleValue(_buildUniqueWidgetTitle(
+					_getDefaultWidgetTitle(selectedType.type_name, pluginTypes),
+					currentSettingsValues.title
+				));
+			}
 			createSettingsFromDefinition(selectedType.settings);
 			if(isWidgetType)
 			{

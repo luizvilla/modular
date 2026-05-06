@@ -56,6 +56,27 @@
         }
     }
 
+    function resetDashboardToNew() {
+        console.log('New dashboard requested');
+
+        if (window.freeboard && typeof window.freeboard.newDashboard === 'function') {
+            console.log('Resetting via freeboard.newDashboard()');
+            window.freeboard.newDashboard();
+            window.freeboard.setEditing(false);
+            return;
+        }
+
+        if (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function') {
+            console.log('Resetting via freeboardModel.loadDashboard() fallback');
+            window.freeboardModel.loadDashboard({ allow_edit: true }, function () {
+                window.freeboardModel.setEditing(false);
+            });
+            return;
+        }
+
+        console.warn('New dashboard reset unavailable: freeboard API not ready');
+    }
+
     async function readTextFile(filePath) {
         if (!filePath) return '';
         if (filesApi && filesApi.readText) return filesApi.readText(filePath);
@@ -167,6 +188,10 @@
 
     // \ud83d\udd27 Global Dashboard Control API
     window.DashboardControl = {
+        resetDashboard() {
+            resetDashboardToNew();
+        },
+
         updateWidgetSetting(title, key, value) {
             const widget = getWidgetByTitle(title);
             if (widget && widget.settings()[key] !== undefined) {
@@ -187,4 +212,23 @@
             }
         }
     };
+
+    if (!window.__modularNewDashboardDelegated) {
+        document.addEventListener('click', function (event) {
+            const clickedButton = event.target && event.target.closest
+                ? event.target.closest('#new-dashboard-btn')
+                : null;
+
+            if (!clickedButton) return;
+
+            console.log('New dashboard button clicked', {
+                targetTag: event.target && event.target.tagName ? event.target.tagName : 'unknown'
+            });
+            resetDashboardToNew();
+        });
+        window.__modularNewDashboardDelegated = true;
+        console.log('New dashboard delegated click handler bound');
+    } else {
+        console.log('New dashboard delegated click handler already bound');
+    }
 })();
