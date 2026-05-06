@@ -4016,6 +4016,48 @@ var freeboard = (function()
 			}
 
 			freeboardUI.addPane(element, viewModel, bindingContext.$root.isEditing());
+
+			var $section = $(element).find('section').addClass('widget-sort-section');
+
+			$section.sortable({
+				connectWith     : '.widget-sort-section',
+				handle          : '.sub-section-tools',
+				placeholder     : 'sub-section-sortable-placeholder',
+				forcePlaceholderSize: true,
+				tolerance       : 'pointer',
+				disabled        : !theFreeboardModel.isEditing(),
+				start: function(event, ui) {
+					ui.placeholder.height(ui.item.outerHeight());
+				},
+				receive: function(event, ui) {
+					var widget     = ui.item.data('ko-widget');
+					var sourcePane = ui.item.data('ko-pane');
+					if (!widget || !sourcePane) return;
+					var newIndex = $(this).children('.sub-section').index(ui.item[0]);
+					ui.item.remove();
+					sourcePane.widgets.remove(widget);
+					viewModel.widgets.splice(newIndex, 0, widget);
+				},
+				update: function(event, ui) {
+					if (ui.sender) return; // cross-pane move handled by receive
+					var widget = ui.item.data('ko-widget');
+					if (!widget) return;
+					var newIndex = $(this).children('.sub-section').index(ui.item[0]);
+					var oldIndex = viewModel.widgets.indexOf(widget);
+					ui.item.remove();
+					viewModel.widgets.remove(widget);
+					viewModel.widgets.splice(oldIndex < newIndex ? newIndex - 1 : newIndex, 0, widget);
+				}
+			});
+
+			var editSub = theFreeboardModel.isEditing.subscribe(function(editing) {
+				$section.sortable(editing ? 'enable' : 'disable');
+			});
+
+			ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
+				editSub.dispose();
+				$section.sortable('destroy');
+			});
 		},
 		update: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
 		{
@@ -4035,6 +4077,8 @@ var freeboard = (function()
 			{
 				freeboardUI.attachWidgetEditIcons($(element).parent());
 			}
+			// Store references on the .sub-section wrapper so drag-and-drop handlers can look them up
+			$(element).closest('.sub-section').data('ko-widget', viewModel).data('ko-pane', bindingContext.$parent);
 		},
 		update: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
 		{

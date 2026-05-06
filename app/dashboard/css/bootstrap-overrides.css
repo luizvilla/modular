@@ -442,6 +442,13 @@ body.pane-resize-active .pane-resize-handle {
   white-space: nowrap;
 }
 
+.sub-section-sortable-placeholder {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  box-sizing: border-box;
+  visibility: visible !important;
+}
+
 .board-toolbar li.toolbar-separator {
   cursor: default;
   color: #6f6f6f;
