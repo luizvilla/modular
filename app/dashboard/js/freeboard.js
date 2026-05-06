@@ -4030,8 +4030,7 @@ var freeboard = (function()
 				placeholder     : 'sub-section-sortable-placeholder',
 				forcePlaceholderSize: true,
 				tolerance       : 'pointer',
-				appendTo        : 'body',
-				zIndex          : 1000,
+				scroll          : false,
 				disabled        : !theFreeboardModel.isEditing(),
 				start: function(event, ui) {
 					ui.placeholder.height(ui.item.outerHeight());
