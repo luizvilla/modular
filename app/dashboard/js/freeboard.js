@@ -4033,20 +4033,26 @@ var freeboard = (function()
 					var widget     = ui.item.data('ko-widget');
 					var sourcePane = ui.item.data('ko-pane');
 					if (!widget || !sourcePane) return;
+					// Read desired position while jQuery UI has placed the item in target.
+					// Do NOT call ui.item.remove() — sourcePane.widgets.remove() triggers
+					// Knockout to call ko.removeNode() on the same node (now in target),
+					// removing it from the DOM cleanly before splice re-creates it.
 					var newIndex = $(this).children('.sub-section').index(ui.item[0]);
-					ui.item.remove();
 					sourcePane.widgets.remove(widget);
 					viewModel.widgets.splice(newIndex, 0, widget);
+					// shouldRender is false after the first render; force a re-draw in the new container.
+					widget.shouldRender(true);
 				},
 				update: function(event, ui) {
 					if (ui.sender) return; // cross-pane move handled by receive
 					var widget = ui.item.data('ko-widget');
 					if (!widget) return;
+					// jQuery UI has already moved the node to newIndex; Knockout removes it
+					// from that position and re-inserts via splice, then we force a re-draw.
 					var newIndex = $(this).children('.sub-section').index(ui.item[0]);
-					var oldIndex = viewModel.widgets.indexOf(widget);
-					ui.item.remove();
 					viewModel.widgets.remove(widget);
-					viewModel.widgets.splice(oldIndex < newIndex ? newIndex - 1 : newIndex, 0, widget);
+					viewModel.widgets.splice(newIndex, 0, widget);
+					widget.shouldRender(true);
 				}
 			});
 
