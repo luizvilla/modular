@@ -973,7 +973,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 		if(!editing)
 		{
-			$("#toggle-header-icon").addClass("icon-wrench").removeClass("icon-chevron-up");
+			$("#toggle-header-icon").addClass("icon-chevron-down").removeClass("icon-chevron-up");
 			$(".gridster .gs_w").css({cursor: "default"});
 			$("#main-header").animate({"top": (tabsOffset - barHeight) + "px"}, animateLength);
 			$("#board-content").animate({"top": (tabsOffset + 20) + "px"}, animateLength);
@@ -983,7 +983,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		}
 		else
 		{
-			$("#toggle-header-icon").addClass("icon-chevron-up").removeClass("icon-wrench");
+			$("#toggle-header-icon").addClass("icon-chevron-up").removeClass("icon-chevron-down");
 			$(".gridster .gs_w").css({cursor: "pointer"});
 			$("#main-header").animate({"top": tabsOffset + "px"}, animateLength);
 			$("#board-content").animate({"top": (tabsOffset + barHeight + 20) + "px"}, animateLength);

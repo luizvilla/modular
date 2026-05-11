@@ -293,6 +293,14 @@ function setAppMenu() {
             label: 'File',
             submenu: [
                 {
+                    label: 'New Dashboard',
+                    click: () => {
+                        if (mainWindow && mainWindow.webContents) {
+                            mainWindow.webContents.send('menu-new-dashboard');
+                        }
+                    }
+                },
+                {
                     label: 'Load Dashboard',
                     click: () => {
                         if (mainWindow && mainWindow.webContents) {

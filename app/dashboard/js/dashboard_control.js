@@ -125,6 +125,9 @@
             }
         });
     } else if (ipcRenderer) {
+        ipcRenderer.on('menu-new-dashboard', () => {
+            resetDashboardToNew();
+        });
         ipcRenderer.on('menu-load-dashboard', async () => {
             // Use main-process dialog so file chooser is treated as a user activation.
             try {
