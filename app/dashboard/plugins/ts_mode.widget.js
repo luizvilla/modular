@@ -121,6 +121,7 @@
     type_name: 'thingset_mode_button',
     display_name: 'ThingSet Mode Button',
     description: 'Per-device power toggle: sets wMode (1/0) and Leg0 wOn (true/false)',
+    icon: 'power-off',
     settings: [
       { name: 'channel', display_name: 'Channel', type: 'text', default_value: 'can0' },
       { name: 'labelOn', display_name: 'Label (active)', type: 'text', default_value: 'Power ON' },

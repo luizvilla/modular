@@ -28,7 +28,7 @@
         type_name: 'vertical_gauge_manager',
         display_name: 'Gauge Channel Manager',
         description: 'Select datasource/channel for a target Vertical Gauge',
-        category: 'Vertical gauge',
+        category: 'Plots',
         settings: [],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new GaugeManager(settings));

@@ -3,6 +3,7 @@
         type_name: "serial_command_buttons",
         display_name: "Serial Commands sender",
         description: "Buttons to send commands over a serial port",
+        icon: "terminal",
         settings: [
             {
                 name: "buttons",

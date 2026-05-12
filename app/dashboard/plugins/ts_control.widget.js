@@ -148,6 +148,7 @@
     type_name: 'thingset_control_panel',
     display_name: 'ThingSet Control Panel',
     description: 'Per-device: Voltage/Current (Leg0 wModeVC) and Reference (wRef)',
+    icon: 'gamepad',
     settings: [
       { name: 'channel', display_name: 'Channel', type: 'text', default_value: 'can0' },
       { name: 'autoHeight', display_name: 'Auto height (fit devices)', type: 'boolean', default_value: false }

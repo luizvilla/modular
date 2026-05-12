@@ -27,6 +27,7 @@
         type_name: "xy_plot_uplot",
         display_name: "XY Plot widget",
         description: "Realtime X versus Y plot with trailing history",
+        icon: "chart-line",
         external_scripts: [
             "https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js",
             "https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css"

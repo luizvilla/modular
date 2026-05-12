@@ -5,7 +5,8 @@
         type_name: 'twist_setpoints_panel',
         display_name: 'Twist/Ownverter Setpoints',
         description: 'Send reference, duty, frequency, phase, and dead-time setpoints over serial.',
-        category: 'Python Communication Protocol',
+        icon: 'sliders',
+        category: 'OwnTech',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' },
             {

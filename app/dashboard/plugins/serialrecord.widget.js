@@ -3,6 +3,7 @@
         type_name: "serial_csv_recorder",
         display_name: "Serial CSV Recorder",
         description: "Start/stop CSV recording on a serial datasource",
+        icon: "file-csv",
         settings: [
             {
                 name: "filePath",

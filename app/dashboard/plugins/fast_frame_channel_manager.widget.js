@@ -5,6 +5,7 @@
         type_name: 'fast_frame_channel_manager',
         display_name: 'Fast Frame Channel Manager',
         category: 'Fast Frame',
+        icon: 'layer-group',
         description: 'Manage fast-frame CSV source and plotted channels on a target plot',
         settings: [],
         newInstance: function (settings, cb) { cb(new FastFrameChannelManager(settings)); }

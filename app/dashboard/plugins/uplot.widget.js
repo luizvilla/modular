@@ -32,6 +32,7 @@
         type_name: "owntech_plot_uplot",
         display_name: "Plot widget",
         description: "Realtime uPlot-based chart. Accepts streaming values or a full dataset",
+        icon: "chart-line",
         external_scripts: [
             "https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js",
             "https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css"

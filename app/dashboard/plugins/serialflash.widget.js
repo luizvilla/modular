@@ -8,6 +8,7 @@
         type_name: 'serial_flasher',
         display_name: 'Firmware Flasher',
         description: 'Flash firmware to a device over serial using mcumgr',
+        icon: 'microchip',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' }
         ],

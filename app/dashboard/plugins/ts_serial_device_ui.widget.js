@@ -381,6 +381,7 @@
     type_name: 'thingset_serial_device_ui',
     display_name: 'ThingSet Serial Device UI',
     description: 'Inspect and control ThingSet devices via serial shell commands.',
+    icon: 'plug',
     settings: [
       { name: 'datasource', display_name: 'Serial datasource', type: 'text' },
       { name: 'usePrefix', display_name: "Prefix commands with 'thingset '", type: 'boolean', default_value: false },

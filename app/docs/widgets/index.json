@@ -4,7 +4,7 @@
     {
       "type": "owntech_plot_uplot",
       "title": "Plot (uPlot)",
-      "category": "Plots",
+      "category": "OwnTech",
       "doc": "plots/plot-uplot/README.md",
       "requiresThingset": false
     },
@@ -39,15 +39,22 @@
     {
       "type": "vertical_gauge",
       "title": "Vertical Gauge",
-      "category": "Gauges",
+      "category": "Plots",
       "doc": "gauges/vertical-gauge/README.md",
       "requiresThingset": false
     },
     {
       "type": "vertical_gauge_manager",
       "title": "Gauge Channel Manager",
-      "category": "Gauges",
+      "category": "Plots",
       "doc": "gauges/vertical-gauge-manager/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "vertical_gauge_config_panel",
+      "title": "Vertical Gauge UI",
+      "category": "Plots",
+      "doc": "gauges/vertical-gauge-ui/README.md",
       "requiresThingset": false
     },
     {
@@ -144,21 +151,21 @@
     {
       "type": "twist_actions_panel",
       "title": "Twist/Ownverter Actions",
-      "category": "Python Communication Protocol",
+      "category": "OwnTech",
       "doc": "twist/actions/README.md",
       "requiresThingset": false
     },
     {
       "type": "twist_setpoints_panel",
       "title": "Twist/Ownverter Setpoints",
-      "category": "Python Communication Protocol",
+      "category": "OwnTech",
       "doc": "twist/setpoints/README.md",
       "requiresThingset": false
     },
     {
       "type": "twist_calibration_panel",
       "title": "Twist/Ownverter Calibration",
-      "category": "Python Communication Protocol",
+      "category": "OwnTech",
       "doc": "twist/calibration/README.md",
       "requiresThingset": false
     }

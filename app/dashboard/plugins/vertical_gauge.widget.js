@@ -35,7 +35,8 @@
         type_name: 'vertical_gauge',
         display_name: 'Vertical Gauge',
         description: 'Single-channel vertical gauge with min/max and alarm',
-        category: 'Vertical gauge',
+        icon: 'gauge-high',
+        category: 'Plots',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' },
             // Keep the widget config slim; advanced tuning is handled via helper widgets.

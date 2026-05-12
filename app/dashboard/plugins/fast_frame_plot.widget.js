@@ -5,6 +5,7 @@
         type_name: 'fast_frame_plot',
         display_name: 'Fast Frame Plot',
         category: 'Fast Frame',
+        icon: 'chart-area',
         description: 'Plots multiple CSV-backed fast-frame channels against time or sample index',
         external_scripts: [
             'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js',

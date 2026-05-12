@@ -5,7 +5,8 @@
         type_name: 'twist_actions_panel',
         display_name: 'Twist/Ownverter Actions',
         description: 'Send power and toggle commands over serial.',
-        category: 'Python Communication Protocol',
+        icon: 'bolt',
+        category: 'OwnTech',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' },
             {

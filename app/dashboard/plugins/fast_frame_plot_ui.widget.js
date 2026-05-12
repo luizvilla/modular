@@ -6,6 +6,7 @@
         type_name: 'fast_frame_plot_ui',
         display_name: 'Fast Frame UI',
         category: 'Fast Frame',
+        icon: 'chart-line',
         description: 'Configure a Fast Frame plot widget',
         settings: [],
         newInstance: function (settings, cb) { cb(new FastFramePlotUI(settings)); }

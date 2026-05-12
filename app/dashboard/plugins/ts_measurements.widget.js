@@ -236,6 +236,7 @@
     type_name: 'thingset_measurements',
     display_name: 'ThingSet Measurements',
     description: 'Toggle measurement subscriptions per device and auto-enable reporting',
+    icon: 'gauge',
     settings: [
       { name: 'channel', display_name: 'Channel', type: 'text', default_value: 'can0' }
     ],

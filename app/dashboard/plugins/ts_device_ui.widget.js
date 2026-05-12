@@ -531,6 +531,7 @@
     type_name: 'thingset_device_ui',
     display_name: 'ThingSet Device UI',
     description: 'Select a CAN device and render a UI from its datanodes (JSON tree).',
+    icon: 'display',
     settings: [
       { name: 'channel', display_name: 'Channel', type: 'text', default_value: 'can0' }
     ],
@@ -744,7 +745,6 @@
     this.getHeight = function () { return 8; };
   }
 }());
-
 
 
 

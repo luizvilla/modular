@@ -5,7 +5,8 @@
         type_name: 'twist_calibration_panel',
         display_name: 'Twist/Ownverter Calibration',
         description: 'Send gain/offset calibration commands over serial.',
-        category: 'Python Communication Protocol',
+        icon: 'ruler-combined',
+        category: 'OwnTech',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' },
             {
