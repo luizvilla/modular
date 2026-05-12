@@ -201,8 +201,8 @@
                 csvDirectory,
                 csvPath,
                 timeColumn: this.controls.xVariable.val() || '',
-                xVariable: widget.settings().xVariable,
-                yVariable: widget.settings().yVariable
+                xVariable: this.controls.xVariable.val() || '',
+                yVariable: this.controls.yVariable.val() || widget.settings().yVariable || ''
             });
         }
 
