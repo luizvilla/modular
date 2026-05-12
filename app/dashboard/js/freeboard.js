@@ -4561,6 +4561,20 @@ var freeboard = (function()
 				return null;
 			};
 
+				var left = $('<div class="col-md-6"></div>');
+				var right = $('<div class="col-md-6"></div>');
+				form.append(left, right);
+
+				var titleInput = createInput('Title', 'title', 'text', left);
+				var historyInput = createInput('History Length', 'historyLength', 'number', left);
+				var refreshInput = createInput('Refresh Rate (ms)', 'refreshRate', 'number', left);
+				var xLabelInput = createInput('X Label', 'xLabel', 'text', left);
+				var yLabelInput = createInput('Y Label', 'yLabel', 'text', left);
+				var xMinInput = createInput('X Min', 'xMin', 'number', left);
+				var xMaxInput = createInput('X Max', 'xMax', 'number', left);
+				var yMinInput = createInput('Y Min', 'yMin', 'number', left);
+				var yMaxInput = createInput('Y Max', 'yMax', 'number', left);
+
 				var fetchDatasourceHeaders = async function(dsName) {
 					var type = getDatasourceType(dsName);
 					if (!dsName || !type) return [];
