@@ -1827,7 +1827,7 @@ var WIDGET_CATEGORY_STORAGE_KEY = "freeboard.widget_categories";
 
 function _getDefaultWidgetCategories()
 {
-	return ["Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Other"];
+	return ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Other"];
 }
 
 function _normalizeCategories(categories)
@@ -1847,11 +1847,15 @@ function _normalizeCategories(categories)
 	return normalized;
 }
 
-	function _inferWidgetCategory(typeName, pluginType)
-	{
+function _inferWidgetCategory(typeName, pluginType)
+{
 	var name = (typeName || "").toLowerCase();
 	var display = (pluginType && pluginType.display_name ? pluginType.display_name : "").toLowerCase();
 
+	if(/^owntech_|^twist_/.test(name) || display.indexOf("owntech") > -1 || display.indexOf("twist") === 0)
+	{
+		return "OwnTech";
+	}
 	if(name.indexOf("fast_frame") === 0 || display.indexOf("fast frame") > -1)
 	{
 		return "Fast Frame";
@@ -1873,8 +1877,8 @@ function _normalizeCategories(categories)
 		return "Controls";
 	}
 
-		return "Other";
-	}
+	return "Other";
+}
 
 	function _openWidgetDocs(typeName)
 	{
@@ -2760,23 +2764,159 @@ PluginEditor = function(jsEditor, valueEditor)
 		// Create our body
 		var pluginTypeNames = _.keys(pluginTypes);
 		var typeSelect;
+		var typeControl;
+		var widgetPicker;
+		var firstWidgetTypeName;
+		var widgetCategoryOrder = ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Other"];
+
+		var widgetCategoryDefaultIcons = {
+			"OwnTech": "bolt",
+			"Fast Frame": "chart-area",
+			"Serial": "terminal",
+			"ThingSet": "network-wired",
+			"Plots": "chart-line",
+			"Controls": "sliders",
+			"Other": "puzzle-piece"
+		};
+
+		function sortWidgetPlugins(category, list)
+		{
+			var preferredOrder = {
+				"OwnTech": {
+					"owntech_plot_uplot": 0,
+					"twist_actions_panel": 1,
+					"twist_setpoints_panel": 2,
+					"twist_calibration_panel": 3
+				},
+				"Fast Frame": {
+					"fast_frame_plot": 0,
+					"fast_frame_channel_manager": 1,
+					"fast_frame_plot_ui": 2,
+					"fast_frame_control": 3
+				},
+				"Plots": {
+					"uplot_series_manager": 0,
+					"uplot_config_panel": 1,
+					"xy_plot_uplot": 2,
+					"xy_plot_source_manager": 3,
+					"vertical_gauge": 4,
+					"vertical_gauge_manager": 5,
+					"vertical_gauge_config_panel": 6
+				}
+			};
+
+			return list.slice(0).sort(function(a, b)
+			{
+				var orderMap = preferredOrder[category] || null;
+				var rankA = orderMap && !_.isUndefined(orderMap[a.type_name]) ? orderMap[a.type_name] : 999;
+				var rankB = orderMap && !_.isUndefined(orderMap[b.type_name]) ? orderMap[b.type_name] : 999;
+				if(rankA !== rankB) return rankA - rankB;
+
+				var labelA = (a.display_name || a.type_name || "").toLowerCase();
+				var labelB = (b.display_name || b.type_name || "").toLowerCase();
+				if(labelA < labelB) return -1;
+				if(labelA > labelB) return 1;
+				return 0;
+			});
+		}
+
+		function applyWidgetTypeSelection(nextTypeName, options)
+		{
+			options = options || {};
+
+			newSettings.type = nextTypeName;
+			newSettings.settings = {};
+
+			if(typeSelect && typeSelect.is("select"))
+			{
+				typeSelect.val(nextTypeName);
+			}
+			if(widgetPicker)
+			{
+				widgetPicker.find(".widget-tile").removeClass("selected").attr("aria-pressed", "false");
+
+				var selectedTile = widgetPicker.find('.widget-tile[data-type="' + nextTypeName + '"]');
+				if(selectedTile.length)
+				{
+					selectedTile.addClass("selected").attr("aria-pressed", "true");
+				}
+			}
+
+			if(isWidgetType && !options.preserveCurrentSettings && !_.isUndefined(pluginTypes[nextTypeName]))
+			{
+				currentSettingsValues = {};
+				setWidgetTitleValue(_buildUniqueWidgetTitle(
+					_getDefaultWidgetTitle(nextTypeName, pluginTypes),
+					""
+				));
+			}
+
+			_removeSettingsRows();
+			selectedType = pluginTypes[nextTypeName];
+
+			if(_.isUndefined(selectedType))
+			{
+				$("#setting-row-instance-name").hide();
+				$("#dialog-ok").hide();
+				pluginDescriptionElement.hide();
+				if(typeControl)
+				{
+					typeControl.removeAttr("title");
+				}
+			}
+			else
+			{
+				$("#setting-row-instance-name").show();
+
+				if(selectedType.description && selectedType.description.length > 0)
+				{
+					pluginDescriptionElement.html(selectedType.description).show();
+					if(typeControl)
+					{
+						typeControl.attr("title", selectedType.description);
+					}
+				}
+				else
+				{
+					pluginDescriptionElement.hide();
+					if(typeControl)
+					{
+						typeControl.removeAttr("title");
+					}
+				}
+
+				$("#dialog-ok").show();
+				createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
+			}
+
+			if(isWidgetType)
+			{
+				docsButton.show();
+				docsButton.prop("disabled", _.isUndefined(selectedType));
+			}
+		}
 
 		if(pluginTypeNames.length > 1)
 		{
 			var typeRow = createSettingRow("plugin-types", "Type");
-			typeSelect = $('<select></select>').appendTo($('<div class="styled-select"></div>').appendTo(typeRow));
-
-			typeSelect.append($("<option>Select a type...</option>").attr("value", "undefined"));
 
 			if(isWidgetType)
 			{
+				var typeRowContainer = typeRow.closest(".form-row");
+				typeRowContainer.addClass("widget-picker-row");
+				typeRowContainer.find(".form-label").hide();
+				typeRow.css("float", "none");
 				var categoryConfig = getWidgetCategoryConfig();
-				var categories = categoryConfig.categories.slice(0);
+				var categories = widgetCategoryOrder.slice(0);
 				var grouped = {};
 
 				_.each(pluginTypes, function(pluginType)
 				{
 					var category = getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
+					if(!_.contains(categories, category))
+					{
+						category = "Other";
+					}
 					if(!grouped[category])
 					{
 						grouped[category] = [];
@@ -2784,65 +2924,69 @@ PluginEditor = function(jsEditor, valueEditor)
 					grouped[category].push(pluginType);
 				});
 
-				_.each(_.keys(grouped), function(category)
-				{
-					if(!_.contains(categories, category))
-					{
-						categories.push(category);
-					}
-				});
+				widgetPicker = $('<div class="widget-picker"></div>').appendTo(typeRow);
+				typeControl = widgetPicker;
 
 				_.each(categories, function(category)
 				{
 					var list = grouped[category];
 					if(!list || list.length === 0) return;
 
-					typeSelect.append($("<option></option>").text("-- " + category + " --").attr("value", "").prop("disabled", true));
-
-					// Preserve a custom ordering for plot + vertical gauge widgets within their categories.
-					var preferredOrder = {
-						"Plots": {
-							"owntech_plot_uplot": 0,
-							"uplot_series_manager": 1,
-							"uplot_config_panel": 2
-						},
-						"Fast Frame": {
-							"fast_frame_plot": 0,
-							"fast_frame_channel_manager": 1,
-							"fast_frame_plot_ui": 2,
-							"fast_frame_control": 3
-						},
-						"Vertical gauge": {
-							"vertical_gauge": 0,
-							"vertical_gauge_manager": 1,
-							"vertical_gauge_config_panel": 2
-						}
-					};
-					var orderedList = list.slice(0).sort(function(a, b)
+					var section = $('<div class="widget-picker-section"></div>').appendTo(widgetPicker);
+					if(category === "OwnTech")
 					{
-						var orderMap = preferredOrder[category] || null;
-						var rankA = orderMap && orderMap[a.type_name] !== undefined ? orderMap[a.type_name] : 999;
-						var rankB = orderMap && orderMap[b.type_name] !== undefined ? orderMap[b.type_name] : 999;
-						if(rankA !== rankB) return rankA - rankB;
-						var labelA = (a.display_name || a.type_name || "").toLowerCase();
-						var labelB = (b.display_name || b.type_name || "").toLowerCase();
-						if(labelA < labelB) return -1;
-						if(labelA > labelB) return 1;
-						return 0;
-					});
+						section.addClass("owntech");
+					}
+
+					$('<div class="widget-picker-section-title"></div>').text(category).appendTo(section);
+					var grid = $('<div class="widget-picker-grid"></div>').appendTo(section);
+					var orderedList = sortWidgetPlugins(category, list);
+					if(_.isUndefined(firstWidgetTypeName) && orderedList.length > 0)
+					{
+						firstWidgetTypeName = orderedList[0].type_name;
+					}
+
 					_.each(orderedList, function(pluginType)
 					{
-						var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
+						var iconName = pluginType.icon || widgetCategoryDefaultIcons[category] || widgetCategoryDefaultIcons.Other;
+						var tile = $('<div class="widget-tile" tabindex="0" role="button" aria-pressed="false"></div>')
+							.attr("data-type", pluginType.type_name)
+							.append($('<i class="fa-solid"></i>').addClass("fa-" + iconName))
+							.append($('<span></span>').text(pluginType.display_name || pluginType.type_name))
+							.appendTo(grid);
+
 						if(pluginType.description && pluginType.description.length > 0)
 						{
-							option.attr("title", pluginType.description);
+							tile.attr("title", pluginType.description);
 						}
-						typeSelect.append(option);
+
+						tile.on("click", function()
+						{
+							if(!$(this).hasClass("selected"))
+							{
+								applyWidgetTypeSelection(pluginType.type_name);
+							}
+						});
+						tile.on("keydown", function(event)
+						{
+							if(event.which === 13 || event.which === 32)
+							{
+								event.preventDefault();
+								if(!$(this).hasClass("selected"))
+								{
+									applyWidgetTypeSelection(pluginType.type_name);
+								}
+							}
+						});
 					});
 				});
 			}
 			else
 			{
+				typeSelect = $('<select></select>').appendTo($('<div class="styled-select"></div>').appendTo(typeRow));
+				typeControl = typeSelect;
+				typeSelect.append($("<option>Select a type...</option>").attr("value", "undefined"));
+
 				_.each(pluginTypes, function(pluginType)
 				{
 					var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
@@ -2852,58 +2996,12 @@ PluginEditor = function(jsEditor, valueEditor)
 					}
 					typeSelect.append(option);
 				});
+
+				typeSelect.change(function()
+				{
+					applyWidgetTypeSelection($(this).val());
+				});
 			}
-
-			typeSelect.change(function()
-			{
-				var nextTypeName = $(this).val();
-				newSettings.type = nextTypeName;
-				newSettings.settings = {};
-
-				if(isWidgetType && !_.isUndefined(pluginTypes[nextTypeName]))
-				{
-					currentSettingsValues = {};
-					setWidgetTitleValue(_buildUniqueWidgetTitle(
-						_getDefaultWidgetTitle(nextTypeName, pluginTypes),
-						""
-					));
-				}
-
-				// Remove all the previous settings
-				_removeSettingsRows();
-
-				selectedType = pluginTypes[typeSelect.val()];
-
-				if(_.isUndefined(selectedType))
-				{
-					$("#setting-row-instance-name").hide();
-					$("#dialog-ok").hide();
-				}
-				else
-				{
-					$("#setting-row-instance-name").show();
-
-					if(selectedType.description && selectedType.description.length > 0)
-					{
-						pluginDescriptionElement.html(selectedType.description).show();
-						typeSelect.attr("title", selectedType.description);
-					}
-					else
-					{
-						pluginDescriptionElement.hide();
-						typeSelect.removeAttr("title");
-					}
-
-					$("#dialog-ok").show();
-					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
-				}
-
-				if(isWidgetType)
-				{
-					docsButton.show();
-					docsButton.prop("disabled", _.isUndefined(selectedType));
-				}
-			});
 
 			if(isWidgetType)
 			{
@@ -2948,6 +3046,26 @@ PluginEditor = function(jsEditor, valueEditor)
 			{
 				$("#dialog-ok").show();
 				typeSelect.val(currentTypeName).trigger("change");
+			}
+		}
+		else if(widgetPicker)
+		{
+			if(_.isUndefined(currentTypeName))
+			{
+				if(!_.isUndefined(firstWidgetTypeName))
+				{
+					applyWidgetTypeSelection(firstWidgetTypeName);
+				}
+				else
+				{
+					$("#setting-row-instance-name").hide();
+					$("#dialog-ok").hide();
+				}
+			}
+			else
+			{
+				$("#dialog-ok").show();
+				applyWidgetTypeSelection(currentTypeName, { preserveCurrentSettings: true });
 			}
 		}
 	}
