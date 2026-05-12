@@ -4017,7 +4017,7 @@ var freeboard = (function()
 						}
 					}
 
-					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'owntech_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot')) {
+if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'owntech_plot_uplot' || instanceType === 'xy_plot_uplot')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
 					}
@@ -4059,7 +4059,7 @@ var freeboard = (function()
 
 								freeboardUI.attachWidgetEditIcons(element);
 
-								if (newSettings.type === 'owntech_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot') {
+								if (newSettings.type === 'owntech_plot_uplot' || newSettings.type === 'xy_plot_uplot') {
 									freeboard.openIntegratedPlotEditor(newViewModel, newSettings.type);
 								}
 							}
