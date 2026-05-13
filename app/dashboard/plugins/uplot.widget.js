@@ -51,9 +51,10 @@ class OwnTechPlotUPlot {
             // Keep the chart area stable and render channel values in a separate aligned grid.
             this.container = $('<div class="uplot-widget-shell"></div>');
             this.chartHost = $('<div class="uplot-chart-host"></div>');
+            this.summaryHost = $('<div class="uplot-source-summary small text-muted border rounded p-2"></div>');
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.readoutHost = $('<div class="uplot-readout-grid"></div>');
-            this.container.append(this.chartHost, this.readoutHost, this.resizeHandle);
+            this.container.append(this.chartHost, this.summaryHost, this.readoutHost, this.resizeHandle);
             this.plot = null;
             this.seriesCount = 0;
             this.dataBuffer = [[], []]; // [timestamps, [series1, series2, ...]]
@@ -205,7 +206,10 @@ class OwnTechPlotUPlot {
                 }
             }
 
-            if (changed && this.plot) this._resetPlot();
+            if (changed) {
+                this._renderSourceSummary();
+                if (this.plot) this._resetPlot();
+            }
         }
 
         _getSeriesLabel(idx) {
@@ -229,12 +233,119 @@ class OwnTechPlotUPlot {
             const chIdx = mapping.idx ?? this.channelIndices[idx] ?? idx;
             const colors = this.colorsByDs[ds] || [];
             if (colors[chIdx]) return colors[chIdx];
-            // Allow the UI controller to override the default palette for plot colors.
-            const palette = Array.isArray(window.PlotColorPalette) && window.PlotColorPalette.length
-                ? window.PlotColorPalette
-                : (typeof ColorBlind10 !== "undefined" ? ColorBlind10 : null);
+            const paletteThemes = {
+                ColorBlind10: (typeof ColorBlind10 !== "undefined") ? ColorBlind10 : [],
+                OfficeClassic6: (typeof OfficeClassic6 !== "undefined") ? OfficeClassic6 : [],
+                HueCircle19: (typeof HueCircle19 !== "undefined") ? HueCircle19 : [],
+                Tableau20: (typeof Tableau20 !== "undefined") ? Tableau20 : []
+            };
+            const paletteName = typeof this.settings.colorPalette === 'function' ? this.settings.colorPalette() : this.settings.colorPalette;
+            const configuredPalette = paletteName && Array.isArray(paletteThemes[paletteName]) ? paletteThemes[paletteName] : [];
+            // Keep the runtime palette override as a fallback for legacy helpers.
+            const palette = configuredPalette.length
+                ? configuredPalette
+                : (Array.isArray(window.PlotColorPalette) && window.PlotColorPalette.length
+                    ? window.PlotColorPalette
+                    : ((typeof ColorBlind10 !== "undefined") ? ColorBlind10 : null));
             if (palette && palette.length) return palette[idx % palette.length];
             return `hsl(${(idx * 60) % 360}, 70%, 50%)`;
+        }
+
+        _formatIndexedChannelLabel(dsName, index) {
+            const headers = this.headersByDs[dsName] || [];
+            if (headers[index]) return headers[index];
+            const alpha = String.fromCharCode(65 + (index % 26));
+            const suffix = index >= 26 ? ` ${Math.floor(index / 26) + 1}` : '';
+            return `Channel ${alpha}${suffix}`;
+        }
+
+        _formatSourceReference(sourceDef, fallbackIndex) {
+            if (!sourceDef || !sourceDef.ds) {
+                return fallbackIndex === undefined ? 'Unknown source' : this._formatIndexedChannelLabel(this.datasourceName, fallbackIndex);
+            }
+            const dsType = sourceDef.type || this._getDatasourceType(sourceDef.ds) || '';
+            if (dsType === 'can_datasource') {
+                const device = sourceDef.device_uid
+                    ? `${sourceDef.device || 'device'} (${sourceDef.device_uid})`
+                    : (sourceDef.device || 'device');
+                return `${sourceDef.ds} / ${device} / ${sourceDef.var || 'variable'}`;
+            }
+            if (dsType === 'signal_generator_datasource') {
+                return `${sourceDef.ds} / Signal`;
+            }
+            if (Number.isFinite(Number(sourceDef.var))) {
+                return `${sourceDef.ds} / ${this._formatIndexedChannelLabel(sourceDef.ds, Number(sourceDef.var))}`;
+            }
+            return `${sourceDef.ds} / ${sourceDef.var || 'variable'}`;
+        }
+
+        _formatSeriesSummary(def, idx) {
+            if (def && def.a && def.a.ds) {
+                const primary = this._formatSourceReference(def.a);
+                let sourceText = primary;
+                switch (def.op) {
+                    case 'negate':
+                        sourceText = `-${primary}`;
+                        break;
+                    case 'abs':
+                        sourceText = `abs(${primary})`;
+                        break;
+                    case 'scale':
+                        sourceText = `${primary} x ${Number(def.param) || 0}`;
+                        break;
+                    case 'offset':
+                        sourceText = `${primary} + ${Number(def.param) || 0}`;
+                        break;
+                    case 'mulvar':
+                        sourceText = `${primary} x ${this._formatSourceReference(def.b)}`;
+                        break;
+                    default:
+                        break;
+                }
+                return {
+                    label: def.label || this._getSeriesLabel(idx),
+                    value: sourceText
+                };
+            }
+
+            const mapping = this.dsMap[idx] || {};
+            const ds = mapping.ds ?? this.datasourceName;
+            const chIdx = mapping.idx ?? this.channelIndices[idx] ?? idx;
+            return {
+                label: this._getSeriesLabel(idx),
+                value: `${ds || 'Datasource'} / ${this._formatIndexedChannelLabel(ds, chIdx)}`
+            };
+        }
+
+        _renderSourceSummary() {
+            if (!this.summaryHost) return;
+            const entries = [];
+            if (Array.isArray(this.seriesDefs) && this.seriesDefs.length) {
+                this.seriesDefs.forEach((def, idx) => {
+                    entries.push(this._formatSeriesSummary(def, idx));
+                });
+            } else {
+                const count = Math.max(this.seriesCount, this.channelIndices.length, this.dsMap.length);
+                for (let i = 0; i < count; i++) {
+                    entries.push(this._formatSeriesSummary(null, i));
+                }
+            }
+
+            if (!entries.length) {
+                this.summaryHost.html('<div class="uplot-source-summary-empty">No channels configured.</div>');
+                this._applyPlotHeight();
+                this._requestResize();
+                return;
+            }
+
+            this.summaryHost.html(entries.map((entry, idx) => (
+                `<div class="uplot-source-summary-item">` +
+                `<span class="uplot-source-summary-label">${_.escape(entry.label || `Series ${idx + 1}`)}</span>` +
+                `<span class="uplot-source-summary-value">${_.escape(entry.value || 'Unknown source')}</span>` +
+                `</div>`
+            )).join(''));
+            this._applyPlotHeight();
+            this._requestResize();
         }
 
         render(containerElement) {
@@ -250,6 +361,7 @@ class OwnTechPlotUPlot {
             this.container.appendTo(containerElement);
             this._applyPlotHeight();
             this._bindHeightDrag();
+            this._renderSourceSummary();
             // Optionally spawn helper widgets (UI controller / series manager) next to this plot.
             this._maybeSpawnHelpers();
             this._initPlot();
@@ -401,7 +513,7 @@ class OwnTechPlotUPlot {
                 width: this.chartHost.width() || this.container.width(),
                 height: Math.max(160, this.chartHost.height() || this.container.height() || 240),
                 legend: {
-                    show: false,
+                    show: !!(typeof this.settings.showLegend === 'function' ? this.settings.showLegend() : this.settings.showLegend),
                 },
                 scales: {
                     x: { time: true },
@@ -424,6 +536,7 @@ class OwnTechPlotUPlot {
             this.plot = new uPlot(opts, this.dataBuffer, this.chartHost[0]);
             // Apply initial Y range (manual or computed)
             this._applyYAxisRange();
+            this._renderSourceSummary();
             this._renderReadouts();
             // In case layout settles after init, try an async resize tick
             this._requestResize();
@@ -508,7 +621,7 @@ class OwnTechPlotUPlot {
 
         
         onSettingsChanged(newSettings) {
-            const needsReset = ['duration', 'yMin', 'yMax', 'yLabel', 'showLegend'].some(
+            const needsReset = ['duration', 'yMin', 'yMax', 'yLabel', 'showLegend', 'colorPalette'].some(
                 key => newSettings[key] !== this.settings[key]
             );
             const rateChanged = newSettings.refreshRate !== this.settings.refreshRate;
@@ -533,6 +646,7 @@ class OwnTechPlotUPlot {
             const defsChanged = !_.isEqual(newDefs, this.seriesDefs);
             this.seriesDefs = newDefs;
             this.localMode = Array.isArray(this.seriesDefs) && this.seriesDefs.length > 0;
+            this._renderSourceSummary();
             this._maybeUpdateHeaders(true);
 
             if (needsReset && this.plot) {
@@ -683,6 +797,7 @@ class OwnTechPlotUPlot {
         _measureAutoChartHeight() {
             const subSection = this.subSectionElement;
             const shell = this.container?.[0];
+            const summary = this.summaryHost?.[0];
             const readout = this.readoutHost?.[0];
             const handle = this.resizeHandle?.[0];
             if (!subSection || !shell) return 0;
@@ -694,6 +809,7 @@ class OwnTechPlotUPlot {
             const shellGap = shellStyles ? parseFloat(shellStyles.rowGap || shellStyles.gap) || 0 : 0;
             const shellPaddingTop = shellStyles ? parseFloat(shellStyles.paddingTop) || 0 : 0;
             const shellPaddingBottom = shellStyles ? parseFloat(shellStyles.paddingBottom) || 0 : 0;
+            const summaryHeight = summary ? summary.offsetHeight : 0;
             const readoutHeight = readout ? readout.offsetHeight : 0;
             const handleHeight = handle ? handle.offsetHeight : 0;
 
@@ -702,8 +818,10 @@ class OwnTechPlotUPlot {
                 - paddingBottom
                 - shellPaddingTop
                 - shellPaddingBottom
+                - summaryHeight
                 - readoutHeight
                 - handleHeight
+                - (summaryHeight > 0 ? shellGap : 0)
                 - (readoutHeight > 0 ? shellGap : 0)
                 - (handleHeight > 0 ? shellGap : 0);
             const measured = Math.max(160, available);
@@ -714,6 +832,7 @@ class OwnTechPlotUPlot {
                 shellPaddingTop,
                 shellPaddingBottom,
                 shellGap,
+                summaryHeight,
                 readoutHeight,
                 handleHeight,
                 available,

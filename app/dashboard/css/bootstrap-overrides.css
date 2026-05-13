@@ -166,6 +166,37 @@ textarea.form-control {
   align-content: start;
 }
 
+.uplot-source-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.uplot-source-summary-item {
+  display: grid;
+  grid-template-columns: minmax(0, 130px) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+}
+
+.uplot-source-summary-label {
+  color: #e7eaef;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uplot-source-summary-value,
+.uplot-source-summary-empty {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .uplot-readout-item {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr) auto;

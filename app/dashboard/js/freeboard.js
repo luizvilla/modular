@@ -4343,6 +4343,24 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 					return null;
 				}
 			}
+			if(window.api)
+			{
+				var serial = window.api.serial || null;
+				var can = window.api.can || null;
+				switch(channel)
+				{
+					case "get-serial-headers":
+						return serial && serial.getHeaders ? serial.getHeaders(payload.path, payload.type) : null;
+					case "get-fast-dataset":
+						return serial && serial.getFastDataset ? serial.getFastDataset(payload.path) : null;
+					case "get-serial-buffer":
+						return serial && serial.getBuffer ? serial.getBuffer(payload.path) : null;
+					case "can-aggregate-start":
+						return can && can.aggregateStart ? can.aggregateStart(payload) : null;
+					case "can-aggregate-snapshot":
+						return can && can.aggregateSnapshot ? can.aggregateSnapshot(payload) : null;
+				}
+			}
 			return null;
 		}
 
@@ -4378,6 +4396,94 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 			return 0;
 		}
 
+		function formatIndexedChannelLabel(index, headers)
+		{
+			if(Array.isArray(headers) && headers[index]) return headers[index];
+			var alpha = String.fromCharCode(65 + (index % 26));
+			var suffix = index >= 26 ? " " + (Math.floor(index / 26) + 1) : "";
+			return "Channel " + alpha + suffix;
+		}
+
+		function formatCanDeviceLabel(addr, meta)
+		{
+			if(!addr) return "";
+			var uid = meta && meta.node_uid;
+			return uid ? (addr + " (" + uid + ")") : addr;
+		}
+
+		async function fetchCanSnapshot(dsName)
+		{
+			if(!dsName) return null;
+			var settings = getDatasourceSettings(dsName);
+			var channel = settings.channel || "can0";
+			try { await invoke("can-aggregate-start", { channel: channel }); } catch(e) {}
+			return invoke("can-aggregate-snapshot", { channel: channel });
+		}
+
+		async function fetchCanDevices(dsName)
+		{
+			var snapshot = await fetchCanSnapshot(dsName);
+			var nodes = snapshot && snapshot.nodes ? snapshot.nodes : {};
+			return Object.keys(nodes).sort().map(function(addr)
+			{
+				var meta = nodes[addr] || {};
+				return {
+					value: addr,
+					label: formatCanDeviceLabel(addr, meta),
+					uid: meta.node_uid || null
+				};
+			});
+		}
+
+		async function fetchDatasourceVariableOptions(dsName, deviceVal)
+		{
+			var out = [];
+			if(!dsName) return out;
+			var dsType = getDatasourceType(dsName);
+			if(dsType === "signal_generator_datasource")
+			{
+				out.push({ value: "0", label: "Signal" });
+				return out;
+			}
+			if(dsType === "fast_frame_datasource" || dsType === "serialport_datasource")
+			{
+				var headers = await fetchDatasourceHeaders(dsName);
+				var count = headers.length;
+				if(!count)
+				{
+					count = await fetchDatasourceChannelCount(dsName, dsType);
+				}
+				for(var i = 0; i < count; i++)
+				{
+					out.push({ value: String(i), label: formatIndexedChannelLabel(i, headers) });
+				}
+				return out;
+			}
+			if(dsType === "can_datasource")
+			{
+				var snapshot = await fetchCanSnapshot(dsName);
+				var nodes = snapshot && snapshot.nodes ? snapshot.nodes : {};
+				var flat = deviceVal && nodes[deviceVal] ? (nodes[deviceVal].flat || {}) : {};
+				Object.keys(flat).sort().forEach(function(path)
+				{
+					var leaf = path.indexOf("/") >= 0 ? path.split("/").pop() : path;
+					var label = (leaf && leaf !== path) ? (leaf + " - " + path) : path;
+					out.push({ value: path, label: label });
+				});
+			}
+			return out;
+		}
+
+		function getColorThemes()
+		{
+			return {
+				ColorBlind10: (typeof ColorBlind10 !== "undefined") ? ColorBlind10 : [],
+				OfficeClassic6: (typeof OfficeClassic6 !== "undefined") ? OfficeClassic6 : [],
+				HueCircle19: (typeof HueCircle19 !== "undefined") ? HueCircle19 : [],
+				Tableau20: (typeof Tableau20 !== "undefined") ? Tableau20 : []
+			};
+		}
+
 		function commitWidgetSettings(widget, settings)
 		{
 			if(!widget) return;
@@ -4409,6 +4515,12 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 			invoke: invoke,
 			fetchDatasourceHeaders: fetchDatasourceHeaders,
 			fetchDatasourceChannelCount: fetchDatasourceChannelCount,
+			formatIndexedChannelLabel: formatIndexedChannelLabel,
+			formatCanDeviceLabel: formatCanDeviceLabel,
+			fetchCanSnapshot: fetchCanSnapshot,
+			fetchCanDevices: fetchCanDevices,
+			fetchDatasourceVariableOptions: fetchDatasourceVariableOptions,
+			getColorThemes: getColorThemes,
 			commitWidgetSettings: commitWidgetSettings,
 			updateWidgetSettings: updateWidgetSettings,
 			getFastFrameShared: getFastFrameShared
@@ -4646,6 +4758,14 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 		},
 		openIntegratedPlotEditor: function(widgetModel, type)
 		{
+			if(window.ModularIntegratedPlotEditor && _.isFunction(window.ModularIntegratedPlotEditor.open))
+			{
+				var handled = window.ModularIntegratedPlotEditor.open(widgetModel, type, plotEditorShared);
+				if(handled !== false)
+				{
+					return;
+				}
+			}
 			var currentSettings = widgetModel.settings();
 			var shared = plotEditorShared;
 			var form = $('<div class="row g-3"></div>');
