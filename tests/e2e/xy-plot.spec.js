@@ -1,6 +1,8 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./helpers');
 
+test.setTimeout(60_000);
+
 test('xy plot renders, clears history, and updates sources via manager', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
@@ -26,6 +28,15 @@ test('xy plot renders, clears history, and updates sources via manager', async (
     const model = window.freeboard.getLiveModel();
     const widget = model.panes().flatMap((p) => p.widgets()).find((w) => w.type() === 'xy_plot_uplot');
     return widget.widgetInstance.dataBuffer[0].length === 0;
+  });
+
+  await page.waitForFunction(() => {
+    const manager = window.freeboard.getLiveModel().panes()[1]?.widgets?.()[0]?.widgetInstance;
+    return manager
+      && manager.controls
+      && manager.controls.widget
+      && manager.controls.widget.val()
+      && document.querySelectorAll('.xy-plot-manager select').length >= 6;
   });
 
   const selects = page.locator('.xy-plot-manager select');

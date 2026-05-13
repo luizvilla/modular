@@ -9,6 +9,8 @@ function DialogBox(contentElement, title, okTitle, cancelTitle, okCallback)
 
 	function closeModal()
 	{
+		$(document).off('keydown.dialog');
+
 		overlay.fadeOut(200, function()
 		{
 			$(this).remove();
@@ -48,6 +50,43 @@ function DialogBox(contentElement, title, okTitle, cancelTitle, okCallback)
 			closeModal();
 		});
 	}
+
+	$(document).off('keydown.dialog').on('keydown.dialog', function(e)
+	{
+		if($('#modal_overlay').length === 0) return;
+
+		var isEnter = (e.key === 'Enter' || e.keyCode === 13);
+		var isEscape = (e.key === 'Escape' || e.keyCode === 27);
+		var tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+		var wantsSave = isEnter && !e.altKey && !e.shiftKey && (!e.ctrlKey && !e.metaKey || e.ctrlKey || e.metaKey);
+
+		if(wantsSave)
+		{
+			if(tag === 'TEXTAREA' && !e.ctrlKey && !e.metaKey) return;
+			var okBtn = $('#dialog-ok', overlay);
+			if(okBtn.length && okBtn.is(':visible'))
+			{
+				var $fields = $('input, textarea, select', overlay).filter(function()
+				{
+					return $(this).closest('#setting-row-plugin-types').length === 0;
+				});
+				$fields.trigger('change');
+				okBtn.trigger('click');
+				e.preventDefault();
+			}
+			return;
+		}
+
+		if(isEscape)
+		{
+			var cancelBtn = $('#dialog-cancel', overlay);
+			if(cancelBtn.length && cancelBtn.is(':visible'))
+			{
+				cancelBtn.trigger('click');
+				e.preventDefault();
+			}
+		}
+	});
 
 	overlay.append(modalDialog);
 	$("body").append(overlay);

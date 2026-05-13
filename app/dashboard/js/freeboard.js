@@ -290,23 +290,19 @@ function DialogBox(contentElement, title, okTitle, cancelTitle, okCallback)
 		});
 	}
 
-	// Bind Enter to trigger OK inside the modal (excluding textareas)
-	$(document).on('keydown.dialog', function(e) {
-		// Only when a modal overlay is present
+	// Bind Enter/Ctrl+Enter/Cmd+Enter to trigger OK inside the modal.
+	$(document).off('keydown.dialog').on('keydown.dialog', function(e) {
 		if ($('#modal_overlay').length === 0) return;
 
-		// Ignore modifier combinations
-		if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
-
-		// Do not hijack Enter in multiline inputs
+		var isEnter = (e.key === 'Enter' || e.keyCode === 13);
+		var isEscape = (e.key === 'Escape' || e.keyCode === 27);
 		var tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
-		if (tag === 'TEXTAREA') return;
+		var wantsSave = isEnter && !e.altKey && !e.shiftKey && (!e.ctrlKey && !e.metaKey || e.ctrlKey || e.metaKey);
 
-		if (e.key === 'Enter' || e.keyCode === 13) {
+		if (wantsSave) {
+			if (tag === 'TEXTAREA' && !e.ctrlKey && !e.metaKey) return;
 			var okBtn = $('#dialog-ok', overlay);
 			if (okBtn.length && okBtn.is(':visible')) {
-				// Flush latest field values into change-bound handlers.
-				// Avoid retriggering the plugin type selector which resets settings.
 				var $fields = $('input, textarea, select', overlay).filter(function() {
 					return $(this).closest('#setting-row-plugin-types').length === 0;
 				});
@@ -314,10 +310,10 @@ function DialogBox(contentElement, title, okTitle, cancelTitle, okCallback)
 				okBtn.trigger('click');
 				e.preventDefault();
 			}
+			return;
 		}
 
-		// ESC cancels the modal if available
-		if (e.key === 'Escape' || e.keyCode === 27) {
+		if (isEscape) {
 			var cancelBtn = $('#dialog-cancel', overlay);
 			if (cancelBtn.length && cancelBtn.is(':visible')) {
 				cancelBtn.trigger('click');
