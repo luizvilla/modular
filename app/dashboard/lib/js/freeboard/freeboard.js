@@ -323,6 +323,11 @@ var freeboard = (function()
 		return normalized;
 	}
 
+	function isIntegratedPlotEditorType(typeName)
+	{
+		return typeName === "owntech_plot_uplot" || typeName === "xy_plot_uplot";
+	}
+
 	ko.bindingHandlers.pluginEditor = {
 		init: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
 		{
@@ -437,6 +442,12 @@ var freeboard = (function()
 						}
 					}
 
+					if(options.type == 'widget' && options.operation == 'edit' && isIntegratedPlotEditorType(instanceType))
+					{
+						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
+						return;
+					}
+
 					pluginEditor.createPluginEditor(title, types, instanceType, settings, function(newSettings)
 					{
 						if(options.operation == 'add')
@@ -462,6 +473,11 @@ var freeboard = (function()
 								viewModel.widgets.push(newViewModel);
 
 								freeboardUI.attachWidgetEditIcons(element);
+
+								if(isIntegratedPlotEditorType(newSettings.type))
+								{
+									freeboard.openIntegratedPlotEditor(newViewModel, newSettings.type);
+								}
 							}
 						}
 						else if(options.operation == 'edit')
@@ -541,6 +557,351 @@ var freeboard = (function()
 				viewModel.render(element);
 			}
 		}
+	}
+
+	function openIntegratedPlotEditor(widgetModel, type)
+	{
+		var currentSettings = widgetModel.settings();
+		var form = $('<div class="row g-3"></div>');
+
+		var createInput = function(label, key, inputType, parent) {
+			var row = $('<div class="input-group input-group-sm mb-1"></div>');
+			var lbl = $('<span class="input-group-text">' + label + '</span>');
+			var inp = $('<input type="' + inputType + '" class="form-control form-control-sm">');
+			inp.val(currentSettings[key] || '');
+			row.append(lbl).append(inp);
+			parent.append(row);
+			return inp;
+		};
+
+		var parseSeriesDefs = function(value) {
+			if(Array.isArray(value)) return value.slice();
+			if(typeof value === "string")
+			{
+				try { return JSON.parse(value); } catch(e) { return []; }
+			}
+			return [];
+		};
+
+		var parseNumber = function(value) {
+			var n = Number(value);
+			return Number.isFinite(n) ? n : undefined;
+		};
+
+		var getLiveModel = function() {
+			return freeboard.getLiveModel ? freeboard.getLiveModel() : null;
+		};
+
+		var listDatasources = function() {
+			var live = getLiveModel();
+			var out = [];
+			if(!live || typeof live.datasources !== "function") return out;
+			live.datasources().forEach(function(ds) {
+				try {
+					var name = ds.name && ds.name();
+					var dsType = ds.type && ds.type();
+					if(!name) return;
+					if(["serialport_datasource", "fast_frame_datasource", "can_datasource", "signal_generator_datasource"].indexOf(dsType) >= 0)
+					{
+						out.push({ name: name, type: dsType });
+					}
+				} catch(e) {}
+			});
+			return out;
+		};
+
+		var getDatasourceType = function(dsName) {
+			if(!dsName) return null;
+			var live = getLiveModel();
+			if(!live || typeof live.datasources !== "function") return null;
+			var list = live.datasources();
+			for(var i = 0; i < list.length; i++)
+			{
+				try {
+					if(list[i].name && list[i].name() === dsName)
+					{
+						return list[i].type && list[i].type();
+					}
+				} catch(e) {}
+			}
+			return null;
+		};
+
+		var left = $('<div class="col-md-6"></div>');
+		var right = $('<div class="col-md-6"></div>');
+		form.append(left, right);
+
+		var titleInput = createInput("Title", "title", "text", left);
+		var historyInput = createInput("History Length", "historyLength", "number", left);
+		var refreshInput = createInput("Refresh Rate (ms)", "refreshRate", "number", left);
+		var xLabelInput = createInput("X Label", "xLabel", "text", left);
+		var yLabelInput = createInput("Y Label", "yLabel", "text", left);
+		var xMinInput = createInput("X Min", "xMin", "number", left);
+		var xMaxInput = createInput("X Max", "xMax", "number", left);
+		var yMinInput = createInput("Y Min", "yMin", "number", left);
+		var yMaxInput = createInput("Y Max", "yMax", "number", left);
+
+		var fetchDatasourceHeaders = async function(dsName) {
+			var dsType = getDatasourceType(dsName);
+			if(!dsName || !dsType) return [];
+			var settings = freeboard.getDatasourceSettings ? (freeboard.getDatasourceSettings(dsName) || {}) : {};
+			var path = settings.portPath || dsName;
+			if(window.api && window.api.ipc && typeof window.api.ipc.invoke === "function")
+			{
+				try {
+					var headers = await window.api.ipc.invoke("get-serial-headers", { path: path, type: dsType });
+					return Array.isArray(headers) ? headers : [];
+				} catch(e) {}
+			}
+			return [];
+		};
+
+		var fetchDatasourceChannelCount = async function(dsName, dsType) {
+			if(!dsName || !dsType) return 0;
+			if(!window.api || !window.api.ipc || typeof window.api.ipc.invoke !== "function") return 0;
+			var settings = freeboard.getDatasourceSettings ? (freeboard.getDatasourceSettings(dsName) || {}) : {};
+			var path = settings.portPath || dsName;
+			try {
+				if(dsType === "fast_frame_datasource")
+				{
+					var dataset = await window.api.ipc.invoke("get-fast-dataset", { path: path });
+					if(dataset && Array.isArray(dataset.series)) return dataset.series.length;
+				}
+				else if(dsType === "serialport_datasource")
+				{
+					var arr = await window.api.ipc.invoke("get-serial-buffer", { path: path });
+					if(Array.isArray(arr)) return arr.length;
+				}
+			} catch(e) {}
+			return 0;
+		};
+
+		var channelHeader = $('<div class="d-flex align-items-center justify-content-between mb-2"></div>');
+		channelHeader.append('<div class="fw-semibold">Channel manager</div>');
+		var addChannelButton = $('<button class="btn btn-sm btn-outline-primary">Add channel</button>');
+		channelHeader.append(addChannelButton);
+		var channelList = $('<div class="d-flex flex-column gap-2"></div>');
+		right.append(channelHeader, channelList);
+
+		var seriesDefs = parseSeriesDefs(currentSettings.seriesDefs);
+
+		var createChannelRow = function(def, index) {
+			var row = $('<div class="border rounded p-2"></div>');
+			var labelRow = $('<div class="input-group input-group-sm mb-1"></div>');
+			var labelText = $('<span class="input-group-text">Label</span>');
+			var labelInput = $('<input type="text" class="form-control form-control-sm">').val(def.label || '');
+			labelRow.append(labelText, labelInput);
+
+			var opRow = $('<div class="input-group input-group-sm mb-1"></div>');
+			var opLabel = $('<span class="input-group-text">Operation</span>');
+			var opSelect = $('<select class="form-select form-select-sm"></select>')
+				.append('<option value="identity">x</option>')
+				.append('<option value="negate">-x</option>')
+				.append('<option value="abs">abs(x)</option>')
+				.append('<option value="scale">x * k</option>')
+				.append('<option value="offset">x + b</option>')
+				.append('<option value="mulvar">x * y</option>');
+			opSelect.val(def.op || "identity");
+			var paramInput = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="k or b">').val(def.param || 0);
+			opRow.append(opLabel, opSelect, paramInput);
+
+			var sourceARow = $('<div class="input-group input-group-sm mb-1"></div>');
+			var sourceALabel = $('<span class="input-group-text">Source X</span>');
+			var sourceASelect = $('<select class="form-select form-select-sm"></select>');
+			var sourceADevice = $('<select class="form-select form-select-sm" style="max-width: 160px; display:none;"></select>');
+			var sourceAVar = $('<select class="form-select form-select-sm" style="max-width: 220px;"></select>');
+			sourceARow.append(sourceALabel, sourceASelect, sourceADevice, sourceAVar);
+
+			var sourceBRow = $('<div class="input-group input-group-sm mb-1"></div>');
+			var sourceBLabel = $('<span class="input-group-text">Source Y</span>');
+			var sourceBSelect = $('<select class="form-select form-select-sm"></select>');
+			var sourceBDevice = $('<select class="form-select form-select-sm" style="max-width: 160px; display:none;"></select>');
+			var sourceBVar = $('<select class="form-select form-select-sm" style="max-width: 220px;"></select>');
+			sourceBRow.append(sourceBLabel, sourceBSelect, sourceBDevice, sourceBVar);
+
+			var removeBtn = $('<button class="btn btn-sm btn-outline-danger w-100">Remove channel</button>');
+			removeBtn.on("click", function() {
+				seriesDefs.splice(index, 1);
+				renderChannelList();
+			});
+
+			var refreshDatasourceSelect = function(selectEl, selected) {
+				selectEl.empty();
+				selectEl.append('<option value="">Select datasource</option>');
+				listDatasources().forEach(function(ds) {
+					selectEl.append($('<option>').val(ds.name).text(ds.name));
+				});
+				if(selected && selectEl.find('option[value="' + selected + '"]').length)
+				{
+					selectEl.val(selected);
+				}
+			};
+
+			var populateVariables = async function(dsName, deviceVal, varEl, selectedVar) {
+				varEl.empty();
+				if(!dsName)
+				{
+					varEl.append('<option value="">No datasource</option>');
+					return;
+				}
+				var dsType = getDatasourceType(dsName);
+				if(dsType === "signal_generator_datasource")
+				{
+					varEl.append('<option value="0">Signal</option>');
+					if(selectedVar !== undefined && selectedVar !== null) varEl.val(selectedVar);
+					return;
+				}
+				if(dsType === "fast_frame_datasource" || dsType === "serialport_datasource")
+				{
+					var headers = await fetchDatasourceHeaders(dsName);
+					var count = Array.isArray(headers) ? headers.length : 0;
+					if(!count)
+					{
+						count = await fetchDatasourceChannelCount(dsName, dsType);
+					}
+					if(!count)
+					{
+						count = 4;
+					}
+					for(var i = 0; i < count; i++)
+					{
+						var label = headers[i] || "Channel " + (i + 1);
+						varEl.append($('<option>').val(i.toString()).text(label));
+					}
+				}
+				else if(dsType === "can_datasource")
+				{
+					for(var j = 0; j < 4; j++)
+					{
+						varEl.append($('<option>').val("var" + j).text("Variable " + j));
+					}
+				}
+				else
+				{
+					varEl.append('<option value="">Unknown datasource type</option>');
+				}
+				if(selectedVar !== undefined && selectedVar !== null && varEl.find('option[value="' + selectedVar + '"]').length)
+				{
+					varEl.val(selectedVar);
+				}
+			};
+
+			var refreshDeviceSelect = function(dsName, deviceEl, selectedDevice) {
+				var dsType = getDatasourceType(dsName);
+				deviceEl.empty();
+				if(dsType === "can_datasource")
+				{
+					deviceEl.append('<option value="">Select device</option>');
+					if(selectedDevice)
+					{
+						deviceEl.append($('<option>').val(selectedDevice).text(selectedDevice));
+						deviceEl.val(selectedDevice);
+					}
+					deviceEl.show();
+				}
+				else
+				{
+					deviceEl.hide();
+				}
+			};
+
+			opSelect.on("change", function() {
+				sourceBRow.toggle(opSelect.val() === "mulvar");
+				paramInput.toggle(opSelect.val() === "scale" || opSelect.val() === "offset");
+			});
+
+			sourceASelect.on("change", function() {
+				refreshDeviceSelect(sourceASelect.val(), sourceADevice, def.a && def.a.device);
+				populateVariables(sourceASelect.val(), sourceADevice.val(), sourceAVar, def.a && def.a.var).catch(function() {});
+			});
+			sourceADevice.on("change", function() {
+				populateVariables(sourceASelect.val(), sourceADevice.val(), sourceAVar, sourceAVar.val()).catch(function() {});
+			});
+			sourceBSelect.on("change", function() {
+				refreshDeviceSelect(sourceBSelect.val(), sourceBDevice, def.b && def.b.device);
+				populateVariables(sourceBSelect.val(), sourceBDevice.val(), sourceBVar, def.b && def.b.var).catch(function() {});
+			});
+			sourceBDevice.on("change", function() {
+				populateVariables(sourceBSelect.val(), sourceBDevice.val(), sourceBVar, sourceBVar.val()).catch(function() {});
+			});
+
+			refreshDatasourceSelect(sourceASelect, def.a && def.a.ds);
+			refreshDatasourceSelect(sourceBSelect, def.b && def.b.ds);
+			refreshDeviceSelect(sourceASelect.val(), sourceADevice, def.a && def.a.device);
+			refreshDeviceSelect(sourceBSelect.val(), sourceBDevice, def.b && def.b.device);
+			populateVariables(sourceASelect.val(), sourceADevice.val(), sourceAVar, def.a && def.a.var).catch(function() {});
+			populateVariables(sourceBSelect.val(), sourceBDevice.val(), sourceBVar, def.b && def.b.var).catch(function() {});
+			sourceBRow.toggle(opSelect.val() === "mulvar");
+			paramInput.toggle(opSelect.val() === "scale" || opSelect.val() === "offset");
+
+			row.append(labelRow, opRow, sourceARow, sourceBRow, removeBtn);
+			return { row: row };
+		};
+
+		var renderChannelList = function() {
+			channelList.empty();
+			seriesDefs.forEach(function(def, idx) {
+				var item = createChannelRow(def, idx);
+				channelList.append(item.row);
+			});
+		};
+
+		addChannelButton.on("click", function() {
+			seriesDefs.push({ label: "", op: "identity", param: 0, a: { ds: "", type: "", device: null, var: null }, b: null });
+			renderChannelList();
+		});
+
+		renderChannelList();
+
+		new DialogBox(form, "Edit " + type, "Save", "Cancel", function() {
+			var newDefs = [];
+			channelList.children().each(function(index) {
+				var rowEl = $(this);
+				var label = rowEl.find('input[type="text"]').first().val();
+				var op = rowEl.find("select").first().val();
+				var param = parseFloat(rowEl.find('input[type="number"]').first().val()) || 0;
+				var selects = rowEl.find("select");
+				var aDs = selects.eq(1).val();
+				var aDevice = selects.eq(2).val();
+				var aVar = selects.eq(3).val();
+				var bDs = selects.eq(4).val();
+				var bDevice = selects.eq(5).val();
+				var bVar = selects.eq(6).val();
+				var def = {
+					label: label || "",
+					op: op,
+					param: param,
+					a: { ds: aDs, type: getDatasourceType(aDs), device: aDevice || null, var: aVar }
+				};
+				if(op === "mulvar")
+				{
+					def.b = { ds: bDs, type: getDatasourceType(bDs), device: bDevice || null, var: bVar };
+				}
+				else
+				{
+					def.b = null;
+				}
+				newDefs.push(def);
+			});
+
+			var newSettings = {
+				title: titleInput.val(),
+				historyLength: parseInt(historyInput.val(), 10) || 200,
+				refreshRate: parseInt(refreshInput.val(), 10) || 1000,
+				xLabel: xLabelInput.val(),
+				yLabel: yLabelInput.val(),
+				xMin: parseNumber(xMinInput.val()),
+				xMax: parseNumber(xMaxInput.val()),
+				yMin: parseNumber(yMinInput.val()),
+				yMax: parseNumber(yMaxInput.val()),
+				seriesDefs: newDefs
+			};
+			widgetModel.settings(newSettings);
+			if(widgetModel.widgetInstance && widgetModel.widgetInstance.onSettingsChanged)
+			{
+				widgetModel.widgetInstance.onSettingsChanged(newSettings);
+			}
+		});
 	}
 
 	function getParameterByName(name)
@@ -757,6 +1118,10 @@ var freeboard = (function()
 		showDeveloperConsole : function()
 		{
 			developerConsole.showDeveloperConsole();
+		},
+		openIntegratedPlotEditor: function(widgetModel, type)
+		{
+			openIntegratedPlotEditor(widgetModel, type);
 		}
 	};
 }());

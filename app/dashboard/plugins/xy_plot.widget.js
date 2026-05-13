@@ -33,11 +33,7 @@
             "https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css"
         ],
         settings: [
-            { name: "title", display_name: "Title", type: "text", default_value: "XY Plot" },
-            { name: "helperWidgets", display_name: "Helper Widgets", type: "option", default_value: "source", options: [
-                { name: "None", value: "none" },
-                { name: "Source Manager", value: "source" }
-            ] }
+            { name: "title", display_name: "Title", type: "text", default_value: "XY Plot" }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new XYPlotWidget(settings));

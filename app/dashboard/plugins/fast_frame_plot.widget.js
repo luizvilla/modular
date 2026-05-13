@@ -12,13 +12,7 @@
             'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css'
         ],
         settings: [
-            { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame Plot' },
-            { name: 'helperWidgets', display_name: 'Helper Widgets', type: 'option', default_value: 'both', options: [
-                { name: 'None', value: 'none' },
-                { name: 'UI Controller', value: 'ui' },
-                { name: 'Channel Manager', value: 'channels' },
-                { name: 'Both', value: 'both' }
-            ] }
+            { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame Plot' }
         ],
         newInstance: function (settings, cb) { cb(new FastFramePlot(settings)); }
     });
