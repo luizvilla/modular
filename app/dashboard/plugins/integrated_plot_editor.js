@@ -144,6 +144,57 @@
         };
     }
 
+    function normalizeXYSourceDef(sourceDef) {
+        const normalized = sourceDef || {};
+        return {
+            ds: normalized.ds || '',
+            type: normalized.type || '',
+            device: normalized.device || null,
+            device_uid: normalized.device_uid || normalized.deviceUid || null,
+            var: normalized.var,
+            op: normalized.op || 'identity',
+            param: Number(normalized.param) || 0
+        };
+    }
+
+    function buildXYAxisControls(shared, title, sourceDef) {
+        const normalized = normalizeXYSourceDef(sourceDef);
+        const card = $('<div class="border rounded p-2 d-flex flex-column gap-2"></div>');
+        card.append($('<h4 class="small text-uppercase text-muted mb-0"></h4>').text(title));
+        const source = buildSourceControls(shared, 'Datasource', normalized);
+        const opField = createSelectRow('Transform', [
+            { value: 'identity', label: 'x' },
+            { value: 'negate', label: '-x' },
+            { value: 'abs', label: 'abs(x)' },
+            { value: 'scale', label: 'x * k' },
+            { value: 'offset', label: 'x + b' }
+        ], normalized.op || 'identity');
+        const paramField = createInputRow('Parameter', 'number', normalized.param || 0, 'k or b');
+
+        function syncTransformVisibility() {
+            const op = opField.select.val() || 'identity';
+            paramField.row.toggle(op === 'scale' || op === 'offset');
+        }
+
+        opField.select.on('change', syncTransformVisibility);
+        syncTransformVisibility();
+
+        card.append(source.wrapper, opField.row, paramField.row);
+
+        return {
+            card,
+            buildValue() {
+                const value = source.buildValue();
+                if (!value || !value.ds) return null;
+                const op = opField.select.val() || 'identity';
+                return _.extend({}, value, {
+                    op,
+                    param: (op === 'scale' || op === 'offset') ? (parseFloat(paramField.input.val()) || 0) : 0
+                });
+            }
+        };
+    }
+
     function normalizeOwntechSeriesDef(def) {
         const sourceA = def && def.a ? def.a : {};
         const sourceB = def && def.b ? def.b : null;
@@ -311,12 +362,74 @@
         return true;
     }
 
+    function openXYPlotEditor(widgetModel, shared) {
+        const settings = widgetModel.settings() || {};
+        const form = $('<div class="row g-3 integrated-plot-editor"></div>');
+        const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        form.append(left, right);
+
+        const sourcesSection = createSection('Sources');
+        const xAxisControls = buildXYAxisControls(shared, 'X Source', settings.xSourceDef);
+        const yAxisControls = buildXYAxisControls(shared, 'Y Source', settings.ySourceDef);
+        sourcesSection.append(xAxisControls.card, yAxisControls.card);
+        left.append(sourcesSection);
+
+        const displaySection = createSection('Display');
+        const titleField = createInputRow('Title', 'text', settings.title || 'XY Plot');
+        const historyField = createInputRow('History Length', 'number', settings.historyLength || 200);
+        const refreshField = createInputRow('Refresh Rate (ms)', 'number', settings.refreshRate || 250);
+        const xLabelField = createInputRow('X Axis Label', 'text', settings.xLabel || 'X');
+        const yLabelField = createInputRow('Y Axis Label', 'text', settings.yLabel || 'Y');
+        const xMinField = createInputRow('X Min', 'number', settings.xMin ?? '');
+        const xMaxField = createInputRow('X Max', 'number', settings.xMax ?? '');
+        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '');
+        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '');
+        displaySection.append(
+            titleField.row,
+            historyField.row,
+            refreshField.row,
+            xLabelField.row,
+            yLabelField.row,
+            xMinField.row,
+            xMaxField.row,
+            yMinField.row,
+            yMaxField.row
+        );
+        right.append(displaySection);
+
+        new DialogBox(form, 'Edit xy_plot_uplot', 'Save', 'Cancel', function () {
+            const xSourceDef = xAxisControls.buildValue();
+            const ySourceDef = yAxisControls.buildValue();
+            if (!xSourceDef || !ySourceDef) return;
+            const updated = _.extend({}, settings, {
+                title: titleField.input.val() || settings.title || 'XY Plot',
+                historyLength: Math.max(2, parseInt(historyField.input.val(), 10) || 200),
+                refreshRate: Math.max(50, parseInt(refreshField.input.val(), 10) || 250),
+                xLabel: xLabelField.input.val() || 'X',
+                yLabel: yLabelField.input.val() || 'Y',
+                xMin: shared.parseNumber(xMinField.input.val()),
+                xMax: shared.parseNumber(xMaxField.input.val()),
+                yMin: shared.parseNumber(yMinField.input.val()),
+                yMax: shared.parseNumber(yMaxField.input.val()),
+                xSourceDef,
+                ySourceDef
+            });
+            delete updated.helperWidgets;
+            shared.commitWidgetSettings(widgetModel, updated);
+        });
+        return true;
+    }
+
     window.ModularIntegratedPlotEditor = {
         open(widgetModel, type, providedShared) {
             const shared = getShared(providedShared);
             if (!shared || !widgetModel) return false;
             if (type === 'owntech_plot_uplot') {
                 return openOwntechPlotEditor(widgetModel, shared);
+            }
+            if (type === 'xy_plot_uplot') {
+                return openXYPlotEditor(widgetModel, shared);
             }
             return false;
         }

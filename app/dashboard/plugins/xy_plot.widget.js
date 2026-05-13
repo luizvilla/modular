@@ -56,7 +56,7 @@
 
             this.container = $('<div class="xy-plot-shell h-100 d-flex flex-column gap-2 p-2"></div>');
             this.toolbar = $('<div class="d-flex align-items-center justify-content-between gap-2"></div>');
-            this.status = $('<div class="small text-muted flex-grow-1">Configure X and Y sources with the XY Source Manager.</div>');
+            this.status = $('<div class="small text-muted flex-grow-1">Configure X and Y sources.</div>');
             this.clearBtn = $('<button class="btn btn-outline-secondary btn-sm xy-plot-clear">Clear history</button>');
             this.chartHost = $('<div class="xy-plot-chart flex-grow-1" style="min-height:220px;"></div>');
             this.readout = $('<div class="small text-muted xy-plot-readout">No points yet.</div>');
@@ -424,18 +424,27 @@
 
         _refreshStatus() {
             if (!this.xSourceDef || !this.ySourceDef) {
-                this.status.text('Configure X and Y sources with the XY Source Manager.');
+                this.status.text('Configure X and Y sources.');
                 this.clearBtn.prop('disabled', this.dataBuffer[0].length === 0);
                 return;
             }
-            this.status.text(`Tracking ${this._sourceLabel(this.xSourceDef)} vs ${this._sourceLabel(this.ySourceDef)}.`);
+            this.status.text(`X: ${this._sourceLabel(this.xSourceDef)} | Y: ${this._sourceLabel(this.ySourceDef)}`);
             this.clearBtn.prop('disabled', this.dataBuffer[0].length === 0);
         }
 
         _sourceLabel(def) {
             if (!def) return 'source';
-            const name = def.label || def.var || 'source';
-            return `${def.ds}:${name}`;
+            if (def.type === 'signal_generator_datasource') {
+                return `${def.ds} / Signal`;
+            }
+            if (def.type === 'can_datasource') {
+                const device = def.device_uid ? `${def.device || 'device'} (${def.device_uid})` : (def.device || 'device');
+                return `${def.ds} / ${device} / ${def.var || 'variable'}`;
+            }
+            if (Number.isFinite(Number(def.var))) {
+                return `${def.ds} / Channel ${Number(def.var) + 1}`;
+            }
+            return `${def.ds} / ${def.var || 'source'}`;
         }
 
         _renderReadout() {
