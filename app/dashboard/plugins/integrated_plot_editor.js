@@ -362,6 +362,253 @@
         return true;
     }
 
+    function normalizeFastFrameSeriesDefs(settings, sharedFast) {
+        const rawDefs = Array.isArray(settings && settings.seriesDefs) ? settings.seriesDefs : [];
+        if (rawDefs.length) {
+            return rawDefs
+                .filter((def) => def && def.variable)
+                .map((def, index) => ({
+                    variable: def.variable,
+                    label: def.label || def.variable,
+                    color: def.color || sharedFast.DEFAULT_COLORS[index % sharedFast.DEFAULT_COLORS.length],
+                    visible: def.visible !== false
+                }));
+        }
+        if (settings && settings.yVariable) {
+            return [{
+                variable: settings.yVariable,
+                label: settings.yVariable,
+                color: sharedFast.DEFAULT_COLORS[0],
+                visible: true
+            }];
+        }
+        return [];
+    }
+
+    function updateFastFrameSourceButtonLabel(button, mode) {
+        if (!button) return;
+        button.text(mode === 'latest' ? 'Choose Fallback CSV / Directory Anchor' : 'Choose CSV File');
+    }
+
+    function populateFastFrameColumnSelect(select, columns, currentValue, placeholder) {
+        const values = Array.isArray(columns) ? columns : [];
+        select.empty().append($('<option value=""></option>').text(placeholder));
+        values.forEach((column) => {
+            select.append($('<option></option>').attr('value', column).text(column));
+        });
+        if (currentValue && values.includes(currentValue)) {
+            select.val(currentValue);
+        } else if (!currentValue && values.length) {
+            select.val(values[0]);
+        } else {
+            select.val('');
+        }
+    }
+
+    function openFastFramePlotEditor(widgetModel, shared) {
+        const sharedFast = shared.getFastFrameShared ? shared.getFastFrameShared() : window.FastFrameShared;
+        if (!sharedFast) return false;
+
+        const settings = widgetModel.settings() || {};
+        const widgetInstance = widgetModel.widgetInstance || null;
+        const state = {
+            selectedCsvPath: settings.csvPath || '',
+            availableFiles: Array.isArray(widgetInstance && widgetInstance.availableFiles) ? widgetInstance.availableFiles.slice() : [],
+            availableColumns: Array.isArray(widgetInstance && widgetInstance.availableColumns) ? widgetInstance.availableColumns.slice() : [],
+            seriesDefs: normalizeFastFrameSeriesDefs(settings, sharedFast)
+        };
+
+        const form = $('<div class="row g-3 integrated-plot-editor"></div>');
+        const left = $('<div class="col-md-5 d-flex flex-column gap-2"></div>');
+        const right = $('<div class="col-md-7 d-flex flex-column gap-2"></div>');
+        form.append(left, right);
+
+        const sourceSection = createSection('Source');
+        const sourceModeField = createSelectRow('CSV Source', [
+            { value: 'latest', label: 'Latest CSV in directory' },
+            { value: 'fixed', label: 'Fixed CSV file' }
+        ], sharedFast.getCsvSourceMode(settings));
+        const chooseCsvButton = $('<button type="button" class="btn btn-sm btn-outline-secondary w-100"></button>');
+        const csvName = $('<div class="small text-muted border rounded p-2"></div>');
+        const timeColumnField = createSelectRow('X Variable', [], settings.timeColumn || settings.xVariable || '', 'Row index');
+        sourceSection.append(sourceModeField.row, chooseCsvButton, csvName, timeColumnField.row);
+        left.append(sourceSection);
+
+        const channelsSection = createSection('Channels');
+        const yVariableField = createSelectRow('Y Variable', [], settings.yVariable || '', 'Select Y variable');
+        const labelField = createInputRow('Label', 'text', '', 'Optional label');
+        const colorField = createInputRow('Color', 'color', sharedFast.DEFAULT_COLORS[0]);
+        const visibleField = createCheckboxRow('Visible', true);
+        const channelActions = $('<div class="d-flex gap-2"></div>');
+        const applySourceButton = $('<button type="button" class="btn btn-sm btn-outline-secondary">Apply source</button>');
+        const addChannelButton = $('<button type="button" class="btn btn-sm btn-primary">Add channel</button>');
+        const resetChannelsButton = $('<button type="button" class="btn btn-sm btn-outline-danger">Reset channels</button>');
+        const channelList = $('<div class="d-flex flex-column gap-2"></div>');
+        channelActions.append(applySourceButton, addChannelButton, resetChannelsButton);
+        channelsSection.append(
+            yVariableField.row,
+            labelField.row,
+            colorField.row,
+            visibleField.row,
+            channelActions,
+            channelList
+        );
+        right.append(channelsSection);
+
+        const displaySection = createSection('Display');
+        const titleField = createInputRow('Title', 'text', settings.title || 'Fast Frame Plot');
+        const xLabelField = createInputRow('X Label', 'text', settings.xLabel || '');
+        const yLabelField = createInputRow('Y Label', 'text', settings.yLabel || '');
+        const xMinField = createInputRow('X Min', 'number', settings.xMin ?? '');
+        const xMaxField = createInputRow('X Max', 'number', settings.xMax ?? '');
+        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '');
+        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '');
+        const legendField = createCheckboxRow('Show Legend', settings.showLegend);
+        displaySection.append(
+            titleField.row,
+            xLabelField.row,
+            yLabelField.row,
+            xMinField.row,
+            xMaxField.row,
+            yMinField.row,
+            yMaxField.row,
+            legendField.row
+        );
+        left.append(displaySection);
+
+        function displayCsvLabel(filePath) {
+            if (!filePath) return 'No file selected.';
+            return sharedFast.displayPath ? sharedFast.displayPath(filePath) : filePath;
+        }
+
+        function renderSeriesList() {
+            channelList.empty();
+            state.seriesDefs.forEach((def, index) => {
+                const row = $('<div class="border rounded p-2 d-flex justify-content-between align-items-center gap-2"></div>');
+                const summary = `${def.label || def.variable} (${def.variable})${def.visible === false ? ' [hidden]' : ''}`;
+                row.append($('<div class="small"></div>').text(summary));
+                row.append($('<button type="button" class="btn btn-sm btn-outline-danger">Remove</button>').on('click', () => {
+                    state.seriesDefs.splice(index, 1);
+                    renderSeriesList();
+                }));
+                channelList.append(row);
+            });
+            if (!state.seriesDefs.length) {
+                channelList.append('<div class="small text-muted">No channels configured.</div>');
+            }
+        }
+
+        async function refreshColumns(preferredX, preferredY) {
+            const currentMode = sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings);
+            updateFastFrameSourceButtonLabel(chooseCsvButton, currentMode);
+            csvName.text(displayCsvLabel(state.selectedCsvPath || settings.csvPath || ''));
+
+            const csvPath = state.selectedCsvPath || settings.csvPath || '';
+            const csvDirectory = csvPath
+                ? ((sharedFast.pathApi && sharedFast.pathApi.dirname) ? sharedFast.pathApi.dirname(csvPath) : sharedFast.defaultCsvDirectory())
+                : (settings.csvDirectory || sharedFast.defaultCsvDirectory());
+            state.availableFiles = csvDirectory ? await sharedFast.listCsvFiles(csvDirectory) : [];
+            const source = sharedFast.resolveCsvSource({
+                csvSourceMode: currentMode,
+                csvDirectory,
+                csvPath
+            }, state.availableFiles);
+
+            if (source.filePath) {
+                const loaded = await sharedFast.loadCsvDataset(source.filePath, '');
+                state.availableColumns = loaded.dataset ? loaded.dataset.headers.filter((header) => header !== 'k_acquire') : [];
+            } else if (Array.isArray(widgetInstance && widgetInstance.availableColumns) && widgetInstance.availableColumns.length) {
+                state.availableColumns = widgetInstance.availableColumns.slice();
+            } else {
+                state.availableColumns = [];
+            }
+
+            populateFastFrameColumnSelect(
+                timeColumnField.select,
+                state.availableColumns,
+                preferredX !== undefined ? preferredX : (timeColumnField.select.val() || settings.timeColumn || settings.xVariable || ''),
+                'Row index'
+            );
+            populateFastFrameColumnSelect(
+                yVariableField.select,
+                state.availableColumns,
+                preferredY !== undefined ? preferredY : (yVariableField.select.val() || settings.yVariable || ''),
+                'Select Y variable'
+            );
+        }
+
+        sourceModeField.select.on('change', () => {
+            refreshColumns(timeColumnField.select.val(), yVariableField.select.val()).catch(() => {});
+        });
+
+        chooseCsvButton.on('click', async () => {
+            const chooser = sharedFast.fileApi && sharedFast.fileApi.chooseCsvFile;
+            if (!chooser) return;
+            const chosen = await chooser();
+            if (!chosen) return;
+            state.selectedCsvPath = chosen;
+            csvName.text(displayCsvLabel(chosen));
+            await refreshColumns(timeColumnField.select.val(), yVariableField.select.val());
+        });
+
+        applySourceButton.on('click', () => {
+            refreshColumns(timeColumnField.select.val(), yVariableField.select.val()).catch(() => {});
+            renderSeriesList();
+        });
+
+        addChannelButton.on('click', () => {
+            const variable = yVariableField.select.val();
+            if (!variable) return;
+            state.seriesDefs.push({
+                variable,
+                label: labelField.input.val() || variable,
+                color: colorField.input.val() || sharedFast.DEFAULT_COLORS[state.seriesDefs.length % sharedFast.DEFAULT_COLORS.length],
+                visible: visibleField.input.prop('checked')
+            });
+            renderSeriesList();
+        });
+
+        resetChannelsButton.on('click', () => {
+            state.seriesDefs = [];
+            renderSeriesList();
+        });
+
+        updateFastFrameSourceButtonLabel(chooseCsvButton, sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings));
+        csvName.text(displayCsvLabel(state.selectedCsvPath || settings.csvPath || ''));
+        renderSeriesList();
+        refreshColumns(settings.timeColumn || settings.xVariable || '', settings.yVariable || '').catch(() => {});
+
+        new DialogBox(form, 'Edit fast_frame_plot', 'Save', 'Cancel', function () {
+            const csvPath = state.selectedCsvPath || settings.csvPath || '';
+            const csvSourceMode = sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings);
+            const csvDirectory = csvPath
+                ? ((sharedFast.pathApi && sharedFast.pathApi.dirname) ? sharedFast.pathApi.dirname(csvPath) : sharedFast.defaultCsvDirectory())
+                : (settings.csvDirectory || sharedFast.defaultCsvDirectory());
+            const xVariable = timeColumnField.select.val() || '';
+            const yVariable = yVariableField.select.val() || settings.yVariable || '';
+            const updated = _.extend({}, settings, {
+                title: titleField.input.val() || settings.title || 'Fast Frame Plot',
+                xLabel: xLabelField.input.val() || '',
+                yLabel: yLabelField.input.val() || '',
+                xMin: xMinField.input.val(),
+                xMax: xMaxField.input.val(),
+                yMin: yMinField.input.val(),
+                yMax: yMaxField.input.val(),
+                showLegend: legendField.input.prop('checked'),
+                csvSourceMode,
+                csvDirectory,
+                csvPath,
+                timeColumn: xVariable,
+                xVariable,
+                yVariable,
+                seriesDefs: state.seriesDefs.slice()
+            });
+            delete updated.helperWidgets;
+            shared.commitWidgetSettings(widgetModel, updated);
+        });
+        return true;
+    }
+
     function openXYPlotEditor(widgetModel, shared) {
         const settings = widgetModel.settings() || {};
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
@@ -430,6 +677,9 @@
             }
             if (type === 'xy_plot_uplot') {
                 return openXYPlotEditor(widgetModel, shared);
+            }
+            if (type === 'fast_frame_plot') {
+                return openFastFramePlotEditor(widgetModel, shared);
             }
             return false;
         }
