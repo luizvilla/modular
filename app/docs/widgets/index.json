@@ -13,14 +13,16 @@
       "title": "Plot UI Controller",
       "category": "Plots",
       "doc": "plots/plot-ui-controller/README.md",
-      "requiresThingset": false
+      "requiresThingset": false,
+      "compatibilityOnly": true
     },
     {
       "type": "uplot_series_manager",
       "title": "Plot Channel Manager",
       "category": "Plots",
       "doc": "plots/plot-series-manager/README.md",
-      "requiresThingset": false
+      "requiresThingset": false,
+      "compatibilityOnly": true
     },
     {
       "type": "xy_plot_uplot",
@@ -34,7 +36,8 @@
       "title": "XY Source Manager",
       "category": "Plots",
       "doc": "plots/xy-plot-source-manager/README.md",
-      "requiresThingset": false
+      "requiresThingset": false,
+      "compatibilityOnly": true
     },
     {
       "type": "vertical_gauge",
@@ -97,14 +100,16 @@
       "title": "Fast Frame UI",
       "category": "Fast Frame",
       "doc": "serial/fast-frame-ui/README.md",
-      "requiresThingset": false
+      "requiresThingset": false,
+      "compatibilityOnly": true
     },
     {
       "type": "fast_frame_channel_manager",
       "title": "Fast Frame Channel Manager",
       "category": "Fast Frame",
       "doc": "serial/fast-frame-channel-manager/README.md",
-      "requiresThingset": false
+      "requiresThingset": false,
+      "compatibilityOnly": true
     },
     {
       "type": "serial_flasher",

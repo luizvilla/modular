@@ -207,6 +207,14 @@ test('fast frame plot can follow the latest timestamped csv in a directory', asy
 
   await loadDashboard(page, fixturePath('fast_frame_dashboard.json'));
 
+  await page.waitForFunction(() => {
+    const manager = window.freeboard.getLiveModel().panes()[1]?.widgets?.()[1]?.widgetInstance;
+    return manager
+      && manager.controls
+      && manager.controls.target
+      && manager.controls.sourceMode;
+  });
+
   await page.evaluate(async (olderPath) => {
     const manager = window.freeboard.getLiveModel().panes()[1].widgets()[1].widgetInstance;
     manager.controls.target.val('Fast Plot');

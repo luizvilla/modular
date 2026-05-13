@@ -28,6 +28,7 @@
     freeboard.loadWidgetPlugin({
         type_name: "xy_plot_source_manager",
         display_name: "XY Source Manager",
+        compatibility_only: true,
         description: "Configure X and Y sources for a target XY Plot widget",
         settings: [],
         newInstance: function (settings, newInstanceCallback) {

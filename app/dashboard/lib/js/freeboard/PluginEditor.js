@@ -870,11 +870,15 @@ PluginEditor = function(jsEditor, valueEditor)
 				var categories = widgetCategoryOrder.slice(0);
 				var grouped = {};
 
-				_.each(pluginTypes, function(pluginType)
-				{
-					var category = _getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
-					if(!_.contains(categories, category))
+					_.each(pluginTypes, function(pluginType)
 					{
+						if(pluginType.compatibility_only && pluginType.type_name !== currentTypeName)
+						{
+							return;
+						}
+						var category = _getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
+						if(!_.contains(categories, category))
+						{
 						category = "Other";
 					}
 					if(!grouped[category])

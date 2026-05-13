@@ -178,6 +178,7 @@ function buildWidgetDocsMenuItems() {
         const entries = loadWidgetDocsIndex().filter((entry) => {
             if (!entry) return false;
             if (!entry.type || !entry.title) return false;
+            if (entry.compatibilityOnly) return false;
             if (!enableThingset && entry.requiresThingset) return false;
             return true;
         });

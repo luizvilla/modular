@@ -5,6 +5,7 @@
     freeboard.loadWidgetPlugin({
         type_name: 'fast_frame_plot_ui',
         display_name: 'Fast Frame UI',
+        compatibility_only: true,
         category: 'Fast Frame',
         icon: 'chart-line',
         description: 'Configure a Fast Frame plot widget',

@@ -10,12 +10,12 @@ async function getPaneWidgetState(page, paneIndex = 0) {
     const widgets = pane.widgets();
     return {
       widgetCount: widgets.length,
-      uplotConfigPanelCount: widgets.filter((widget) => widget.type() === 'uplot_config_panel').length,
+      serialFlasherCount: widgets.filter((widget) => widget.type() === 'serial_flasher').length,
     };
   }, paneIndex);
 }
 
-test('add-widget modal renders the icon grid and saves a zero-settings widget', async () => {
+test('add-widget modal renders the icon grid and hides compatibility widgets from normal add flow', async () => {
   const { app, page } = await launchApp();
 
   try {
@@ -83,14 +83,20 @@ test('add-widget modal renders the icon grid and saves a zero-settings widget', 
     );
     expect(initialSettingRows.length).toBeGreaterThan(1);
 
-    const zeroSettingsTile = widgetPicker.locator('.widget-tile[data-type="uplot_config_panel"]');
-    await expect(zeroSettingsTile).toBeVisible();
-    await zeroSettingsTile.click();
-    await expect(zeroSettingsTile).toHaveClass(/selected/);
+    await expect(widgetPicker.locator('.widget-tile[data-type="uplot_config_panel"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="uplot_series_manager"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="xy_plot_source_manager"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_plot_ui"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_channel_manager"]')).toHaveCount(0);
+
+    const serialFlasherTile = widgetPicker.locator('.widget-tile[data-type="serial_flasher"]');
+    await expect(serialFlasherTile).toBeVisible();
+    await serialFlasherTile.click();
+    await expect(serialFlasherTile).toHaveClass(/selected/);
 
     await page.waitForFunction(() => {
       const rows = Array.from(document.querySelectorAll('#modal_overlay .form-row[id^="setting-row-"]')).map((row) => row.id);
-      return rows.length === 1 && rows[0] === 'setting-row-plugin-types';
+      return rows.includes('setting-row-plugin-types') && rows.includes('setting-row-title');
     });
 
     await page.locator('#dialog-ok').click();
@@ -98,16 +104,16 @@ test('add-widget modal renders the icon grid and saves a zero-settings widget', 
       const pane = window.freeboard.getLiveModel().panes()[0];
       const widgets = pane.widgets();
       const widgetCount = widgets.length;
-      const uplotConfigPanelCount = widgets.filter((widget) => widget.type() === 'uplot_config_panel').length;
-      return widgetCount === expected.widgetCount && uplotConfigPanelCount === expected.uplotConfigPanelCount;
+      const serialFlasherCount = widgets.filter((widget) => widget.type() === 'serial_flasher').length;
+      return widgetCount === expected.widgetCount && serialFlasherCount === expected.serialFlasherCount;
     }, {
       widgetCount: before.widgetCount + 1,
-      uplotConfigPanelCount: before.uplotConfigPanelCount + 1,
+      serialFlasherCount: before.serialFlasherCount + 1,
     });
 
     const after = await getPaneWidgetState(page, 0);
     expect(after.widgetCount).toBe(before.widgetCount + 1);
-    expect(after.uplotConfigPanelCount).toBe(before.uplotConfigPanelCount + 1);
+    expect(after.serialFlasherCount).toBe(before.serialFlasherCount + 1);
   } finally {
     await app.close();
   }

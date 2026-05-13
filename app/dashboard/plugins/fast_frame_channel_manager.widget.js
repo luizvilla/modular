@@ -4,6 +4,7 @@
     freeboard.loadWidgetPlugin({
         type_name: 'fast_frame_channel_manager',
         display_name: 'Fast Frame Channel Manager',
+        compatibility_only: true,
         category: 'Fast Frame',
         icon: 'layer-group',
         description: 'Manage fast-frame CSV source and plotted channels on a target plot',
