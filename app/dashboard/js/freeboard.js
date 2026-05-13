@@ -4260,6 +4260,163 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 		}
 	}
 
+	var plotEditorShared = (function()
+	{
+		function parseNumber(value)
+		{
+			var n = Number(value);
+			return Number.isFinite(n) ? n : undefined;
+		}
+
+		function parseSeriesDefs(value)
+		{
+			if(Array.isArray(value)) return value.slice();
+			if(typeof value === "string")
+			{
+				try { return JSON.parse(value); } catch(e) { return []; }
+			}
+			return [];
+		}
+
+		function getLiveModel()
+		{
+			return freeboard.getLiveModel ? freeboard.getLiveModel() : null;
+		}
+
+		function getDatasourceSettings(dsName)
+		{
+			return freeboard.getDatasourceSettings ? (freeboard.getDatasourceSettings(dsName) || {}) : {};
+		}
+
+		function listDatasources()
+		{
+			var live = getLiveModel();
+			var out = [];
+			if(!live || typeof live.datasources !== "function") return out;
+			live.datasources().forEach(function(ds)
+			{
+				try
+				{
+					var name = ds.name && ds.name();
+					var dsType = ds.type && ds.type();
+					if(!name) return;
+					if(["serialport_datasource", "fast_frame_datasource", "can_datasource", "signal_generator_datasource"].indexOf(dsType) >= 0)
+					{
+						out.push({ name: name, type: dsType });
+					}
+				}
+				catch(e) {}
+			});
+			return out;
+		}
+
+		function getDatasourceType(dsName)
+		{
+			if(!dsName) return null;
+			var live = getLiveModel();
+			if(!live || typeof live.datasources !== "function") return null;
+			var list = live.datasources();
+			for(var i = 0; i < list.length; i++)
+			{
+				try
+				{
+					if(list[i].name && list[i].name() === dsName)
+					{
+						return list[i].type && list[i].type();
+					}
+				}
+				catch(e) {}
+			}
+			return null;
+		}
+
+		async function invoke(channel, payload)
+		{
+			if(window.api && window.api.ipc && typeof window.api.ipc.invoke === "function")
+			{
+				try
+				{
+					return await window.api.ipc.invoke(channel, payload || {});
+				}
+				catch(e)
+				{
+					return null;
+				}
+			}
+			return null;
+		}
+
+		async function fetchDatasourceHeaders(dsName)
+		{
+			var dsType = getDatasourceType(dsName);
+			if(!dsName || !dsType) return [];
+			var settings = getDatasourceSettings(dsName);
+			var path = settings.portPath || dsName;
+			var headers = await invoke("get-serial-headers", { path: path, type: dsType });
+			return Array.isArray(headers) ? headers : [];
+		}
+
+		async function fetchDatasourceChannelCount(dsName, dsType)
+		{
+			if(!dsName || !dsType) return 0;
+			var settings = getDatasourceSettings(dsName);
+			var path = settings.portPath || dsName;
+			try
+			{
+				if(dsType === "fast_frame_datasource")
+				{
+					var dataset = await invoke("get-fast-dataset", { path: path });
+					if(dataset && Array.isArray(dataset.series)) return dataset.series.length;
+				}
+				else if(dsType === "serialport_datasource")
+				{
+					var arr = await invoke("get-serial-buffer", { path: path });
+					if(Array.isArray(arr)) return arr.length;
+				}
+			}
+			catch(e) {}
+			return 0;
+		}
+
+		function commitWidgetSettings(widget, settings)
+		{
+			if(!widget) return;
+			widget.settings(settings);
+			if(widget.widgetInstance && widget.widgetInstance.onSettingsChanged)
+			{
+				widget.widgetInstance.onSettingsChanged(settings);
+			}
+		}
+
+		function updateWidgetSettings(widget, partial)
+		{
+			if(!widget) return;
+			commitWidgetSettings(widget, _.extend({}, widget.settings(), partial));
+		}
+
+		function getFastFrameShared()
+		{
+			return window.FastFrameShared || null;
+		}
+
+		return {
+			parseNumber: parseNumber,
+			parseSeriesDefs: parseSeriesDefs,
+			getLiveModel: getLiveModel,
+			getDatasourceSettings: getDatasourceSettings,
+			listDatasources: listDatasources,
+			getDatasourceType: getDatasourceType,
+			invoke: invoke,
+			fetchDatasourceHeaders: fetchDatasourceHeaders,
+			fetchDatasourceChannelCount: fetchDatasourceChannelCount,
+			commitWidgetSettings: commitWidgetSettings,
+			updateWidgetSettings: updateWidgetSettings,
+			getFastFrameShared: getFastFrameShared
+		};
+	})();
+
+	window.ModularPlotEditorShared = plotEditorShared;
+
 	function getParameterByName(name)
 	{
 		name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
@@ -4490,6 +4647,7 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 		openIntegratedPlotEditor: function(widgetModel, type)
 		{
 			var currentSettings = widgetModel.settings();
+			var shared = plotEditorShared;
 			var form = $('<div class="row g-3"></div>');
 
 			var createInput = function(label, key, inputType, parent) {
@@ -4500,65 +4658,6 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 				row.append(lbl).append(inp);
 				parent.append(row);
 				return inp;
-			};
-
-			var createTextarea = function(label, initialValue, parent) {
-				var row = $('<div class="input-group input-group-sm mb-1"></div>');
-				var lbl = $('<span class="input-group-text">' + label + '</span>');
-				var inp = $('<textarea class="form-control form-control-sm" rows="2"></textarea>');
-				inp.val(initialValue || '');
-				row.append(lbl).append(inp);
-				parent.append(row);
-				return inp;
-			};
-
-			var parseSeriesDefs = function(value) {
-				if (Array.isArray(value)) return value.slice();
-				if (typeof value === 'string') {
-					try { return JSON.parse(value); } catch (e) { return []; }
-				}
-				return [];
-			};
-
-			var parseNumber = function(value) {
-				var n = Number(value);
-				return Number.isFinite(n) ? n : undefined;
-			};
-
-			var getLiveModel = function() {
-				return freeboard.getLiveModel ? freeboard.getLiveModel() : null;
-			};
-
-			var listDatasources = function() {
-				var live = getLiveModel();
-				var out = [];
-				if (!live || typeof live.datasources !== 'function') return out;
-				live.datasources().forEach(function(ds) {
-					try {
-						var name = ds.name && ds.name();
-						var type = ds.type && ds.type();
-						if (!name) return;
-						if (['serialport_datasource', 'fast_frame_datasource', 'can_datasource', 'signal_generator_datasource'].indexOf(type) >= 0) {
-							out.push({ name: name, type: type });
-						}
-					} catch (e) {}
-				});
-				return out;
-			};
-
-			var getDatasourceType = function(dsName) {
-				if (!dsName) return null;
-				var live = getLiveModel();
-				if (!live || typeof live.datasources !== 'function') return null;
-				var list = live.datasources();
-				for (var i = 0; i < list.length; i++) {
-					try {
-						if (list[i].name && list[i].name() === dsName) {
-							return list[i].type && list[i].type();
-						}
-					} catch (e) {}
-				}
-				return null;
 			};
 
 				var left = $('<div class="col-md-6"></div>');
@@ -4575,37 +4674,6 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 				var yMinInput = createInput('Y Min', 'yMin', 'number', left);
 				var yMaxInput = createInput('Y Max', 'yMax', 'number', left);
 
-				var fetchDatasourceHeaders = async function(dsName) {
-					var type = getDatasourceType(dsName);
-					if (!dsName || !type) return [];
-					var settings = freeboard.getDatasourceSettings ? (freeboard.getDatasourceSettings(dsName) || {}) : {};
-					var path = settings.portPath || dsName;
-					if (window.api && window.api.ipc && typeof window.api.ipc.invoke === 'function') {
-						try {
-							var headers = await window.api.ipc.invoke('get-serial-headers', { path: path, type: type });
-							return Array.isArray(headers) ? headers : [];
-						} catch (e) {}
-					}
-					return [];
-				};
-
-				var fetchDatasourceChannelCount = async function(dsName, type) {
-					if (!dsName || !type) return 0;
-					if (!window.api || !window.api.ipc || typeof window.api.ipc.invoke !== 'function') return 0;
-					var settings = freeboard.getDatasourceSettings ? (freeboard.getDatasourceSettings(dsName) || {}) : {};
-					var path = settings.portPath || dsName;
-					try {
-						if (type === 'fast_frame_datasource') {
-							var dataset = await window.api.ipc.invoke('get-fast-dataset', { path: path });
-							if (dataset && Array.isArray(dataset.series)) return dataset.series.length;
-						} else if (type === 'serialport_datasource') {
-							var arr = await window.api.ipc.invoke('get-serial-buffer', { path: path });
-							if (Array.isArray(arr)) return arr.length;
-						}
-					} catch (e) {}
-					return 0;
-				};
-
 			var channelHeader = $('<div class="d-flex align-items-center justify-content-between mb-2"></div>');
 			channelHeader.append('<div class="fw-semibold">Channel manager</div>');
 			var addChannelButton = $('<button class="btn btn-sm btn-outline-primary">Add channel</button>');
@@ -4613,7 +4681,7 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 			var channelList = $('<div class="d-flex flex-column gap-2"></div>');
 			right.append(channelHeader, channelList);
 
-			var seriesDefs = parseSeriesDefs(currentSettings.seriesDefs);
+			var seriesDefs = shared.parseSeriesDefs(currentSettings.seriesDefs);
 
 			var createChannelRow = function(def, index) {
 				var row = $('<div class="border rounded p-2"></div>');
@@ -4658,7 +4726,7 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 				var refreshDatasourceSelect = function(selectEl, selected) {
 					selectEl.empty();
 					selectEl.append('<option value="">Select datasource</option>');
-					listDatasources().forEach(function(ds) {
+					shared.listDatasources().forEach(function(ds) {
 						selectEl.append($('<option>').val(ds.name).text(ds.name));
 					});
 					if (selected && selectEl.find('option[value="' + selected + '"]').length) {
@@ -4672,17 +4740,17 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 						varEl.append('<option value="">No datasource</option>');
 						return;
 					}
-					var type = getDatasourceType(dsName);
-					if (type === 'signal_generator_datasource') {
+					var dsType = shared.getDatasourceType(dsName);
+					if (dsType === 'signal_generator_datasource') {
 						varEl.append('<option value="0">Signal</option>');
 						if (selectedVar !== undefined && selectedVar !== null) varEl.val(selectedVar);
 						return;
 					}
-					if (type === 'fast_frame_datasource' || type === 'serialport_datasource') {
-						var headers = await fetchDatasourceHeaders(dsName);
+					if (dsType === 'fast_frame_datasource' || dsType === 'serialport_datasource') {
+						var headers = await shared.fetchDatasourceHeaders(dsName);
 						var count = Array.isArray(headers) ? headers.length : 0;
 						if (!count) {
-							count = await fetchDatasourceChannelCount(dsName, type);
+							count = await shared.fetchDatasourceChannelCount(dsName, dsType);
 						}
 						if (!count) {
 							count = 4;
@@ -4691,7 +4759,7 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 							var label = headers[i] || 'Channel ' + (i + 1);
 							varEl.append($('<option>').val(i.toString()).text(label));
 						}
-					} else if (type === 'can_datasource') {
+					} else if (dsType === 'can_datasource') {
 						for (var j = 0; j < 4; j++) {
 							varEl.append($('<option>').val('var' + j).text('Variable ' + j));
 						}
@@ -4704,9 +4772,9 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 				};
 
 				var refreshDeviceSelect = function(dsName, deviceEl, selectedDevice) {
-					var type = getDatasourceType(dsName);
+					var dsType = shared.getDatasourceType(dsName);
 					deviceEl.empty();
-					if (type === 'can_datasource') {
+					if (dsType === 'can_datasource') {
 						deviceEl.append('<option value="">Select device</option>');
 						if (selectedDevice) {
 							deviceEl.append($('<option>').val(selectedDevice).text(selectedDevice));
@@ -4787,10 +4855,10 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 						label: label || '',
 						op: op,
 						param: param,
-						a: { ds: aDs, type: getDatasourceType(aDs), device: aDevice || null, var: aVar }
+						a: { ds: aDs, type: shared.getDatasourceType(aDs), device: aDevice || null, var: aVar }
 					};
 					if (op === 'mulvar') {
-						def.b = { ds: bDs, type: getDatasourceType(bDs), device: bDevice || null, var: bVar };
+						def.b = { ds: bDs, type: shared.getDatasourceType(bDs), device: bDevice || null, var: bVar };
 					} else {
 						def.b = null;
 					}
@@ -4803,17 +4871,18 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 					refreshRate: parseInt(refreshInput.val()) || 1000,
 					xLabel: xLabelInput.val(),
 					yLabel: yLabelInput.val(),
-					xMin: parseNumber(xMinInput.val()),
-					xMax: parseNumber(xMaxInput.val()),
-					yMin: parseNumber(yMinInput.val()),
-					yMax: parseNumber(yMaxInput.val()),
+					xMin: shared.parseNumber(xMinInput.val()),
+					xMax: shared.parseNumber(xMaxInput.val()),
+					yMin: shared.parseNumber(yMinInput.val()),
+					yMax: shared.parseNumber(yMaxInput.val()),
 					seriesDefs: newDefs
 				};
-				widgetModel.settings(newSettings);
-				if (widgetModel.widgetInstance && widgetModel.widgetInstance.onSettingsChanged) {
-					widgetModel.widgetInstance.onSettingsChanged(newSettings);
-				}
+				shared.commitWidgetSettings(widgetModel, newSettings);
 			});
+		},
+		getPlotEditorShared : function()
+		{
+			return plotEditorShared;
 		},
 		getWidgetCategoryForType : function(typeName, pluginType, config)
 		{
