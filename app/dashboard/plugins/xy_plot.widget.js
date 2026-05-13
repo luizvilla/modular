@@ -112,67 +112,7 @@
         }
 
         _maybeSpawnHelpers() {
-            const mode = this._resolveHelperWidgets(this.settings);
-            if (mode === 'none' || this._helpersSpawned) return;
-            const model = freeboard.getLiveModel && freeboard.getLiveModel();
-            if (!model || typeof model.panes !== 'function') return;
-
-            let paneIndex = -1;
-            let widgetIndex = -1;
-            const panes = model.panes();
-            for (let p = 0; p < panes.length; p++) {
-                const widgets = panes[p].widgets();
-                for (let w = 0; w < widgets.length; w++) {
-                    if (widgets[w].widgetInstance === this) {
-                        paneIndex = p;
-                        widgetIndex = w;
-                        break;
-                    }
-                }
-                if (paneIndex >= 0) break;
-            }
-            if (paneIndex < 0 || widgetIndex < 0) return;
-
-            const cfg = freeboard.serialize();
-            const pane = cfg.panes[paneIndex];
-            if (!pane || !Array.isArray(pane.widgets)) return;
-            const helperType = 'xy_plot_source_manager';
-            const alreadyExists = cfg.panes.some(existingPane => Array.isArray(existingPane.widgets) && existingPane.widgets.some(w => w.type === helperType));
-            if (alreadyExists) {
-                this._helpersSpawned = true;
-                return;
-            }
-
-            const paneModel = panes[paneIndex];
-            const helperPane = {
-                title: null,
-                width: pane.width,
-                row: {},
-                col: {},
-                col_width: pane.col_width || (paneModel.col_width ? Number(paneModel.col_width()) : 2),
-                widgets: [{ type: helperType, settings: {} }]
-            };
-
-            const rowKeys = paneModel && paneModel.row ? Object.keys(paneModel.row) : [];
-            const colKeys = paneModel && paneModel.col ? Object.keys(paneModel.col) : [];
-            const keys = new Set([...rowKeys, ...colKeys]);
-            const paneWidth = Math.max(1, Number(pane.width || (paneModel.width && paneModel.width()) || 1));
-
-            if (keys.size > 0) {
-                keys.forEach((key) => {
-                    const rowVal = paneModel.row && paneModel.row[key] ? paneModel.row[key] : 1;
-                    const colVal = paneModel.col && paneModel.col[key] ? paneModel.col[key] : 1;
-                    helperPane.row[key] = rowVal;
-                    helperPane.col[key] = colVal + paneWidth;
-                });
-            } else {
-                helperPane.row = 1;
-                helperPane.col = 1 + paneWidth;
-            }
-
-            cfg.panes.splice(paneIndex + 1, 0, helperPane);
-            this._helpersSpawned = true;
-            freeboard.loadDashboard(cfg);
+            return;
         }
 
         _initPlot() {

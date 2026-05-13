@@ -36,7 +36,7 @@
             this.plotHeightPx = null;
             this.hostElement = null;
             this.container = $('<div class="fast-frame-plot h-100 d-flex flex-column gap-2 p-2"></div>');
-            this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure this plot with the Fast Frame UI and Channel Manager widgets.</div>');
+            this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure a CSV source, time column, and one or more plotted channels.</div>');
             this.summary = $('<div class="small text-muted border rounded p-2 mb-2"></div>');
             this.chartShell = $('<div class="d-flex flex-column flex-grow-1 gap-2"></div>');
             this.chartHost = $('<div class="fast-frame-plot-host flex-grow-1" style="min-height:220px;"></div>');
@@ -57,11 +57,7 @@
         }
 
         _scheduleHelperSpawn(delay = 0) {
-            if (this._helpersSpawned || this._helperSpawnTimer) return;
-            this._helperSpawnTimer = setTimeout(() => {
-                this._helperSpawnTimer = null;
-                this._maybeSpawnHelpers();
-            }, delay);
+            return;
         }
 
         _resolveHelperWidgets(settings) {
@@ -76,88 +72,7 @@
         }
 
         _maybeSpawnHelpers() {
-            const mode = this._resolveHelperWidgets(this.settings);
-            if (mode === 'none' || this._helpersSpawned) return;
-
-            const helperTypes = [];
-            if (mode === 'ui' || mode === 'both') helperTypes.push('fast_frame_plot_ui');
-            if (mode === 'channels' || mode === 'both') helperTypes.push('fast_frame_channel_manager');
-            if (!helperTypes.length) return;
-            const spawnKey = this._resolveHelperSpawnKey(helperTypes);
-            if (!spawnKey) return;
-            window.__modularHelperSpawnLocks = window.__modularHelperSpawnLocks || {};
-            if (window.__modularHelperSpawnLocks[spawnKey]) {
-                this._helpersSpawned = true;
-                return;
-            }
-
-            const model = freeboard.getLiveModel && freeboard.getLiveModel();
-            if (!model || typeof model.panes !== 'function') return;
-
-            let paneIndex = -1;
-            let widgetIndex = -1;
-            const panes = model.panes();
-            for (let p = 0; p < panes.length; p++) {
-                const widgets = panes[p].widgets();
-                for (let w = 0; w < widgets.length; w++) {
-                    if (widgets[w].widgetInstance === this) {
-                        paneIndex = p;
-                        widgetIndex = w;
-                        break;
-                    }
-                }
-                if (paneIndex >= 0) break;
-            }
-            if (paneIndex < 0 || widgetIndex < 0) {
-                this._scheduleHelperSpawn(50);
-                return;
-            }
-
-            const cfg = freeboard.serialize();
-            const pane = cfg.panes[paneIndex];
-            if (!pane) return;
-
-            const missingHelpers = helperTypes.filter((helperType) => {
-                return !cfg.panes.some((existingPane) => Array.isArray(existingPane.widgets) && existingPane.widgets.some((widget) => widget.type === helperType));
-            });
-            if (!missingHelpers.length) {
-                window.__modularHelperSpawnLocks[spawnKey] = true;
-                this._helpersSpawned = true;
-                return;
-            }
-
-            const paneModel = panes[paneIndex];
-            const helperPane = {
-                title: null,
-                width: pane.width,
-                row: {},
-                col: {},
-                col_width: pane.col_width || (paneModel.col_width ? Number(paneModel.col_width()) : 1),
-                widgets: missingHelpers.map((type) => ({ type, settings: {} }))
-            };
-
-            const rowKeys = paneModel && paneModel.row ? Object.keys(paneModel.row) : [];
-            const colKeys = paneModel && paneModel.col ? Object.keys(paneModel.col) : [];
-            const keys = new Set([...rowKeys, ...colKeys]);
-            const paneWidth = Math.max(1, Number(pane.width || (paneModel.width && paneModel.width()) || 1));
-
-            if (keys.size > 0) {
-                keys.forEach((key) => {
-                    const rowVal = paneModel.row && paneModel.row[key] ? paneModel.row[key] : 1;
-                    const colVal = paneModel.col && paneModel.col[key] ? paneModel.col[key] : 1;
-                    helperPane.row[key] = rowVal;
-                    helperPane.col[key] = colVal + paneWidth;
-                });
-            } else {
-                helperPane.row = 1;
-                helperPane.col = 1 + paneWidth;
-            }
-
-            cfg.panes.splice(paneIndex + 1, 0, helperPane);
-            window.__modularHelperSpawnLocks[spawnKey] = true;
-            this._helperSpawnKey = spawnKey;
-            this._helpersSpawned = true;
-            freeboard.loadDashboard(cfg);
+            return;
         }
 
         _startPolling() {
@@ -180,14 +95,14 @@
             const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns);
             const sourceLabel = source.mode === 'latest' ? 'Latest CSV' : 'Fixed CSV';
             const fileLabel = source.filePath ? shared.displayPath(source.filePath) : 'none';
-            this.summary.text(`Source: ${sourceLabel} | File: ${fileLabel} | Time: ${this.settings.timeColumn || 'Row index'} | Channels: ${defs.map(def => def.label).join(', ') || '--'}`);
+            this.summary.text(`Source: ${sourceLabel} | File: ${fileLabel} | Time: ${this.settings.timeColumn || 'Row index'} | Channels: ${defs.map(def => `${def.label} (${def.variable})`).join(', ') || '--'}`);
             if (!this.dataset) {
-                this.status.text('Select a CSV file with the Fast Frame UI widget.');
+                this.status.text('Select a CSV source and choose the X/time column.');
                 this._renderPlaceholder();
                 return;
             }
             if (!defs.length) {
-                this.status.text('Add at least one channel with the Fast Frame Channel Manager.');
+                this.status.text('CSV source ready. Add at least one plotted channel.');
                 this._renderPlaceholder();
                 return;
             }

@@ -156,7 +156,7 @@ test('fast frame channel manager refreshes variables immediately after csv selec
   await app.close();
 });
 
-test('fast frame plots auto-spawn helper widgets', async () => {
+test('fast frame plots with legacy helperWidgets do not auto-spawn helper panes', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
 
@@ -164,15 +164,23 @@ test('fast frame plots auto-spawn helper widgets', async () => {
 
   await page.waitForFunction(() => {
     const panes = window.freeboard.getLiveModel().panes();
-    return panes.some((pane) => pane.widgets().some((widget) => widget.type() === 'fast_frame_plot_ui'))
-      && panes.some((pane) => pane.widgets().some((widget) => widget.type() === 'fast_frame_channel_manager'));
+    return panes.length === 1 && panes[0].widgets().length === 1;
   });
 
-  await page.waitForFunction(() => {
+  const helperCounts = await page.evaluate(() => {
     const panes = window.freeboard.getLiveModel().panes();
-    const plotUiCount = panes.flatMap((pane) => pane.widgets()).filter((widget) => widget.type() === 'fast_frame_plot_ui').length;
-    const managerCount = panes.flatMap((pane) => pane.widgets()).filter((widget) => widget.type() === 'fast_frame_channel_manager').length;
-    return plotUiCount === 1 && managerCount === 1;
+    const widgets = panes.flatMap((pane) => pane.widgets());
+    return {
+      paneCount: panes.length,
+      plotUiCount: widgets.filter((widget) => widget.type() === 'fast_frame_plot_ui').length,
+      managerCount: widgets.filter((widget) => widget.type() === 'fast_frame_channel_manager').length,
+    };
+  });
+
+  expect(helperCounts).toEqual({
+    paneCount: 1,
+    plotUiCount: 0,
+    managerCount: 0,
   });
 
   await app.close();
