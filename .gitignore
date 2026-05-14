@@ -9,3 +9,4 @@ test-results/
 # Python cache from dev-only ThingSet autotest tools.
 **/__pycache__/
 *.pyc
+*.csv
