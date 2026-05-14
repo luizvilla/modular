@@ -2339,9 +2339,6 @@ PluginEditor = function(jsEditor, valueEditor)
 
 		var pluginDescriptionElement = $('<div id="plugin-description"></div>').hide();
 		form.append(pluginDescriptionElement);
-		// Widget docs button shows alongside the widget type picker.
-		var docsButton = $('<button type="button" class="btn btn-sm btn-outline-light widget-docs-btn">Open widget docs</button>').hide();
-		form.append(docsButton);
 
 		function createSettingsFromDefinition(settingsDefs, typeaheadSource, typeaheadDataSegment)
 		{
@@ -2776,7 +2773,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		var typeControl;
 		var widgetPicker;
 		var firstWidgetTypeName;
-		var widgetCategoryOrder = ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Gauges", "Controls", "Other"];
+		var widgetCategoryOrder = ["Plots", "Gauges", "Serial", "Controls", "OwnTech", "ThingSet", "Other"];
 
 		var widgetCategoryDefaultIcons = {
 			"OwnTech": "bolt",
@@ -2792,32 +2789,31 @@ PluginEditor = function(jsEditor, valueEditor)
 		function sortWidgetPlugins(category, list)
 		{
 			var preferredOrder = {
-				"OwnTech": {
-					"twist_actions_panel": 0,
-					"twist_setpoints_panel": 1,
-					"twist_calibration_panel": 2
-				},
-				"Fast Frame": {
-					"fast_frame_channel_manager": 0,
-					"fast_frame_plot_ui": 1,
-					"fast_frame_control": 2
-				},
 				"Plots": {
 					"fast_frame_plot": 0,
 					"owntech_plot_uplot": 1,
-					"xy_plot_uplot": 2,
-					"uplot_series_manager": 3,
-					"uplot_config_panel": 4,
-					"xy_plot_source_manager": 5
+					"xy_plot_uplot": 2
 				},
 				"Gauges": {
 					"vertical_gauge": 0,
 					"horizontal_gauge": 1,
 					"radial_arc_gauge": 2,
 					"radial_needle_gauge": 3,
-					"donut_gauge": 4,
+					"donut_gauge": 4
+				},
+				"Controls": {
+					"fast_frame_control": 0,
+					"fast_frame_channel_manager": 1,
+					"uplot_series_manager": 2,
+					"uplot_config_panel": 3,
+					"xy_plot_source_manager": 4,
 					"vertical_gauge_manager": 5,
 					"vertical_gauge_config_panel": 6
+				},
+				"OwnTech": {
+					"twist_actions_panel": 0,
+					"twist_setpoints_panel": 1,
+					"twist_calibration_panel": 2
 				}
 			};
 
@@ -2905,11 +2901,6 @@ PluginEditor = function(jsEditor, valueEditor)
 				createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
 			}
 
-			if(isWidgetType)
-			{
-				docsButton.show();
-				docsButton.prop("disabled", _.isUndefined(selectedType));
-			}
 		}
 
 		if(pluginTypeNames.length > 1)
@@ -3077,14 +3068,6 @@ PluginEditor = function(jsEditor, valueEditor)
 				});
 			}
 
-			if(isWidgetType)
-			{
-				docsButton.show();
-				docsButton.on("click", function()
-				{
-					_openWidgetDocs(newSettings.type);
-				});
-			}
 		}
 		else if(pluginTypeNames.length == 1)
 		{
@@ -3099,14 +3082,6 @@ PluginEditor = function(jsEditor, valueEditor)
 				));
 			}
 			createSettingsFromDefinition(selectedType.settings);
-			if(isWidgetType)
-			{
-				docsButton.show();
-				docsButton.on("click", function()
-				{
-					_openWidgetDocs(newSettings.type);
-				});
-			}
 		}
 
 		if(typeSelect)

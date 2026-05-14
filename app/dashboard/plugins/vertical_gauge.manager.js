@@ -29,7 +29,7 @@
         display_name: 'Gauge Channel Manager',
         description: 'Select datasource/channel for a target Vertical Gauge',
         compatibility_only: true,
-        category: 'Gauges',
+        category: 'Controls',
         settings: [],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new GaugeManager(settings));

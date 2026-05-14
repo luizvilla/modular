@@ -3,6 +3,7 @@
         type_name: "uplot_config_panel",
         display_name: "Plot UI controller",
         compatibility_only: true,
+        category: "Controls",
         description: "Control panel to adjust plot settings",
         settings: [],
         newInstance: function (settings, newInstanceCallback) {

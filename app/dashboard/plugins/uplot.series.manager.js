@@ -25,6 +25,7 @@
     type_name: 'uplot_series_manager',
     display_name: 'Plot Channel Manager',
     compatibility_only: true,
+    category: 'Controls',
     description: 'Add/remove variables and math operations for a target Plot widget',
     settings: [],
     newInstance: function (settings, newInstanceCallback) {
