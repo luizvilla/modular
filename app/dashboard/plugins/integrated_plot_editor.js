@@ -119,6 +119,15 @@
         select.val(currentValue);
     }
 
+    function getGaugeFamily() {
+        return window.ModularGaugeFamily || null;
+    }
+
+    function getGaugeMeta(type) {
+        const family = getGaugeFamily();
+        return family && typeof family.getTypeMeta === 'function' ? family.getTypeMeta(type) : null;
+    }
+
     function buildSourceControls(shared, label, sourceDef) {
         const normalized = sourceDef || {};
         const wrapper = $('<div class="d-flex flex-column gap-1"></div>');
@@ -639,8 +648,74 @@
         return true;
     }
 
-    function openVerticalGaugeEditor(widgetModel, shared) {
+    function appendGaugeSpecificStyleFields(type, container, fields) {
+        if (type === 'horizontal_gauge') {
+            fields.compactMode = createCheckboxRow('Compact Mode', fields.settings.compactMode);
+            fields.labelPosition = createSelectRow('Label Position', [
+                { value: 'top', label: 'Top' },
+                { value: 'bottom', label: 'Bottom' }
+            ], fields.settings.labelPosition || 'top');
+            fields.fillDirection = createSelectRow('Fill Direction', [
+                { value: 'ltr', label: 'Left to right' },
+                { value: 'rtl', label: 'Right to left' }
+            ], fields.settings.fillDirection || 'ltr');
+            container.append(fields.compactMode.row, fields.labelPosition.row, fields.fillDirection.row);
+        } else if (type === 'radial_arc_gauge' || type === 'radial_needle_gauge') {
+            fields.sweepAngle = createSelectRow('Sweep Size', [
+                { value: '180', label: '180 degrees' },
+                { value: '270', label: '270 degrees' }
+            ], String(fields.settings.sweepAngle || 180));
+            fields.centerValueSize = createSelectRow('Center Value Size', [
+                { value: 'large', label: 'Large' },
+                { value: 'small', label: 'Small' }
+            ], fields.settings.centerValueSize || 'large');
+            container.append(fields.sweepAngle.row, fields.centerValueSize.row);
+            if (type === 'radial_needle_gauge') {
+                fields.needleStyle = createSelectRow('Needle Style', [
+                    { value: 'classic', label: 'Classic' },
+                    { value: 'slim', label: 'Slim' }
+                ], fields.settings.needleStyle || 'classic');
+                fields.showHub = createCheckboxRow('Show Hub', fields.settings.showHub !== false);
+                container.append(fields.needleStyle.row, fields.showHub.row);
+            }
+        } else if (type === 'donut_gauge') {
+            fields.ringThickness = createSelectRow('Ring Thickness', [
+                { value: 'thin', label: 'Thin' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'thick', label: 'Thick' }
+            ], fields.settings.ringThickness || 'medium');
+            fields.centerValueSize = createSelectRow('Center Value Size', [
+                { value: 'large', label: 'Large' },
+                { value: 'small', label: 'Small' }
+            ], fields.settings.centerValueSize || 'large');
+            container.append(fields.ringThickness.row, fields.centerValueSize.row);
+        }
+    }
+
+    function buildGaugeSpecificSettings(type, fields, settings) {
+        const out = {};
+        if (type === 'horizontal_gauge') {
+            out.compactMode = fields.compactMode.input.prop('checked');
+            out.labelPosition = fields.labelPosition.select.val() || 'top';
+            out.fillDirection = fields.fillDirection.select.val() || 'ltr';
+        } else if (type === 'radial_arc_gauge' || type === 'radial_needle_gauge') {
+            out.sweepAngle = parseInt(fields.sweepAngle.select.val(), 10) || 180;
+            out.centerValueSize = fields.centerValueSize.select.val() || 'large';
+            if (type === 'radial_needle_gauge') {
+                out.needleStyle = fields.needleStyle.select.val() || 'classic';
+                out.showHub = fields.showHub.input.prop('checked');
+            }
+        } else if (type === 'donut_gauge') {
+            out.ringThickness = fields.ringThickness.select.val() || 'medium';
+            out.centerValueSize = fields.centerValueSize.select.val() || 'large';
+        }
+        return out;
+    }
+
+    function openVerticalGaugeEditor(widgetModel, shared, type) {
+        type = type || 'vertical_gauge';
         const settings = widgetModel.settings() || {};
+        const gaugeMeta = getGaugeMeta(type);
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
         const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
         const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
@@ -652,16 +727,41 @@
         left.append(sourceSection);
 
         const displaySection = createSection('Display');
-        const titleField = createInputRow('Title', 'text', settings.title || 'Vertical Gauge');
+        const titleField = createInputRow('Title', 'text', settings.title || (gaugeMeta ? gaugeMeta.displayName : 'Gauge'));
         const minField = createInputRow('Minimum', 'number', settings.min ?? 0);
         const maxField = createInputRow('Maximum', 'number', settings.max ?? 100);
+        const unitsField = createInputRow('Units', 'text', settings.units || '');
         const refreshField = createInputRow('Refresh Rate (ms)', 'number', settings.refreshRate ?? 500);
+        const showValueField = createCheckboxRow('Show Value', settings.showValue !== false);
+        const showMinMaxField = createCheckboxRow('Show Min/Max', settings.showMinMax !== false);
+        displaySection.append(
+            titleField.row,
+            minField.row,
+            maxField.row,
+            unitsField.row,
+            refreshField.row,
+            showValueField.row,
+            showMinMaxField.row
+        );
+        right.append(displaySection);
+
+        const zonesSection = createSection('Zones');
         const alarmEnabledField = createCheckboxRow('Alarm Enabled', settings.alarmEnabled);
-        const alarmThresholdField = createInputRow('Alarm Threshold', 'number', settings.alarmThreshold ?? 0);
+        const warningThresholdField = createInputRow('Warning Threshold', 'number', settings.warningThreshold ?? '');
+        const criticalThresholdField = createInputRow('Critical Threshold', 'number', settings.criticalThreshold ?? '');
         const alarmDirectionField = createSelectRow('Alarm Direction', [
             { value: 'above', label: 'Above threshold' },
             { value: 'below', label: 'Below threshold' }
         ], settings.alarmDirection || 'above');
+        zonesSection.append(
+            alarmEnabledField.row,
+            warningThresholdField.row,
+            criticalThresholdField.row,
+            alarmDirectionField.row
+        );
+        left.append(zonesSection);
+
+        const styleSection = createSection('Style');
         const paletteThemes = shared.getColorThemes();
         const paletteOptions = Object.keys(paletteThemes)
             .map((key) => ({ value: key, label: key }))
@@ -672,28 +772,24 @@
         paletteField.select.on('change', () => {
             refreshGaugeColorOptions(shared, paletteField.select.val() || 'ColorBlind10', colorField.select, colorField.select.val());
         });
-        displaySection.append(
-            titleField.row,
-            minField.row,
-            maxField.row,
-            refreshField.row,
-            alarmEnabledField.row,
-            alarmThresholdField.row,
-            alarmDirectionField.row,
-            paletteField.row,
-            colorField.row
-        );
-        right.append(displaySection);
+        styleSection.append(paletteField.row, colorField.row);
+        const styleFields = { settings };
+        appendGaugeSpecificStyleFields(type, styleSection, styleFields);
+        left.append(styleSection);
 
-        new DialogBox(form, 'Edit vertical_gauge', 'Save', 'Cancel', function () {
+        new DialogBox(form, gaugeMeta ? gaugeMeta.editorTitle : 'Edit vertical_gauge', 'Save', 'Cancel', function () {
             const sourceDef = sourceControls.buildValue();
-            const updated = _.extend({}, settings, {
-                title: titleField.input.val() || settings.title || 'Vertical Gauge',
+            const updated = _.extend({}, settings, buildGaugeSpecificSettings(type, styleFields, settings), {
+                title: titleField.input.val() || settings.title || (gaugeMeta ? gaugeMeta.displayName : 'Gauge'),
                 min: shared.parseNumber(minField.input.val()) ?? 0,
                 max: shared.parseNumber(maxField.input.val()) ?? 100,
+                units: unitsField.input.val() || '',
                 refreshRate: Math.max(50, parseInt(refreshField.input.val(), 10) || 500),
+                showValue: showValueField.input.prop('checked'),
+                showMinMax: showMinMaxField.input.prop('checked'),
                 alarmEnabled: alarmEnabledField.input.prop('checked'),
-                alarmThreshold: shared.parseNumber(alarmThresholdField.input.val()) ?? 0,
+                warningThreshold: shared.parseNumber(warningThresholdField.input.val()),
+                criticalThreshold: shared.parseNumber(criticalThresholdField.input.val()),
                 alarmDirection: alarmDirectionField.select.val() || 'above',
                 colorPalette: paletteField.select.val() || 'ColorBlind10',
                 barColor: colorField.select.val() || 'blue',
@@ -779,7 +875,7 @@
                 return openFastFramePlotEditor(widgetModel, shared);
             }
             if (type === 'vertical_gauge') {
-                return openVerticalGaugeEditor(widgetModel, shared);
+                return openVerticalGaugeEditor(widgetModel, shared, type);
             }
             return false;
         }

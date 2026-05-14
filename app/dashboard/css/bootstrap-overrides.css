@@ -348,8 +348,8 @@ body.pane-resize-active .pane-resize-handle {
   margin-left: 2px;
 }
 
-/* Vertical gauge widget */
-.vgauge-root {
+/* Gauge family widgets */
+.gauge-family {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -361,25 +361,46 @@ body.pane-resize-active .pane-resize-handle {
   box-sizing: border-box;
 }
 
-.vgauge-root.vgauge-alarm {
+.gauge-family--alarm {
   border-color: rgba(255, 0, 0, 0.6);
   box-shadow: 0 0 0 2px rgba(255, 0, 0, 0.15) inset;
 }
 
-.vgauge-title {
+.gauge-family__title {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: #cfcfcf;
 }
 
-.vgauge-source-summary {
+.gauge-family__summary {
   font-size: 11px;
   color: #9aa0a6;
   line-height: 1.3;
 }
 
-.vgauge-body {
+.gauge-family__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gauge-family__value,
+.gauge-horizontal__value-strip,
+.gauge-radial__value-center {
+  font-size: 14px;
+  color: #e5e7eb;
+  text-align: center;
+  font-weight: 600;
+}
+
+.gauge-family__value {
+  margin-top: auto;
+}
+
+.gauge-track-wrap {
   display: flex;
   align-items: stretch;
   gap: 10px;
@@ -387,40 +408,108 @@ body.pane-resize-active .pane-resize-handle {
   min-height: 0;
 }
 
-.vgauge-track {
+.gauge-track {
   position: relative;
-  flex: 1 1 auto;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 4px;
   overflow: hidden;
-  display: flex;
-  align-items: flex-end;
 }
 
-.vgauge-fill {
+.gauge-track--vertical {
+  flex: 1 1 auto;
+  min-width: 36px;
+}
+
+.gauge-track--horizontal {
   width: 100%;
-  height: 0%;
-  transition: height 120ms linear;
+  min-height: 18px;
 }
 
-.vgauge-root.vgauge-alarm .vgauge-fill {
-  background-color: #ef4444 !important;
+.gauge-track__zones,
+.gauge-track__cover {
+  position: absolute;
+  inset: 0;
 }
 
-.vgauge-labels {
+.gauge-track__zone {
+  position: absolute;
+}
+
+.gauge-track__zones--vertical .gauge-track__zone {
+  left: 0;
+  right: 0;
+}
+
+.gauge-track__zones--horizontal .gauge-track__zone {
+  top: 0;
+  bottom: 0;
+}
+
+.gauge-track__cover {
+  background: rgba(17, 24, 39, 0.88);
+  transition: all 120ms linear;
+}
+
+.gauge-track__cover--vertical {
+  top: 0;
+}
+
+.gauge-range {
   display: flex;
-  flex-direction: column;
   justify-content: space-between;
-  text-align: right;
   font-size: 11px;
   color: #9aa0a6;
-  min-width: 44px;
 }
 
-.vgauge-value {
-  font-size: 14px;
-  color: #e5e7eb;
-  text-align: center;
+.gauge-range--vertical {
+  flex-direction: column;
+  text-align: right;
+  min-width: 56px;
+}
+
+.gauge-range--horizontal {
+  gap: 12px;
+}
+
+.gauge-family--compact .gauge-track--horizontal {
+  min-height: 12px;
+}
+
+.gauge-horizontal__value-strip--bottom {
+  order: 3;
+}
+
+.gauge-radial__canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gauge-radial-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+}
+
+.gauge-radial__value-center {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  width: 70%;
+  text-wrap: balance;
+}
+
+.gauge-radial__value-center--large {
+  font-size: 16px;
+}
+
+.gauge-radial__value-center--small {
+  font-size: 13px;
+}
+
+.gauge-radial__value-center--donut {
+  top: 50%;
 }
 
 /* Tidy pane/widget tool buttons */
