@@ -747,9 +747,10 @@ PluginEditor = function(jsEditor, valueEditor)
 					"vertical_gauge": 4,
 					"horizontal_gauge": 5,
 					"radial_arc_gauge": 6,
-					"donut_gauge": 7,
-					"vertical_gauge_manager": 8,
-					"vertical_gauge_config_panel": 9
+					"radial_needle_gauge": 7,
+					"donut_gauge": 8,
+					"vertical_gauge_manager": 9,
+					"vertical_gauge_config_panel": 10
 				}
 			};
 

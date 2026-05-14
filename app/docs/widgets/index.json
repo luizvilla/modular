@@ -61,6 +61,13 @@
       "requiresThingset": false
     },
     {
+      "type": "radial_needle_gauge",
+      "title": "Radial Needle Gauge",
+      "category": "Plots",
+      "doc": "gauges/radial-needle-gauge/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "donut_gauge",
       "title": "Donut Gauge",
       "category": "Plots",
