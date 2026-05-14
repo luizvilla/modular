@@ -987,6 +987,7 @@ PluginEditor = function(jsEditor, valueEditor)
 					backBtn.show();
 					$("#dialog-ok").text("Save");
 					$("#modal_overlay section").removeClass("datasource-picker-active");
+					$("#modal_overlay header h2").text(title + " — " + selectedType.display_name);
 					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
 				};
 
@@ -998,6 +999,7 @@ PluginEditor = function(jsEditor, valueEditor)
 					typeRowContainer.show();
 					$("#dialog-ok").text("Next").hide();
 					$("#modal_overlay section").addClass("datasource-picker-active");
+					$("#modal_overlay header h2").text(title);
 				});
 
 				_.each(pluginTypes, function(pluginType)
