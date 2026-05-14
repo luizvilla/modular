@@ -54,6 +54,20 @@
       "requiresThingset": false
     },
     {
+      "type": "radial_arc_gauge",
+      "title": "Radial Arc Gauge",
+      "category": "Plots",
+      "doc": "gauges/radial-arc-gauge/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "donut_gauge",
+      "title": "Donut Gauge",
+      "category": "Plots",
+      "doc": "gauges/donut-gauge/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "vertical_gauge_manager",
       "title": "Gauge Channel Manager",
       "category": "Plots",

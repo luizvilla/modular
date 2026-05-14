@@ -746,8 +746,10 @@ PluginEditor = function(jsEditor, valueEditor)
 					"xy_plot_source_manager": 3,
 					"vertical_gauge": 4,
 					"horizontal_gauge": 5,
-					"vertical_gauge_manager": 6,
-					"vertical_gauge_config_panel": 7
+					"radial_arc_gauge": 6,
+					"donut_gauge": 7,
+					"vertical_gauge_manager": 8,
+					"vertical_gauge_config_panel": 9
 				}
 			};
 

@@ -880,6 +880,9 @@
             if (type === 'horizontal_gauge') {
                 return openVerticalGaugeEditor(widgetModel, shared, type);
             }
+            if (type === 'radial_arc_gauge' || type === 'donut_gauge') {
+                return openVerticalGaugeEditor(widgetModel, shared, type);
+            }
             return false;
         }
     };
