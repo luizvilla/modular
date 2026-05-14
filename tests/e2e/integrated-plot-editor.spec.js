@@ -17,6 +17,8 @@ async function getHelperCounts(page) {
       xyPlotSourceManager: widgets.filter((widget) => widget.type() === 'xy_plot_source_manager').length,
       fastFramePlotUi: widgets.filter((widget) => widget.type() === 'fast_frame_plot_ui').length,
       fastFrameChannelManager: widgets.filter((widget) => widget.type() === 'fast_frame_channel_manager').length,
+      verticalGaugeConfigPanel: widgets.filter((widget) => widget.type() === 'vertical_gauge_config_panel').length,
+      verticalGaugeManager: widgets.filter((widget) => widget.type() === 'vertical_gauge_manager').length,
     };
   });
 }
@@ -205,6 +207,49 @@ test('fast-frame plot add flow opens the integrated editor and saves source/chan
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
 
+  } finally {
+    await app.close();
+  }
+});
+
+test('vertical gauge add flow opens the integrated editor and saves bound source configuration', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+    await enableEditing(page);
+
+    const helperCountsBefore = await getHelperCounts(page);
+
+    await openAddWidgetModal(page, 1);
+    await chooseWidgetType(page, 'vertical_gauge');
+
+    await page.waitForFunction(() => {
+      const pane = window.freeboard.getLiveModel().panes()[1];
+      return pane.widgets().length === 1 && pane.widgets()[0].type() === 'vertical_gauge';
+    });
+    await expect(activeModal(page).locator('header .title')).toHaveText('Edit vertical_gauge');
+    await closeStackedAddFlowModals(page);
+
+    await reopenWidgetEditor(page, 1, 0);
+    await expect(activeModal(page).locator('header .title')).toHaveText('Edit vertical_gauge');
+    await activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Datasource' }) }).locator('select').first().selectOption('MockSerial');
+    await activeModal(page).locator('#dialog-ok').click();
+    await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
+
+    expect(await getHelperCounts(page)).toEqual(helperCountsBefore);
+
+    const summaryText = await page.evaluate(() => {
+      const widget = window.freeboard.getLiveModel().panes()[1].widgets()[0];
+      return widget.widgetInstance.sourceSummaryEl.text();
+    });
+    expect(summaryText).toContain('MockSerial /');
+    expect(summaryText).not.toBe('Configure source.');
+
+    await reopenWidgetEditor(page, 1, 0);
+    await expect(activeModal(page).locator('header .title')).toHaveText('Edit vertical_gauge');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
   } finally {
     await app.close();
   }

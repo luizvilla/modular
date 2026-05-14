@@ -86,6 +86,8 @@ test('add-widget modal renders the icon grid and hides compatibility widgets fro
     await expect(widgetPicker.locator('.widget-tile[data-type="uplot_config_panel"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="uplot_series_manager"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="xy_plot_source_manager"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_config_panel"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_manager"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_plot_ui"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_channel_manager"]')).toHaveCount(0);
 

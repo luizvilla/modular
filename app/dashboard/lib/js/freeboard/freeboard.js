@@ -325,7 +325,7 @@ var freeboard = (function()
 
 	function isIntegratedPlotEditorType(typeName)
 	{
-		return typeName === "owntech_plot_uplot" || typeName === "xy_plot_uplot" || typeName === "fast_frame_plot";
+		return typeName === "owntech_plot_uplot" || typeName === "xy_plot_uplot" || typeName === "fast_frame_plot" || typeName === "vertical_gauge";
 	}
 
 	var plotEditorShared = (function()

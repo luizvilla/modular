@@ -38,20 +38,7 @@
         icon: 'gauge-high',
         category: 'Plots',
         settings: [
-            { name: 'title', display_name: 'Title', type: 'text' },
-            // Keep the widget config slim; advanced tuning is handled via helper widgets.
-            {
-                name: 'helperWidgets',
-                display_name: 'Helper Widgets',
-                type: 'option',
-                default_value: 'none',
-                options: [
-                    { name: 'None', value: 'none' },
-                    { name: 'UI Controller', value: 'ui' },
-                    { name: 'Gauge Manager', value: 'manager' },
-                    { name: 'Both', value: 'both' }
-                ]
-            }
+            { name: 'title', display_name: 'Title', type: 'text' }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new VerticalGauge(settings));
@@ -70,26 +57,29 @@
             this.labelsEl = $('<div class="vgauge-labels"></div>');
             this.maxEl = $('<div class="vgauge-max"></div>');
             this.minEl = $('<div class="vgauge-min"></div>');
+            this.sourceSummaryEl = $('<div class="vgauge-source-summary small text-muted">Configure source.</div>');
             this.valueEl = $('<div class="vgauge-value"></div>');
             this.timer = null;
             this.currentValue = null;
+            this._summaryRequestId = 0;
         }
 
         render(el) {
             this.trackEl.append(this.fillEl);
             this.labelsEl.append(this.maxEl, this.minEl);
             this.bodyEl.append(this.trackEl, this.labelsEl);
-            this.container.append(this.titleEl, this.bodyEl, this.valueEl);
+            this.container.append(this.titleEl, this.sourceSummaryEl, this.bodyEl, this.valueEl);
             $(el).append(this.container);
-            // Optionally spawn helper widgets (UI controller / gauge manager) next to this gauge.
             this._maybeSpawnHelpers();
             this._applySettings();
+            this._refreshSourceSummary();
             this._restartTimer();
         }
 
         onSettingsChanged(newSettings) {
             this.settings = newSettings;
             this._applySettings();
+            this._refreshSourceSummary();
             this._restartTimer();
         }
 
@@ -112,111 +102,7 @@
         }
 
         _maybeSpawnHelpers() {
-            const mode = this._resolveHelperWidgets(this.settings);
-            if (mode === 'none') return;
-            if (this._helpersSpawned) return;
-            const model = freeboard.getLiveModel && freeboard.getLiveModel();
-            if (!model || typeof model.panes !== 'function') return;
-
-            // Identify the pane + widget index for this gauge so helpers can be inserted next to it.
-            let paneIndex = -1;
-            let widgetIndex = -1;
-            const panes = model.panes();
-            for (let p = 0; p < panes.length; p++) {
-                const widgets = panes[p].widgets();
-                for (let w = 0; w < widgets.length; w++) {
-                    if (widgets[w].widgetInstance === this) {
-                        paneIndex = p;
-                        widgetIndex = w;
-                        break;
-                    }
-                }
-                if (paneIndex >= 0) break;
-            }
-            if (paneIndex < 0 || widgetIndex < 0) return;
-
-            // Use serialized config for insertion because Freeboard has no public widget-creation API.
-            const cfg = freeboard.serialize();
-            const pane = cfg.panes[paneIndex];
-            if (!pane || !Array.isArray(pane.widgets)) return;
-            const existingTypes = new Set(pane.widgets.map(w => w.type));
-            const helpers = [];
-            if ((mode === 'ui' || mode === 'both') && !existingTypes.has('vertical_gauge_config_panel')) {
-                helpers.push({ type: 'vertical_gauge_config_panel', settings: {} });
-            }
-            if ((mode === 'manager' || mode === 'both') && !existingTypes.has('vertical_gauge_manager')) {
-                helpers.push({ type: 'vertical_gauge_manager', settings: {} });
-            }
-            if (!helpers.length) return;
-
-            // Spawn helpers in a separate pane to the right of the gauge.
-            const paneModel = panes[paneIndex];
-            const helperTypes = new Set(helpers.map(h => h.type));
-            const getPanePosition = (paneModelRef, paneCfgRef) => {
-                if (window.freeboardUI && typeof freeboardUI.getPositionForScreenSize === 'function') {
-                    const pos = freeboardUI.getPositionForScreenSize(paneModelRef);
-                    if (pos && typeof pos.row === 'number' && typeof pos.col === 'number') {
-                        return { row: pos.row, col: pos.col };
-                    }
-                }
-                if (paneCfgRef && typeof paneCfgRef.row === 'number' && typeof paneCfgRef.col === 'number') {
-                    return { row: paneCfgRef.row, col: paneCfgRef.col };
-                }
-                const rowKeys = paneModelRef && paneModelRef.row ? Object.keys(paneModelRef.row) : [];
-                const colKeys = paneModelRef && paneModelRef.col ? Object.keys(paneModelRef.col) : [];
-                const key = rowKeys[0] || colKeys[0];
-                return {
-                    row: key && paneModelRef.row ? (paneModelRef.row[key] || 1) : 1,
-                    col: key && paneModelRef.col ? (paneModelRef.col[key] || 1) : 1
-                };
-            };
-            const basePos = getPanePosition(paneModel, pane);
-            const targetRow = basePos.row;
-            const targetCol = basePos.col + 1;
-            const helperPaneExists = panes.some((paneRef, idx) => {
-                if (idx === paneIndex) return false;
-                const pos = getPanePosition(paneRef, cfg.panes[idx]);
-                if (!pos || pos.row !== targetRow || pos.col !== targetCol) return false;
-                return paneRef.widgets().some(widget => helperTypes.has(widget.type && widget.type()));
-            });
-            if (helperPaneExists) {
-                this._helpersSpawned = true;
-                return;
-            }
-
-            // Prevent duplicate pane creation during rapid re-renders or reloads.
-            const lockKey = `pane:${paneIndex}:widget:${widgetIndex}:helpers:${[...helperTypes].sort().join(',')}`;
-            window.__modularHelperSpawnLocks = window.__modularHelperSpawnLocks || {};
-            if (window.__modularHelperSpawnLocks[lockKey]) return;
-            window.__modularHelperSpawnLocks[lockKey] = true;
-
-            const helperPane = {
-                title: null,
-                width: pane.width,
-                row: {},
-                col: {},
-                col_width: pane.col_width || (paneModel.col_width ? Number(paneModel.col_width()) : 2),
-                widgets: helpers
-            };
-            const rowKeys = paneModel && paneModel.row ? Object.keys(paneModel.row) : [];
-            const colKeys = paneModel && paneModel.col ? Object.keys(paneModel.col) : [];
-            const keys = new Set([...rowKeys, ...colKeys]);
-            if (keys.size > 0) {
-                keys.forEach((key) => {
-                    const rowVal = paneModel.row && paneModel.row[key] ? paneModel.row[key] : targetRow;
-                    const colVal = paneModel.col && paneModel.col[key] ? paneModel.col[key] : basePos.col;
-                    helperPane.row[key] = rowVal;
-                    helperPane.col[key] = colVal + 1;
-                });
-            } else {
-                helperPane.row = targetRow;
-                helperPane.col = targetCol;
-            }
-
-            cfg.panes.splice(paneIndex + 1, 0, helperPane);
-            // Mark as spawned to prevent duplicate pane creation during reload.
-            this._helpersSpawned = true;
-            freeboard.loadDashboard(cfg);
+            return;
         }
 
         _applySettings() {
@@ -230,6 +116,57 @@
             // Accept raw hex colors from the UI controller palette.
             const color = (typeof colorKey === 'string' && colorKey.startsWith('#')) ? colorKey : (COLOR_MAP[colorKey] || COLOR_MAP.blue);
             this.fillEl.css('background-color', color);
+        }
+
+        _getPlotEditorShared() {
+            return window.ModularPlotEditorShared
+                || (window.freeboard && typeof window.freeboard.getPlotEditorShared === 'function' ? window.freeboard.getPlotEditorShared() : null);
+        }
+
+        async _refreshSourceSummary() {
+            const requestId = ++this._summaryRequestId;
+            const src = this._getSourceDef();
+            if (!src || !src.ds) {
+                this.sourceSummaryEl.text('Configure source.');
+                return;
+            }
+            try {
+                const label = await this._describeSourceDef(src);
+                if (requestId !== this._summaryRequestId) return;
+                this.sourceSummaryEl.text(label || 'Configure source.');
+            } catch {
+                if (requestId !== this._summaryRequestId) return;
+                this.sourceSummaryEl.text(src.ds || 'Configure source.');
+            }
+        }
+
+        async _describeSourceDef(src) {
+            const shared = this._getPlotEditorShared();
+            const dsName = src.ds || '';
+            const dsType = src.type || (shared && typeof shared.getDatasourceType === 'function' ? shared.getDatasourceType(dsName) : '') || '';
+            let variableLabel = '';
+            let deviceLabel = '';
+
+            if (shared && typeof shared.fetchDatasourceVariableOptions === 'function') {
+                const options = await shared.fetchDatasourceVariableOptions(dsName, src.device || '');
+                const match = options.find((option) => String(option.value) === String(src.var));
+                if (match) variableLabel = match.label;
+            }
+
+            if (!variableLabel) {
+                if (dsType === 'signal_generator_datasource') variableLabel = 'Signal';
+                else if (src.var != null && dsType === 'can_datasource') variableLabel = String(src.var);
+                else if (src.var != null) variableLabel = `Channel ${Number(src.var) + 1}`;
+            }
+
+            if (dsType === 'can_datasource' && shared && typeof shared.fetchCanDevices === 'function') {
+                const devices = await shared.fetchCanDevices(dsName);
+                const device = devices.find((entry) => entry.value === src.device || (src.device_uid && entry.uid === src.device_uid));
+                deviceLabel = device ? device.label : (src.device || src.device_uid || '');
+            }
+
+            if (deviceLabel) return `${dsName} / ${deviceLabel} / ${variableLabel}`;
+            return variableLabel ? `${dsName} / ${variableLabel}` : dsName;
         }
 
         _restartTimer() {

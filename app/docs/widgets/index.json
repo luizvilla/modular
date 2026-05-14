@@ -51,14 +51,16 @@
       "title": "Gauge Channel Manager",
       "category": "Plots",
       "doc": "gauges/vertical-gauge-manager/README.md",
-      "requiresThingset": false
+      "requiresThingset": false,
+      "compatibilityOnly": true
     },
     {
       "type": "vertical_gauge_config_panel",
       "title": "Vertical Gauge UI",
       "category": "Plots",
       "doc": "gauges/vertical-gauge-ui/README.md",
-      "requiresThingset": false
+      "requiresThingset": false,
+      "compatibilityOnly": true
     },
     {
       "type": "serial_terminal",

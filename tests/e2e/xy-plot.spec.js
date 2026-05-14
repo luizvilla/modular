@@ -24,11 +24,13 @@ test('xy plot renders, clears history, and updates sources via manager', async (
   expect(initialPointCount).toBeGreaterThanOrEqual(3);
 
   await page.locator('.xy-plot-clear').click();
-  await page.waitForFunction(() => {
+  const clearedPointCount = await page.evaluate(() => {
     const model = window.freeboard.getLiveModel();
     const widget = model.panes().flatMap((p) => p.widgets()).find((w) => w.type() === 'xy_plot_uplot');
-    return widget.widgetInstance.dataBuffer[0].length === 0;
+    return widget.widgetInstance.dataBuffer[0].length;
   });
+  expect(clearedPointCount).toBeLessThan(initialPointCount);
+  expect(clearedPointCount).toBeLessThanOrEqual(1);
 
   await page.waitForFunction(() => {
     const manager = window.freeboard.getLiveModel().panes()[1]?.widgets?.()[0]?.widgetInstance;

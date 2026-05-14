@@ -89,6 +89,36 @@
         }
     }
 
+    const GAUGE_COLOR_OPTIONS = [
+        { label: 'Blue', value: 'blue' },
+        { label: 'Green', value: 'green' },
+        { label: 'Orange', value: 'orange' },
+        { label: 'Purple', value: 'purple' },
+        { label: 'Teal', value: 'teal' },
+        { label: 'Yellow', value: 'yellow' },
+        { label: 'Gray', value: 'gray' },
+        { label: 'White', value: 'white' }
+    ];
+
+    function refreshGaugeColorOptions(shared, paletteName, select, selectedValue) {
+        const themes = shared.getColorThemes();
+        const palette = themes[paletteName] || themes.ColorBlind10 || [];
+        const options = GAUGE_COLOR_OPTIONS.slice();
+        palette.forEach((color, index) => {
+            options.push({ value: color, label: `Palette color ${index + 1}` });
+        });
+        const currentValue = selectedValue || select.val() || 'blue';
+        if (currentValue && !options.some((option) => String(option.value) === String(currentValue))) {
+            options.push({ value: currentValue, label: 'Current color' });
+        }
+
+        select.empty();
+        options.forEach((option) => {
+            select.append($('<option></option>').attr('value', option.value).text(option.label));
+        });
+        select.val(currentValue);
+    }
+
     function buildSourceControls(shared, label, sourceDef) {
         const normalized = sourceDef || {};
         const wrapper = $('<div class="d-flex flex-column gap-1"></div>');
@@ -609,6 +639,73 @@
         return true;
     }
 
+    function openVerticalGaugeEditor(widgetModel, shared) {
+        const settings = widgetModel.settings() || {};
+        const form = $('<div class="row g-3 integrated-plot-editor"></div>');
+        const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        form.append(left, right);
+
+        const sourceSection = createSection('Source');
+        const sourceControls = buildSourceControls(shared, 'Datasource', settings.sourceDef);
+        sourceSection.append(sourceControls.wrapper);
+        left.append(sourceSection);
+
+        const displaySection = createSection('Display');
+        const titleField = createInputRow('Title', 'text', settings.title || 'Vertical Gauge');
+        const minField = createInputRow('Minimum', 'number', settings.min ?? 0);
+        const maxField = createInputRow('Maximum', 'number', settings.max ?? 100);
+        const refreshField = createInputRow('Refresh Rate (ms)', 'number', settings.refreshRate ?? 500);
+        const alarmEnabledField = createCheckboxRow('Alarm Enabled', settings.alarmEnabled);
+        const alarmThresholdField = createInputRow('Alarm Threshold', 'number', settings.alarmThreshold ?? 0);
+        const alarmDirectionField = createSelectRow('Alarm Direction', [
+            { value: 'above', label: 'Above threshold' },
+            { value: 'below', label: 'Below threshold' }
+        ], settings.alarmDirection || 'above');
+        const paletteThemes = shared.getColorThemes();
+        const paletteOptions = Object.keys(paletteThemes)
+            .map((key) => ({ value: key, label: key }))
+            .filter((entry) => (paletteThemes[entry.value] || []).length);
+        const paletteField = createSelectRow('Color palette', paletteOptions, settings.colorPalette || 'ColorBlind10');
+        const colorField = createSelectRow('Bar Color', [], settings.barColor || 'blue');
+        refreshGaugeColorOptions(shared, paletteField.select.val() || 'ColorBlind10', colorField.select, settings.barColor || 'blue');
+        paletteField.select.on('change', () => {
+            refreshGaugeColorOptions(shared, paletteField.select.val() || 'ColorBlind10', colorField.select, colorField.select.val());
+        });
+        displaySection.append(
+            titleField.row,
+            minField.row,
+            maxField.row,
+            refreshField.row,
+            alarmEnabledField.row,
+            alarmThresholdField.row,
+            alarmDirectionField.row,
+            paletteField.row,
+            colorField.row
+        );
+        right.append(displaySection);
+
+        new DialogBox(form, 'Edit vertical_gauge', 'Save', 'Cancel', function () {
+            const sourceDef = sourceControls.buildValue();
+            const updated = _.extend({}, settings, {
+                title: titleField.input.val() || settings.title || 'Vertical Gauge',
+                min: shared.parseNumber(minField.input.val()) ?? 0,
+                max: shared.parseNumber(maxField.input.val()) ?? 100,
+                refreshRate: Math.max(50, parseInt(refreshField.input.val(), 10) || 500),
+                alarmEnabled: alarmEnabledField.input.prop('checked'),
+                alarmThreshold: shared.parseNumber(alarmThresholdField.input.val()) ?? 0,
+                alarmDirection: alarmDirectionField.select.val() || 'above',
+                colorPalette: paletteField.select.val() || 'ColorBlind10',
+                barColor: colorField.select.val() || 'blue',
+                sourceDef
+            });
+            delete updated.helperWidgets;
+            shared.commitWidgetSettings(widgetModel, updated);
+        });
+
+        return true;
+    }
+
     function openXYPlotEditor(widgetModel, shared) {
         const settings = widgetModel.settings() || {};
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
@@ -680,6 +777,9 @@
             }
             if (type === 'fast_frame_plot') {
                 return openFastFramePlotEditor(widgetModel, shared);
+            }
+            if (type === 'vertical_gauge') {
+                return openVerticalGaugeEditor(widgetModel, shared);
             }
             return false;
         }

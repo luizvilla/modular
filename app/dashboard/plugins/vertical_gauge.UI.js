@@ -15,6 +15,7 @@
         type_name: 'vertical_gauge_config_panel',
         display_name: 'Vertical Gauge UI',
         description: 'Control panel to adjust vertical gauge settings',
+        compatibility_only: true,
         category: 'Plots',
         settings: [],
         newInstance: function (settings, newInstanceCallback) {

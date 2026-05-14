@@ -373,6 +373,12 @@ body.pane-resize-active .pane-resize-handle {
   color: #cfcfcf;
 }
 
+.vgauge-source-summary {
+  font-size: 11px;
+  color: #9aa0a6;
+  line-height: 1.3;
+}
+
 .vgauge-body {
   display: flex;
   align-items: stretch;
