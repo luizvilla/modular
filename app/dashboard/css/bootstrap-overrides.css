@@ -200,6 +200,7 @@ textarea.form-control {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
   padding: 8px 0;
 }
