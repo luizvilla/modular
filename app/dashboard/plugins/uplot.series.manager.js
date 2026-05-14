@@ -198,7 +198,7 @@
       const model = freeboard.getLiveModel();
       const out = [];
       model.panes().forEach(p => p.widgets().forEach(w => {
-        if (w.type() === 'owntech_plot_uplot') {
+        if (w.type() === 'time_plot_uplot') {
           let t = w.settings().title; if (typeof t === 'function') t = t();
           if (t) out.push(t);
         }
@@ -210,7 +210,7 @@
       const model = freeboard.getLiveModel();
       return model.panes().flatMap(p => p.widgets()).find(w => {
         let t = w.settings().title; if (typeof t === 'function') t = t();
-        return t === title && w.type() === 'owntech_plot_uplot';
+        return t === title && w.type() === 'time_plot_uplot';
       });
     }
 

@@ -2799,7 +2799,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		{
 			var preferredOrder = {
 				"Plots": {
-					"owntech_plot_uplot": 0,
+					"time_plot_uplot": 0,
 					"xy_plot_uplot": 1,
 					"fast_frame_plot": 2
 				},
@@ -4138,12 +4138,12 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 						return;
 					}
 
-					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'owntech_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge')) {
+					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
 					}
 
-					var integratedEditorTypes = ['owntech_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot',
+					var integratedEditorTypes = ['time_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot',
 						'vertical_gauge', 'horizontal_gauge', 'radial_arc_gauge', 'radial_needle_gauge', 'donut_gauge',
 						'fast_frame_control'];
 					pluginEditor.createPluginEditor(title, types, instanceType, settings, function(newSettings)
@@ -4183,7 +4183,7 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 
 								freeboardUI.attachWidgetEditIcons(element);
 
-									if (newSettings.type === 'owntech_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'vertical_gauge' || newSettings.type === 'horizontal_gauge' || newSettings.type === 'radial_arc_gauge' || newSettings.type === 'radial_needle_gauge' || newSettings.type === 'donut_gauge') {
+									if (newSettings.type === 'time_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'vertical_gauge' || newSettings.type === 'horizontal_gauge' || newSettings.type === 'radial_arc_gauge' || newSettings.type === 'radial_needle_gauge' || newSettings.type === 'donut_gauge') {
 									freeboard.openIntegratedPlotEditor(newViewModel, newSettings.type);
 								}
 							}

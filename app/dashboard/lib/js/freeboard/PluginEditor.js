@@ -748,7 +748,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		{
 			var preferredOrder = {
 				"Plots": {
-					"owntech_plot_uplot": 0,
+					"time_plot_uplot": 0,
 					"xy_plot_uplot": 1,
 					"fast_frame_plot": 2
 				},

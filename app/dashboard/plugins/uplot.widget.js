@@ -29,7 +29,7 @@
         };
     })(api);
     freeboard.loadWidgetPlugin({
-        type_name: "owntech_plot_uplot",
+        type_name: "time_plot_uplot",
         display_name: "Time Plot Widget",
         category: "Plots",
         description: "Realtime uPlot-based chart. Accepts streaming values or a full dataset",

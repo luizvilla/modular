@@ -10,3 +10,5 @@ test-results/
 **/__pycache__/
 *.pyc
 *.csv
+.agents
+.claude

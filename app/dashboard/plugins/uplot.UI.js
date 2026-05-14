@@ -101,7 +101,7 @@
             const title = this.controls.target_widget_title.val();
             const widget = model.panes().flatMap(p => p.widgets()).find(w => {
                 let wTitle = w.settings().title; if (typeof wTitle === 'function') wTitle = wTitle();
-                return wTitle === title && w.type() === 'owntech_plot_uplot';
+                return wTitle === title && w.type() === 'time_plot_uplot';
             });
             if (!widget) return;
             const settings = widget.settings();
@@ -123,7 +123,7 @@
             const model = freeboard.getLiveModel();
             model.panes().forEach(pane => {
                 pane.widgets().forEach(widget => {
-                    if (widget.type() === 'owntech_plot_uplot') {
+                    if (widget.type() === 'time_plot_uplot') {
                         const t = typeof widget.settings().title === 'function' ? widget.settings().title() : widget.settings().title;
                         if (t) widgets.push(t);
                     }
@@ -143,7 +143,7 @@
             const title = this.controls.target_widget_title.val();
             const widget = model.panes().flatMap(p => p.widgets()).find(w => {
                 let wTitle = w.settings().title; if (typeof wTitle === 'function') wTitle = wTitle();
-                return wTitle === title && w.type() === 'owntech_plot_uplot';
+                return wTitle === title && w.type() === 'time_plot_uplot';
             });
             if (!widget) return;
             const yMinVal = parseFloat(this.controls.yMin.val());

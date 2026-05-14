@@ -14,7 +14,7 @@
       "col_width": 2,
       "widgets": [
         {
-          "type": "owntech_plot_uplot",
+          "type": "time_plot_uplot",
           "settings": {
             "title": "adc_hrtim_trigger Plot",
             "refreshRate": 100,

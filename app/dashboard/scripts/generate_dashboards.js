@@ -362,7 +362,7 @@ function buildDashboard(exampleName, commands, channels) {
   }));
 
   const plotWidget = {
-    type: 'owntech_plot_uplot',
+    type: 'time_plot_uplot',
     settings: {
       title: `${exampleName} Plot`,
       refreshRate: 100,

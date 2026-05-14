@@ -862,7 +862,7 @@
         open(widgetModel, type, providedShared) {
             const shared = getShared(providedShared);
             if (!shared || !widgetModel) return false;
-            if (type === 'owntech_plot_uplot') {
+            if (type === 'time_plot_uplot') {
                 return openOwntechPlotEditor(widgetModel, shared);
             }
             if (type === 'xy_plot_uplot') {

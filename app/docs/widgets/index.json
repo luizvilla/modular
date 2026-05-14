@@ -2,7 +2,7 @@
   "_comment": "Widget docs index for Help menu + widget docs tabs. Channel manager naming aligned.",
   "widgets": [
     {
-      "type": "owntech_plot_uplot",
+      "type": "time_plot_uplot",
       "title": "Plot (uPlot)",
       "category": "OwnTech",
       "doc": "plots/plot-uplot/README.md",
