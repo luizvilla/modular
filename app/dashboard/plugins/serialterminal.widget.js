@@ -3,7 +3,7 @@
         type_name: "serial_terminal",
         display_name: "Serial Terminal",
         description: "Show live data from a serial datasource",
-        icon: "rectangle-terminal",
+        icon: "terminal",
         settings: [
             { name: "title", display_name: "Title", type: "text" },
             // Use a live options provider so the widget settings modal shows a datasource dropdown.
