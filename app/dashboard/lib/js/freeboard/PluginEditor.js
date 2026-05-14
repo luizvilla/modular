@@ -329,6 +329,9 @@ PluginEditor = function(jsEditor, valueEditor)
 		}
 
 		var selectedType;
+		var inPickerStep = false;
+		var advanceToSettings;
+		var datasourcePicker;
 		var form = $('<div></div>');
 		var titleDebugPanel = $('<div id="plugin-editor-title-debug" style="display:none; margin:8px 0; padding:8px; border:1px solid #555; background:#111; color:#ddd; font:12px/1.4 monospace; white-space:pre-wrap; max-height:180px; overflow:auto;"></div>');
 
@@ -676,6 +679,12 @@ PluginEditor = function(jsEditor, valueEditor)
 
 		new DialogBox(form, title, "Save", "Cancel", function()
 		{
+			if(inPickerStep)
+			{
+				if(advanceToSettings) advanceToSettings();
+				return true;
+			}
+
 			$(".validation-error").remove();
 
 			// Loop through each setting and validate it
@@ -951,23 +960,88 @@ PluginEditor = function(jsEditor, valueEditor)
 			}
 			else
 			{
-				typeSelect = $('<select></select>').appendTo($('<div class="styled-select"></div>').appendTo(typeRow));
-				typeControl = typeSelect;
-				typeSelect.append($("<option>Select a type...</option>").attr("value", "undefined"));
+				var typeRowContainer = typeRow.closest(".form-row");
+				typeRowContainer.find(".form-label").hide();
+				typeRow.css("float", "none");
+
+				datasourcePicker = $('<div class="datasource-picker"></div>').appendTo(typeRow);
+				typeControl = datasourcePicker;
+
+				var datasourceIconMap = {
+					fast_frame_datasource    : "bolt",
+					serialport_datasource    : "plug",
+					thingset_serial_datasource: "terminal",
+					can_datasource           : "network-wired",
+					signal_generator_datasource: "wave-square"
+				};
+
+				var backBtn = $('<button type="button" class="datasource-back-btn" title="Back to type selection"><i class="fa-solid fa-arrow-left"></i></button>')
+					.hide()
+					.prependTo(form);
+
+				advanceToSettings = function()
+				{
+					if(!selectedType) return;
+					inPickerStep = false;
+					typeRowContainer.hide();
+					backBtn.show();
+					$("#dialog-ok").text("Save");
+					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
+				};
+
+				backBtn.on("click", function()
+				{
+					inPickerStep = true;
+					backBtn.hide();
+					_removeSettingsRows();
+					typeRowContainer.show();
+					$("#dialog-ok").text("Next").hide();
+				});
 
 				_.each(pluginTypes, function(pluginType)
 				{
-					var option = $("<option></option>").text(pluginType.display_name).attr("value", pluginType.type_name);
+					var iconName = pluginType.icon || datasourceIconMap[pluginType.type_name] || "database";
+					var tile = $('<div class="datasource-tile" tabindex="0" role="button" aria-pressed="false"></div>')
+						.attr("data-type", pluginType.type_name)
+						.append($('<i class="fa-solid fa-' + iconName + '"></i>'))
+						.append($('<span></span>').text(pluginType.display_name || pluginType.type_name))
+						.appendTo(datasourcePicker);
+
 					if(pluginType.description && pluginType.description.length > 0)
 					{
-						option.attr("title", pluginType.description);
+						tile.attr("title", pluginType.description);
 					}
-					typeSelect.append(option);
-				});
 
-				typeSelect.change(function()
-				{
-					applyWidgetTypeSelection($(this).val());
+					tile.on("click", function()
+					{
+						datasourcePicker.find(".datasource-tile").removeClass("selected").attr("aria-pressed", "false");
+						$(this).addClass("selected").attr("aria-pressed", "true");
+						selectedType = pluginType;
+						newSettings.type = pluginType.type_name;
+						$("#dialog-ok").text("Next").show();
+					});
+
+					tile.on("dblclick", function()
+					{
+						$(this).trigger("click");
+						advanceToSettings();
+					});
+
+					tile.on("keydown", function(e)
+					{
+						if(e.which === 13 || e.which === 32)
+						{
+							e.preventDefault();
+							if($(this).hasClass("selected"))
+							{
+								advanceToSettings();
+							}
+							else
+							{
+								$(this).trigger("click");
+							}
+						}
+					});
 				});
 			}
 
@@ -1034,6 +1108,24 @@ PluginEditor = function(jsEditor, valueEditor)
 			{
 				$("#dialog-ok").show();
 				applyWidgetTypeSelection(currentTypeName, { preserveCurrentSettings: true });
+			}
+		}
+		else if(datasourcePicker)
+		{
+			if(_.isUndefined(currentTypeName))
+			{
+				inPickerStep = true;
+				$("#dialog-ok").hide();
+			}
+			else
+			{
+				// Editing an existing datasource — skip the picker and show settings directly.
+				inPickerStep = false;
+				selectedType = pluginTypes[currentTypeName];
+				newSettings.type = currentTypeName;
+				typeRowContainer.hide();
+				createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
+				$("#dialog-ok").show();
 			}
 		}
 	}

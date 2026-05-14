@@ -2363,6 +2363,72 @@ ul.datasource-input-suffix {
     padding: 6px;
 }
 
+.datasource-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 4px;
+}
+
+.datasource-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 10px 10px;
+    width: 90px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    background: rgba(75,75,75,0.0);
+    color: #d3d4d4;
+    font-size: 10px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    transition: background 200ms linear, border-color 200ms linear;
+    word-break: break-word;
+}
+
+.datasource-tile i {
+    font-size: 24px;
+    margin-bottom: 8px;
+    color: #B88F51;
+}
+
+.datasource-tile:hover {
+    background: rgba(75,75,75,1.0);
+    border-color: #555;
+}
+
+.datasource-tile.selected {
+    background: rgba(75,75,75,1.0);
+    border-color: #B88F51;
+}
+
+.datasource-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 10px;
+    padding: 0;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px;
+    color: #d3d4d4;
+    cursor: pointer;
+    float: right;
+}
+
+.datasource-back-btn:hover {
+    background: rgba(184,143,81,0.18);
+    border-color: #B88F51;
+    color: #B88F51;
+}
+
 .title {
 	font-family: 'Helvetica-Neue', 'Helvetica', 'Arial', sans-serif;
 	vertical-align: baseline;
