@@ -985,7 +985,7 @@ PluginEditor = function(jsEditor, valueEditor)
 					inPickerStep = false;
 					typeRowContainer.hide();
 					backBtn.show();
-					$("#dialog-ok").text(_.isUndefined(currentTypeName) ? "Add" : "Save");
+					$("#dialog-ok").text(_.isUndefined(currentTypeName) ? "Add" : "Save").show();
 					$("#modal_overlay section").removeClass("datasource-picker-active");
 					$("#modal_overlay header h2").text(title + " — " + selectedType.display_name);
 					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
