@@ -739,9 +739,9 @@ PluginEditor = function(jsEditor, valueEditor)
 		{
 			var preferredOrder = {
 				"Plots": {
-					"fast_frame_plot": 0,
-					"owntech_plot_uplot": 1,
-					"xy_plot_uplot": 2
+					"owntech_plot_uplot": 0,
+					"xy_plot_uplot": 1,
+					"fast_frame_plot": 2
 				},
 				"Gauges": {
 					"vertical_gauge": 0,
