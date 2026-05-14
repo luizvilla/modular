@@ -2919,11 +2919,11 @@ PluginEditor = function(jsEditor, valueEditor)
 
 				_.each(pluginTypes, function(pluginType)
 				{
-					if(pluginType.compatibility_only && pluginType.type_name !== currentTypeName)
+					var category = getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
+					if(pluginType.compatibility_only && pluginType.type_name !== currentTypeName && category !== "Controls")
 					{
 						return;
 					}
-					var category = getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
 					if(!_.contains(categories, category))
 					{
 						category = "Other";
