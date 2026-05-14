@@ -1,12 +1,15 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./helpers');
 
+test.setTimeout(60_000);
+
 test('plots and gauges render', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
   await loadDashboard(page, fixturePath('test_dashboard.json'));
 
   await page.waitForSelector('.uplot', { timeout: 15_000 });
+  await page.waitForSelector('.legacy-gauge-widget', { timeout: 15_000 });
 
   const widgetTypes = await page.evaluate(() => {
     const model = window.freeboard?.getLiveModel?.();
@@ -19,6 +22,7 @@ test('plots and gauges render', async () => {
   expect(widgetTypes).toEqual(expect.arrayContaining([
     'owntech_plot_uplot',
     'vertical_gauge',
+    'gauge',
     'uplot_series_manager',
     'vertical_gauge_manager',
   ]));

@@ -37,6 +37,7 @@
                 refreshRate: 500,
                 showValue: true,
                 showMinMax: true,
+                valueSize: 'small',
                 colorPalette: 'ColorBlind10',
                 barColor: 'blue',
                 alarmEnabled: false,
@@ -56,6 +57,7 @@
                 refreshRate: 500,
                 showValue: true,
                 showMinMax: true,
+                valueSize: 'small',
                 colorPalette: 'ColorBlind10',
                 barColor: 'blue',
                 alarmEnabled: false,
@@ -78,13 +80,14 @@
                 refreshRate: 500,
                 showValue: true,
                 showMinMax: true,
+                valueSize: 'small',
                 colorPalette: 'ColorBlind10',
                 barColor: 'blue',
                 alarmEnabled: false,
                 alarmDirection: 'above',
                 sweepAngle: 180,
                 startAnglePreset: 'left',
-                centerValueSize: 'large'
+                valueSize: 'big'
             }
         },
         radial_needle_gauge: {
@@ -100,13 +103,14 @@
                 refreshRate: 500,
                 showValue: true,
                 showMinMax: true,
+                valueSize: 'small',
                 colorPalette: 'ColorBlind10',
                 barColor: 'blue',
                 alarmEnabled: false,
                 alarmDirection: 'above',
                 sweepAngle: 180,
                 startAnglePreset: 'left',
-                centerValueSize: 'large',
+                valueSize: 'big',
                 needleStyle: 'classic',
                 showHub: true
             }
@@ -124,12 +128,13 @@
                 refreshRate: 500,
                 showValue: true,
                 showMinMax: true,
+                valueSize: 'small',
                 colorPalette: 'ColorBlind10',
                 barColor: 'blue',
                 alarmEnabled: false,
                 alarmDirection: 'above',
                 ringThickness: 'medium',
-                centerValueSize: 'large'
+                valueSize: 'big'
             }
         }
     };
@@ -168,6 +173,7 @@
         merged.refreshRate = Math.max(50, parseNumber(merged.refreshRate, defaults.refreshRate || 500));
         merged.showValue = merged.showValue !== false;
         merged.showMinMax = merged.showMinMax !== false;
+        merged.valueSize = normalizeValueSize(merged.valueSize || merged.centerValueSize || defaults.valueSize || 'small');
         merged.alarmEnabled = !!merged.alarmEnabled;
         merged.alarmDirection = merged.alarmDirection === 'below' ? 'below' : 'above';
         merged.units = merged.units || '';
@@ -179,8 +185,14 @@
     }
 
     function parseFiniteOrUndefined(value) {
+        if (value === '' || value == null) return undefined;
         const next = Number(value);
         return Number.isFinite(next) ? next : undefined;
+    }
+
+    function normalizeValueSize(value) {
+        if (value === 'large') return 'big';
+        return value === 'big' ? 'big' : 'small';
     }
 
     function resolveBarColor(value) {
@@ -189,7 +201,9 @@
     }
 
     function hasConfiguredZones(settings) {
-        return Number.isFinite(settings.warningThreshold) && Number.isFinite(settings.criticalThreshold);
+        return !!settings.alarmEnabled
+            && Number.isFinite(settings.warningThreshold)
+            && Number.isFinite(settings.criticalThreshold);
     }
 
     function normalizeThresholds(settings) {
@@ -495,12 +509,14 @@
                 widget.svgEl = createSvg('svg', { viewBox: widget.geometry.viewBox, class: 'gauge-radial-svg' });
                 widget.zoneGroupEl = createSvg('g', {});
                 widget.coverPathEl = createSvg('path', {});
+                widget.valueOverlayEl = $('<div class="gauge-radial__value-overlay gauge-radial__value-overlay--arc"></div>');
                 widget.valueCenterEl = $('<div class="gauge-radial__value-center"></div>');
+                widget.valueOverlayEl.append(widget.valueCenterEl);
                 widget.minEl = $('<div class="gauge-range__label"></div>');
                 widget.maxEl = $('<div class="gauge-range__label"></div>');
                 widget.rangeStripEl = $('<div class="gauge-range gauge-range--horizontal"></div>').append(widget.minEl, widget.maxEl);
                 widget.svgEl.append(widget.zoneGroupEl, widget.coverPathEl);
-                widget.bodyEl.append($('<div class="gauge-radial__canvas"></div>').append(widget.svgEl, widget.valueCenterEl), widget.rangeStripEl);
+                widget.bodyEl.append($('<div class="gauge-radial__canvas"></div>').append(widget.svgEl, widget.valueOverlayEl), widget.rangeStripEl);
             },
             applySettings(widget) {
                 widget.geometry = getArcGeometry(widget);
@@ -510,8 +526,8 @@
                 widget.minEl.text(widget.normalizedSettings.showMinMax ? formatValue(widget.normalizedSettings.min, widget.normalizedSettings.units) : '');
                 widget.maxEl.text(widget.normalizedSettings.showMinMax ? formatValue(widget.normalizedSettings.max, widget.normalizedSettings.units) : '');
                 widget.rangeStripEl.toggle(widget.normalizedSettings.showMinMax);
-                widget.valueCenterEl.removeClass('gauge-radial__value-center--small gauge-radial__value-center--large')
-                    .addClass(widget.normalizedSettings.centerValueSize === 'small' ? 'gauge-radial__value-center--small' : 'gauge-radial__value-center--large');
+                widget.valueCenterEl.removeClass('gauge-value--small gauge-value--big')
+                    .addClass(widget.normalizedSettings.valueSize === 'big' ? 'gauge-value--big' : 'gauge-value--small');
             },
             updateValue(widget, value) {
                 updateArcMask(widget.coverPathEl, widget.normalizedSettings, widget.geometry, toRatio(widget.normalizedSettings, value), 20);
@@ -523,12 +539,14 @@
                 widget.svgEl = createSvg('svg', { viewBox: widget.geometry.viewBox, class: 'gauge-radial-svg' });
                 widget.zoneGroupEl = createSvg('g', {});
                 widget.coverPathEl = createSvg('path', {});
-                widget.valueCenterEl = $('<div class="gauge-radial__value-center gauge-radial__value-center--donut"></div>');
+                widget.valueOverlayEl = $('<div class="gauge-radial__value-overlay gauge-radial__value-overlay--donut"></div>');
+                widget.valueCenterEl = $('<div class="gauge-radial__value-center"></div>');
+                widget.valueOverlayEl.append(widget.valueCenterEl);
                 widget.minEl = $('<div class="gauge-range__label"></div>');
                 widget.maxEl = $('<div class="gauge-range__label"></div>');
                 widget.rangeStripEl = $('<div class="gauge-range gauge-range--horizontal"></div>').append(widget.minEl, widget.maxEl);
                 widget.svgEl.append(widget.zoneGroupEl, widget.coverPathEl);
-                widget.bodyEl.append($('<div class="gauge-radial__canvas"></div>').append(widget.svgEl, widget.valueCenterEl), widget.rangeStripEl);
+                widget.bodyEl.append($('<div class="gauge-radial__canvas"></div>').append(widget.svgEl, widget.valueOverlayEl), widget.rangeStripEl);
             },
             applySettings(widget) {
                 widget.geometry = getArcGeometry(widget);
@@ -538,8 +556,8 @@
                 widget.minEl.text(widget.normalizedSettings.showMinMax ? formatValue(widget.normalizedSettings.min, widget.normalizedSettings.units) : '');
                 widget.maxEl.text(widget.normalizedSettings.showMinMax ? formatValue(widget.normalizedSettings.max, widget.normalizedSettings.units) : '');
                 widget.rangeStripEl.toggle(widget.normalizedSettings.showMinMax);
-                widget.valueCenterEl.removeClass('gauge-radial__value-center--small gauge-radial__value-center--large')
-                    .addClass(widget.normalizedSettings.centerValueSize === 'small' ? 'gauge-radial__value-center--small' : 'gauge-radial__value-center--large');
+                widget.valueCenterEl.removeClass('gauge-value--small gauge-value--big')
+                    .addClass(widget.normalizedSettings.valueSize === 'big' ? 'gauge-value--big' : 'gauge-value--small');
                 widget._donutStrokeWidth = strokeWidth;
             },
             updateValue(widget, value) {
@@ -553,12 +571,14 @@
                 widget.zoneGroupEl = createSvg('g', {});
                 widget.needleEl = createSvg('line', { 'stroke-width': 6, 'stroke-linecap': 'round' });
                 widget.hubEl = createSvg('circle', { r: 8 });
+                widget.valueOverlayEl = $('<div class="gauge-radial__value-overlay gauge-radial__value-overlay--needle"></div>');
                 widget.valueCenterEl = $('<div class="gauge-radial__value-center"></div>');
+                widget.valueOverlayEl.append(widget.valueCenterEl);
                 widget.minEl = $('<div class="gauge-range__label"></div>');
                 widget.maxEl = $('<div class="gauge-range__label"></div>');
                 widget.rangeStripEl = $('<div class="gauge-range gauge-range--horizontal"></div>').append(widget.minEl, widget.maxEl);
                 widget.svgEl.append(widget.zoneGroupEl, widget.needleEl, widget.hubEl);
-                widget.bodyEl.append($('<div class="gauge-radial__canvas"></div>').append(widget.svgEl, widget.valueCenterEl), widget.rangeStripEl);
+                widget.bodyEl.append($('<div class="gauge-radial__canvas"></div>').append(widget.svgEl, widget.valueOverlayEl), widget.rangeStripEl);
             },
             applySettings(widget) {
                 widget.geometry = getArcGeometry(widget);
@@ -567,8 +587,8 @@
                 widget.minEl.text(widget.normalizedSettings.showMinMax ? formatValue(widget.normalizedSettings.min, widget.normalizedSettings.units) : '');
                 widget.maxEl.text(widget.normalizedSettings.showMinMax ? formatValue(widget.normalizedSettings.max, widget.normalizedSettings.units) : '');
                 widget.rangeStripEl.toggle(widget.normalizedSettings.showMinMax);
-                widget.valueCenterEl.removeClass('gauge-radial__value-center--small gauge-radial__value-center--large')
-                    .addClass(widget.normalizedSettings.centerValueSize === 'small' ? 'gauge-radial__value-center--small' : 'gauge-radial__value-center--large');
+                widget.valueCenterEl.removeClass('gauge-value--small gauge-value--big')
+                    .addClass(widget.normalizedSettings.valueSize === 'big' ? 'gauge-value--big' : 'gauge-value--small');
                 widget.hubEl.attr({
                     cx: widget.geometry.centerX,
                     cy: widget.geometry.centerY,
@@ -613,14 +633,16 @@
         }
 
         render(el) {
+            const host = $(el);
+            host.addClass('gauge-family-host');
             if (!this._built) {
                 this.container.addClass(`gauge-family--${this.family}`);
                 this.container.append(this.titleEl, this.summaryEl, this.bodyEl);
                 this.renderer.build(this);
-                $(el).append(this.container);
+                host.append(this.container);
                 this._built = true;
             } else {
-                $(el).append(this.container);
+                host.append(this.container);
             }
             this._applySettings();
             this._refreshSourceSummary();
@@ -649,6 +671,7 @@
         _applySettings() {
             this.normalizedSettings = normalizeSettings(this.type, this.settings);
             this.titleEl.text(this.normalizedSettings.title || this.meta.displayName);
+            this.container.toggleClass('gauge-family--show-minmax', this.normalizedSettings.showMinMax);
             this.renderer.applySettings(this);
             this._applyValueDisplay(this.currentValue);
         }
@@ -656,6 +679,8 @@
         _applyValueDisplay(value) {
             const showValue = this.normalizedSettings.showValue !== false;
             this.valueEl.toggle(showValue);
+            this.valueEl.removeClass('gauge-value--small gauge-value--big')
+                .addClass(this.normalizedSettings.valueSize === 'big' ? 'gauge-value--big' : 'gauge-value--small');
             if (!showValue) return;
             const text = value == null ? '--' : formatValue(value, this.normalizedSettings.units);
             this.valueEl.text(text);

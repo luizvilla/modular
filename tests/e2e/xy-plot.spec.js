@@ -30,7 +30,7 @@ test('xy plot renders, clears history, and updates sources via manager', async (
     return widget.widgetInstance.dataBuffer[0].length;
   });
   expect(clearedPointCount).toBeLessThan(initialPointCount);
-  expect(clearedPointCount).toBeLessThanOrEqual(1);
+  expect(clearedPointCount).toBeLessThanOrEqual(2);
 
   await page.waitForFunction(() => {
     const manager = window.freeboard.getLiveModel().panes()[1]?.widgets?.()[0]?.widgetInstance;

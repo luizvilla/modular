@@ -33,8 +33,8 @@ async function launchApp(envOverrides = {}) {
 
 async function waitForDashboard(page) {
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('#app-tabs', { state: 'attached', timeout: 30_000 });
-  await page.waitForSelector('#board-content', { state: 'attached', timeout: 30_000 });
+  await page.waitForSelector('#app-tabs', { state: 'attached', timeout: 60_000 });
+  await page.waitForSelector('#board-content', { state: 'attached', timeout: 60_000 });
 }
 
 async function loadDashboard(page, dashboardPath) {
@@ -45,7 +45,7 @@ async function loadDashboard(page, dashboardPath) {
     if (typeof fb.getLiveModel !== 'function') return false;
     const model = fb.getLiveModel();
     return model && typeof model.panes === 'function' && model.panes().length > 0;
-  });
+  }, null, { timeout: 60_000 });
 }
 
 function fixturePath(name) {

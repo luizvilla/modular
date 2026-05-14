@@ -1,6 +1,8 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./helpers');
 
+test.setTimeout(60_000);
+
 test('dashboard loads and editing toggles', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);

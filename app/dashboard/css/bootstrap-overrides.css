@@ -349,12 +349,22 @@ body.pane-resize-active .pane-resize-handle {
 }
 
 /* Gauge family widgets */
+.gauge-family-host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
 .gauge-family {
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: min(100%, 250px);
   gap: 8px;
   padding: 8px 10px;
+  margin: auto;
   border-radius: 6px;
   background: rgba(20, 20, 20, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -385,12 +395,13 @@ body.pane-resize-active .pane-resize-handle {
   gap: 10px;
   flex: 1 1 auto;
   min-height: 0;
+  align-items: center;
+  justify-content: center;
 }
 
 .gauge-family__value,
 .gauge-horizontal__value-strip,
 .gauge-radial__value-center {
-  font-size: 14px;
   color: #e5e7eb;
   text-align: center;
   font-weight: 600;
@@ -400,12 +411,23 @@ body.pane-resize-active .pane-resize-handle {
   margin-top: auto;
 }
 
+.gauge-value--small {
+  font-size: 14px;
+}
+
+.gauge-value--big {
+  font-size: 22px;
+  line-height: 1.05;
+}
+
 .gauge-track-wrap {
   display: flex;
   align-items: stretch;
   gap: 10px;
   flex: 1 1 auto;
   min-height: 0;
+  width: min(100%, 190px);
+  margin-inline: auto;
 }
 
 .gauge-track {
@@ -421,7 +443,7 @@ body.pane-resize-active .pane-resize-handle {
 }
 
 .gauge-track--horizontal {
-  width: 100%;
+  width: min(100%, 220px);
   min-height: 18px;
 }
 
@@ -483,33 +505,67 @@ body.pane-resize-active .pane-resize-handle {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  width: min(100%, 220px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-inline: auto;
 }
 
 .gauge-radial-svg {
-  width: 100%;
-  height: 100%;
-  min-height: 180px;
+  width: min(100%, 220px);
+  height: auto;
+  display: block;
+  margin-inline: auto;
+}
+
+.gauge-radial__value-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.gauge-radial__value-overlay--arc {
+  align-items: center;
+  padding-top: 34px;
+}
+
+.gauge-radial__value-overlay--donut {
+  align-items: center;
+}
+
+.gauge-radial__value-overlay--needle {
+  align-items: flex-start;
+  padding-top: 70%;
 }
 
 .gauge-radial__value-center {
-  position: absolute;
-  left: 50%;
-  top: 58%;
-  transform: translate(-50%, -50%);
-  width: 70%;
+  width: 72%;
   text-wrap: balance;
 }
 
-.gauge-radial__value-center--large {
-  font-size: 16px;
+.gauge-family--radial_needle .gauge-radial__value-center.gauge-value--big {
+  font-size: 18px;
 }
 
-.gauge-radial__value-center--small {
+.gauge-family--radial_needle .gauge-radial__value-center.gauge-value--small {
   font-size: 13px;
 }
 
-.gauge-radial__value-center--donut {
-  top: 50%;
+.gauge-family--vertical .gauge-family__value,
+.gauge-family--horizontal .gauge-horizontal__value-strip {
+  width: 100%;
+  margin-inline: auto;
+}
+
+.gauge-family--horizontal .gauge-range--horizontal,
+.gauge-family--radial_arc .gauge-range--horizontal,
+.gauge-family--radial_needle .gauge-range--horizontal,
+.gauge-family--donut .gauge-range--horizontal {
+  width: min(100%, 220px);
+  margin-inline: auto;
 }
 
 /* Tidy pane/widget tool buttons */

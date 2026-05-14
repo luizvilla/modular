@@ -649,6 +649,11 @@
     }
 
     function appendGaugeSpecificStyleFields(type, container, fields) {
+        fields.valueSize = createSelectRow('Value Size', [
+            { value: 'small', label: 'Small' },
+            { value: 'big', label: 'Big' }
+        ], (fields.settings.valueSize === 'large' ? 'big' : (fields.settings.valueSize || fields.settings.centerValueSize || (type === 'radial_arc_gauge' || type === 'radial_needle_gauge' || type === 'donut_gauge' ? 'big' : 'small'))));
+        container.append(fields.valueSize.row);
         if (type === 'horizontal_gauge') {
             fields.compactMode = createCheckboxRow('Compact Mode', fields.settings.compactMode);
             fields.labelPosition = createSelectRow('Label Position', [
@@ -665,11 +670,7 @@
                 { value: '180', label: '180 degrees' },
                 { value: '270', label: '270 degrees' }
             ], String(fields.settings.sweepAngle || 180));
-            fields.centerValueSize = createSelectRow('Center Value Size', [
-                { value: 'large', label: 'Large' },
-                { value: 'small', label: 'Small' }
-            ], fields.settings.centerValueSize || 'large');
-            container.append(fields.sweepAngle.row, fields.centerValueSize.row);
+            container.append(fields.sweepAngle.row);
             if (type === 'radial_needle_gauge') {
                 fields.needleStyle = createSelectRow('Needle Style', [
                     { value: 'classic', label: 'Classic' },
@@ -684,30 +685,26 @@
                 { value: 'medium', label: 'Medium' },
                 { value: 'thick', label: 'Thick' }
             ], fields.settings.ringThickness || 'medium');
-            fields.centerValueSize = createSelectRow('Center Value Size', [
-                { value: 'large', label: 'Large' },
-                { value: 'small', label: 'Small' }
-            ], fields.settings.centerValueSize || 'large');
-            container.append(fields.ringThickness.row, fields.centerValueSize.row);
+            container.append(fields.ringThickness.row);
         }
     }
 
     function buildGaugeSpecificSettings(type, fields, settings) {
-        const out = {};
+        const out = {
+            valueSize: fields.valueSize.select.val() || 'small'
+        };
         if (type === 'horizontal_gauge') {
             out.compactMode = fields.compactMode.input.prop('checked');
             out.labelPosition = fields.labelPosition.select.val() || 'top';
             out.fillDirection = fields.fillDirection.select.val() || 'ltr';
         } else if (type === 'radial_arc_gauge' || type === 'radial_needle_gauge') {
             out.sweepAngle = parseInt(fields.sweepAngle.select.val(), 10) || 180;
-            out.centerValueSize = fields.centerValueSize.select.val() || 'large';
             if (type === 'radial_needle_gauge') {
                 out.needleStyle = fields.needleStyle.select.val() || 'classic';
                 out.showHub = fields.showHub.input.prop('checked');
             }
         } else if (type === 'donut_gauge') {
             out.ringThickness = fields.ringThickness.select.val() || 'medium';
-            out.centerValueSize = fields.centerValueSize.select.val() || 'large';
         }
         return out;
     }
@@ -788,8 +785,8 @@
                 showValue: showValueField.input.prop('checked'),
                 showMinMax: showMinMaxField.input.prop('checked'),
                 alarmEnabled: alarmEnabledField.input.prop('checked'),
-                warningThreshold: shared.parseNumber(warningThresholdField.input.val()),
-                criticalThreshold: shared.parseNumber(criticalThresholdField.input.val()),
+                warningThreshold: (warningThresholdField.input.val() === '' ? undefined : shared.parseNumber(warningThresholdField.input.val())),
+                criticalThreshold: (criticalThresholdField.input.val() === '' ? undefined : shared.parseNumber(criticalThresholdField.input.val())),
                 alarmDirection: alarmDirectionField.select.val() || 'above',
                 colorPalette: paletteField.select.val() || 'ColorBlind10',
                 barColor: colorField.select.val() || 'blue',

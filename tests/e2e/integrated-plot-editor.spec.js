@@ -65,6 +65,27 @@ async function closeStackedAddFlowModals(page) {
   await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
 }
 
+async function configureDatasource(page, datasourceName = 'MockSerial') {
+  await activeModal(page)
+    .locator('.input-group')
+    .filter({ has: page.locator('.input-group-text', { hasText: 'Datasource' }) })
+    .locator('select')
+    .first()
+    .selectOption(datasourceName);
+}
+
+async function readSingleGaugeState(page) {
+  return page.evaluate(() => {
+    const widget = window.freeboard.getLiveModel().panes()[1].widgets()[0];
+    return {
+      type: widget.type(),
+      settings: widget.settings(),
+      summary: widget.widgetInstance.summaryEl.text(),
+      className: widget.widgetInstance.container.attr('class') || '',
+    };
+  });
+}
+
 test('owntech plot add flow opens the integrated editor and wrench reopens it', async () => {
   const { app, page } = await launchApp();
   try {
@@ -195,10 +216,11 @@ test('fast-frame plot add flow opens the integrated editor and saves source/chan
 
     expect(await getHelperCounts(page)).toEqual(helperCountsBefore);
 
-    const summaryText = await page.evaluate(() => {
+    await page.waitForFunction(() => {
       const widget = window.freeboard.getLiveModel().panes()[1].widgets()[0];
-      return widget.widgetInstance.summary.text();
+      return widget.widgetInstance.summary.text().includes('V_high (V_high)');
     });
+    const summaryText = await page.evaluate(() => window.freeboard.getLiveModel().panes()[1].widgets()[0].widgetInstance.summary.text());
     expect(summaryText).toContain('Source: Fixed CSV');
     expect(summaryText).toContain('V_high (V_high)');
 
@@ -254,6 +276,96 @@ test('vertical gauge add flow opens the integrated editor and saves bound source
     await app.close();
   }
 });
+
+for (const gaugeScenario of [
+  {
+    type: 'horizontal_gauge',
+    title: 'Edit horizontal_gauge',
+    expectedClass: 'gauge-family--horizontal',
+    applyEditorChanges: async (page) => {
+      await configureDatasource(page, 'MockSerial');
+      await activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Fill Direction' }) }).locator('select').selectOption('rtl');
+    },
+    assertSettings: (settings) => {
+      expect(settings.fillDirection).toBe('rtl');
+    }
+  },
+  {
+    type: 'radial_arc_gauge',
+    title: 'Edit radial_arc_gauge',
+    expectedClass: 'gauge-family--radial_arc',
+    applyEditorChanges: async (page) => {
+      await configureDatasource(page, 'MockSerial');
+      await activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Sweep Size' }) }).locator('select').selectOption('270');
+    },
+    assertSettings: (settings) => {
+      expect(settings.sweepAngle).toBe(270);
+    }
+  },
+  {
+    type: 'radial_needle_gauge',
+    title: 'Edit radial_needle_gauge',
+    expectedClass: 'gauge-family--radial_needle',
+    applyEditorChanges: async (page) => {
+      await configureDatasource(page, 'MockSerial');
+      await activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Needle Style' }) }).locator('select').selectOption('slim');
+      await activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Show Hub' }) }).locator('input[type="checkbox"]').uncheck();
+    },
+    assertSettings: (settings) => {
+      expect(settings.needleStyle).toBe('slim');
+      expect(settings.showHub).toBe(false);
+    }
+  },
+  {
+    type: 'donut_gauge',
+    title: 'Edit donut_gauge',
+    expectedClass: 'gauge-family--donut',
+    applyEditorChanges: async (page) => {
+      await configureDatasource(page, 'MockSerial');
+      await activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Ring Thickness' }) }).locator('select').selectOption('thick');
+    },
+    assertSettings: (settings) => {
+      expect(settings.ringThickness).toBe('thick');
+    }
+  }
+]) {
+  test(`${gaugeScenario.type} add flow opens the integrated editor and persists family-specific settings`, async () => {
+    const { app, page } = await launchApp();
+    try {
+      await waitForDashboard(page);
+      await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+      await enableEditing(page);
+
+      const helperCountsBefore = await getHelperCounts(page);
+
+      await openAddWidgetModal(page, 1);
+      await chooseWidgetType(page, gaugeScenario.type);
+
+      await page.waitForFunction((type) => {
+        const pane = window.freeboard.getLiveModel().panes()[1];
+        return pane.widgets().length === 1 && pane.widgets()[0].type() === type;
+      }, gaugeScenario.type);
+      await expect(activeModal(page).locator('header .title')).toHaveText(gaugeScenario.title);
+      await closeStackedAddFlowModals(page);
+
+      await reopenWidgetEditor(page, 1, 0);
+      await expect(activeModal(page).locator('header .title')).toHaveText(gaugeScenario.title);
+      await gaugeScenario.applyEditorChanges(page);
+      await activeModal(page).locator('#dialog-ok').click();
+      await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
+
+      expect(await getHelperCounts(page)).toEqual(helperCountsBefore);
+
+      const widgetState = await readSingleGaugeState(page);
+      expect(widgetState.type).toBe(gaugeScenario.type);
+      expect(widgetState.summary).toContain('MockSerial /');
+      expect(widgetState.className).toContain(gaugeScenario.expectedClass);
+      gaugeScenario.assertSettings(widgetState.settings);
+    } finally {
+      await app.close();
+    }
+  });
+}
 
 test('non-plot widgets still use the generic plugin editor', async () => {
   const { app, page } = await launchApp();

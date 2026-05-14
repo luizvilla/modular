@@ -88,8 +88,14 @@ test('add-widget modal renders the icon grid and hides compatibility widgets fro
     await expect(widgetPicker.locator('.widget-tile[data-type="xy_plot_source_manager"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_config_panel"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_manager"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="gauge"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_plot_ui"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_channel_manager"]')).toHaveCount(0);
+
+    await expect(widgetPicker.locator('.widget-tile[data-type="horizontal_gauge"]')).toBeVisible();
+    await expect(widgetPicker.locator('.widget-tile[data-type="radial_arc_gauge"]')).toBeVisible();
+    await expect(widgetPicker.locator('.widget-tile[data-type="radial_needle_gauge"]')).toBeVisible();
+    await expect(widgetPicker.locator('.widget-tile[data-type="donut_gauge"]')).toBeVisible();
 
     const serialFlasherTile = widgetPicker.locator('.widget-tile[data-type="serial_flasher"]');
     await expect(serialFlasherTile).toBeVisible();
