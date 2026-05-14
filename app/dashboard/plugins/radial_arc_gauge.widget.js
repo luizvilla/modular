@@ -6,7 +6,7 @@
         display_name: 'Radial Arc Gauge',
         description: 'Single-channel radial arc gauge with integrated source, zone, and alarm controls',
         icon: gaugeFamily && gaugeFamily.getTypeMeta ? gaugeFamily.getTypeMeta('radial_arc_gauge').icon : 'gauge-high',
-        category: 'Plots',
+        category: 'Gauges',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' }
         ],

@@ -6,7 +6,7 @@
     } catch {}
     freeboard.loadWidgetPlugin({
         type_name: 'serial_flasher',
-        display_name: 'Firmware Flasher',
+        display_name: 'Serial Firmware Flasher',
         description: 'Flash firmware to a device over serial using mcumgr',
         icon: 'microchip',
         settings: [

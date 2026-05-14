@@ -6,7 +6,7 @@
         display_name: 'Donut Gauge',
         description: 'Single-channel donut gauge with integrated source, zone, and alarm controls',
         icon: gaugeFamily && gaugeFamily.getTypeMeta ? gaugeFamily.getTypeMeta('donut_gauge').icon : 'circle-notch',
-        category: 'Plots',
+        category: 'Gauges',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' }
         ],

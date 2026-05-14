@@ -56,6 +56,10 @@ PluginEditor = function(jsEditor, valueEditor)
 		{
 			return "ThingSet";
 		}
+		if(name.indexOf("gauge") > -1 || display.indexOf("gauge") > -1)
+		{
+			return "Gauges";
+		}
 		if(name.indexOf("uplot") === 0 || name.indexOf("plot") > -1 || name.indexOf("power_bars") > -1 || display.indexOf("plot") > -1)
 		{
 			return "Plots";
@@ -721,7 +725,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		var typeControl;
 		var widgetPicker;
 		var firstWidgetTypeName;
-		var widgetCategoryOrder = ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Other"];
+		var widgetCategoryOrder = ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Gauges", "Controls", "Other"];
 
 		var widgetCategoryDefaultIcons = {
 			"OwnTech": "bolt",
@@ -729,6 +733,7 @@ PluginEditor = function(jsEditor, valueEditor)
 			"Serial": "terminal",
 			"ThingSet": "network-wired",
 			"Plots": "chart-line",
+			"Gauges": "gauge-high",
 			"Controls": "sliders",
 			"Other": "puzzle-piece"
 		};
@@ -737,29 +742,31 @@ PluginEditor = function(jsEditor, valueEditor)
 		{
 			var preferredOrder = {
 				"OwnTech": {
-					"owntech_plot_uplot": 0,
-					"twist_actions_panel": 1,
-					"twist_setpoints_panel": 2,
-					"twist_calibration_panel": 3
+					"twist_actions_panel": 0,
+					"twist_setpoints_panel": 1,
+					"twist_calibration_panel": 2
 				},
 				"Fast Frame": {
-					"fast_frame_plot": 0,
-					"fast_frame_channel_manager": 1,
-					"fast_frame_plot_ui": 2,
-					"fast_frame_control": 3
+					"fast_frame_channel_manager": 0,
+					"fast_frame_plot_ui": 1,
+					"fast_frame_control": 2
 				},
 				"Plots": {
-					"uplot_series_manager": 0,
-					"uplot_config_panel": 1,
+					"fast_frame_plot": 0,
+					"owntech_plot_uplot": 1,
 					"xy_plot_uplot": 2,
-					"xy_plot_source_manager": 3,
-					"vertical_gauge": 4,
-					"horizontal_gauge": 5,
-					"radial_arc_gauge": 6,
-					"radial_needle_gauge": 7,
-					"donut_gauge": 8,
-					"vertical_gauge_manager": 9,
-					"vertical_gauge_config_panel": 10
+					"uplot_series_manager": 3,
+					"uplot_config_panel": 4,
+					"xy_plot_source_manager": 5
+				},
+				"Gauges": {
+					"vertical_gauge": 0,
+					"horizontal_gauge": 1,
+					"radial_arc_gauge": 2,
+					"radial_needle_gauge": 3,
+					"donut_gauge": 4,
+					"vertical_gauge_manager": 5,
+					"vertical_gauge_config_panel": 6
 				}
 			};
 

@@ -3,8 +3,8 @@
 
     freeboard.loadWidgetPlugin({
         type_name: 'fast_frame_plot',
-        display_name: 'Fast Frame Plot',
-        category: 'Fast Frame',
+        display_name: 'Fast Frame Widget',
+        category: 'Plots',
         icon: 'chart-area',
         description: 'Plots multiple CSV-backed fast-frame channels against time or sample index',
         external_scripts: [

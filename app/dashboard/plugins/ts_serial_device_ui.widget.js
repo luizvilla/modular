@@ -380,6 +380,7 @@
   freeboard.loadWidgetPlugin({
     type_name: 'thingset_serial_device_ui',
     display_name: 'ThingSet Serial Device UI',
+    category: 'ThingSet',
     description: 'Inspect and control ThingSet devices via serial shell commands.',
     icon: 'plug',
     settings: [

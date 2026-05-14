@@ -25,7 +25,8 @@
 
     freeboard.loadWidgetPlugin({
         type_name: "xy_plot_uplot",
-        display_name: "XY Plot widget",
+        display_name: "XY Plot Widget",
+        category: "Plots",
         description: "Realtime X versus Y plot with trailing history",
         icon: "chart-line",
         external_scripts: [

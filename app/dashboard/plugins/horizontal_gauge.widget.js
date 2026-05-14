@@ -6,7 +6,7 @@
         display_name: 'Horizontal Gauge',
         description: 'Single-channel horizontal gauge with integrated source, zone, and alarm controls',
         icon: gaugeFamily && gaugeFamily.getTypeMeta ? gaugeFamily.getTypeMeta('horizontal_gauge').icon : 'grip-lines',
-        category: 'Plots',
+        category: 'Gauges',
         settings: [
             { name: 'title', display_name: 'Title', type: 'text' }
         ],
