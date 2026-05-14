@@ -350,21 +350,20 @@ body.pane-resize-active .pane-resize-handle {
 
 /* Gauge family widgets */
 .gauge-family-host {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   height: 100%;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 .gauge-family {
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: min(100%, 250px);
-  gap: 8px;
+  width: 100%;
+  gap: 1px;
   padding: 8px 10px;
-  margin: auto;
+  margin: 0;
   border-radius: 6px;
   background: rgba(20, 20, 20, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -426,7 +425,7 @@ body.pane-resize-active .pane-resize-handle {
   gap: 10px;
   flex: 1 1 auto;
   min-height: 0;
-  width: min(100%, 190px);
+  width: 100%;
   margin-inline: auto;
 }
 
@@ -443,7 +442,7 @@ body.pane-resize-active .pane-resize-handle {
 }
 
 .gauge-track--horizontal {
-  width: min(100%, 220px);
+  width: 100%;
   min-height: 18px;
 }
 
@@ -505,7 +504,7 @@ body.pane-resize-active .pane-resize-handle {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  width: min(100%, 220px);
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -513,7 +512,9 @@ body.pane-resize-active .pane-resize-handle {
 }
 
 .gauge-radial-svg {
-  width: min(100%, 220px);
+  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
   height: auto;
   display: block;
   margin-inline: auto;
@@ -538,7 +539,7 @@ body.pane-resize-active .pane-resize-handle {
 
 .gauge-radial__value-overlay--needle {
   align-items: flex-start;
-  padding-top: 70%;
+  padding-top: 40%;
 }
 
 .gauge-radial__value-center {
@@ -564,7 +565,7 @@ body.pane-resize-active .pane-resize-handle {
 .gauge-family--radial_arc .gauge-range--horizontal,
 .gauge-family--radial_needle .gauge-range--horizontal,
 .gauge-family--donut .gauge-range--horizontal {
-  width: min(100%, 220px);
+  width: 100%;
   margin-inline: auto;
 }
 
@@ -577,7 +578,6 @@ body.pane-resize-active .pane-resize-handle {
 
 /* Reserve space so tools don't overlap widget content */
 .sub-section {
-  padding-right: 56px;
   padding-top: 30px;
 }
 
