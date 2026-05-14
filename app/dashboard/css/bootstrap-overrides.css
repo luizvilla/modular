@@ -8,6 +8,7 @@ textarea.form-control {
 #modal_overlay .modal {
   display: block;
   height: auto;
+  width: 640px;
 }
 
 /* Harmonize Freeboard modal form rows with Bootstrap */
@@ -274,6 +275,17 @@ textarea.form-control {
   background: rgba(184, 143, 81, 0.18);
   border-color: #B88F51;
   color: #B88F51;
+}
+
+.widget-picker-section.thingset .widget-picker-section-title {
+  color: #B88F51;
+}
+
+.widget-picker-section.thingset .widget-picker-grid {
+  background: rgba(184, 143, 81, 0.08);
+  border: 1px solid rgba(184, 143, 81, 0.35);
+  border-radius: 5px;
+  padding: 6px;
 }
 
 @media screen and (max-width: 960px) {

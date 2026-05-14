@@ -261,9 +261,18 @@
     function openOwntechPlotEditor(widgetModel, shared) {
         const settings = widgetModel.settings() || {};
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
-        const left = $('<div class="col-md-5 d-flex flex-column gap-2"></div>');
-        const right = $('<div class="col-md-7 d-flex flex-column gap-2"></div>');
+        const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
         form.append(left, right);
+
+        const channelsSection = createSection('Channels');
+        const channelHeader = $('<div class="d-flex align-items-center justify-content-between gap-2"></div>');
+        channelHeader.append('<div class="small text-muted">Configure series sources and transforms.</div>');
+        const addChannelButton = $('<button type="button" class="btn btn-sm btn-outline-primary">Add channel</button>');
+        channelHeader.append(addChannelButton);
+        const channelList = $('<div class="d-flex flex-column gap-2"></div>');
+        channelsSection.append(channelHeader, channelList);
+        left.append(channelsSection);
 
         const displaySection = createSection('Display');
         const titleField = createInputRow('Title', 'text', settings.title || '');
@@ -286,16 +295,7 @@
             legendField.row,
             paletteField.row
         );
-        left.append(displaySection);
-
-        const channelsSection = createSection('Channels');
-        const channelHeader = $('<div class="d-flex align-items-center justify-content-between gap-2"></div>');
-        channelHeader.append('<div class="small text-muted">Configure local series sources and transforms.</div>');
-        const addChannelButton = $('<button type="button" class="btn btn-sm btn-outline-primary">Add channel</button>');
-        channelHeader.append(addChannelButton);
-        const channelList = $('<div class="d-flex flex-column gap-2"></div>');
-        channelsSection.append(channelHeader, channelList);
-        right.append(channelsSection);
+        right.append(displaySection);
 
         const channelEditors = [];
         const seriesDefs = shared.parseSeriesDefs(settings.seriesDefs).map(normalizeOwntechSeriesDef);
@@ -313,8 +313,8 @@
                 { value: 'mulvar', label: 'x * y' }
             ], normalized.op || 'identity');
             const paramField = createInputRow('Parameter', 'number', normalized.param || 0, 'k or b');
-            const sourceA = buildSourceControls(shared, 'Source X', normalized.a);
-            const sourceB = buildSourceControls(shared, 'Source Y', normalized.b || {});
+            const sourceA = buildSourceControls(shared, 'Source', normalized.a);
+            const sourceB = buildSourceControls(shared, 'Second Source', normalized.b || {});
             const removeButton = $('<button type="button" class="btn btn-sm btn-outline-danger align-self-end">Remove channel</button>');
 
             function syncMode() {
@@ -381,7 +381,7 @@
         });
         applyPalette(shared, paletteField.select.val() || 'ColorBlind10');
 
-        new DialogBox(form, 'Edit owntech_plot_uplot', 'Save', 'Cancel', function () {
+        new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
             const newDefs = channelEditors.map((editor) => editor.buildDef()).filter(Boolean);
             const updated = _.extend({}, settings, {
                 title: titleField.input.val() || settings.title || 'Plot widget',
@@ -458,8 +458,8 @@
         };
 
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
-        const left = $('<div class="col-md-5 d-flex flex-column gap-2"></div>');
-        const right = $('<div class="col-md-7 d-flex flex-column gap-2"></div>');
+        const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
         form.append(left, right);
 
         const sourceSection = createSection('Source');
@@ -492,7 +492,7 @@
             channelActions,
             channelList
         );
-        right.append(channelsSection);
+        left.append(channelsSection);
 
         const displaySection = createSection('Display');
         const titleField = createInputRow('Title', 'text', settings.title || 'Fast Frame Plot');
@@ -513,7 +513,7 @@
             yMaxField.row,
             legendField.row
         );
-        left.append(displaySection);
+        right.append(displaySection);
 
         function displayCsvLabel(filePath) {
             if (!filePath) return 'No file selected.';
@@ -617,7 +617,7 @@
         renderSeriesList();
         refreshColumns(settings.timeColumn || settings.xVariable || '', settings.yVariable || '').catch(() => {});
 
-        new DialogBox(form, 'Edit fast_frame_plot', 'Save', 'Cancel', function () {
+        new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
             const csvPath = state.selectedCsvPath || settings.csvPath || '';
             const csvSourceMode = sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings);
             const csvDirectory = csvPath
@@ -774,7 +774,7 @@
         appendGaugeSpecificStyleFields(type, styleSection, styleFields);
         left.append(styleSection);
 
-        new DialogBox(form, gaugeMeta ? gaugeMeta.editorTitle : 'Edit vertical_gauge', 'Save', 'Cancel', function () {
+        new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
             const sourceDef = sourceControls.buildValue();
             const updated = _.extend({}, settings, buildGaugeSpecificSettings(type, styleFields, settings), {
                 title: titleField.input.val() || settings.title || (gaugeMeta ? gaugeMeta.displayName : 'Gauge'),
@@ -835,7 +835,7 @@
         );
         right.append(displaySection);
 
-        new DialogBox(form, 'Edit xy_plot_uplot', 'Save', 'Cancel', function () {
+        new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
             const xSourceDef = xAxisControls.buildValue();
             const ySourceDef = yAxisControls.buildValue();
             if (!xSourceDef || !ySourceDef) return;

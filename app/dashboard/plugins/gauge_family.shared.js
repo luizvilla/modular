@@ -26,7 +26,7 @@
     const TYPE_META = {
         vertical_gauge: {
             displayName: 'Vertical Gauge',
-            icon: 'gauge-high',
+            icon: 'pause',
             editorTitle: 'Edit vertical_gauge',
             family: 'vertical',
             height: 4,

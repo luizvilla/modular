@@ -2300,7 +2300,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		$(valueCell).append(wrapperDiv);
 	}
 
-	function createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType)
+	function createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType, skipSettingsTypes)
 	{
 		currentSettingsValues = _.clone(currentSettingsValues || {});
 
@@ -2729,6 +2729,15 @@ PluginEditor = function(jsEditor, valueEditor)
 		}
 
 
+		if(isWidgetType && !_.isUndefined(currentTypeName))
+		{
+			var _editPlugin = pluginTypes[currentTypeName];
+			if(_editPlugin && (!_editPlugin.settings || _editPlugin.settings.length === 0))
+			{
+				return;
+			}
+		}
+
 		new DialogBox(form, title, _.isUndefined(currentTypeName) ? "Add" : "Save", "Cancel", function()
 		{
 			if(inPickerStep)
@@ -2910,87 +2919,131 @@ PluginEditor = function(jsEditor, valueEditor)
 			if(isWidgetType)
 			{
 				var typeRowContainer = typeRow.closest(".form-row");
-				typeRowContainer.addClass("widget-picker-row");
-				typeRowContainer.find(".form-label").hide();
-				typeRow.css("float", "none");
-				var categoryConfig = getWidgetCategoryConfig();
-				var categories = widgetCategoryOrder.slice(0);
-				var grouped = {};
 
-				_.each(pluginTypes, function(pluginType)
+				if(!_.isUndefined(currentTypeName))
 				{
-					var category = getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
-					if(pluginType.compatibility_only && pluginType.type_name !== currentTypeName && category !== "Controls")
-					{
-						return;
-					}
-					if(!_.contains(categories, category))
-					{
-						category = "Other";
-					}
-					if(!grouped[category])
-					{
-						grouped[category] = [];
-					}
-					grouped[category].push(pluginType);
-				});
-
-				widgetPicker = $('<div class="widget-picker"></div>').appendTo(typeRow);
-				typeControl = widgetPicker;
-
-				_.each(categories, function(category)
+					// EDIT mode: hide type row, settings shown directly in post-setup
+					typeRowContainer.hide();
+				}
+				else
 				{
-					var list = grouped[category];
-					if(!list || list.length === 0) return;
+					// ADD mode: build picker with two-step flow
+					typeRowContainer.addClass("widget-picker-row");
+					typeRowContainer.find(".form-label").hide();
+					typeRow.css("float", "none");
+					var categoryConfig = getWidgetCategoryConfig();
+					var categories = widgetCategoryOrder.slice(0);
+					var grouped = {};
 
-					var section = $('<div class="widget-picker-section"></div>').appendTo(widgetPicker);
-					if(category === "OwnTech")
+					_.each(pluginTypes, function(pluginType)
 					{
-						section.addClass("owntech");
-					}
-
-					$('<div class="widget-picker-section-title"></div>').text(category).appendTo(section);
-					var grid = $('<div class="widget-picker-grid"></div>').appendTo(section);
-					var orderedList = sortWidgetPlugins(category, list);
-					if(_.isUndefined(firstWidgetTypeName) && orderedList.length > 0)
-					{
-						firstWidgetTypeName = orderedList[0].type_name;
-					}
-
-					_.each(orderedList, function(pluginType)
-					{
-						var iconName = pluginType.icon || widgetCategoryDefaultIcons[category] || widgetCategoryDefaultIcons.Other;
-						var tile = $('<div class="widget-tile" tabindex="0" role="button" aria-pressed="false"></div>')
-							.attr("data-type", pluginType.type_name)
-							.append($('<i class="fa-solid"></i>').addClass("fa-" + iconName))
-							.append($('<span></span>').text(pluginType.display_name || pluginType.type_name))
-							.appendTo(grid);
-
-						if(pluginType.description && pluginType.description.length > 0)
+						var category = getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
+						if(pluginType.compatibility_only && pluginType.type_name !== currentTypeName && category !== "Controls")
 						{
-							tile.attr("title", pluginType.description);
+							return;
+						}
+						if(!_.contains(categories, category))
+						{
+							category = "Other";
+						}
+						if(!grouped[category])
+						{
+							grouped[category] = [];
+						}
+						grouped[category].push(pluginType);
+					});
+
+					widgetPicker = $('<div class="widget-picker"></div>').appendTo(typeRow);
+					typeControl = widgetPicker;
+
+					var widgetBackBtn = $('<button type="button" class="datasource-back-btn" title="Back to type selection"><i class="fa-solid fa-arrow-left"></i></button>')
+						.hide()
+						.prependTo(form);
+
+					var advanceToWidgetSettings = function(type)
+					{
+						var plugin = pluginTypes[type];
+						if(!plugin) return;
+						inPickerStep = false;
+						applyWidgetTypeSelection(type);
+						var skipForType = (!plugin.settings || plugin.settings.length === 0) ||
+							(skipSettingsTypes && skipSettingsTypes.indexOf(type) > -1);
+						if(skipForType)
+						{
+							$("#dialog-ok").trigger("click");
+							return;
+						}
+						typeRowContainer.hide();
+						widgetBackBtn.show();
+					};
+
+					widgetBackBtn.on("click", function()
+					{
+						inPickerStep = true;
+						widgetBackBtn.hide();
+						_removeSettingsRows();
+						typeRowContainer.show();
+						$("#dialog-ok").hide();
+					});
+
+					_.each(categories, function(category)
+					{
+						var list = grouped[category];
+						if(!list || list.length === 0) return;
+
+						var section = $('<div class="widget-picker-section"></div>').appendTo(widgetPicker);
+						if(category === "OwnTech")
+						{
+							section.addClass("owntech");
+						}
+						if(category === "ThingSet")
+						{
+							section.addClass("thingset");
 						}
 
-						tile.on("click", function()
+						$('<div class="widget-picker-section-title"></div>').text(category).appendTo(section);
+						var grid = $('<div class="widget-picker-grid"></div>').appendTo(section);
+						var orderedList = sortWidgetPlugins(category, list);
+						if(_.isUndefined(firstWidgetTypeName) && orderedList.length > 0)
 						{
-							if(!$(this).hasClass("selected"))
+							firstWidgetTypeName = orderedList[0].type_name;
+						}
+
+						_.each(orderedList, function(pluginType)
+						{
+							var iconName = pluginType.icon || widgetCategoryDefaultIcons[category] || widgetCategoryDefaultIcons.Other;
+							var tile = $('<div class="widget-tile" tabindex="0" role="button" aria-pressed="false"></div>')
+								.attr("data-type", pluginType.type_name)
+								.append($('<i class="fa-solid"></i>').addClass("fa-" + iconName))
+								.append($('<span></span>').text(pluginType.display_name || pluginType.type_name))
+								.appendTo(grid);
+
+							if(pluginType.description && pluginType.description.length > 0)
 							{
-								applyWidgetTypeSelection(pluginType.type_name);
+								tile.attr("title", pluginType.description);
 							}
-						});
-						tile.on("keydown", function(event)
-						{
-							if(event.which === 13 || event.which === 32)
+
+							tile.on("click", function()
 							{
-								event.preventDefault();
 								if(!$(this).hasClass("selected"))
 								{
-									applyWidgetTypeSelection(pluginType.type_name);
+									advanceToWidgetSettings(pluginType.type_name);
 								}
-							}
+							});
+							tile.on("keydown", function(event)
+							{
+								if(event.which === 13 || event.which === 32)
+								{
+									event.preventDefault();
+									if(!$(this).hasClass("selected"))
+									{
+										advanceToWidgetSettings(pluginType.type_name);
+									}
+								}
+							});
 						});
 					});
-				});
+				}
 			}
 			else
 			{
@@ -3099,23 +3152,9 @@ PluginEditor = function(jsEditor, valueEditor)
 		}
 		else if(widgetPicker)
 		{
-			if(_.isUndefined(currentTypeName))
-			{
-				if(!_.isUndefined(firstWidgetTypeName))
-				{
-					applyWidgetTypeSelection(firstWidgetTypeName);
-				}
-				else
-				{
-					$("#setting-row-instance-name").hide();
-					$("#dialog-ok").hide();
-				}
-			}
-			else
-			{
-				$("#dialog-ok").show();
-				applyWidgetTypeSelection(currentTypeName, { preserveCurrentSettings: true });
-			}
+			// ADD mode only (EDIT mode has no widgetPicker): start in picker-first step
+			inPickerStep = true;
+			$("#dialog-ok").hide();
 		}
 		else if(datasourcePicker)
 		{
@@ -3136,6 +3175,15 @@ PluginEditor = function(jsEditor, valueEditor)
 				$("#dialog-ok").show();
 			}
 		}
+
+		if(isWidgetType && !_.isUndefined(currentTypeName) && pluginTypeNames.length > 1)
+		{
+			// Widget EDIT mode: picker is hidden, show settings directly
+			selectedType = pluginTypes[currentTypeName];
+			newSettings.type = currentTypeName;
+			createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
+			$("#dialog-ok").text("Save").show();
+		}
 	}
 
 	// Public API
@@ -3146,9 +3194,10 @@ PluginEditor = function(jsEditor, valueEditor)
 			currentTypeName,
 			currentSettingsValues,
 			settingsSavedCallback,
-			isWidgetType)
+			isWidgetType,
+			skipSettingsTypes)
 		{
-			createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType);
+			createPluginEditor(title, pluginTypes, currentTypeName, currentSettingsValues, settingsSavedCallback, isWidgetType, skipSettingsTypes);
 		}
 	}
 }
@@ -4085,11 +4134,18 @@ var freeboard = (function()
 						}
 					}
 
-if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'owntech_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge')) {
+if (options.type == 'widget' && options.operation == 'edit' && instanceType === 'fast_frame_control') {
+						return;
+					}
+
+					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'owntech_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
 					}
 
+					var integratedEditorTypes = ['owntech_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot',
+						'vertical_gauge', 'horizontal_gauge', 'radial_arc_gauge', 'radial_needle_gauge', 'donut_gauge',
+						'fast_frame_control'];
 					pluginEditor.createPluginEditor(title, types, instanceType, settings, function(newSettings)
 					{
 						if(options.operation == 'add')
@@ -4154,7 +4210,7 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 								viewModel.settings(newSettings.settings);
 							}
 						}
-					}, options.type === 'widget');
+					}, options.type === 'widget', options.type === 'widget' ? integratedEditorTypes : null);
 				}
 			});
 		}
@@ -4285,7 +4341,9 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 			});
 
 			var editSub = theFreeboardModel.isEditing.subscribe(function(editing) {
-				$section.sortable(editing ? 'enable' : 'disable');
+				if ($section.data('ui-sortable')) {
+					$section.sortable(editing ? 'enable' : 'disable');
+				}
 			});
 
 			ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
@@ -5025,7 +5083,7 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 
 			renderChannelList();
 
-			new DialogBox(form, "Edit " + type, "Save", "Cancel", function() {
+			new DialogBox(form, "Edit Widget", "Save", "Cancel", function() {
 				var newDefs = [];
 				channelList.children().each(function(index) {
 					var rowEl = $(this);
