@@ -2796,8 +2796,9 @@ PluginEditor = function(jsEditor, valueEditor)
 					"xy_plot_uplot": 2,
 					"xy_plot_source_manager": 3,
 					"vertical_gauge": 4,
-					"vertical_gauge_manager": 5,
-					"vertical_gauge_config_panel": 6
+					"horizontal_gauge": 5,
+					"vertical_gauge_manager": 6,
+					"vertical_gauge_config_panel": 7
 				}
 			};
 
@@ -4017,7 +4018,7 @@ var freeboard = (function()
 						}
 					}
 
-if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'owntech_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge')) {
+if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'owntech_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
 					}
@@ -4059,7 +4060,7 @@ if (options.type == 'widget' && options.operation == 'edit' && (instanceType ===
 
 								freeboardUI.attachWidgetEditIcons(element);
 
-									if (newSettings.type === 'owntech_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'vertical_gauge') {
+									if (newSettings.type === 'owntech_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'vertical_gauge' || newSettings.type === 'horizontal_gauge') {
 									freeboard.openIntegratedPlotEditor(newViewModel, newSettings.type);
 								}
 							}

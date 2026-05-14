@@ -877,6 +877,9 @@
             if (type === 'vertical_gauge') {
                 return openVerticalGaugeEditor(widgetModel, shared, type);
             }
+            if (type === 'horizontal_gauge') {
+                return openVerticalGaugeEditor(widgetModel, shared, type);
+            }
             return false;
         }
     };

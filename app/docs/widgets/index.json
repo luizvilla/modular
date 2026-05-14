@@ -47,6 +47,13 @@
       "requiresThingset": false
     },
     {
+      "type": "horizontal_gauge",
+      "title": "Horizontal Gauge",
+      "category": "Plots",
+      "doc": "gauges/horizontal-gauge/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "vertical_gauge_manager",
       "title": "Gauge Channel Manager",
       "category": "Plots",
