@@ -3022,6 +3022,7 @@ PluginEditor = function(jsEditor, valueEditor)
 					typeRowContainer.hide();
 					backBtn.show();
 					$("#dialog-ok").text("Save");
+					$("#modal_overlay section").removeClass("datasource-picker-active");
 					createSettingsFromDefinition(selectedType.settings, selectedType.typeahead_source, selectedType.typeahead_data_segment);
 				};
 
@@ -3032,6 +3033,7 @@ PluginEditor = function(jsEditor, valueEditor)
 					_removeSettingsRows();
 					typeRowContainer.show();
 					$("#dialog-ok").text("Next").hide();
+					$("#modal_overlay section").addClass("datasource-picker-active");
 				});
 
 				_.each(pluginTypes, function(pluginType)
@@ -3137,6 +3139,7 @@ PluginEditor = function(jsEditor, valueEditor)
 			{
 				inPickerStep = true;
 				$("#dialog-ok").hide();
+				$("#modal_overlay section").addClass("datasource-picker-active");
 			}
 			else
 			{

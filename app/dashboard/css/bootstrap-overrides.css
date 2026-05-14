@@ -196,6 +196,17 @@ textarea.form-control {
 }
 
 /* Datasource icon picker — two-step add flow */
+.modal section.datasource-picker-active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.modal section.datasource-picker-active > div {
+  width: 100%;
+}
+
 .datasource-picker {
   display: flex;
   flex-direction: row;
