@@ -2,19 +2,20 @@
 # Gauge
 
 ## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+Legacy JustGage-based dial gauge kept for backwards compatibility with older dashboards.
 
-## When to use
-- Use this widget when you want to expose gauge behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+## Status
+- Compatibility-only: this widget stays loadable for existing dashboards, but it is hidden from the normal add-widget picker.
+- Preferred replacement: use the integrated gauge family (`vertical_gauge`, `horizontal_gauge`, `radial_arc_gauge`, `radial_needle_gauge`, or `donut_gauge`) for new dashboards.
 
 ## Settings
 - Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+- Value: calculated value expression rendered by the legacy dial.
+- Units: short unit label shown inside the dial.
+- Minimum / Maximum: fixed range for the legacy dial rendering.
 
 ## Screenshot
 Screenshot pending. Capture it with the widget gallery flow.
 
 ## Related
-- See other widgets in the Gauges category.
+- See the newer gauge family widgets in the Gauges category for integrated source binding and zone styling.

@@ -4,6 +4,10 @@
 ## What it does
 Select datasource/channel for a target Vertical Gauge widget.
 
+## Status
+- Compatibility-only: this widget remains loadable for older dashboards.
+- Preferred replacement: configure `vertical_gauge` directly from its integrated editor instead of using a separate manager.
+
 ## Creation (settings)
 ![Creation](creation.png)
 

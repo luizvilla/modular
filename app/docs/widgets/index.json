@@ -75,6 +75,14 @@
       "requiresThingset": false
     },
     {
+      "type": "gauge",
+      "title": "Gauge",
+      "category": "Plots",
+      "doc": "gauges/gauge/README.md",
+      "requiresThingset": false,
+      "compatibilityOnly": true
+    },
+    {
       "type": "vertical_gauge_manager",
       "title": "Gauge Channel Manager",
       "category": "Plots",

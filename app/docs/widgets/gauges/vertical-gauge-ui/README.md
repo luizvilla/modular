@@ -4,6 +4,10 @@
 ## What it does
 Control panel for adjusting settings of a target Vertical Gauge widget.
 
+## Status
+- Compatibility-only: this widget remains loadable for older dashboards.
+- Preferred replacement: configure `vertical_gauge` directly from its integrated editor instead of using a separate UI controller.
+
 ## Creation (settings)
 - No settings: This widget is configured directly in the panel UI.
 
