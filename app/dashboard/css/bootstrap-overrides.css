@@ -97,8 +97,125 @@ textarea.form-control {
 /* Keep responsive parity with inputs on small screens */
 @media screen and (max-width: 960px) {
   #modal_overlay .form-value .styled-select > select,
-  #modal_overlay .form-value > select {
+#modal_overlay .form-value > select {
     width: 95% !important;
+  }
+}
+
+/* Dashboard header layout */
+#admin-bar {
+  height: auto;
+  overflow: visible;
+}
+
+#admin-menu {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 14px 18px 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+#admin-brand-band {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 0 0 auto;
+}
+
+#admin-workspace {
+  display: flex;
+  align-items: flex-start;
+  flex: 1 1 0;
+}
+
+#board-tools {
+  width: auto;
+  float: none;
+  flex: 0 0 auto;
+}
+
+#board-actions {
+  float: none;
+}
+
+#board-logo {
+  float: none;
+  margin: 0;
+}
+
+.board-toolbar--header {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.board-toolbar--header li {
+  margin: 0;
+  min-width: 60px;
+  min-height: 52px;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #e3b060;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.board-toolbar--header li:hover {
+  background: rgba(184, 143, 81, 0.18);
+}
+
+.board-toolbar--header li i {
+  font-size: 20px;
+}
+
+#datasources {
+  width: auto;
+  height: auto;
+  float: none;
+  flex: 1 1 440px;
+  max-width: 470px;
+  margin-left: auto;
+}
+
+#datasources > .title {
+  margin: 0 0 10px;
+}
+
+.datasource-list-container {
+  width: 100%;
+}
+
+@media screen and (max-width: 960px) {
+  #admin-menu {
+    width: 100%;
+    padding: 12px 12px 10px;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  #admin-brand-band,
+  #admin-workspace {
+    width: 100%;
+  }
+
+  #datasources {
+    width: 100%;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .board-toolbar--header {
+    flex-wrap: wrap;
   }
 }
 
