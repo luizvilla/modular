@@ -3050,16 +3050,8 @@ PluginEditor = function(jsEditor, valueEditor)
 
 					tile.on("click", function()
 					{
-						datasourcePicker.find(".datasource-tile").removeClass("selected").attr("aria-pressed", "false");
-						$(this).addClass("selected").attr("aria-pressed", "true");
 						selectedType = pluginType;
 						newSettings.type = pluginType.type_name;
-						$("#dialog-ok").text("Next").show();
-					});
-
-					tile.on("dblclick", function()
-					{
-						$(this).trigger("click");
 						advanceToSettings();
 					});
 
@@ -3068,14 +3060,7 @@ PluginEditor = function(jsEditor, valueEditor)
 						if(e.which === 13 || e.which === 32)
 						{
 							e.preventDefault();
-							if($(this).hasClass("selected"))
-							{
-								advanceToSettings();
-							}
-							else
-							{
-								$(this).trigger("click");
-							}
+							$(this).trigger("click");
 						}
 					});
 				});
