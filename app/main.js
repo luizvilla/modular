@@ -4,6 +4,7 @@ const { SerialPort } = require('serialport');
 const fs = require('fs');
 const { flashFirmware, cancelFlash } = require('./flasher');
 const { spawn } = require('child_process');
+const { buildExtensionRuntime } = require('./extensions/runtime');
 // CAN / ThingSet
 const { createBus } = require('./js/can_adapter');
 const { ThingSetCAN } = require('./js/thingset_bin');
@@ -29,6 +30,29 @@ const enableThingset = (() => {
     return !app.isPackaged;
 })();
 process.env.ENABLE_THINGSET = enableThingset ? '1' : '0';
+const extensionRuntime = buildExtensionRuntime({
+    appRoot: __dirname,
+    env: process.env,
+    logger: console,
+});
+
+function cloneExtensionInventory() {
+    return extensionRuntime.inventory.map((entry) => ({
+        ...entry,
+        capabilities: Array.isArray(entry.capabilities) ? entry.capabilities.slice() : [],
+    }));
+}
+
+function cloneExtensionBootstrap() {
+    return {
+        rendererScripts: extensionRuntime.bootstrap.rendererScripts.map((entry) => ({ ...entry })),
+        flags: { ...extensionRuntime.bootstrap.flags },
+        extensions: cloneExtensionInventory(),
+        widgetDocsRoots: extensionRuntime.bootstrap.widgetDocsRoots.map((entry) => ({ ...entry })),
+        exampleRoots: extensionRuntime.bootstrap.exampleRoots.map((entry) => ({ ...entry })),
+        dashboardRoots: extensionRuntime.bootstrap.dashboardRoots.map((entry) => ({ ...entry })),
+    };
+}
 
 let mainWindow; // reference to the main BrowserWindow
 let exampleWindow; // dedicated window for example documentation and actions
@@ -111,15 +135,25 @@ function collectReadmes(baseDir) {
     return readmes;
 }
 
+function collectReadmesFromRoots(rootEntries) {
+    const readmes = [];
+    for (const rootEntry of rootEntries || []) {
+        if (!rootEntry || !rootEntry.path) continue;
+        for (const docPath of collectReadmes(rootEntry.path)) {
+            readmes.push({ root: rootEntry, docPath });
+        }
+    }
+    return readmes;
+}
+
 function buildExamplesMenuItems() {
     try {
-        const baseDir = path.join(__dirname, 'dashboard', 'docs', 'examples');
-        const readmes = collectReadmes(baseDir);
+        const readmes = collectReadmesFromRoots(extensionRuntime.bootstrap.exampleRoots);
         if (!readmes.length) return [];
 
         const root = { children: new Map(), exampleId: null };
-        for (const rm of readmes) {
-            const relDir = path.relative(baseDir, path.dirname(rm));
+        for (const entry of readmes) {
+            const relDir = path.relative(entry.root.path, path.dirname(entry.docPath));
             const parts = relDir.split(path.sep).filter(Boolean);
             if (!parts.length) continue;
             let node = root;
@@ -157,29 +191,37 @@ function buildExamplesMenuItems() {
     }
 }
 
-// Build a nested Widgets menu from app/docs/widgets/index.json.
-function loadWidgetDocsIndex() {
-    // Widget docs live under app/docs/widgets in the packaged app.
-    const indexPath = path.join(__dirname, 'docs', 'widgets', 'index.json');
-    if (!fs.existsSync(indexPath)) return [];
-    try {
-        const raw = fs.readFileSync(indexPath, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (!parsed || !Array.isArray(parsed.widgets)) return [];
-        return parsed.widgets;
-    } catch (err) {
-        console.warn('Failed to read widget docs index:', err?.message || err);
-        return [];
+// Build a nested Widgets menu from enabled widget docs indexes.
+function loadWidgetDocsEntries() {
+    const entries = [];
+    for (const source of extensionRuntime.bootstrap.widgetDocsRoots) {
+        if (!source || !source.indexPath || !source.path) continue;
+        if (!fs.existsSync(source.indexPath)) continue;
+        try {
+            const raw = fs.readFileSync(source.indexPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            const widgets = Array.isArray(parsed?.widgets) ? parsed.widgets : [];
+            for (const entry of widgets) {
+                if (!entry || !entry.type || !entry.title || !entry.doc) continue;
+                entries.push({
+                    ...entry,
+                    extensionId: source.extensionId,
+                    docPath: path.join(source.path, entry.doc),
+                });
+            }
+        } catch (err) {
+            console.warn('Failed to read widget docs index:', source.indexPath, err?.message || err);
+        }
     }
+    return entries;
 }
 
 function buildWidgetDocsMenuItems() {
     try {
-        const entries = loadWidgetDocsIndex().filter((entry) => {
+        const entries = loadWidgetDocsEntries().filter((entry) => {
             if (!entry) return false;
             if (!entry.type || !entry.title) return false;
             if (entry.compatibilityOnly) return false;
-            if (!enableThingset && entry.requiresThingset) return false;
             return true;
         });
         if (!entries.length) return [];
@@ -284,6 +326,15 @@ ipcMain.on('widget-docs-ready', () => {
     pendingWidgetDocType = null;
     openWidgetDocTab(pending);
 });
+
+ipcMain.handle('extensions-list', () => cloneExtensionInventory());
+
+ipcMain.handle('extensions-is-enabled', (_event, { id } = {}) => {
+    if (!id) return false;
+    return extensionRuntime.isEnabled(String(id));
+});
+
+ipcMain.handle('extensions-get-bootstrap', () => cloneExtensionBootstrap());
 
 function setAppMenu() {
     const examplesMenu = buildExamplesMenuItems();

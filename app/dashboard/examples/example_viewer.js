@@ -8,18 +8,48 @@
     const serialApi = api && api.serial ? api.serial : null;
     const flashApi = api && api.flash ? api.flash : null;
     const examplesApi = api && api.examples ? api.examples : null;
+    const extensionsApi = api && api.extensions ? api.extensions : null;
 
     const { ipcRenderer, shell } = !api && window.require ? window.require('electron') : { ipcRenderer: null, shell: null };
     const fs = !api && window.require ? window.require('fs') : null;
     const path = !api && window.require ? window.require('path') : null;
     const { pathToFileURL } = !api && window.require ? window.require('url') : { pathToFileURL: null };
     const localDir = (typeof __dirname !== 'undefined') ? __dirname : null;
+    let extensionBootstrapPromise = null;
 
     function getDashboardRoot() {
         // Runtime assets moved under app/, so resolve dashboard from app/dashboard.
         if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'dashboard');
         if (localDir && path) return path.join(localDir, '..');
         return null;
+    }
+
+    async function getExtensionBootstrap() {
+        if (extensionBootstrapPromise) return extensionBootstrapPromise;
+        if (!extensionsApi || typeof extensionsApi.getBootstrap !== 'function') return null;
+        extensionBootstrapPromise = extensionsApi.getBootstrap().catch((err) => {
+            console.warn('[example_viewer] extension bootstrap failed:', err?.message || err);
+            return null;
+        });
+        return extensionBootstrapPromise;
+    }
+
+    async function getExampleSourceRoots() {
+        const bootstrap = await getExtensionBootstrap();
+        if (bootstrap && Array.isArray(bootstrap.exampleRoots) && bootstrap.exampleRoots.length) {
+            return bootstrap.exampleRoots;
+        }
+        const dashboardRoot = getDashboardRoot();
+        const docsRoot = dashboardRoot
+            ? (paths && paths.join ? paths.join(dashboardRoot, 'docs', 'examples') : path.join(dashboardRoot, 'docs', 'examples'))
+            : (path && localDir ? path.join(localDir, '..', 'docs', 'examples') : '');
+        const dashboardPathRoot = dashboardRoot
+            ? (paths && paths.join ? paths.join(dashboardRoot, 'dashboards') : path.join(dashboardRoot, 'dashboards'))
+            : (path && localDir ? path.join(localDir, '..', 'dashboards') : '');
+        const firmwarePathRoot = dashboardRoot
+            ? (paths && paths.join ? paths.join(dashboardRoot, 'binaries') : path.join(dashboardRoot, 'binaries'))
+            : (path && localDir ? path.join(localDir, '..', 'binaries') : '');
+        return [{ path: docsRoot, dashboardRoot: dashboardPathRoot, firmwareRoot: firmwarePathRoot }];
     }
 
     const statusBar = document.getElementById('status-bar');
@@ -395,42 +425,48 @@
     // Build example list by scanning dashboard/docs/examples/**/README.md.
     async function loadExamplesIndex() {
         examplesById.clear();
-        const dashboardRoot = getDashboardRoot();
-        const baseDir = dashboardRoot
-            ? (paths && paths.join ? paths.join(dashboardRoot, 'docs', 'examples') : path.join(dashboardRoot, 'docs', 'examples'))
-            : (path && localDir ? path.join(localDir, '..', 'docs', 'examples') : '');
+        const rootEntries = await getExampleSourceRoots();
+        const readmes = [];
 
-        let readmes = [];
-        if (docsApi && docsApi.listReadmes) {
-            readmes = await docsApi.listReadmes(baseDir);
-        } else {
-            async function walk(dir) {
+        async function walk(dir) {
+            if (!dir) return [];
+            async function walkInner(currentDir) {
                 let entries = [];
                 try {
-                    entries = await fs.promises.readdir(dir, { withFileTypes: true });
+                    entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
                 } catch {
                     return [];
                 }
                 const results = [];
                 for (const entry of entries) {
-                    const full = path.join(dir, entry.name);
+                    const full = path.join(currentDir, entry.name);
                     if (entry.isDirectory()) {
-                        results.push(...await walk(full));
+                        results.push(...await walkInner(full));
                     } else if (entry.isFile() && entry.name.toLowerCase() === 'readme.md') {
                         results.push(full);
                     }
                 }
                 return results;
             }
-            readmes = await walk(baseDir);
+            return walkInner(dir);
         }
 
-        readmes.sort((a, b) => a.localeCompare(b));
-        for (const rm of readmes) {
-            const dir = paths && paths.dirname ? paths.dirname(rm) : path.dirname(rm);
+        for (const rootEntry of rootEntries) {
+            if (!rootEntry || !rootEntry.path) continue;
+            const rootReadmes = docsApi && docsApi.listReadmes
+                ? await docsApi.listReadmes(rootEntry.path)
+                : await walk(rootEntry.path);
+            for (const docPath of rootReadmes) {
+                readmes.push({ root: rootEntry, docPath });
+            }
+        }
+
+        readmes.sort((a, b) => a.docPath.localeCompare(b.docPath));
+        for (const entry of readmes) {
+            const dir = paths && paths.dirname ? paths.dirname(entry.docPath) : path.dirname(entry.docPath);
             const relDir = paths && paths.relative
-                ? paths.relative(baseDir, dir)
-                : path.relative(baseDir, dir);
+                ? paths.relative(entry.root.path, dir)
+                : path.relative(entry.root.path, dir);
             const sep = paths && paths.sep ? paths.sep : path.sep;
             const parts = relDir.split(sep).filter(Boolean);
             const leaf = path && path.basename ? path.basename(dir) : dir.split(sep).slice(-1)[0];
@@ -444,9 +480,13 @@
                 title: leaf,
                 subtitle,
                 label,
-                docPath: rm,
-                dashboardPath: (paths && paths.join ? paths.join(dashboardRoot || '', 'dashboards', leaf, `${leaf}.json`) : path.join(dashboardRoot || '', 'dashboards', leaf, `${leaf}.json`)),
-                firmwarePath: (paths && paths.join ? paths.join(dashboardRoot || '', 'binaries', leaf, `${leaf}.mcuboot.bin`) : path.join(dashboardRoot || '', 'binaries', leaf, `${leaf}.mcuboot.bin`))
+                docPath: entry.docPath,
+                dashboardPath: (paths && paths.join
+                    ? paths.join(entry.root.dashboardRoot || '', leaf, `${leaf}.json`)
+                    : path.join(entry.root.dashboardRoot || '', leaf, `${leaf}.json`)),
+                firmwarePath: (paths && paths.join
+                    ? paths.join(entry.root.firmwareRoot || '', leaf, `${leaf}.mcuboot.bin`)
+                    : path.join(entry.root.firmwareRoot || '', leaf, `${leaf}.mcuboot.bin`))
             };
             examplesById.set(id, example);
         }

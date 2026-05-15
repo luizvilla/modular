@@ -1,0 +1,34 @@
+{
+  "id": "owntech",
+  "apiVersion": 1,
+  "version": "0.9.3",
+  "displayName": "OwnTech Extension",
+  "enabledByDefault": true,
+  "mainEntry": "main.js",
+  "rendererScripts": [
+    { "path": "js/twist_protocol.js", "order": 5 },
+    { "path": "plugins/twist_control.widget.js", "order": 170 },
+    { "path": "plugins/twist_setpoints.widget.js", "order": 180 },
+    { "path": "plugins/twist_calibration.widget.js", "order": 190 },
+    { "path": "plugins/serialowntech.datasource.js", "order": 220 }
+  ],
+  "preloadFlags": {
+    "owntech": true
+  },
+  "capabilities": [
+    "twist",
+    "ownverter",
+    "examples"
+  ],
+  "widgetDocsIndex": "docs/widgets/index.owntech.json",
+  "exampleRoots": [
+    {
+      "path": "dashboard/docs/examples",
+      "dashboardRoot": "dashboard/dashboards",
+      "firmwareRoot": "dashboard/binaries"
+    }
+  ],
+  "dashboardRoots": [
+    "dashboard/dashboards"
+  ]
+}

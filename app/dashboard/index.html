@@ -33,8 +33,6 @@
     <script src="lib/js/thirdparty/colorschemes.office.js"></script>
     <script src="js/freeboard.js"></script>
     <script src="js/expr_utils.js"></script>
-    <!-- Twist/Ownverter protocol utilities for widgets. -->
-    <script src="js/twist_protocol.js"></script>
     <script src="plugins/thirdparty/eve.js"></script>
     <script src="plugins/thirdparty/raphael.2.1.0.min.js"></script>
     <script src="plugins/thirdparty/jquery.sparkline.min.js"></script>   
@@ -43,67 +41,32 @@
     <script type="text/javascript">
         (function () {
             // Ensure Freeboard exists before loading plugins (prevents "freeboard is not defined").
-            // Thingset can be disabled in release builds via ENABLE_THINGSET (default off when packaged).
-            var thingsetEnabled = true;
-            if (window.api && window.api.flags && window.api.flags.thingset === false) {
-                thingsetEnabled = false;
+            function getExtensionBootstrap() {
+                if (!window.api || !window.api.extensions || typeof window.api.extensions.getBootstrap !== "function") {
+                    console.error("Extension bootstrap unavailable: window.api.extensions.getBootstrap() missing.");
+                    return Promise.resolve({ rendererScripts: [] });
+                }
+                return window.api.extensions.getBootstrap().catch(function (err) {
+                    console.error("Failed to load extension bootstrap.", err);
+                    return { rendererScripts: [] };
+                });
             }
 
-            var pluginScripts = [
-                // "plugins/freeboard/freeboard.datasources.js",
-                // "plugins/freeboard/freeboard.widgets.js",
-                "js/activity_toasts.js",
-                "js/dashboard_control.js",
-                "plugins/uplot.widget.js",
-                "plugins/xy_plot.widget.js",
-                "js/zoom_control.js",
-                "plugins/serialcommand.widget.js",
-                "plugins/serialterminal.widget.js",
-                "plugins/serialrecord.widget.js",
-                <!-- Serial port control removed; pause/resume handled in widgets. -->
-                "plugins/serialflash.widget.js",
-                "plugins/fast_frame.shared.js",
-                "plugins/gauge_family.shared.js",
-                "plugins/integrated_plot_editor.js",
-                "plugins/fast_frame_control.widget.js",
-                "plugins/fast_frame_plot.widget.js",
-                "plugins/fast_frame_plot_ui.widget.js",
-                "plugins/fast_frame_channel_manager.widget.js",
-                <!-- Serial header editor merged into plot/gauge UI controllers. -->
-                "plugins/twist_control.widget.js",
-                "plugins/twist_setpoints.widget.js",
-                "plugins/twist_calibration.widget.js",
-                "plugins/serialfast.datasource.js",
-                "plugins/thingset_serial.datasource.js",
-                "plugins/serialowntech.datasource.js",
-                "plugins/can.datasource.js",
-                "plugins/signal_generator.datasource.js",
-                "plugins/vertical_gauge.widget.js",
-                "plugins/horizontal_gauge.widget.js",
-                "plugins/radial_arc_gauge.widget.js",
-                "plugins/radial_needle_gauge.widget.js",
-                "plugins/donut_gauge.widget.js",
-                "plugins/legacy_gauge.widget.js",
-                <!-- Vertical gauge UI controller for slim gauge widget configuration. -->
-                "plugins/vertical_gauge.UI.js",
-                "plugins/vertical_gauge.manager.js",
-                "plugins/ts_device_ui.widget.js",
-                "plugins/ts_serial_device_ui.widget.js",
-                "plugins/ts_mode.widget.js",
-                "plugins/ts_control.widget.js",
-                "plugins/ts_measurements.widget.js",
-                // Power bars widget removed from release builds (non-functional).
-                "plugins/uplot.series.manager.js",
-                "plugins/uplot.UI.js",
-                "plugins/xy_plot.manager.js"
-            ];
-
-            if (!thingsetEnabled) {
-                pluginScripts = pluginScripts.filter(function (p) {
-                    if (p.includes('thingset_') || p.includes('ts_')) return false;
-                    if (p === 'plugins/can.datasource.js') return false;
-                    return true;
+            function getPluginScripts(bootstrap) {
+                var rendererScripts = bootstrap && Array.isArray(bootstrap.rendererScripts)
+                    ? bootstrap.rendererScripts.slice()
+                    : [];
+                rendererScripts.sort(function (left, right) {
+                    var leftOrder = Number(left && left.order) || 0;
+                    var rightOrder = Number(right && right.order) || 0;
+                    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                    var leftPath = String(left && left.path || "");
+                    var rightPath = String(right && right.path || "");
+                    return leftPath.localeCompare(rightPath);
                 });
+                return rendererScripts
+                    .map(function (entry) { return entry && entry.path; })
+                    .filter(function (entry) { return typeof entry === "string" && entry.length > 0; });
             }
 
             function initFreeboard() {
@@ -124,23 +87,26 @@
                 });
             }
 
-            function loadPlugins() {
+            function loadPlugins(bootstrap) {
+                var pluginScripts = getPluginScripts(bootstrap);
                 head.js.apply(null, pluginScripts.concat([initFreeboard]));
             }
 
-            function waitForFreeboard(retries) {
+            function waitForFreeboard(retries, bootstrap) {
                 if (typeof freeboard !== "undefined" && typeof head !== "undefined") {
-                    loadPlugins();
+                    loadPlugins(bootstrap);
                     return;
                 }
                 if (retries <= 0) {
                     console.error("Freeboard boot timed out: freeboard or head.js missing.");
                     return;
                 }
-                setTimeout(function () { waitForFreeboard(retries - 1); }, 25);
+                setTimeout(function () { waitForFreeboard(retries - 1, bootstrap); }, 25);
             }
 
-            waitForFreeboard(200);
+            getExtensionBootstrap().then(function (bootstrap) {
+                waitForFreeboard(200, bootstrap);
+            });
         })();
     </script>
 </head>

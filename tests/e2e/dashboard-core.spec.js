@@ -35,7 +35,7 @@ test('dashboard loads and editing toggles', async () => {
     'serial_terminal',
     'serial_flasher',
     'thingset_device_ui',
-    'owntech_plot_uplot',
+    'time_plot_uplot',
     'text_widget',
     'gauge',
     'sparkline',

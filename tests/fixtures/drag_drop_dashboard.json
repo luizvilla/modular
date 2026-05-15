@@ -15,7 +15,7 @@
         { "type": "serial_csv_recorder",     "settings": { "filePath": "record.csv", "separator": ":", "eol": "\\n", "order": "old", "addHeader": true, "timestampMode": "none", "datasource": "MockSerial" } },
         { "type": "serial_command_buttons",  "settings": { "buttons": [], "layout": "vertical", "datasource": "MockSerial" } },
         { "type": "serial_flasher",          "settings": { "title": "Flasher" } },
-        { "type": "owntech_plot_uplot",      "settings": { "title": "Plot", "seriesDefs": [], "duration": 2000, "refreshRate": 500, "yLabel": "V", "showLegend": false } },
+        { "type": "time_plot_uplot",         "settings": { "title": "Plot", "seriesDefs": [], "duration": 2000, "refreshRate": 500, "yLabel": "V", "showLegend": false } },
         { "type": "uplot_series_manager",    "settings": { "title": "Series Mgr" } },
         { "type": "uplot_config_panel",      "settings": {} },
         { "type": "xy_plot_uplot",           "settings": { "title": "XY Plot", "helperWidgets": "none" } },

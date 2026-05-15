@@ -15,6 +15,11 @@ these methods instead of `window.require` or direct Node/Electron APIs.
 - `listReadmes(baseDir)`
 - `readMarkdown(docPath)`
 
+## extensions
+- `list()`
+- `isEnabled(id)`
+- `getBootstrap()`
+
 ## files
 - `readText(filePath)`
 - `writeText(filePath, content)`
@@ -31,6 +36,7 @@ these methods instead of `window.require` or direct Node/Electron APIs.
 - `getBuffer(path)`
 - `getTerminalBuffer(path)`
 - `getFastDataset(path)`
+- `getFastStatus(path)`
 - `getHeaders(path, type)`
 - `setHeaders(path, headers, type)`
 - `getColors(path, type)`
@@ -93,6 +99,20 @@ these methods instead of `window.require` or direct Node/Electron APIs.
 
 ## activity
 - `on(cb)`
+- `onToggle(cb)`
+- `getEnabled()`
+
+## diagnostics
+- `captureSnapshot()`
+
+## widgets
+- `openDocTab(type)`
+- `onOpenDocTab(cb)`
+- `getPendingDoc()`
+- `notifyReady()`
+
+## system
+- `openExternal(url)`
 
 ## logger
 - `log(level, args)`
@@ -105,4 +125,8 @@ these methods instead of `window.require` or direct Node/Electron APIs.
 - `isAbsolute(path)`
 - `sep`
 - `cwd()`
+- `appDir()`
 - `toFileUrl(path)`
+
+## flags
+- `thingset`

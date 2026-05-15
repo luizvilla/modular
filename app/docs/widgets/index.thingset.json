@@ -1,0 +1,39 @@
+{
+  "widgets": [
+    {
+      "type": "thingset_device_ui",
+      "title": "ThingSet Device UI",
+      "category": "ThingSet",
+      "doc": "thingset/device-ui/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_serial_device_ui",
+      "title": "ThingSet Serial Device UI",
+      "category": "ThingSet",
+      "doc": "thingset/serial-device-ui/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_mode_button",
+      "title": "ThingSet Mode Button",
+      "category": "ThingSet",
+      "doc": "thingset/mode-button/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_control_panel",
+      "title": "ThingSet Control Panel",
+      "category": "ThingSet",
+      "doc": "thingset/control-panel/README.md",
+      "requiresThingset": true
+    },
+    {
+      "type": "thingset_measurements",
+      "title": "ThingSet Measurements",
+      "category": "ThingSet",
+      "doc": "thingset/measurements/README.md",
+      "requiresThingset": true
+    }
+  ]
+}

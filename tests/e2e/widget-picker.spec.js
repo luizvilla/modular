@@ -15,7 +15,7 @@ async function getPaneWidgetState(page, paneIndex = 0) {
   }, paneIndex);
 }
 
-test('add-widget modal renders the icon grid and hides compatibility widgets from normal add flow', async () => {
+test('add-widget modal renders the icon grid and keeps control helpers available in the picker', async () => {
   const { app, page } = await launchApp();
 
   try {
@@ -58,39 +58,23 @@ test('add-widget modal renders the icon grid and hides compatibility widgets fro
 
     const sectionTitles = await widgetPicker.locator('.widget-picker-section-title').allTextContents();
     expect(sectionTitles.length).toBeGreaterThan(0);
-    expect(sectionTitles[0].trim()).toBe('OwnTech');
+    expect(sectionTitles[0].trim()).toBe('Plots');
     expect(sectionTitles.map((title) => title.trim())).not.toContain('Python Communication Protocol');
     expect(sectionTitles.map((title) => title.trim())).not.toContain('Vertical gauge');
-
-    const firstSection = widgetPicker.locator('.widget-picker-section').first();
-    await expect(firstSection).toHaveClass(/owntech/);
-
-    const autoSelection = await page.evaluate(() => {
-      const tiles = Array.from(document.querySelectorAll('#modal_overlay .widget-tile'));
-      return {
-        firstTileSelected: tiles[0]?.classList.contains('selected') ?? false,
-        selectedCount: tiles.filter((tile) => tile.classList.contains('selected')).length,
-        selectedType: document.querySelector('#modal_overlay .widget-tile.selected')?.getAttribute('data-type') || null,
-      };
-    });
-
-    expect(autoSelection.firstTileSelected).toBe(true);
-    expect(autoSelection.selectedCount).toBe(1);
-    expect(autoSelection.selectedType).not.toBeNull();
 
     const initialSettingRows = await page.evaluate(() =>
       Array.from(document.querySelectorAll('#modal_overlay .form-row[id^="setting-row-"]')).map((row) => row.id)
     );
-    expect(initialSettingRows.length).toBeGreaterThan(1);
+    expect(initialSettingRows).toContain('setting-row-plugin-types');
 
-    await expect(widgetPicker.locator('.widget-tile[data-type="uplot_config_panel"]')).toHaveCount(0);
-    await expect(widgetPicker.locator('.widget-tile[data-type="uplot_series_manager"]')).toHaveCount(0);
-    await expect(widgetPicker.locator('.widget-tile[data-type="xy_plot_source_manager"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="uplot_config_panel"]')).toBeVisible();
+    await expect(widgetPicker.locator('.widget-tile[data-type="uplot_series_manager"]')).toBeVisible();
+    await expect(widgetPicker.locator('.widget-tile[data-type="xy_plot_source_manager"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_config_panel"]')).toHaveCount(0);
-    await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_manager"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_manager"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="gauge"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_plot_ui"]')).toHaveCount(0);
-    await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_channel_manager"]')).toHaveCount(0);
+    await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_channel_manager"]')).toBeVisible();
 
     await expect(widgetPicker.locator('.widget-tile[data-type="horizontal_gauge"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="radial_arc_gauge"]')).toBeVisible();

@@ -20,7 +20,7 @@ test('plots and gauges render', async () => {
   });
 
   expect(widgetTypes).toEqual(expect.arrayContaining([
-    'owntech_plot_uplot',
+    'time_plot_uplot',
     'vertical_gauge',
     'gauge',
     'uplot_series_manager',

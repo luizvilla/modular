@@ -8,7 +8,7 @@
 ## Why This Step Exists
 - `twist_*` widgets are clearly feature-specific, but some generic infrastructure is still branded or tuned for OwnTech.
 - `serialowntech.datasource.js` implements the generic `serialport_datasource` while still carrying OwnTech-specific naming in the file and UI hints.
-- The generic plot widget type is still `owntech_plot_uplot`.
+- The generic plot widget type is already `time_plot_uplot`.
 - Serial port labeling and flasher port preference still look for OwnTech VID/PID in core code.
 - `TWIST`, `OWNVERTER`, and `SPIN` examples currently live in core-owned paths.
 
@@ -95,7 +95,7 @@
 
 ### 2. De-Brand The Core Plot Widget
 - Introduce a neutral canonical plot type such as `plot_uplot` or `uplot_plot`.
-- Keep `owntech_plot_uplot` as a compatibility alias during migration.
+- Do not reintroduce `owntech_plot_uplot`; treat stale references as migration debt.
 - Update the integrated editor, plot UI controller, and channel manager to target the neutral canonical type while still loading old dashboards.
 
 ### 3. Move TWIST Widgets And Protocol Helpers Behind The Extension
@@ -115,7 +115,7 @@
 
 ## Backward Compatibility Rules
 - Existing dashboards using `twist_*` widget types must still load when the `twist` extension is enabled.
-- Existing dashboards using `owntech_plot_uplot` must still load after the neutral canonical plot type is introduced.
+- Existing plans and tests should use `time_plot_uplot`, which is already the canonical neutral plot type.
 - If the `twist` extension is disabled, core should fail gracefully on missing `twist_*` widgets instead of crashing the app.
 
 ## Test Plan
@@ -125,7 +125,7 @@
   - compatibility alias behavior
 - Update `tests/e2e/plot-gauge.spec.js` if picker ordering or visible type names change.
 - Update `tests/e2e/tabs-docs.spec.js` or `examples-window.spec.js` to confirm OwnTech example material is extension-contributed.
-- Add a focused compatibility test proving a legacy dashboard using `owntech_plot_uplot` and `twist_*` widgets still loads with the extension enabled.
+- Add a focused compatibility test only if a real shipped dashboard still uses a legacy alias; do not preserve an alias that no longer exists in runtime code.
 
 ## Acceptance Criteria
 - Vanilla Modular can boot without `twist` and still provide generic serial, plotting, gauges, terminal, recorder, and dashboard features.

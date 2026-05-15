@@ -131,6 +131,11 @@ const api = {
     },
     diagnostics: {
         captureSnapshot: () => ipcRenderer.invoke('diagnostics-capture-snapshot')
+    },
+    extensions: {
+        list: () => ipcRenderer.invoke('extensions-list'),
+        isEnabled: (id) => ipcRenderer.invoke('extensions-is-enabled', { id }),
+        getBootstrap: () => ipcRenderer.invoke('extensions-get-bootstrap')
     }
 };
 
@@ -333,7 +338,10 @@ if (isMock) {
         };
         api.files = {
             ...(api.files || {}),
-            chooseCsvFile: async () => path.join(process.cwd(), 'tests', 'fixtures', 'fast_frame_plot.csv')
+            chooseCsvFile: async () => (
+                process.env.MOCK_CSV_PATH
+                || path.join(process.cwd(), 'tests', 'fixtures', 'fast_frame_plot.csv')
+            )
         };
         api.serial = {
             listPorts: async () => mockPorts,

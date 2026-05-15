@@ -22,6 +22,7 @@ The preload bridge supports test-only mock behavior controlled by env vars.
 - `MOCK_FW_MISSING=1`: Make firmware selection/flash fail.
 - `MOCK_IPC_UNAVAILABLE=1`: Expose `window.api` but set serial/flash/can/thingset to `null`.
 - `MOCK_DASHBOARD_PATH=...`: Force `openDashboardDialog()` to return a fixed path.
+- `MOCK_CSV_PATH=...`: Force the mock CSV chooser to return a specific file path.
 
 Example:
 ```
