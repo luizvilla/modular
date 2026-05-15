@@ -193,34 +193,9 @@ function buildExamplesMenuItems() {
     }
 }
 
-// Build a nested Widgets menu from enabled widget docs indexes.
-function loadWidgetDocsEntries() {
-    const entries = [];
-    for (const source of extensionRuntime.bootstrap.widgetDocsRoots) {
-        if (!source || !source.indexPath || !source.path) continue;
-        if (!fs.existsSync(source.indexPath)) continue;
-        try {
-            const raw = fs.readFileSync(source.indexPath, 'utf8');
-            const parsed = JSON.parse(raw);
-            const widgets = Array.isArray(parsed?.widgets) ? parsed.widgets : [];
-            for (const entry of widgets) {
-                if (!entry || !entry.type || !entry.title || !entry.doc) continue;
-                entries.push({
-                    ...entry,
-                    extensionId: source.extensionId,
-                    docPath: path.join(source.path, entry.doc),
-                });
-            }
-        } catch (err) {
-            console.warn('Failed to read widget docs index:', source.indexPath, err?.message || err);
-        }
-    }
-    return entries;
-}
-
 function buildWidgetDocsMenuItems() {
     try {
-        const entries = loadWidgetDocsEntries().filter((entry) => {
+        const entries = extensionRuntime.bootstrap.widgetDocs.filter((entry) => {
             if (!entry) return false;
             if (!entry.type || !entry.title) return false;
             if (entry.compatibilityOnly) return false;

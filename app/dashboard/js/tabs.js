@@ -539,11 +539,22 @@
     async function loadWidgetDocsIndex() {
         widgetDocsByType.clear();
         const bootstrap = await getExtensionBootstrap();
-        const sources = await getWidgetDocsSources();
-        const thingsetEnabled = bootstrap
-            ? true
-            : !(api && api.flags && api.flags.thingset === false);
 
+        if (bootstrap && Array.isArray(bootstrap.widgetDocs) && bootstrap.widgetDocs.length) {
+            bootstrap.widgetDocs.forEach((entry) => {
+                if (!entry || !entry.type || !entry.docPath) return;
+                widgetDocsByType.set(entry.type, {
+                    type: entry.type,
+                    title: entry.title || entry.type,
+                    category: entry.category || '',
+                    docPath: entry.docPath,
+                });
+            });
+            console.log('[tabs] widget docs loaded from bootstrap:', widgetDocsByType.size);
+            return;
+        }
+
+        const sources = await getWidgetDocsSources();
         for (const source of sources) {
             if (!source || !source.path || !source.indexPath) continue;
             let raw = '';
@@ -560,21 +571,19 @@
                 const entries = Array.isArray(parsed.widgets) ? parsed.widgets : [];
                 entries.forEach((entry) => {
                     if (!entry || !entry.type || !entry.doc) return;
-                    if (!thingsetEnabled && entry.requiresThingset) return;
                     const docPath = (paths && paths.join) ? paths.join(source.path, entry.doc) : path.join(source.path, entry.doc);
                     widgetDocsByType.set(entry.type, {
                         type: entry.type,
                         title: entry.title || entry.type,
                         category: entry.category || '',
                         docPath,
-                        requiresThingset: !!entry.requiresThingset
                     });
                 });
             } catch (err) {
                 console.warn('[tabs] widget docs parse failed:', err?.message || err);
             }
         }
-        console.log('[tabs] widget docs loaded:', widgetDocsByType.size);
+        console.log('[tabs] widget docs loaded from files:', widgetDocsByType.size);
     }
 
     function setDocMode(mode) {
