@@ -359,6 +359,19 @@ class TimePlotUPlot {
                 sectionHeight: this.sectionElement?.clientHeight || 0,
                 hostHeight: containerElement?.clientHeight || 0
             });
+            // Disconnect the old ResizeObserver so _bindResize() re-creates it for the new
+            // sub-section element (happens when the widget is dragged to a different pane).
+            if (this._resizeObs) {
+                try { this._resizeObs.disconnect(); } catch {}
+                this._resizeObs = null;
+            }
+            // Destroy the existing plot before re-rendering; without this a second uPlot
+            // canvas is stacked on top of the first one and the old instance leaks.
+            if (this.plot) {
+                try { this.plot.destroy(); } catch {}
+                this.plot = null;
+                this.chartHost.empty();
+            }
             this.container.appendTo(containerElement);
             this._applyPlotHeight();
             this._bindHeightDrag();
