@@ -215,6 +215,114 @@ function runInstalledBundleMissingRoot() {
     assert.strictEqual(runtime.inventory.find((e) => e.isInstalled), undefined, 'no installed bundles when root is missing');
 }
 
+// ── Built-in enable/disable persistence tests ─────────────────────────────────
+
+function runBuiltinOverrideDisable() {
+    // state.json in installedRoot disables a source-loaded extension
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-state-'));
+    try {
+        fs.writeFileSync(
+            path.join(tempRoot, 'state.json'),
+            JSON.stringify({ owntech: { enabled: false } }),
+            'utf8'
+        );
+        const env = { ...process.env, ENABLE_THINGSET: '1' };
+        delete env.MODULAR_EXTENSION_OWNTECH;
+        const runtime = buildExtensionRuntime({ appRoot, env, installedRoot: tempRoot });
+
+        const entry = runtime.inventory.find((e) => e.id === 'owntech');
+        assert.ok(entry, 'owntech should be in inventory');
+        assert.strictEqual(entry.enabled, false, 'state.json should disable owntech');
+        assert.strictEqual(
+            runtime.bootstrap.rendererScripts.some((s) => s.path.includes('twist')),
+            false,
+            'owntech renderer scripts should be absent when disabled via state.json'
+        );
+    } finally {
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
+function runBuiltinOverrideEnable() {
+    // state.json enables a source-loaded extension whose manifest has enabledByDefault: false
+    const extRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-extroot-'));
+    const instRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-state-'));
+    try {
+        fs.cpSync(path.join(appRoot, 'extensions'), extRoot, { recursive: true });
+        const customDir = path.join(extRoot, 'custom-off');
+        fs.mkdirSync(customDir, { recursive: true });
+        fs.writeFileSync(path.join(customDir, 'manifest.json'), JSON.stringify({
+            apiVersion: 1,
+            id: 'custom-off',
+            displayName: 'Custom Off',
+            version: '1.0.0',
+            enabledByDefault: false,
+        }), 'utf8');
+        fs.writeFileSync(
+            path.join(instRoot, 'state.json'),
+            JSON.stringify({ 'custom-off': { enabled: true } }),
+            'utf8'
+        );
+
+        const runtime = buildExtensionRuntime({
+            appRoot,
+            extensionRoot: extRoot,
+            installedRoot: instRoot,
+            env: { ...process.env, ENABLE_THINGSET: '1' },
+        });
+
+        const entry = runtime.inventory.find((e) => e.id === 'custom-off');
+        assert.ok(entry, 'custom-off should be in inventory');
+        assert.strictEqual(entry.enabled, true, 'state.json should override enabledByDefault:false to enabled');
+    } finally {
+        fs.rmSync(extRoot, { recursive: true, force: true });
+        fs.rmSync(instRoot, { recursive: true, force: true });
+    }
+}
+
+function runEnvVarWinsOverPersistedState() {
+    // env var override beats state.json
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-state-'));
+    try {
+        fs.writeFileSync(
+            path.join(tempRoot, 'state.json'),
+            JSON.stringify({ owntech: { enabled: true } }),
+            'utf8'
+        );
+        const runtime = buildExtensionRuntime({
+            appRoot,
+            env: { ...process.env, MODULAR_EXTENSION_OWNTECH: '0' },
+            installedRoot: tempRoot,
+        });
+
+        const entry = runtime.inventory.find((e) => e.id === 'owntech');
+        assert.ok(entry, 'owntech should be in inventory');
+        assert.strictEqual(entry.enabled, false, 'env var should win over state.json');
+    } finally {
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
+function runCoreAlwaysEnabled() {
+    // state.json cannot disable core
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-state-'));
+    try {
+        fs.writeFileSync(
+            path.join(tempRoot, 'state.json'),
+            JSON.stringify({ core: { enabled: false } }),
+            'utf8'
+        );
+        const runtime = buildExtensionRuntime({
+            appRoot,
+            env: { ...process.env, ENABLE_THINGSET: '1' },
+            installedRoot: tempRoot,
+        });
+        assert.strictEqual(runtime.isEnabled('core'), true, 'core must remain enabled regardless of state.json');
+    } finally {
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
 runDefaultRuntimeAssertions();
 runDisabledRuntimeAssertions();
 runInvalidManifestAssertions();
@@ -223,5 +331,9 @@ runInstalledBundleStateOverride();
 runInstalledBundleIntegrityFailure();
 runInstalledBundleDuplicateId();
 runInstalledBundleMissingRoot();
+runBuiltinOverrideDisable();
+runBuiltinOverrideEnable();
+runEnvVarWinsOverPersistedState();
+runCoreAlwaysEnabled();
 
 console.log('All extension runtime tests passed.');

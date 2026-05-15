@@ -75,10 +75,13 @@ test('extension runtime boots cleanly with owntech and thingset disabled', async
   const snapshot = await page.evaluate(async () => {
     const inventory = await window.api.extensions.list();
     const bootstrap = await window.api.extensions.getBootstrap();
+    const managerList = await window.api.extensions.manager.list();
     return {
       owntechEnabled: await window.api.extensions.isEnabled('owntech'),
       thingsetEnabled: await window.api.extensions.isEnabled('thingset'),
       inventory,
+      managerOwntechEnabled: managerList.find((e) => e.id === 'owntech')?.enabled,
+      managerThingsetEnabled: managerList.find((e) => e.id === 'thingset')?.enabled,
       hasFastFrameScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'),
       hasTwistScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/twist_control.widget.js'),
       hasThingSetScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/ts_device_ui.widget.js'),
@@ -93,6 +96,8 @@ test('extension runtime boots cleanly with owntech and thingset disabled', async
     expect.objectContaining({ id: 'owntech', enabled: false }),
     expect.objectContaining({ id: 'thingset', enabled: false }),
   ]));
+  expect(snapshot.managerOwntechEnabled).toBe(false);
+  expect(snapshot.managerThingsetEnabled).toBe(false);
   expect(snapshot.hasFastFrameScript).toBe(true);
   expect(snapshot.hasTwistScript).toBe(false);
   expect(snapshot.hasThingSetScript).toBe(false);
