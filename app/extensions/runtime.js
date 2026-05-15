@@ -134,7 +134,7 @@ function envKeyForExtension(id) {
         .replace(/[^A-Z0-9]+/g, '_')}`;
 }
 
-function resolveEnabled(manifest, env) {
+function resolveEnabled(manifest, env, persistedState) {
     if (manifest.id === 'core') return true;
 
     const genericOverride = parseBooleanToken(env[envKeyForExtension(manifest.id)]);
@@ -144,6 +144,9 @@ function resolveEnabled(manifest, env) {
         const legacyThingsetOverride = parseBooleanToken(env.ENABLE_THINGSET);
         if (legacyThingsetOverride !== null) return legacyThingsetOverride;
     }
+
+    const persisted = persistedState && persistedState[manifest.id];
+    if (persisted && typeof persisted.enabled === 'boolean') return persisted.enabled;
 
     return !!manifest.enabledByDefault;
 }
@@ -225,7 +228,7 @@ function normalizePreloadFlags(value) {
 }
 
 function normalizeManifestRecord(manifestPath, options) {
-    const { appRoot, env } = options;
+    const { appRoot, env, persistedState } = options;
     const manifestDir = path.dirname(manifestPath);
     const manifest = ensureObject(readManifest(manifestPath), manifestPath);
 
@@ -253,7 +256,7 @@ function normalizeManifestRecord(manifestPath, options) {
         manifestPath,
         manifestDir,
         manifest,
-        enabled: resolveEnabled(manifest, env),
+        enabled: resolveEnabled(manifest, env, persistedState),
         mainEntryPath,
         rendererScripts: normalizeRendererScripts(manifest, appRoot),
         widgetDocsRoots: normalizeWidgetDocsRoots(manifest, appRoot),
@@ -676,9 +679,13 @@ function buildExtensionRuntime(options = {}) {
     const records = [];
     const seenIds = new Set();
 
+    // Read state.json once — used for both source-loaded enable overrides and installed bundle state.
+    const installedRoot = options.installedRoot || null;
+    const installedState = installedRoot ? readInstalledState(installedRoot) : {};
+
     for (const manifestPath of resolveManifestPaths(extensionRoot)) {
         try {
-            const record = normalizeManifestRecord(manifestPath, { appRoot, env });
+            const record = normalizeManifestRecord(manifestPath, { appRoot, env, persistedState: installedState });
             if (seenIds.has(record.id)) {
                 throw new Error(`Duplicate extension id ${record.id}`);
             }
@@ -694,9 +701,7 @@ function buildExtensionRuntime(options = {}) {
     }
 
     // Discover installed bundles alongside source-loaded extensions.
-    const installedRoot = options.installedRoot || null;
     if (installedRoot) {
-        const installedState = readInstalledState(installedRoot);
         for (const manifestPath of resolveInstalledManifestPaths(installedRoot)) {
             try {
                 const record = normalizeInstalledBundleRecord(manifestPath, { env, installedState, logger });
