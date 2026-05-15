@@ -7,14 +7,28 @@
         category: 'Plots',
         icon: 'chart-area',
         description: 'Plots multiple CSV-backed fast-frame channels against time or sample index',
-        external_scripts: [
-            'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js',
-            'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css'
-        ],
         settings: [
             { name: 'title', display_name: 'Title', type: 'text', default_value: 'Fast Frame Plot' }
         ],
-        newInstance: function (settings, cb) { cb(new FastFramePlot(settings)); }
+        // Do not use external_scripts here.  freeboard's head.js calls finishLoad()
+        // asynchronously even for cached URLs, leaving widgetInstance undefined for one
+        // tick.  During that tick _heightUpdate fires, widget.height() falls back to 1,
+        // and gridster shrinks the pane to 4 rows.  When finishLoad() completes it jumps
+        // back to 18 rows — the visible "expands downwards" on every load.
+        //
+        // Instead: if uPlot is already on the page (loaded by time_plot_uplot or any
+        // other co-resident widget) skip head.js entirely and call newInstance
+        // synchronously, which keeps the pane height stable.  Only fall back to an
+        // on-demand CDN load when fast_frame_plot is the sole uPlot widget.
+        newInstance: function (settings, cb) {
+            const UPLOT_JS  = 'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js';
+            const UPLOT_CSS = 'https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css';
+            if (window.uPlot) {
+                cb(new FastFramePlot(settings));
+            } else {
+                head.js([UPLOT_JS, UPLOT_CSS], function () { cb(new FastFramePlot(settings)); });
+            }
+        }
     });
 
     class FastFramePlot {
@@ -39,7 +53,7 @@
             this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure a CSV source, time column, and one or more plotted channels.</div>');
             this.summary = $('<div class="small text-muted border rounded p-2 mb-2"></div>');
             this.chartShell = $('<div class="d-flex flex-column flex-grow-1 gap-2"></div>');
-            this.chartHost = $('<div class="fast-frame-plot-host flex-grow-1" style="min-height:220px;"></div>');
+            this.chartHost = $('<div class="fast-frame-plot-host flex-grow-1" style="min-height:0;overflow:hidden;"></div>');
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.emptyState = $('<div class="small text-muted border rounded p-3">Use the Fast Frame Channel Manager to add channels to this plot.</div>');
             this.chartShell.append(this.chartHost, this.resizeHandle);
@@ -123,6 +137,21 @@
             this.chartHost.empty().append(this.emptyState);
         }
 
+        _logDims(tag) {
+            const ch = this.chartHost[0];
+            const he = this.hostElement;
+            const sub = he ? he.closest('.sub-section') : null;
+            const gs  = he ? he.closest('.gs_w') : null;
+            console.log(
+                `[FFPlot:${tag}]`,
+                `chartHost clientH=${ch?.clientHeight} offsetH=${ch?.offsetHeight} jqH=${this.chartHost.height()}`,
+                `| hostEl clientH=${he?.clientHeight}`,
+                `| sub-section clientH=${sub?.clientHeight} class="${sub?.className}"`,
+                `| gs_w clientH=${gs?.clientHeight}`,
+                `| plotHeightPx=${this.plotHeightPx}`
+            );
+        }
+
         _renderPlot(defs) {
             const xValues = Array.isArray(this.dataset.columns[this.settings.timeColumn])
                 ? this.dataset.columns[this.settings.timeColumn].map(value => Number.isFinite(value) ? value : null)
@@ -140,28 +169,56 @@
                 });
             });
 
+            // Compute data-range bounds; used as fallback when no explicit bound is set.
+            const finiteX = xValues.filter(v => v !== null && Number.isFinite(v));
+            const allY = data.slice(1).flat().filter(v => Number.isFinite(v));
+            const autoXMin = finiteX.length ? Math.min(...finiteX) : null;
+            const autoXMax = finiteX.length ? Math.max(...finiteX) : null;
+            let autoYMin = allY.length ? Math.min(...allY) : null;
+            let autoYMax = allY.length ? Math.max(...allY) : null;
+            // Guard against a degenerate single-point range that would collapse the y axis.
+            if (autoYMin !== null && autoYMin === autoYMax) {
+                const pad = Math.abs(autoYMin) * 0.1 || 1;
+                autoYMin -= pad;
+                autoYMax += pad;
+            }
+
+            const xMin = shared.parseAxisBound(this.settings.xMin) ?? autoXMin;
+            const xMax = shared.parseAxisBound(this.settings.xMax) ?? autoXMax;
+            const yMin = shared.parseAxisBound(this.settings.yMin) ?? autoYMin;
+            const yMax = shared.parseAxisBound(this.settings.yMax) ?? autoYMax;
+
             const signature = JSON.stringify({
                 file: this.lastFileSignature,
                 timeColumn: this.settings.timeColumn || '',
                 defs,
                 sample: data.map(values => Array.isArray(values) && values.length ? [values[0], values[Math.floor(values.length / 2)], values[values.length - 1]] : null),
                 xLabel: this.settings.xLabel || '',
-                yLabel: this.settings.yLabel || ''
+                yLabel: this.settings.yLabel || '',
+                xMin, xMax, yMin, yMax
             });
             if (signature === this.lastRenderedSignature) return;
             this.lastRenderedSignature = signature;
+
+            // Read clientHeight before emptying so the new instance inherits the current size.
+            const savedHeight = this.chartHost[0]?.clientHeight || this.chartHost.height() || 320;
+            this._logDims('before-destroy');
+
             this._destroyPlot();
             this.chartHost.empty();
+            this._logDims('after-empty');
+
             const host = $('<div></div>');
             this.chartHost.append(host);
+            const uplotHeight = Math.max(260, savedHeight);
+            console.log(`[FFPlot:uplot-init] savedHeight=${savedHeight} uplotHeight=${uplotHeight}`);
             this.plot = new uPlot({
-                title: this.settings.title || 'Fast Frame Plot',
                 width: Math.max(320, this.chartHost.width() || this.container.width() || 640),
-                height: Math.max(260, this.chartHost.height() || 320),
+                height: uplotHeight,
                 legend: { show: !!this.settings.showLegend },
                 scales: {
-                    x: { time: false, min: shared.parseAxisBound(this.settings.xMin), max: shared.parseAxisBound(this.settings.xMax) },
-                    y: { min: shared.parseAxisBound(this.settings.yMin), max: shared.parseAxisBound(this.settings.yMax) }
+                    x: { time: false, min: xMin, max: xMax },
+                    y: { min: yMin, max: yMax }
                 },
                 axes: [
                     { stroke: '#666', grid: { show: true }, label: this.settings.xLabel || this.settings.timeColumn || 'Sample' },
@@ -169,6 +226,7 @@
                 ],
                 series
             }, data, host[0]);
+            this._logDims('after-uplot-init');
             this._requestResize();
         }
 
@@ -201,6 +259,8 @@
             if (!this.plot) return;
             const width = Math.max(320, this.chartHost.width() || this.container.width() || 640);
             const height = Math.max(220, this.chartHost.height() || 320);
+            this._logDims('resize');
+            console.log(`[FFPlot:setSize] w=${width} h=${height}`);
             try {
                 this.plot.setSize({ width, height });
             } catch {}
@@ -210,12 +270,16 @@
             if (typeof this.plotHeightPx === 'number' && Number.isFinite(this.plotHeightPx)) {
                 this.chartHost.css({
                     height: `${Math.max(160, this.plotHeightPx)}px`,
-                    flex: '0 0 auto'
+                    flex: '0 0 auto',
+                    overflow: 'hidden',
+                    minHeight: '0'
                 });
             } else {
                 this.chartHost.css({
                     height: '',
-                    flex: '1 1 auto'
+                    flex: '1 1 auto',
+                    overflow: 'hidden',
+                    minHeight: '0'
                 });
             }
         }
@@ -245,6 +309,7 @@
         }
 
         onSettingsChanged(newSettings) {
+            this._logDims('onSettingsChanged');
             this.settings = { ...newSettings };
             this.lastFileSignature = '';
             this.lastRenderedSignature = '';
@@ -255,6 +320,7 @@
         }
 
         onSizeChanged() {
+            this._logDims('onSizeChanged');
             this._applyPlotHeight();
             this._requestResize();
         }
@@ -277,6 +343,9 @@
             this._destroyPlot();
         }
 
-        getHeight() { return 8; }
+        getHeight() {
+            this._logDims('getHeight');
+            return 8;
+        }
     }
 }());

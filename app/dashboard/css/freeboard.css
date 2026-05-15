@@ -1297,6 +1297,30 @@ header h1 {
 	height: 240px;
 }
 
+.sub-section-height-5 {
+	height: 300px;
+}
+
+.sub-section-height-6 {
+	height: 360px;
+}
+
+.sub-section-height-7 {
+	height: 420px;
+}
+
+.sub-section-height-8 {
+	height: 480px;
+}
+
+.sub-section-height-9 {
+	height: 540px;
+}
+
+.sub-section-height-10 {
+	height: 600px;
+}
+
 .sub-section:last-of-type {
 	border-bottom: none;
 }
