@@ -15,14 +15,16 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
     const bootstrap = await window.api.extensions.getBootstrap();
     const sample = await window.api.diagnostics.captureSnapshot();
     const runtime = window.__modularDiagnosticsRuntime.collectRuntimeSnapshot();
-    const installedExtensions = await window.api.extensions.manager.list();
+    const managerList = await window.api.extensions.manager.list();
     return {
       hasMainSnapshot: !!(sample && sample.process && sample.process.memory),
       hasRuntimeSnapshot: !!(runtime && runtime.timers && runtime.listeners),
       extensionIds: inventory.map((entry) => entry.id),
       inventoryHasVersionField: inventory.every((e) => typeof e.version === 'string'),
       inventoryHasIsInstalledField: inventory.every((e) => typeof e.isInstalled === 'boolean'),
-      installedExtensions,
+      managerListIds: managerList.map((e) => e.id),
+      managerListSources: managerList.map((e) => e.source),
+      hasInstalledInManagerList: managerList.some((e) => e.source === 'installed'),
       hasManagerApi: typeof window.api.extensions.manager === 'object',
       hasCoreScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'),
       hasOwntechScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/twist_control.widget.js'),
@@ -37,8 +39,10 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
   expect(diagnostics.extensionIds).toEqual(expect.arrayContaining(['core', 'owntech', 'thingset']));
   expect(diagnostics.inventoryHasVersionField).toBe(true);
   expect(diagnostics.inventoryHasIsInstalledField).toBe(true);
-  // Source-loaded extensions are not installed bundles.
-  expect(diagnostics.installedExtensions).toEqual([]);
+  // Manager list shows all extensions; source-loaded appear as 'builtin'.
+  expect(diagnostics.managerListIds).toEqual(expect.arrayContaining(['core', 'owntech', 'thingset']));
+  expect(diagnostics.managerListSources.every((s) => s === 'builtin' || s === 'installed')).toBe(true);
+  expect(diagnostics.hasInstalledInManagerList).toBe(false);
   expect(diagnostics.hasManagerApi).toBe(true);
   expect(diagnostics.hasCoreScript).toBe(true);
   expect(diagnostics.hasOwntechScript).toBe(true);

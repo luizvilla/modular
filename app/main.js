@@ -340,7 +340,10 @@ function copyDirSync(src, dest) {
 }
 
 ipcMain.handle('extensions-manager-list', () => {
-    return extensionRuntime.inventory.filter((e) => e.isInstalled).map((e) => ({ ...e }));
+    return extensionRuntime.inventory.map((e) => ({
+        ...e,
+        source: e.isInstalled ? 'installed' : 'builtin',
+    }));
 });
 
 ipcMain.handle('extensions-choose-bundle', async () => {

@@ -504,10 +504,11 @@ if (isMock) {
     }
 }
 
-// Extension manager mock — always present, no-ops in mock mode.
+// Extension manager mock — list uses the real IPC (extensions aren't hardware);
+// install/uninstall/enable/disable are no-ops since state changes require real disk.
 if (isMock) {
     api.extensions.manager = {
-        list: async () => [],
+        list: () => ipcRenderer.invoke('extensions-manager-list'),
         install: async () => ({ ok: false, error: 'Not available in mock mode' }),
         uninstall: async () => ({ ok: false, error: 'Not available in mock mode' }),
         enable: async () => ({ ok: false, error: 'Not available in mock mode' }),
