@@ -180,20 +180,9 @@
             });
         }
 
-        // Add a user-friendly tag for OwnTech devices without duplicating.
         _formatPortLabel(port) {
             if (!port) return '';
-            const base = String(port.name || port.value || '');
-            if (!port.isOwntech) return base;
-            return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
-        }
-
-        // Prefer OwnTech VID/PID when available; fall back to current selection.
-        _pickPreferredPort(ports) {
-            if (!Array.isArray(ports) || !ports.length) return null;
-            const match = ports.find(p => p && p.isOwntech);
-            if (match) return match.value;
-            return null;
+            return String(port.name || port.value || '');
         }
 
         async _refreshPorts() {
@@ -208,10 +197,7 @@
                 const label = this._formatPortLabel(p);
                 this.portSelect.append(`<option value="${p.value}">${label}</option>`);
             });
-            const preferred = this._pickPreferredPort(ports);
-            if (preferred) {
-                this.portSelect.val(preferred);
-            } else if (prev) {
+            if (prev) {
                 this.portSelect.val(prev);
             }
         }

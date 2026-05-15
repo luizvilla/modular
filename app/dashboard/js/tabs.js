@@ -200,9 +200,7 @@
 
     function formatPortLabel(port) {
         if (!port) return '';
-        const base = String(port.name || port.value || '');
-        if (!port.isOwntech) return base;
-        return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+        return String(port.name || port.value || '');
     }
 
     function resolveAssetUrl(rawUrl, baseDir) {
