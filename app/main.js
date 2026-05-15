@@ -486,11 +486,6 @@ function setAppMenu() {
                 }
             ]
         },
-        // Examples menu opens standalone example documentation and actions.
-        {
-            label: 'Examples',
-            submenu: examplesMenu.length ? examplesMenu : [{ label: 'No examples found', enabled: false }]
-        },
         {
             label: 'Help',
             submenu: [
@@ -499,6 +494,25 @@ function setAppMenu() {
                     submenu: widgetDocsMenu.length ? widgetDocsMenu : [{ label: 'No widget docs found', enabled: false }]
                 }
             ]
+        },
+        // Examples menu — attribution header shows which extension provides these.
+        {
+            label: 'Examples',
+            submenu: (() => {
+                const providers = [];
+                const seen = new Set();
+                for (const root of extensionRuntime.bootstrap.exampleRoots || []) {
+                    if (!root.extensionId || seen.has(root.extensionId)) continue;
+                    seen.add(root.extensionId);
+                    const inv = extensionRuntime.inventory.find((e) => e.id === root.extensionId);
+                    providers.push(inv ? inv.displayName : root.extensionId);
+                }
+                const header = providers.length
+                    ? [{ label: providers.join(', '), enabled: false }, { type: 'separator' }]
+                    : [];
+                const items = examplesMenu.length ? examplesMenu : [{ label: 'No examples found', enabled: false }];
+                return header.concat(items);
+            })()
         }
     ];
 
