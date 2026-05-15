@@ -908,14 +908,17 @@ app.whenReady().then(createWindow);
 ipcMain.handle('get-serial-ports', async () => {
 	const ports = await SerialPort.list();
 	return ports.map(port => {
-		// Keep labels simple; expose OwnTech detection for UI hints.
 		const vid = String(port.vendorId || '').toLowerCase();
 		const pid = String(port.productId || '').toLowerCase();
-		const isOwntech = vid === '2fe3' && pid === '0100';
 		return {
 			name: port.path,
 			value: port.path,
-			isOwntech
+			path: port.path,
+			vendorId: port.vendorId || null,
+			productId: port.productId || null,
+			manufacturer: port.manufacturer || null,
+			serialNumber: port.serialNumber || null,
+			isOwntech: vid === '2fe3' && pid === '0100',
 		};
 	});
 });

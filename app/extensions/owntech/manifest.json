@@ -9,8 +9,7 @@
     { "path": "js/twist_protocol.js", "order": 5 },
     { "path": "plugins/twist_control.widget.js", "order": 170 },
     { "path": "plugins/twist_setpoints.widget.js", "order": 180 },
-    { "path": "plugins/twist_calibration.widget.js", "order": 190 },
-    { "path": "plugins/serialowntech.datasource.js", "order": 220 }
+    { "path": "plugins/twist_calibration.widget.js", "order": 190 }
   ],
   "preloadFlags": {
     "owntech": true
@@ -21,9 +20,7 @@
     "examples"
   ],
   "widgetDocsIndex": "docs/widgets/index.owntech.json",
-  "datasources": [
-    { "type": "serialport_datasource", "icon": "plug" }
-  ],
+  "datasources": [],
   "exampleRoots": [
     {
       "path": "dashboard/docs/examples",

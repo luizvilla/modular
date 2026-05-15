@@ -22,6 +22,7 @@
     { "path": "plugins/fast_frame_plot_ui.widget.js", "order": 150 },
     { "path": "plugins/fast_frame_channel_manager.widget.js", "order": 160 },
     { "path": "plugins/serialfast.datasource.js", "order": 200 },
+    { "path": "plugins/serialport.datasource.js", "order": 220 },
     { "path": "plugins/signal_generator.datasource.js", "order": 240 },
     { "path": "plugins/vertical_gauge.widget.js", "order": 250 },
     { "path": "plugins/horizontal_gauge.widget.js", "order": 260 },
@@ -47,6 +48,7 @@
   "widgetDocsIndex": "docs/widgets/index.core.json",
   "datasources": [
     { "type": "fast_frame_datasource", "icon": "bolt" },
+    { "type": "serialport_datasource", "icon": "plug" },
     { "type": "signal_generator_datasource", "icon": "wave-square" }
   ]
 }
