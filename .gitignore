@@ -3,9 +3,11 @@ node_modules/
 dist/
 thingset/
 test-results/
-# Ship widget docs even if they live under a thingset/ directory.
+# Ship widget docs and extension manifests even if they live under a thingset/ directory.
 !app/docs/widgets/thingset/
 !app/docs/widgets/thingset/**
+!app/extensions/thingset/
+!app/extensions/thingset/**
 # Python cache from dev-only ThingSet autotest tools.
 **/__pycache__/
 *.pyc

@@ -44,5 +44,9 @@
     "fast-frame",
     "docs"
   ],
-  "widgetDocsIndex": "docs/widgets/index.core.json"
+  "widgetDocsIndex": "docs/widgets/index.core.json",
+  "datasources": [
+    { "type": "fast_frame_datasource", "icon": "bolt" },
+    { "type": "signal_generator_datasource", "icon": "wave-square" }
+  ]
 }

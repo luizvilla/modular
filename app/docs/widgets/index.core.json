@@ -3,157 +3,178 @@
     {
       "type": "time_plot_uplot",
       "title": "Plot (uPlot)",
-      "category": "OwnTech",
-      "doc": "plots/plot-uplot/README.md",
-      "requiresThingset": false
+      "category": "Plots",
+      "icon": "chart-line",
+      "preferredOrder": 0,
+      "doc": "plots/plot-uplot/README.md"
+    },
+    {
+      "type": "xy_plot_uplot",
+      "title": "XY Plot",
+      "category": "Plots",
+      "icon": "chart-scatter",
+      "preferredOrder": 1,
+      "doc": "plots/xy-plot-uplot/README.md"
     },
     {
       "type": "uplot_config_panel",
       "title": "Plot UI Controller",
       "category": "Plots",
+      "icon": "chart-line",
+      "preferredOrder": 10,
       "doc": "plots/plot-ui-controller/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
     },
     {
       "type": "uplot_series_manager",
       "title": "Plot Channel Manager",
       "category": "Plots",
+      "icon": "chart-line",
+      "preferredOrder": 11,
       "doc": "plots/plot-series-manager/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
-    },
-    {
-      "type": "xy_plot_uplot",
-      "title": "XY Plot",
-      "category": "Plots",
-      "doc": "plots/xy-plot-uplot/README.md",
-      "requiresThingset": false
     },
     {
       "type": "xy_plot_source_manager",
       "title": "XY Source Manager",
       "category": "Plots",
+      "icon": "chart-scatter",
+      "preferredOrder": 12,
       "doc": "plots/xy-plot-source-manager/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
     },
     {
       "type": "vertical_gauge",
       "title": "Vertical Gauge",
-      "category": "Plots",
-      "doc": "gauges/vertical-gauge/README.md",
-      "requiresThingset": false
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 0,
+      "doc": "gauges/vertical-gauge/README.md"
     },
     {
       "type": "horizontal_gauge",
       "title": "Horizontal Gauge",
-      "category": "Plots",
-      "doc": "gauges/horizontal-gauge/README.md",
-      "requiresThingset": false
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 1,
+      "doc": "gauges/horizontal-gauge/README.md"
     },
     {
       "type": "radial_arc_gauge",
       "title": "Radial Arc Gauge",
-      "category": "Plots",
-      "doc": "gauges/radial-arc-gauge/README.md",
-      "requiresThingset": false
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 2,
+      "doc": "gauges/radial-arc-gauge/README.md"
     },
     {
       "type": "radial_needle_gauge",
       "title": "Radial Needle Gauge",
-      "category": "Plots",
-      "doc": "gauges/radial-needle-gauge/README.md",
-      "requiresThingset": false
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 3,
+      "doc": "gauges/radial-needle-gauge/README.md"
     },
     {
       "type": "donut_gauge",
       "title": "Donut Gauge",
-      "category": "Plots",
-      "doc": "gauges/donut-gauge/README.md",
-      "requiresThingset": false
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 4,
+      "doc": "gauges/donut-gauge/README.md"
     },
     {
       "type": "gauge",
       "title": "Gauge",
-      "category": "Plots",
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 10,
       "doc": "gauges/gauge/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
     },
     {
       "type": "vertical_gauge_manager",
       "title": "Gauge Channel Manager",
-      "category": "Plots",
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 11,
       "doc": "gauges/vertical-gauge-manager/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
     },
     {
       "type": "vertical_gauge_config_panel",
       "title": "Vertical Gauge UI",
-      "category": "Plots",
+      "category": "Gauges",
+      "icon": "gauge-high",
+      "preferredOrder": 12,
       "doc": "gauges/vertical-gauge-ui/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
     },
     {
       "type": "serial_terminal",
       "title": "Serial Terminal",
       "category": "Serial",
-      "doc": "serial/serial-terminal/README.md",
-      "requiresThingset": false
+      "icon": "terminal",
+      "preferredOrder": 0,
+      "doc": "serial/serial-terminal/README.md"
     },
     {
       "type": "serial_command_buttons",
       "title": "Serial Command Buttons",
       "category": "Serial",
-      "doc": "serial/serial-command-buttons/README.md",
-      "requiresThingset": false
+      "icon": "keyboard",
+      "preferredOrder": 1,
+      "doc": "serial/serial-command-buttons/README.md"
     },
     {
       "type": "serial_csv_recorder",
       "title": "Serial CSV Recorder",
       "category": "Serial",
-      "doc": "serial/serial-csv-recorder/README.md",
-      "requiresThingset": false
+      "icon": "file-csv",
+      "preferredOrder": 2,
+      "doc": "serial/serial-csv-recorder/README.md"
+    },
+    {
+      "type": "serial_flasher",
+      "title": "Serial Flasher",
+      "category": "Serial",
+      "icon": "microchip",
+      "preferredOrder": 3,
+      "doc": "serial/serial-flasher/README.md"
     },
     {
       "type": "fast_frame_control",
       "title": "Fast Frame Control",
       "category": "Fast Frame",
-      "doc": "serial/fast-frame-control/README.md",
-      "requiresThingset": false
+      "icon": "bolt",
+      "preferredOrder": 0,
+      "doc": "serial/fast-frame-control/README.md"
     },
     {
       "type": "fast_frame_plot",
       "title": "Fast Frame Plot",
       "category": "Fast Frame",
-      "doc": "serial/fast-frame-plot/README.md",
-      "requiresThingset": false
+      "icon": "chart-area",
+      "preferredOrder": 1,
+      "doc": "serial/fast-frame-plot/README.md"
     },
     {
       "type": "fast_frame_plot_ui",
       "title": "Fast Frame UI",
       "category": "Fast Frame",
+      "icon": "chart-area",
+      "preferredOrder": 10,
       "doc": "serial/fast-frame-ui/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
     },
     {
       "type": "fast_frame_channel_manager",
       "title": "Fast Frame Channel Manager",
       "category": "Fast Frame",
+      "icon": "sliders",
+      "preferredOrder": 11,
       "doc": "serial/fast-frame-channel-manager/README.md",
-      "requiresThingset": false,
       "compatibilityOnly": true
-    },
-    {
-      "type": "serial_flasher",
-      "title": "Serial Flasher",
-      "category": "Serial",
-      "doc": "serial/serial-flasher/README.md",
-      "requiresThingset": false
     }
   ]
 }

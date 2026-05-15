@@ -4,36 +4,41 @@
       "type": "thingset_device_ui",
       "title": "ThingSet Device UI",
       "category": "ThingSet",
-      "doc": "thingset/device-ui/README.md",
-      "requiresThingset": true
+      "icon": "network-wired",
+      "preferredOrder": 0,
+      "doc": "thingset/device-ui/README.md"
     },
     {
       "type": "thingset_serial_device_ui",
       "title": "ThingSet Serial Device UI",
       "category": "ThingSet",
-      "doc": "thingset/serial-device-ui/README.md",
-      "requiresThingset": true
+      "icon": "terminal",
+      "preferredOrder": 1,
+      "doc": "thingset/serial-device-ui/README.md"
     },
     {
       "type": "thingset_mode_button",
       "title": "ThingSet Mode Button",
       "category": "ThingSet",
-      "doc": "thingset/mode-button/README.md",
-      "requiresThingset": true
+      "icon": "toggle-on",
+      "preferredOrder": 2,
+      "doc": "thingset/mode-button/README.md"
     },
     {
       "type": "thingset_control_panel",
       "title": "ThingSet Control Panel",
       "category": "ThingSet",
-      "doc": "thingset/control-panel/README.md",
-      "requiresThingset": true
+      "icon": "sliders",
+      "preferredOrder": 3,
+      "doc": "thingset/control-panel/README.md"
     },
     {
       "type": "thingset_measurements",
       "title": "ThingSet Measurements",
       "category": "ThingSet",
-      "doc": "thingset/measurements/README.md",
-      "requiresThingset": true
+      "icon": "chart-bar",
+      "preferredOrder": 4,
+      "doc": "thingset/measurements/README.md"
     }
   ]
 }

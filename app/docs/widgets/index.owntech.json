@@ -4,22 +4,25 @@
       "type": "twist_actions_panel",
       "title": "Twist/Ownverter Actions",
       "category": "OwnTech",
-      "doc": "twist/actions/README.md",
-      "requiresThingset": false
+      "icon": "bolt",
+      "preferredOrder": 0,
+      "doc": "twist/actions/README.md"
     },
     {
       "type": "twist_setpoints_panel",
       "title": "Twist/Ownverter Setpoints",
       "category": "OwnTech",
-      "doc": "twist/setpoints/README.md",
-      "requiresThingset": false
+      "icon": "sliders",
+      "preferredOrder": 1,
+      "doc": "twist/setpoints/README.md"
     },
     {
       "type": "twist_calibration_panel",
       "title": "Twist/Ownverter Calibration",
       "category": "OwnTech",
-      "doc": "twist/calibration/README.md",
-      "requiresThingset": false
+      "icon": "ruler",
+      "preferredOrder": 2,
+      "doc": "twist/calibration/README.md"
     }
   ]
 }

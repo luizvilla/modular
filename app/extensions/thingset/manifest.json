@@ -1,0 +1,29 @@
+{
+  "id": "thingset",
+  "apiVersion": 1,
+  "version": "0.9.3",
+  "displayName": "ThingSet Extension",
+  "enabledByDefault": true,
+  "mainEntry": "main.js",
+  "rendererScripts": [
+    { "path": "plugins/thingset_serial.datasource.js", "order": 210 },
+    { "path": "plugins/can.datasource.js", "order": 230 },
+    { "path": "plugins/ts_device_ui.widget.js", "order": 330 },
+    { "path": "plugins/ts_serial_device_ui.widget.js", "order": 340 },
+    { "path": "plugins/ts_mode.widget.js", "order": 350 },
+    { "path": "plugins/ts_control.widget.js", "order": 360 },
+    { "path": "plugins/ts_measurements.widget.js", "order": 370 }
+  ],
+  "preloadFlags": {
+    "thingset": true
+  },
+  "capabilities": [
+    "thingset",
+    "can"
+  ],
+  "widgetDocsIndex": "docs/widgets/index.thingset.json",
+  "datasources": [
+    { "type": "thingset_serial_datasource", "icon": "terminal" },
+    { "type": "can_datasource", "icon": "network-wired" }
+  ]
+}

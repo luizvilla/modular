@@ -21,6 +21,9 @@
     "examples"
   ],
   "widgetDocsIndex": "docs/widgets/index.owntech.json",
+  "datasources": [
+    { "type": "serialport_datasource", "icon": "plug" }
+  ],
   "exampleRoots": [
     {
       "path": "dashboard/docs/examples",
