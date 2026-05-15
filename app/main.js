@@ -398,8 +398,9 @@ ipcMain.handle('extensions-manager-uninstall', (_event, { id } = {}) => {
 
 ipcMain.handle('extensions-manager-enable', (_event, { id } = {}) => {
     if (!id) return { ok: false, error: 'Missing id' };
+    if (id === 'core') return { ok: false, error: 'The core extension cannot be disabled' };
     const state = readManagerState();
-    if (!state[id]) return { ok: false, error: `Extension ${id} is not installed` };
+    if (!state[id]) state[id] = {};
     state[id].enabled = true;
     writeManagerState(state);
     return { ok: true, requiresRestart: true };
@@ -407,8 +408,9 @@ ipcMain.handle('extensions-manager-enable', (_event, { id } = {}) => {
 
 ipcMain.handle('extensions-manager-disable', (_event, { id } = {}) => {
     if (!id) return { ok: false, error: 'Missing id' };
+    if (id === 'core') return { ok: false, error: 'The core extension cannot be disabled' };
     const state = readManagerState();
-    if (!state[id]) return { ok: false, error: `Extension ${id} is not installed` };
+    if (!state[id]) state[id] = {};
     state[id].enabled = false;
     writeManagerState(state);
     return { ok: true, requiresRestart: true };
@@ -495,9 +497,8 @@ function setAppMenu() {
                 }
             ]
         },
-        // Examples menu — 🟡 prefix signals extension-provided content (native menus don't support text color).
         {
-            label: '🟡 Examples',
+            label: 'OwnTech Examples',
             submenu: (() => {
                 const providers = [];
                 const seen = new Set();
