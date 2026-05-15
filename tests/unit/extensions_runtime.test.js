@@ -108,6 +108,120 @@ function runInvalidManifestAssertions() {
     }
 }
 
+// ── Installed bundle tests ────────────────────────────────────────────────────
+
+function makeInstalledBundle(dir, { id = 'testpkg', version = '1.0.0', enabled = true, extra = {} } = {}) {
+    const bundleDir = path.join(dir, id, version);
+    fs.mkdirSync(bundleDir, { recursive: true });
+    const manifest = {
+        apiVersion: 1,
+        id,
+        displayName: 'Test Package',
+        version,
+        enabledByDefault: enabled,
+        ...extra,
+    };
+    fs.writeFileSync(path.join(bundleDir, 'manifest.json'), JSON.stringify(manifest), 'utf8');
+    return bundleDir;
+}
+
+function runInstalledBundleDiscovery() {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-installed-'));
+    try {
+        makeInstalledBundle(tempRoot, { id: 'testpkg', version: '1.2.0' });
+
+        const runtime = buildExtensionRuntime({ appRoot, env: { ...process.env, ENABLE_THINGSET: '1' }, installedRoot: tempRoot });
+
+        const entry = runtime.inventory.find((e) => e.id === 'testpkg');
+        assert.ok(entry, 'installed bundle should appear in inventory');
+        assert.strictEqual(entry.isInstalled, true);
+        assert.strictEqual(entry.version, '1.2.0');
+        assert.strictEqual(entry.enabled, true);
+        assert.strictEqual(runtime.installedRoot, tempRoot);
+    } finally {
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
+function runInstalledBundleStateOverride() {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-installed-'));
+    try {
+        makeInstalledBundle(tempRoot, { id: 'testpkg', version: '1.0.0', enabled: true });
+        // Write a state.json that disables it
+        fs.writeFileSync(path.join(tempRoot, 'state.json'), JSON.stringify({ testpkg: { enabled: false, version: '1.0.0' } }), 'utf8');
+
+        const runtime = buildExtensionRuntime({ appRoot, env: { ...process.env, ENABLE_THINGSET: '1' }, installedRoot: tempRoot });
+
+        const entry = runtime.inventory.find((e) => e.id === 'testpkg');
+        assert.ok(entry, 'bundle should be in inventory even when disabled');
+        assert.strictEqual(entry.enabled, false);
+        assert.strictEqual(runtime.bootstrap.rendererScripts.some((s) => s.path.includes('testpkg')), false);
+    } finally {
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
+function runInstalledBundleIntegrityFailure() {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-installed-'));
+    const warnings = [];
+    try {
+        const bundleDir = makeInstalledBundle(tempRoot, { id: 'badpkg', version: '1.0.0' });
+        // Write a checksums.json with a wrong hash
+        fs.writeFileSync(path.join(bundleDir, 'checksums.json'), JSON.stringify({ files: { 'manifest.json': 'deadbeef' } }), 'utf8');
+
+        const runtime = buildExtensionRuntime({
+            appRoot,
+            env: { ...process.env, ENABLE_THINGSET: '1' },
+            installedRoot: tempRoot,
+            logger: { warn: (...args) => warnings.push(args.join(' ')), error: () => {}, info: () => {} },
+        });
+
+        assert.strictEqual(runtime.inventory.find((e) => e.id === 'badpkg'), undefined, 'bundle with bad checksum should be skipped');
+        assert.strictEqual(runtime.invalidManifests.length, 1);
+        assert.ok(warnings.some((m) => m.includes('Skipping invalid installed bundle')));
+    } finally {
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
+function runInstalledBundleDuplicateId() {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-installed-'));
+    const warnings = [];
+    try {
+        // 'core' is already a source-loaded extension — collision should be rejected
+        makeInstalledBundle(tempRoot, { id: 'core', version: '1.0.0' });
+
+        const runtime = buildExtensionRuntime({
+            appRoot,
+            env: { ...process.env, ENABLE_THINGSET: '1' },
+            installedRoot: tempRoot,
+            logger: { warn: (...args) => warnings.push(args.join(' ')), error: () => {}, info: () => {} },
+        });
+
+        assert.strictEqual(runtime.invalidManifests.some((m) => m.error.includes('Duplicate extension id')), true);
+        assert.ok(warnings.some((m) => m.includes('Duplicate extension id')));
+    } finally {
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
+function runInstalledBundleMissingRoot() {
+    // Non-existent installedRoot should be tolerated silently
+    const runtime = buildExtensionRuntime({
+        appRoot,
+        env: { ...process.env, ENABLE_THINGSET: '1' },
+        installedRoot: path.join(os.tmpdir(), 'modular-nonexistent-' + Date.now()),
+    });
+    assert.strictEqual(runtime.inventory.find((e) => e.isInstalled), undefined, 'no installed bundles when root is missing');
+}
+
 runDefaultRuntimeAssertions();
 runDisabledRuntimeAssertions();
 runInvalidManifestAssertions();
+runInstalledBundleDiscovery();
+runInstalledBundleStateOverride();
+runInstalledBundleIntegrityFailure();
+runInstalledBundleDuplicateId();
+runInstalledBundleMissingRoot();
+
+console.log('All extension runtime tests passed.');
