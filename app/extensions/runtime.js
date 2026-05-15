@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 const MANIFEST_FILENAME = 'manifest.json';
 const MANIFEST_API_VERSION = 1;
@@ -384,12 +385,193 @@ function createContributionRegistry() {
     };
 }
 
+// ── Installed bundle support ──────────────────────────────────────────────────
+
+function resolveInstalledScript(bundleDir, relPath, label) {
+    if (typeof relPath !== 'string' || !relPath.trim()) {
+        throw new Error(`${label} must be a non-empty string`);
+    }
+    const absolutePath = path.resolve(bundleDir, relPath);
+    if (!fs.existsSync(absolutePath)) {
+        throw new Error(`${label} does not exist: ${absolutePath}`);
+    }
+    return pathToFileURL(absolutePath).toString();
+}
+
+function resolveInstalledManifestPaths(installedRoot) {
+    if (!installedRoot || !fs.existsSync(installedRoot)) return [];
+    const result = [];
+    try {
+        for (const idEntry of fs.readdirSync(installedRoot, { withFileTypes: true }).filter((e) => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+            const idPath = path.join(installedRoot, idEntry.name);
+            const versions = fs.readdirSync(idPath, { withFileTypes: true })
+                .filter((e) => e.isDirectory())
+                .map((e) => e.name)
+                .sort();
+            if (!versions.length) continue;
+            const manifestPath = path.join(idPath, versions[versions.length - 1], MANIFEST_FILENAME);
+            if (fs.existsSync(manifestPath)) result.push(manifestPath);
+        }
+    } catch { /* ignore scan errors */ }
+    return result;
+}
+
+function readInstalledState(installedRoot) {
+    try {
+        const raw = fs.readFileSync(path.join(installedRoot, 'state.json'), 'utf8');
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch { return {}; }
+}
+
+function verifyBundleIntegrity(bundleDir, logger) {
+    const checksumsPath = path.join(bundleDir, 'checksums.json');
+    if (!fs.existsSync(checksumsPath)) return true;
+    try {
+        const checksums = JSON.parse(fs.readFileSync(checksumsPath, 'utf8'));
+        if (!checksums || typeof checksums.files !== 'object') return true;
+        const crypto = require('crypto');
+        for (const [relPath, expectedHash] of Object.entries(checksums.files)) {
+            const filePath = path.join(bundleDir, relPath);
+            if (!fs.existsSync(filePath)) {
+                logger.warn(`[extensions] Integrity: missing file ${relPath} in ${bundleDir}`);
+                return false;
+            }
+            const actual = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+            if (actual !== expectedHash) {
+                logger.warn(`[extensions] Integrity: checksum mismatch for ${relPath}`);
+                return false;
+            }
+        }
+        return true;
+    } catch (err) {
+        logger.warn(`[extensions] Integrity check error: ${err?.message || err}`);
+        return false;
+    }
+}
+
+function normalizeInstalledRendererScripts(manifest, bundleDir) {
+    if (!Array.isArray(manifest.rendererScripts)) return [];
+    return manifest.rendererScripts.map((entry, index) => {
+        const source = typeof entry === 'string'
+            ? { path: entry, order: index + 1 }
+            : ensureObject(entry, `rendererScripts[${index}]`);
+        const order = Number(source.order);
+        if (!Number.isFinite(order)) {
+            throw new Error(`rendererScripts[${index}].order must be a finite number`);
+        }
+        return {
+            path: resolveInstalledScript(bundleDir, source.path, `rendererScripts[${index}].path`),
+            order,
+        };
+    });
+}
+
+function normalizeInstalledWidgetDocsRoots(manifest, bundleDir) {
+    const raw = manifest.widgetDocsIndex;
+    if (!raw) return [];
+    const list = Array.isArray(raw) ? raw : [raw];
+    return list.map((indexPath, index) => {
+        const absoluteIndexPath = ensureRelativeFile(bundleDir, indexPath, `widgetDocsIndex[${index}]`);
+        return {
+            extensionId: manifest.id,
+            path: path.dirname(absoluteIndexPath),
+            indexPath: absoluteIndexPath,
+        };
+    });
+}
+
+function normalizeInstalledExampleRoots(manifest, bundleDir) {
+    if (!Array.isArray(manifest.exampleRoots)) return [];
+    return manifest.exampleRoots.map((entry, index) => {
+        const source = ensureObject(entry, `exampleRoots[${index}]`);
+        const docsRoot = ensureRelativeFile(bundleDir, source.path, `exampleRoots[${index}].path`);
+        const dashboardRoot = source.dashboardRoot
+            ? ensureRelativeFile(bundleDir, source.dashboardRoot, `exampleRoots[${index}].dashboardRoot`)
+            : null;
+        const firmwareRoot = source.firmwareRoot
+            ? ensureRelativeFile(bundleDir, source.firmwareRoot, `exampleRoots[${index}].firmwareRoot`)
+            : null;
+        return { extensionId: manifest.id, path: docsRoot, dashboardRoot, firmwareRoot };
+    });
+}
+
+function normalizeInstalledDashboardRoots(manifest, bundleDir) {
+    if (!Array.isArray(manifest.dashboardRoots)) return [];
+    return manifest.dashboardRoots.map((entry, index) => {
+        const relPath = typeof entry === 'string'
+            ? entry
+            : ensureObject(entry, `dashboardRoots[${index}]`).path;
+        return {
+            extensionId: manifest.id,
+            path: ensureRelativeFile(bundleDir, relPath, `dashboardRoots[${index}]`),
+        };
+    });
+}
+
+function normalizeInstalledBundleRecord(manifestPath, options) {
+    const { env, installedState, logger } = options;
+    const bundleDir = path.dirname(manifestPath);
+    const manifest = ensureObject(readManifest(manifestPath), manifestPath);
+
+    if (manifest.apiVersion !== MANIFEST_API_VERSION) {
+        throw new Error(`Unsupported apiVersion ${manifest.apiVersion} in ${manifestPath}`);
+    }
+    if (typeof manifest.id !== 'string' || !manifest.id.trim()) {
+        throw new Error(`Manifest ${manifestPath} must declare a non-empty id`);
+    }
+    if (typeof manifest.displayName !== 'string' || !manifest.displayName.trim()) {
+        throw new Error(`Manifest ${manifestPath} must declare a non-empty displayName`);
+    }
+    if (typeof manifest.enabledByDefault !== 'boolean') {
+        throw new Error(`Manifest ${manifestPath} must declare enabledByDefault as a boolean`);
+    }
+
+    if (!verifyBundleIntegrity(bundleDir, logger)) {
+        throw new Error(`Bundle integrity check failed for ${bundleDir}`);
+    }
+
+    const stateEntry = installedState[manifest.id.trim()];
+    const enabled = stateEntry && typeof stateEntry.enabled === 'boolean'
+        ? stateEntry.enabled
+        : !!manifest.enabledByDefault;
+
+    const mainEntryPath = manifest.mainEntry
+        ? ensureRelativeFile(bundleDir, manifest.mainEntry, 'mainEntry')
+        : null;
+
+    return {
+        id: manifest.id.trim(),
+        displayName: manifest.displayName.trim(),
+        version: typeof manifest.version === 'string' ? manifest.version : '0.0.0',
+        manifestPath,
+        manifestDir: bundleDir,
+        manifest,
+        enabled,
+        mainEntryPath,
+        rendererScripts: normalizeInstalledRendererScripts(manifest, bundleDir),
+        widgetDocsRoots: normalizeInstalledWidgetDocsRoots(manifest, bundleDir),
+        exampleRoots: normalizeInstalledExampleRoots(manifest, bundleDir),
+        dashboardRoots: normalizeInstalledDashboardRoots(manifest, bundleDir),
+        preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
+        capabilities: normalizeCapabilities(manifest.capabilities),
+        compatibilityTypes: normalizeCompatibilityTypes(manifest.compatibilityTypes),
+        datasources: normalizeDatasources(manifest),
+        isInstalled: true,
+        bundleDir,
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function toInventoryEntry(record) {
     return {
         id: record.id,
         displayName: record.displayName,
+        version: record.version || '0.0.0',
         enabled: record.enabled,
         capabilities: record.capabilities.slice(),
+        isInstalled: !!record.isInstalled,
     };
 }
 
@@ -511,6 +693,25 @@ function buildExtensionRuntime(options = {}) {
         }
     }
 
+    // Discover installed bundles alongside source-loaded extensions.
+    const installedRoot = options.installedRoot || null;
+    if (installedRoot) {
+        const installedState = readInstalledState(installedRoot);
+        for (const manifestPath of resolveInstalledManifestPaths(installedRoot)) {
+            try {
+                const record = normalizeInstalledBundleRecord(manifestPath, { env, installedState, logger });
+                if (seenIds.has(record.id)) {
+                    throw new Error(`Duplicate extension id ${record.id} (conflicts with source-loaded extension)`);
+                }
+                seenIds.add(record.id);
+                records.push(record);
+            } catch (err) {
+                invalidManifests.push({ manifestPath, error: err?.message || String(err) });
+                logger.warn(`[extensions] Skipping invalid installed bundle ${manifestPath}: ${err?.message || err}`);
+            }
+        }
+    }
+
     const sortedRecords = sortExtensions(records);
     const registry = createContributionRegistry();
     loadExtensionEntries(sortedRecords, registry, logger, options.extensionContext);
@@ -523,6 +724,7 @@ function buildExtensionRuntime(options = {}) {
     return {
         appRoot,
         extensionRoot,
+        installedRoot,
         invalidManifests,
         records: sortedRecords,
         inventory,
@@ -537,4 +739,5 @@ module.exports = {
     MANIFEST_API_VERSION,
     MANIFEST_FILENAME,
     buildExtensionRuntime,
+    readInstalledState,
 };
