@@ -85,10 +85,9 @@
         return row;
     }
 
-    function renderBuiltinEntry(ext) {
+    function renderBuiltinEntry(ext, manager, noticeEl, onChanged) {
         var row = document.createElement('div');
         row.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
-        row.style.opacity = '0.8';
 
         var info = document.createElement('div');
         info.className = 'flex-grow-1';
@@ -96,10 +95,43 @@
             '<strong>' + escapeHtml(ext.displayName) + '</strong>' +
             ' <span class="badge bg-secondary ms-1">' + escapeHtml(ext.version || '0.0.0') + '</span>' +
             ' <span class="badge bg-info text-dark ms-1">Built-in</span>' +
+            (ext.id === 'core' ? ' <span class="badge bg-secondary ms-1">Locked</span>' : '') +
             '<div class="text-muted small">' + escapeHtml(ext.id) +
             (ext.enabled ? '' : ' &mdash; <em>disabled</em>') + '</div>';
 
         row.appendChild(info);
+
+        if (ext.id !== 'core') {
+            var controls = document.createElement('div');
+            controls.className = 'd-flex gap-1 flex-shrink-0';
+
+            var toggleBtn = document.createElement('button');
+            toggleBtn.className = 'btn btn-sm ' + (ext.enabled ? 'btn-outline-warning' : 'btn-outline-success');
+            toggleBtn.textContent = ext.enabled ? 'Disable' : 'Enable';
+            toggleBtn.title = ext.enabled
+                ? 'Disable this extension (restart required)'
+                : 'Enable this extension (restart required)';
+
+            toggleBtn.addEventListener('click', function () {
+                var op = ext.enabled ? manager.disable(ext.id) : manager.enable(ext.id);
+                op.then(function (result) {
+                    if (result && result.ok) {
+                        showNotice(noticeEl,
+                            '"' + ext.displayName + '" ' + (ext.enabled ? 'disabled' : 'enabled') +
+                            '. Restart the app for the change to take effect.', 'success');
+                        onChanged();
+                    } else {
+                        showNotice(noticeEl, (result && result.error) || 'Operation failed.', 'danger');
+                    }
+                }).catch(function (err) {
+                    showNotice(noticeEl, String(err && err.message || err), 'danger');
+                });
+            });
+
+            controls.appendChild(toggleBtn);
+            row.appendChild(controls);
+        }
+
         return row;
     }
 
@@ -160,7 +192,9 @@
             });
 
             builtins.forEach(function (ext) {
-                builtinEl.appendChild(renderBuiltinEntry(ext));
+                builtinEl.appendChild(renderBuiltinEntry(ext, manager, noticeEl, function () {
+                    refreshList(manager, installedEl, builtinEl, emptyEl, noticeEl);
+                }));
             });
         }).catch(function (err) {
             showNotice(noticeEl, 'Failed to load extensions: ' + String(err && err.message || err), 'danger');
