@@ -1,6 +1,16 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard, loadDashboard, fixturePath } = require('./helpers');
 
+async function openWidgetPicker(page) {
+    await page.evaluate(() => window.freeboard.setEditing(true));
+    await page.waitForTimeout(400);
+    await page.evaluate(() => {
+        document.querySelector('.gs_w .pane-tools li[title="Add widget"]')?.click();
+    });
+    await expect(page.locator('#modal_overlay .widget-picker')).toBeVisible();
+    return page.locator('#modal_overlay .widget-picker');
+}
+
 test.setTimeout(90_000);
 
 async function getPaneWidgetState(page, paneIndex = 0) {
@@ -106,6 +116,43 @@ test('add-widget modal renders the icon grid and keeps control helpers available
     const after = await getPaneWidgetState(page, 0);
     expect(after.widgetCount).toBe(before.widgetCount + 1);
     expect(after.serialFlasherCount).toBe(before.serialFlasherCount + 1);
+  } finally {
+    await app.close();
+  }
+});
+
+test('picker shows OwnTech and ThingSet sections when extensions are enabled', async () => {
+  const { app, page } = await launchApp({ ENABLE_THINGSET: '1' });
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+    const picker = await openWidgetPicker(page);
+    const sectionTitles = await picker.locator('.widget-picker-section-title').allTextContents();
+    const titles = sectionTitles.map((t) => t.trim());
+    expect(titles).toContain('OwnTech');
+    expect(titles).toContain('ThingSet');
+    await expect(picker.locator('.widget-tile[data-type="twist_actions_panel"]')).toBeVisible();
+    await expect(picker.locator('.widget-tile[data-type="thingset_device_ui"]')).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
+
+test('picker hides OwnTech section and tiles when owntech extension is disabled', async () => {
+  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH: '0', ENABLE_THINGSET: '0' });
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+    const picker = await openWidgetPicker(page);
+    const sectionTitles = await picker.locator('.widget-picker-section-title').allTextContents();
+    const titles = sectionTitles.map((t) => t.trim());
+    expect(titles).not.toContain('OwnTech');
+    expect(titles).not.toContain('ThingSet');
+    await expect(picker.locator('.widget-tile[data-type="twist_actions_panel"]')).toHaveCount(0);
+    await expect(picker.locator('.widget-tile[data-type="thingset_device_ui"]')).toHaveCount(0);
+    // Core widgets remain
+    expect(titles[0]).toBe('Plots');
+    await expect(picker.locator('.widget-tile[data-type="serial_flasher"]')).toBeVisible();
   } finally {
     await app.close();
   }

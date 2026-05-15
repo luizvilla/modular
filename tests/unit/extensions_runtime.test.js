@@ -23,6 +23,27 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/ts_device_ui.widget.js'), true);
+
+    // widgetDocs: all three extensions contribute entries
+    assert.strictEqual(Array.isArray(runtime.bootstrap.widgetDocs), true);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'fast_frame_plot'), true);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'time_plot_uplot'), true);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), true);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'thingset_device_ui'), true);
+    // icon and preferredOrder are present
+    const ffPlot = runtime.bootstrap.widgetDocs.find((e) => e.type === 'fast_frame_plot');
+    assert.strictEqual(ffPlot.icon, 'chart-area');
+    assert.strictEqual(typeof ffPlot.preferredOrder, 'number');
+    assert.strictEqual(ffPlot.extensionId, 'core');
+
+    // datasources: all three extensions contribute
+    assert.strictEqual(Array.isArray(runtime.bootstrap.datasources), true);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), true);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'thingset_serial_datasource'), true);
+    const ffDs = runtime.bootstrap.datasources.find((e) => e.type === 'fast_frame_datasource');
+    assert.strictEqual(ffDs.icon, 'bolt');
+    assert.strictEqual(ffDs.extensionId, 'core');
 }
 
 function runDisabledRuntimeAssertions() {
@@ -42,6 +63,16 @@ function runDisabledRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), false);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/ts_device_ui.widget.js'), false);
+
+    // widgetDocs: only core entries when owntech and thingset are disabled
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'time_plot_uplot'), true);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), false);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'thingset_device_ui'), false);
+
+    // datasources: owntech and thingset datasources absent
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), false);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'thingset_serial_datasource'), false);
 }
 
 function runInvalidManifestAssertions() {

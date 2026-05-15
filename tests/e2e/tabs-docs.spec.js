@@ -1,6 +1,8 @@
 const { test, expect } = require('playwright/test');
 const { launchApp, waitForDashboard } = require('./helpers');
 
+test.setTimeout(60_000);
+
 async function getExampleIds(page, limit = 10) {
   await page.waitForFunction(() => {
     const sel = document.getElementById('doc-example-select');
@@ -41,6 +43,52 @@ test('open up to 10 example tabs', async () => {
 
   await openExampleTabs(app, ids);
   await waitForTabCount(page, ids.length);
+
+  await app.close();
+});
+
+test('widget docs bootstrap contains merged entries from enabled extensions', async () => {
+  const { app, page } = await launchApp({ ENABLE_THINGSET: '1' });
+  await waitForDashboard(page);
+
+  const result = await page.evaluate(async () => {
+    const bootstrap = await window.api.extensions.getBootstrap();
+    const docs = Array.isArray(bootstrap.widgetDocs) ? bootstrap.widgetDocs : [];
+    return {
+      hasTimePlot: docs.some((e) => e.type === 'time_plot_uplot'),
+      hasTwistActions: docs.some((e) => e.type === 'twist_actions_panel'),
+      hasThingsetDeviceUi: docs.some((e) => e.type === 'thingset_device_ui'),
+      timePlotCategory: (docs.find((e) => e.type === 'time_plot_uplot') || {}).category,
+      twistExtensionId: (docs.find((e) => e.type === 'twist_actions_panel') || {}).extensionId,
+    };
+  });
+
+  expect(result.hasTimePlot).toBe(true);
+  expect(result.hasTwistActions).toBe(true);
+  expect(result.hasThingsetDeviceUi).toBe(true);
+  expect(result.timePlotCategory).toBe('Plots');
+  expect(result.twistExtensionId).toBe('owntech');
+
+  await app.close();
+});
+
+test('widget docs bootstrap excludes disabled extension entries', async () => {
+  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH: '0', ENABLE_THINGSET: '0' });
+  await waitForDashboard(page);
+
+  const result = await page.evaluate(async () => {
+    const bootstrap = await window.api.extensions.getBootstrap();
+    const docs = Array.isArray(bootstrap.widgetDocs) ? bootstrap.widgetDocs : [];
+    return {
+      hasTimePlot: docs.some((e) => e.type === 'time_plot_uplot'),
+      hasTwistActions: docs.some((e) => e.type === 'twist_actions_panel'),
+      hasThingsetDeviceUi: docs.some((e) => e.type === 'thingset_device_ui'),
+    };
+  });
+
+  expect(result.hasTimePlot).toBe(true);
+  expect(result.hasTwistActions).toBe(false);
+  expect(result.hasThingsetDeviceUi).toBe(false);
 
   await app.close();
 });
