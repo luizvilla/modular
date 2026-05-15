@@ -36,7 +36,7 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(typeof ffPlot.preferredOrder, 'number');
     assert.strictEqual(ffPlot.extensionId, 'core');
 
-    // datasources: all three extensions contribute
+    // datasources: core contributes fast_frame and serialport; owntech and thingset add theirs
     assert.strictEqual(Array.isArray(runtime.bootstrap.datasources), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), true);
@@ -44,6 +44,9 @@ function runDefaultRuntimeAssertions() {
     const ffDs = runtime.bootstrap.datasources.find((e) => e.type === 'fast_frame_datasource');
     assert.strictEqual(ffDs.icon, 'bolt');
     assert.strictEqual(ffDs.extensionId, 'core');
+    const spDs = runtime.bootstrap.datasources.find((e) => e.type === 'serialport_datasource');
+    assert.strictEqual(spDs.icon, 'plug');
+    assert.strictEqual(spDs.extensionId, 'core');
 }
 
 function runDisabledRuntimeAssertions() {
@@ -69,9 +72,9 @@ function runDisabledRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), false);
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'thingset_device_ui'), false);
 
-    // datasources: owntech and thingset datasources absent
+    // datasources: serialport_datasource is in core (always present); owntech/thingset entries absent
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
-    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), false);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'thingset_serial_datasource'), false);
 }
 

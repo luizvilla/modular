@@ -93,6 +93,43 @@ test('widget docs bootstrap excludes disabled extension entries', async () => {
   await app.close();
 });
 
+test('serialport_datasource is in core and available when owntech is disabled', async () => {
+  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH: '0', ENABLE_THINGSET: '0' });
+  await waitForDashboard(page);
+
+  const result = await page.evaluate(async () => {
+    const bootstrap = await window.api.extensions.getBootstrap();
+    const ds = Array.isArray(bootstrap.datasources) ? bootstrap.datasources : [];
+    const sp = ds.find((e) => e.type === 'serialport_datasource');
+    return {
+      hasSerialport: !!sp,
+      extensionId: sp ? sp.extensionId : null,
+      icon: sp ? sp.icon : null,
+    };
+  });
+
+  expect(result.hasSerialport).toBe(true);
+  expect(result.extensionId).toBe('core');
+  expect(result.icon).toBe('plug');
+
+  await app.close();
+});
+
+test('serial port metadata includes vendorId and productId fields', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+
+  const ports = await page.evaluate(async () => window.api.serial.listPorts());
+  expect(ports.length).toBeGreaterThan(0);
+  const port = ports[0];
+  expect(Object.prototype.hasOwnProperty.call(port, 'vendorId')).toBe(true);
+  expect(Object.prototype.hasOwnProperty.call(port, 'productId')).toBe(true);
+  expect(Object.prototype.hasOwnProperty.call(port, 'manufacturer')).toBe(true);
+  expect(Object.prototype.hasOwnProperty.call(port, 'serialNumber')).toBe(true);
+
+  await app.close();
+});
+
 test('undock and re-dock up to 10 example tabs', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
