@@ -4,7 +4,7 @@ const { SerialPort } = require('serialport');
 const fs = require('fs');
 const { flashFirmware, cancelFlash } = require('./flasher');
 const { spawn } = require('child_process');
-const { buildExtensionRuntime } = require('./extensions/runtime');
+const { buildExtensionRuntime, readInstalledState } = require('./extensions/runtime');
 
 const argv = process.argv || [];
 const noGpu = argv.includes('--no-gpu') || argv.includes('--disable-gpu');
@@ -22,11 +22,18 @@ if (process.env.ENABLE_THINGSET === undefined) {
 // Shared context passed to extension main entries. Properties populated below as they become available.
 const extensionSharedContext = { ipcMain, app };
 
+// Installed bundles live under userData so they survive app updates.
+let installedRoot = null;
+try {
+    installedRoot = path.join(app.getPath('userData'), 'extensions');
+} catch { /* userData unavailable before ready on some platforms — bundles discovered at boot only */ }
+
 const extensionRuntime = buildExtensionRuntime({
     appRoot: __dirname,
     env: process.env,
     logger: console,
     extensionContext: extensionSharedContext,
+    installedRoot,
 });
 
 function cloneExtensionInventory() {
@@ -306,6 +313,106 @@ ipcMain.handle('extensions-is-enabled', (_event, { id } = {}) => {
 
 ipcMain.handle('extensions-get-bootstrap', () => cloneExtensionBootstrap());
 
+// ── Extension Manager ──────────────────────────────────────────────────────
+
+function getInstalledRoot() {
+    return path.join(app.getPath('userData'), 'extensions');
+}
+
+function readManagerState() {
+    return readInstalledState(getInstalledRoot());
+}
+
+function writeManagerState(state) {
+    const dir = getInstalledRoot();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(state, null, 2), 'utf8');
+}
+
+function copyDirSync(src, dest) {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) copyDirSync(srcPath, destPath);
+        else fs.copyFileSync(srcPath, destPath);
+    }
+}
+
+ipcMain.handle('extensions-manager-list', () => {
+    return extensionRuntime.inventory.filter((e) => e.isInstalled).map((e) => ({ ...e }));
+});
+
+ipcMain.handle('extensions-choose-bundle', async () => {
+    if (!mainWindow) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'Select Extension Bundle Directory',
+        properties: ['openDirectory'],
+    });
+    if (canceled || !filePaths.length) return null;
+    return filePaths[0];
+});
+
+ipcMain.handle('extensions-manager-install', async (_event, { bundlePath } = {}) => {
+    if (!bundlePath) return { ok: false, error: 'Missing bundle path' };
+    try {
+        const manifestPath = path.join(bundlePath, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) return { ok: false, error: 'No manifest.json found in bundle directory' };
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const id = String(manifest.id || '').trim();
+        const version = String(manifest.version || '0.0.0');
+        if (!id) return { ok: false, error: 'Bundle manifest is missing an id field' };
+        const destDir = path.join(getInstalledRoot(), id, version);
+        if (fs.existsSync(destDir)) return { ok: false, error: `Extension ${id}@${version} is already installed` };
+        copyDirSync(bundlePath, destDir);
+        const state = readManagerState();
+        state[id] = { enabled: !!manifest.enabledByDefault, version };
+        writeManagerState(state);
+        return { ok: true, id, version, requiresRestart: true };
+    } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
+
+ipcMain.handle('extensions-manager-uninstall', (_event, { id } = {}) => {
+    if (!id) return { ok: false, error: 'Missing id' };
+    try {
+        const state = readManagerState();
+        const version = state[id]?.version;
+        delete state[id];
+        writeManagerState(state);
+        if (version) {
+            const bundleDir = path.join(getInstalledRoot(), id, version);
+            if (fs.existsSync(bundleDir)) fs.rmSync(bundleDir, { recursive: true, force: true });
+            const idDir = path.join(getInstalledRoot(), id);
+            if (fs.existsSync(idDir) && !fs.readdirSync(idDir).length) fs.rmdirSync(idDir);
+        }
+        return { ok: true, requiresRestart: true };
+    } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
+
+ipcMain.handle('extensions-manager-enable', (_event, { id } = {}) => {
+    if (!id) return { ok: false, error: 'Missing id' };
+    const state = readManagerState();
+    if (!state[id]) return { ok: false, error: `Extension ${id} is not installed` };
+    state[id].enabled = true;
+    writeManagerState(state);
+    return { ok: true, requiresRestart: true };
+});
+
+ipcMain.handle('extensions-manager-disable', (_event, { id } = {}) => {
+    if (!id) return { ok: false, error: 'Missing id' };
+    const state = readManagerState();
+    if (!state[id]) return { ok: false, error: `Extension ${id} is not installed` };
+    state[id].enabled = false;
+    writeManagerState(state);
+    return { ok: true, requiresRestart: true };
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 function setAppMenu() {
     const examplesMenu = buildExamplesMenuItems();
     const widgetDocsMenu = buildWidgetDocsMenuItems();
@@ -362,6 +469,15 @@ function setAppMenu() {
                     click: () => {
                         if (mainWindow && mainWindow.webContents) {
                             mainWindow.webContents.send('show-widget-categories');
+                        }
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: 'Extension Manager',
+                    click: () => {
+                        if (mainWindow && mainWindow.webContents) {
+                            mainWindow.webContents.send('open-extension-manager');
                         }
                     }
                 }
