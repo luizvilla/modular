@@ -495,9 +495,9 @@ function setAppMenu() {
                 }
             ]
         },
-        // Examples menu — attribution header shows which extension provides these.
+        // Examples menu — 🟡 prefix signals extension-provided content (native menus don't support text color).
         {
-            label: 'Examples',
+            label: '🟡 Examples',
             submenu: (() => {
                 const providers = [];
                 const seen = new Set();
