@@ -135,7 +135,16 @@ const api = {
     extensions: {
         list: () => ipcRenderer.invoke('extensions-list'),
         isEnabled: (id) => ipcRenderer.invoke('extensions-is-enabled', { id }),
-        getBootstrap: () => ipcRenderer.invoke('extensions-get-bootstrap')
+        getBootstrap: () => ipcRenderer.invoke('extensions-get-bootstrap'),
+        manager: {
+            list: () => ipcRenderer.invoke('extensions-manager-list'),
+            install: (bundlePath) => ipcRenderer.invoke('extensions-manager-install', { bundlePath }),
+            uninstall: (id) => ipcRenderer.invoke('extensions-manager-uninstall', { id }),
+            enable: (id) => ipcRenderer.invoke('extensions-manager-enable', { id }),
+            disable: (id) => ipcRenderer.invoke('extensions-manager-disable', { id }),
+            chooseBundle: () => ipcRenderer.invoke('extensions-choose-bundle'),
+            onOpen: (cb) => on('open-extension-manager', cb),
+        }
     }
 };
 
@@ -493,6 +502,19 @@ if (isMock) {
             exec: async () => ({ ok: true })
         };
     }
+}
+
+// Extension manager mock — always present, no-ops in mock mode.
+if (isMock) {
+    api.extensions.manager = {
+        list: async () => [],
+        install: async () => ({ ok: false, error: 'Not available in mock mode' }),
+        uninstall: async () => ({ ok: false, error: 'Not available in mock mode' }),
+        enable: async () => ({ ok: false, error: 'Not available in mock mode' }),
+        disable: async () => ({ ok: false, error: 'Not available in mock mode' }),
+        chooseBundle: async () => null,
+        onOpen: () => () => {},
+    };
 }
 
 // If ThingSet is disabled, hide those APIs so the UI matches shipped builds.
