@@ -657,7 +657,6 @@ class TimePlotUPlot {
         }
 
         _applyPlotHeight() {
-            this._syncSubSectionHeight();
             const next = this.plotHeightPx;
             if (typeof next === 'number' && Number.isFinite(next)) {
                 const maxAllowed = this._measureAutoChartHeight();
