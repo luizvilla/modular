@@ -104,7 +104,27 @@
                 setTimeout(function () { waitForFreeboard(retries - 1, bootstrap); }, 25);
             }
 
+            function buildWidgetRegistry(bootstrap) {
+                var registry = {};
+                var docs = bootstrap && Array.isArray(bootstrap.widgetDocs) ? bootstrap.widgetDocs : [];
+                docs.forEach(function (entry) {
+                    if (entry && entry.type) registry[entry.type] = entry;
+                });
+                return registry;
+            }
+
+            function buildDatasourceRegistry(bootstrap) {
+                var registry = {};
+                var sources = bootstrap && Array.isArray(bootstrap.datasources) ? bootstrap.datasources : [];
+                sources.forEach(function (entry) {
+                    if (entry && entry.type) registry[entry.type] = entry;
+                });
+                return registry;
+            }
+
             getExtensionBootstrap().then(function (bootstrap) {
+                window.__widgetRegistry = buildWidgetRegistry(bootstrap);
+                window.__datasourceRegistry = buildDatasourceRegistry(bootstrap);
                 waitForFreeboard(200, bootstrap);
             });
         })();
