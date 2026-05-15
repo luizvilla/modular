@@ -42,11 +42,11 @@
             { name: "title", display_name: "Title", type: "text" }
         ],
         newInstance: function (settings, newInstanceCallback) {
-            newInstanceCallback(new OwnTechPlotUPlot(settings));
+            newInstanceCallback(new TimePlotUPlot(settings));
         }
     });
 
-class OwnTechPlotUPlot {
+class TimePlotUPlot {
         constructor(settings) {
             this.settings = settings;
             // Keep the chart area stable and render channel values in a separate aligned grid.
