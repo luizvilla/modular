@@ -40,21 +40,9 @@ PluginEditor = function(jsEditor, valueEditor)
 		var name = (typeName || "").toLowerCase();
 		var display = (pluginType && pluginType.display_name ? pluginType.display_name : "").toLowerCase();
 
-		if(/^owntech_|^twist_/.test(name) || display.indexOf("owntech") > -1 || display.indexOf("twist") === 0)
-		{
-			return "OwnTech";
-		}
-		if(name.indexOf("fast_frame") === 0 || display.indexOf("fast frame") > -1)
-		{
-			return "Fast Frame";
-		}
 		if(name.indexOf("serial") === 0 || name.indexOf("_serial") > -1 || display.indexOf("serial") > -1)
 		{
 			return "Serial";
-		}
-		if(name.indexOf("thingset") === 0 || name.indexOf("ts_") === 0 || display.indexOf("thingset") > -1)
-		{
-			return "ThingSet";
 		}
 		if(name.indexOf("gauge") > -1 || display.indexOf("gauge") > -1)
 		{
@@ -99,6 +87,11 @@ PluginEditor = function(jsEditor, valueEditor)
 		if(pluginType && pluginType.category)
 		{
 			return pluginType.category;
+		}
+		var reg = window.__widgetRegistry && window.__widgetRegistry[typeName];
+		if(reg && reg.category)
+		{
+			return reg.category;
 		}
 		var categoryConfig = config || _getWidgetCategoryConfig();
 		var mapped = categoryConfig.widgetCategories && categoryConfig.widgetCategories[typeName];
@@ -731,13 +724,10 @@ PluginEditor = function(jsEditor, valueEditor)
 		var typeControl;
 		var widgetPicker;
 		var firstWidgetTypeName;
-		var widgetCategoryOrder = ["Plots", "Gauges", "Serial", "Controls", "OwnTech", "ThingSet", "Other"];
+		var widgetCategoryOrder = ["Plots", "Gauges", "Serial", "Fast Frame", "Controls", "OwnTech", "ThingSet", "Other"];
 
 		var widgetCategoryDefaultIcons = {
-			"OwnTech": "bolt",
-			"Fast Frame": "chart-area",
 			"Serial": "terminal",
-			"ThingSet": "network-wired",
 			"Plots": "chart-line",
 			"Gauges": "gauge-high",
 			"Controls": "sliders",
@@ -746,40 +736,12 @@ PluginEditor = function(jsEditor, valueEditor)
 
 		function sortWidgetPlugins(category, list)
 		{
-			var preferredOrder = {
-				"Plots": {
-					"time_plot_uplot": 0,
-					"xy_plot_uplot": 1,
-					"fast_frame_plot": 2
-				},
-				"Gauges": {
-					"vertical_gauge": 0,
-					"horizontal_gauge": 1,
-					"radial_arc_gauge": 2,
-					"radial_needle_gauge": 3,
-					"donut_gauge": 4
-				},
-				"Controls": {
-					"fast_frame_control": 0,
-					"fast_frame_channel_manager": 1,
-					"uplot_series_manager": 2,
-					"uplot_config_panel": 3,
-					"xy_plot_source_manager": 4,
-					"vertical_gauge_manager": 5,
-					"vertical_gauge_config_panel": 6
-				},
-				"OwnTech": {
-					"twist_actions_panel": 0,
-					"twist_setpoints_panel": 1,
-					"twist_calibration_panel": 2
-				}
-			};
-
 			return list.slice(0).sort(function(a, b)
 			{
-				var orderMap = preferredOrder[category] || null;
-				var rankA = orderMap && !_.isUndefined(orderMap[a.type_name]) ? orderMap[a.type_name] : 999;
-				var rankB = orderMap && !_.isUndefined(orderMap[b.type_name]) ? orderMap[b.type_name] : 999;
+				var regA = window.__widgetRegistry && window.__widgetRegistry[a.type_name];
+				var regB = window.__widgetRegistry && window.__widgetRegistry[b.type_name];
+				var rankA = (regA && typeof regA.preferredOrder === "number") ? regA.preferredOrder : 999;
+				var rankB = (regB && typeof regB.preferredOrder === "number") ? regB.preferredOrder : 999;
 				if(rankA !== rankB) return rankA - rankB;
 
 				var labelA = (a.display_name || a.type_name || "").toLowerCase();
@@ -955,14 +917,7 @@ PluginEditor = function(jsEditor, valueEditor)
 						if(!list || list.length === 0) return;
 
 						var section = $('<div class="widget-picker-section"></div>').appendTo(widgetPicker);
-						if(category === "OwnTech")
-						{
-							section.addClass("owntech");
-						}
-						if(category === "ThingSet")
-						{
-							section.addClass("thingset");
-						}
+						section.addClass(category.toLowerCase().replace(/\s+/g, "-"));
 
 						$('<div class="widget-picker-section-title"></div>').text(category).appendTo(section);
 						var grid = $('<div class="widget-picker-grid"></div>').appendTo(section);
@@ -974,7 +929,8 @@ PluginEditor = function(jsEditor, valueEditor)
 
 						_.each(orderedList, function(pluginType)
 						{
-							var iconName = pluginType.icon || widgetCategoryDefaultIcons[category] || widgetCategoryDefaultIcons.Other;
+							var _reg = window.__widgetRegistry && window.__widgetRegistry[pluginType.type_name];
+							var iconName = (_reg && _reg.icon) || pluginType.icon || widgetCategoryDefaultIcons[category] || widgetCategoryDefaultIcons.Other;
 							var tile = $('<div class="widget-tile" tabindex="0" role="button" aria-pressed="false"></div>')
 								.attr("data-type", pluginType.type_name)
 								.append($('<i class="fa-solid"></i>').addClass("fa-" + iconName))
@@ -1018,10 +974,6 @@ PluginEditor = function(jsEditor, valueEditor)
 				typeControl = datasourcePicker;
 
 				var datasourceIconMap = {
-					fast_frame_datasource    : "bolt",
-					serialport_datasource    : "plug",
-					thingset_serial_datasource: "terminal",
-					can_datasource           : "network-wired",
 					signal_generator_datasource: "wave-square"
 				};
 
@@ -1054,7 +1006,8 @@ PluginEditor = function(jsEditor, valueEditor)
 
 				_.each(pluginTypes, function(pluginType)
 				{
-					var iconName = pluginType.icon || datasourceIconMap[pluginType.type_name] || "database";
+					var _dsReg = window.__datasourceRegistry && window.__datasourceRegistry[pluginType.type_name];
+					var iconName = (_dsReg && _dsReg.icon) || pluginType.icon || datasourceIconMap[pluginType.type_name] || "database";
 					var tile = $('<div class="datasource-tile" tabindex="0" role="button" aria-pressed="false"></div>')
 						.attr("data-type", pluginType.type_name)
 						.append($('<i class="fa-solid fa-' + iconName + '"></i>'))
