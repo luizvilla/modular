@@ -393,7 +393,7 @@ function toInventoryEntry(record) {
     };
 }
 
-function loadExtensionEntries(records, registry, logger) {
+function loadExtensionEntries(records, registry, logger, extensionContext) {
     for (const record of records) {
         if (record.id === 'core') {
             registry.addManifestContribution(record);
@@ -415,6 +415,7 @@ function loadExtensionEntries(records, registry, logger) {
                 extension: toInventoryEntry(record),
                 registerManifestContribution: () => registry.addManifestContribution(record),
                 registerBootstrapContribution: (contribution) => registry.addBootstrapContribution(record, contribution),
+                ...(extensionContext || {}),
             });
         } catch (err) {
             logger.warn(`[extensions] Failed to load ${record.id}: ${err?.message || err}`);
@@ -512,7 +513,7 @@ function buildExtensionRuntime(options = {}) {
 
     const sortedRecords = sortExtensions(records);
     const registry = createContributionRegistry();
-    loadExtensionEntries(sortedRecords, registry, logger);
+    loadExtensionEntries(sortedRecords, registry, logger, options.extensionContext);
 
     const inventory = sortedRecords.map(toInventoryEntry);
     const bootstrap = registry.buildBootstrap(inventory);
