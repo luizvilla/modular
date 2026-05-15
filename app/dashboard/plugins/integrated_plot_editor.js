@@ -265,15 +265,36 @@
         const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
         form.append(left, right);
 
+        // ── Channels section: single compact add-form + list below ──────────
         const channelsSection = createSection('Channels');
-        const channelHeader = $('<div class="d-flex align-items-center justify-content-between gap-2"></div>');
-        channelHeader.append('<div class="small text-muted">Configure series sources and transforms.</div>');
-        const addChannelButton = $('<button type="button" class="btn btn-sm btn-outline-primary">Add channel</button>');
-        channelHeader.append(addChannelButton);
-        const channelList = $('<div class="d-flex flex-column gap-2"></div>');
-        channelsSection.append(channelHeader, channelList);
+        channelsSection.append($('<div class="small text-muted">Configure series sources and transforms.</div>'));
+
+        const addLabelField = createInputRow('Label', 'text', '', 'Optional channel label');
+        const addOpField = createSelectRow('Operation', [
+            { value: 'identity', label: 'x' },
+            { value: 'negate', label: '-x' },
+            { value: 'abs', label: 'abs(x)' },
+            { value: 'scale', label: 'x * k' },
+            { value: 'offset', label: 'x + b' }
+        ], 'identity');
+        const addParamField = createInputRow('Parameter', 'number', 0, 'k or b');
+        addParamField.row.hide();
+        addOpField.select.on('change', () => {
+            const op = addOpField.select.val();
+            addParamField.row.toggle(op === 'scale' || op === 'offset');
+        });
+        const addSource = buildSourceControls(shared, 'Source', {});
+
+        const channelActions = $('<div class="d-flex gap-2"></div>');
+        const addChannelButton = $('<button type="button" class="btn btn-sm btn-primary">Add channel</button>');
+        const resetChannelsButton = $('<button type="button" class="btn btn-sm btn-outline-danger">Reset channels</button>');
+        channelActions.append(addChannelButton, resetChannelsButton);
+
+        const channelList = $('<div class="d-flex flex-column gap-1 mt-1"></div>');
+        channelsSection.append(addLabelField.row, addOpField.row, addParamField.row, addSource.wrapper, channelActions, channelList);
         left.append(channelsSection);
 
+        // ── Display section ──────────────────────────────────────────────────
         const displaySection = createSection('Display');
         const titleField = createInputRow('Title', 'text', settings.title || '');
         const durationField = createInputRow('Display Duration (ms)', 'number', settings.duration || 20000);
@@ -297,84 +318,53 @@
         );
         right.append(displaySection);
 
-        const channelEditors = [];
-        const seriesDefs = shared.parseSeriesDefs(settings.seriesDefs).map(normalizeOwntechSeriesDef);
+        // ── Channel list state ───────────────────────────────────────────────
+        const channelDefs = shared.parseSeriesDefs(settings.seriesDefs)
+            .map(normalizeOwntechSeriesDef)
+            .map((def) => { const d = { ...def, b: null }; if (d.op === 'mulvar') d.op = 'identity'; return d; });
 
-        function createChannelEditor(def) {
-            const normalized = normalizeOwntechSeriesDef(def);
-            const card = $('<div class="border rounded p-2 d-flex flex-column gap-2"></div>');
-            const labelField = createInputRow('Label', 'text', normalized.label || '', 'Optional channel label');
-            const opField = createSelectRow('Operation', [
-                { value: 'identity', label: 'x' },
-                { value: 'negate', label: '-x' },
-                { value: 'abs', label: 'abs(x)' },
-                { value: 'scale', label: 'x * k' },
-                { value: 'offset', label: 'x + b' },
-                { value: 'mulvar', label: 'x * y' }
-            ], normalized.op || 'identity');
-            const paramField = createInputRow('Parameter', 'number', normalized.param || 0, 'k or b');
-            const sourceA = buildSourceControls(shared, 'Source', normalized.a);
-            const sourceB = buildSourceControls(shared, 'Second Source', normalized.b || {});
-            const removeButton = $('<button type="button" class="btn btn-sm btn-outline-danger align-self-end">Remove channel</button>');
-
-            function syncMode() {
-                const op = opField.select.val();
-                sourceB.wrapper.toggle(op === 'mulvar');
-                paramField.row.toggle(op === 'scale' || op === 'offset');
+        function renderChannelList() {
+            channelList.empty();
+            if (!channelDefs.length) {
+                channelList.append('<div class="small text-muted">No channels added.</div>');
+                return;
             }
-
-            opField.select.on('change', syncMode);
-            syncMode();
-
-            removeButton.on('click', () => {
-                const index = channelEditors.indexOf(editor);
-                if (index >= 0) channelEditors.splice(index, 1);
-                card.remove();
+            channelDefs.forEach((def, index) => {
+                const row = $('<div class="border rounded px-2 py-1 d-flex justify-content-between align-items-center gap-2"></div>');
+                const dsLabel = def.a && def.a.ds ? def.a.ds : 'source';
+                const varLabel = (def.a && def.a.var !== undefined && def.a.var !== null) ? ` · ${def.a.var}` : '';
+                const opLabel = (def.op && def.op !== 'identity') ? ` [${def.op}${def.op === 'scale' || def.op === 'offset' ? ` ${def.param}` : ''}]` : '';
+                const summary = (def.label || `${dsLabel}${varLabel}`) + opLabel;
+                row.append($('<div class="small"></div>').text(summary));
+                row.append($('<button type="button" class="btn btn-sm btn-outline-danger">Remove</button>').on('click', () => {
+                    channelDefs.splice(index, 1);
+                    renderChannelList();
+                }));
+                channelList.append(row);
             });
-
-            card.append(labelField.row, opField.row, paramField.row, sourceA.wrapper, sourceB.wrapper, removeButton);
-            channelList.append(card);
-
-            const editor = {
-                buildDef() {
-                    const sourceValueA = sourceA.buildValue();
-                    if (!sourceValueA || !sourceValueA.ds) return null;
-                    const op = opField.select.val() || 'identity';
-                    const nextDef = {
-                        label: (labelField.input.val() || '').trim(),
-                        op,
-                        param: (op === 'scale' || op === 'offset') ? (parseFloat(paramField.input.val()) || 0) : 0,
-                        a: sourceValueA
-                    };
-                    if (op === 'mulvar') {
-                        const sourceValueB = sourceB.buildValue();
-                        if (!sourceValueB || !sourceValueB.ds) return null;
-                        nextDef.b = sourceValueB;
-                    } else {
-                        nextDef.b = null;
-                    }
-                    return nextDef;
-                }
-            };
-            channelEditors.push(editor);
-            return editor;
         }
 
         addChannelButton.on('click', () => {
-            createChannelEditor({
-                label: '',
-                op: 'identity',
-                param: 0,
-                a: { ds: '', type: '', device: null, device_uid: null, var: null },
+            const sourceValue = addSource.buildValue();
+            if (!sourceValue || !sourceValue.ds) return;
+            const op = addOpField.select.val() || 'identity';
+            channelDefs.push({
+                label: (addLabelField.input.val() || '').trim(),
+                op,
+                param: (op === 'scale' || op === 'offset') ? (parseFloat(addParamField.input.val()) || 0) : 0,
+                a: sourceValue,
                 b: null
             });
+            addLabelField.input.val('');
+            renderChannelList();
         });
 
-        if (!seriesDefs.length) {
-            addChannelButton.trigger('click');
-        } else {
-            seriesDefs.forEach((def) => createChannelEditor(def));
-        }
+        resetChannelsButton.on('click', () => {
+            channelDefs.length = 0;
+            renderChannelList();
+        });
+
+        renderChannelList();
 
         paletteField.select.on('change', () => {
             applyPalette(shared, paletteField.select.val() || 'ColorBlind10');
@@ -382,7 +372,6 @@
         applyPalette(shared, paletteField.select.val() || 'ColorBlind10');
 
         new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
-            const newDefs = channelEditors.map((editor) => editor.buildDef()).filter(Boolean);
             const updated = _.extend({}, settings, {
                 title: titleField.input.val() || settings.title || 'Plot widget',
                 duration: parseInt(durationField.input.val(), 10) || 20000,
@@ -392,7 +381,7 @@
                 yMax: shared.parseNumber(yMaxField.input.val()),
                 showLegend: legendField.input.prop('checked'),
                 colorPalette: paletteField.select.val() || 'ColorBlind10',
-                seriesDefs: newDefs
+                seriesDefs: channelDefs.filter((d) => d && d.a && d.a.ds)
             });
             delete updated.helperWidgets;
             applyPalette(shared, updated.colorPalette);

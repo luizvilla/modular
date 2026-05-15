@@ -137,21 +137,6 @@
             this.chartHost.empty().append(this.emptyState);
         }
 
-        _logDims(tag) {
-            const ch = this.chartHost[0];
-            const he = this.hostElement;
-            const sub = he ? he.closest('.sub-section') : null;
-            const gs  = he ? he.closest('.gs_w') : null;
-            console.log(
-                `[FFPlot:${tag}]`,
-                `chartHost clientH=${ch?.clientHeight} offsetH=${ch?.offsetHeight} jqH=${this.chartHost.height()}`,
-                `| hostEl clientH=${he?.clientHeight}`,
-                `| sub-section clientH=${sub?.clientHeight} class="${sub?.className}"`,
-                `| gs_w clientH=${gs?.clientHeight}`,
-                `| plotHeightPx=${this.plotHeightPx}`
-            );
-        }
-
         _renderPlot(defs) {
             const xValues = Array.isArray(this.dataset.columns[this.settings.timeColumn])
                 ? this.dataset.columns[this.settings.timeColumn].map(value => Number.isFinite(value) ? value : null)
@@ -202,16 +187,11 @@
 
             // Read clientHeight before emptying so the new instance inherits the current size.
             const savedHeight = this.chartHost[0]?.clientHeight || this.chartHost.height() || 320;
-            this._logDims('before-destroy');
-
             this._destroyPlot();
             this.chartHost.empty();
-            this._logDims('after-empty');
-
             const host = $('<div></div>');
             this.chartHost.append(host);
             const uplotHeight = Math.max(260, savedHeight);
-            console.log(`[FFPlot:uplot-init] savedHeight=${savedHeight} uplotHeight=${uplotHeight}`);
             this.plot = new uPlot({
                 width: Math.max(320, this.chartHost.width() || this.container.width() || 640),
                 height: uplotHeight,
@@ -226,7 +206,6 @@
                 ],
                 series
             }, data, host[0]);
-            this._logDims('after-uplot-init');
             this._requestResize();
         }
 
@@ -259,8 +238,6 @@
             if (!this.plot) return;
             const width = Math.max(320, this.chartHost.width() || this.container.width() || 640);
             const height = Math.max(220, this.chartHost.height() || 320);
-            this._logDims('resize');
-            console.log(`[FFPlot:setSize] w=${width} h=${height}`);
             try {
                 this.plot.setSize({ width, height });
             } catch {}
@@ -309,7 +286,6 @@
         }
 
         onSettingsChanged(newSettings) {
-            this._logDims('onSettingsChanged');
             this.settings = { ...newSettings };
             this.lastFileSignature = '';
             this.lastRenderedSignature = '';
@@ -320,7 +296,6 @@
         }
 
         onSizeChanged() {
-            this._logDims('onSizeChanged');
             this._applyPlotHeight();
             this._requestResize();
         }
@@ -343,9 +318,6 @@
             this._destroyPlot();
         }
 
-        getHeight() {
-            this._logDims('getHeight');
-            return 8;
-        }
+        getHeight() { return 8; }
     }
 }());
