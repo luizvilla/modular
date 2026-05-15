@@ -89,29 +89,28 @@ test('widget drag-and-drop — within-pane reorder changes widget order', async 
   );
   expect(before.length).toBeGreaterThanOrEqual(2);
 
-  // Hover to reveal tools on the first widget.
-  const subSection0 = section0.locator('.sub-section').nth(0);
-  await subSection0.hover();
-  const handle0 = section0.locator('.sub-section-tools').nth(0);
-  await expect(handle0).toBeVisible({ timeout: 2000 });
+  // Drag widget at index 1 (lower on the page, safely below the fixed
+  // #main-header) upward onto widget 0.  Hovering widget 0 causes
+  // Playwright's internal scroll to pull its tools inside the fixed header
+  // area (z-index:50, ~234px tall in edit mode), where #admin-menu intercepts
+  // pointer events.  Widget 1 starts ~240px lower so its tools remain
+  // accessible even after Playwright adjusts scroll on hover.
+  const subSection1 = section0.locator('.sub-section').nth(1);
+  await subSection1.scrollIntoViewIfNeeded();
+  await subSection1.hover();
+  const handle1 = section0.locator('.sub-section-tools').nth(1);
+  await expect(handle1).toBeVisible({ timeout: 2000 });
+  // Wait for jQuery fadeIn(250) to complete before dragging.
+  await page.waitForTimeout(350);
 
-  // Use page.mouse directly so we can move in many steps — jQuery UI sortable
-  // needs smooth movement to update the placeholder, and locator.dragTo with
-  // targetPosition can land exactly on the midpoint boundary.
-  // Target: 90 % down widget 1 (clearly in the lower half → placeholder after).
-  const handleBox = await handle0.boundingBox();
-  const startX   = handleBox.x + handleBox.width  / 2;
-  const startY   = handleBox.y + handleBox.height / 2;
-
-  const target1  = section0.locator('.sub-section').nth(1);
-  const t1Box    = await target1.boundingBox();
-  const endX     = t1Box.x + t1Box.width  / 2;
-  const endY     = t1Box.y + t1Box.height * 0.9;
-
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(endX, endY, { steps: 20 });
-  await page.mouse.up();
+  // Drop at 15 % down widget 0 (top quarter → sort before it).
+  const target0 = section0.locator('.sub-section').nth(0);
+  const t0Box   = await target0.boundingBox();
+  await handle1.dragTo(target0, {
+    targetPosition: { x: Math.floor(t0Box.width * 0.5), y: Math.floor(t0Box.height * 0.15) },
+  });
+  // Allow jQuery UI sortable's update callback and Knockout model to settle.
+  await page.waitForTimeout(300);
 
   const after = await page.evaluate(() =>
     window.freeboard.getLiveModel().panes()[0].widgets().map(w => w.type())

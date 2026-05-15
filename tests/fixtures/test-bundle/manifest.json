@@ -1,0 +1,13 @@
+{
+  "apiVersion": 1,
+  "id": "test-bundle",
+  "displayName": "Test Bundle",
+  "version": "1.0.0",
+  "enabledByDefault": true,
+  "rendererScripts": [
+    { "path": "renderer/test_widget.js", "order": 900 }
+  ],
+  "datasources": [
+    { "type": "test_bundle_datasource", "icon": "flask" }
+  ]
+}

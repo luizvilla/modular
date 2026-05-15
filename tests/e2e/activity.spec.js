@@ -5,6 +5,10 @@ test('activity center updates from flash progress', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
 
+  // Activity center is disabled by default — enable it so the badge element
+  // is created and flash events update the count.
+  await page.evaluate(() => window.ActivityToasts.setEnabled(true));
+
   await page.evaluate(async () => {
     const fw = await window.api.flash.chooseFirmwareFile();
     await window.api.flash.startFlash({ comPort: 'COM_MOCK', firmwarePath: fw });
