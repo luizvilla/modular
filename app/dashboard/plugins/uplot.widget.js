@@ -380,10 +380,16 @@ class TimePlotUPlot {
             this._maybeSpawnHelpers();
             this._initPlot();
             this._maybeUpdateHeaders(true);
-            this._bindResize();
+            this._bindResize(containerElement);
             // If seriesDefs present, start local streaming
             this.localMode = Array.isArray(this.seriesDefs) && this.seriesDefs.length > 0;
             if (this.localMode) this._restartPullTimer();
+            // After drag, initial DOM measurement may return 0. Re-apply once the browser
+            // has had two frames to settle the new layout.
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                this._applyPlotHeight();
+                this._requestResize();
+            }));
         }
 
         _resolveHelperWidgets(settings) {
@@ -693,7 +699,10 @@ class TimePlotUPlot {
 
             const isOnlyWidget = section.children && section.children.length === 1;
             if (isOnlyWidget) {
-                subSection.style.height = `${section.clientHeight}px`;
+                const h = section.clientHeight;
+                // Skip writing 0 — it overrides the CSS class and collapses the sub-section
+                // during a drag when the section hasn't been laid out yet.
+                if (h > 0) subSection.style.height = `${h}px`;
             } else {
                 subSection.style.height = '';
             }
@@ -1449,13 +1458,17 @@ class TimePlotUPlot {
             return niceFrac * Math.pow(10, exp);
         }
 
-        _bindResize() {
-            if (this._resizeObs || !this.container || !this.container[0]) return;
-            const el = this.subSectionElement || this.container[0];
+        _bindResize(containerElement) {
+            if (this._resizeObs) {
+                try { this._resizeObs.disconnect(); } catch {}
+                this._resizeObs = null;
+            }
+            const watchEl = containerElement || this.hostElement || this.subSectionElement || this.container[0];
+            if (!watchEl) return;
             if (typeof ResizeObserver !== 'undefined') {
                 this._resizeObs = new ResizeObserver(() => {
                     this._debugLog('resizeObserver', {
-                        observedHeight: el?.clientHeight || 0,
+                        observedHeight: watchEl?.clientHeight || 0,
                         chartHostHeight: this.chartHost?.[0]?.clientHeight || 0,
                         readoutHeight: this.readoutHost?.[0]?.clientHeight || 0,
                         handleTop: this.resizeHandle?.[0]?.offsetTop || 0,
@@ -1464,7 +1477,8 @@ class TimePlotUPlot {
                     this._applyPlotHeight();
                     this._requestResize();
                 });
-                this._resizeObs.observe(el);
+                this._resizeObs.observe(watchEl);
+                if (this.chartHost?.[0]) this._resizeObs.observe(this.chartHost[0]);
             } else {
                 // Fallback: resize on window events
                 $(window).on('resize.uplot-widget', () => {
