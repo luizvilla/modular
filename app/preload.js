@@ -173,8 +173,8 @@ function createEmitter() {
 if (isMock) {
     const emitter = createEmitter();
     const mockPorts = mockNoPorts ? [] : [
-        { name: 'COM_MOCK', value: 'COM_MOCK' },
-        { name: 'COM_MOCK_2', value: 'COM_MOCK_2' }
+        { name: 'COM_MOCK', value: 'COM_MOCK', path: 'COM_MOCK', vendorId: null, productId: null, manufacturer: null, serialNumber: null, isOwntech: false },
+        { name: 'COM_MOCK_2', value: 'COM_MOCK_2', path: 'COM_MOCK_2', vendorId: null, productId: null, manufacturer: null, serialNumber: null, isOwntech: false }
     ];
     const mockSerial = {
         openPorts: new Set(),
