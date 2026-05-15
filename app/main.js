@@ -51,6 +51,8 @@ function cloneExtensionBootstrap() {
         widgetDocsRoots: extensionRuntime.bootstrap.widgetDocsRoots.map((entry) => ({ ...entry })),
         exampleRoots: extensionRuntime.bootstrap.exampleRoots.map((entry) => ({ ...entry })),
         dashboardRoots: extensionRuntime.bootstrap.dashboardRoots.map((entry) => ({ ...entry })),
+        widgetDocs: extensionRuntime.bootstrap.widgetDocs.map((entry) => ({ ...entry })),
+        datasources: extensionRuntime.bootstrap.datasources.map((entry) => ({ ...entry })),
     };
 }
 

@@ -36,6 +36,23 @@ function normalizeCapabilities(value) {
     return result;
 }
 
+function normalizeDatasources(manifest) {
+    if (!Array.isArray(manifest.datasources)) return [];
+    const result = [];
+    for (let index = 0; index < manifest.datasources.length; index++) {
+        const entry = manifest.datasources[index];
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+        if (typeof entry.type !== 'string' || !entry.type.trim()) {
+            throw new Error(`datasources[${index}].type must be a non-empty string`);
+        }
+        result.push({
+            type: entry.type.trim(),
+            icon: typeof entry.icon === 'string' ? entry.icon.trim() : '',
+        });
+    }
+    return result;
+}
+
 function normalizeCompatibilityTypes(value) {
     if (!Array.isArray(value)) return [];
     const seen = new Set();
@@ -244,6 +261,7 @@ function normalizeManifestRecord(manifestPath, options) {
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
         capabilities: normalizeCapabilities(manifest.capabilities),
         compatibilityTypes: normalizeCompatibilityTypes(manifest.compatibilityTypes),
+        datasources: normalizeDatasources(manifest),
     };
 }
 
@@ -404,6 +422,63 @@ function loadExtensionEntries(records, registry, logger) {
     }
 }
 
+function loadWidgetDocs(widgetDocsRoots, logger) {
+    const seen = new Set();
+    const result = [];
+    for (const source of widgetDocsRoots) {
+        if (!source || !source.indexPath || !source.path) continue;
+        let raw;
+        try {
+            raw = fs.readFileSync(source.indexPath, 'utf8');
+        } catch (err) {
+            logger.warn(`[extensions] Could not read widget docs index ${source.indexPath}: ${err?.message || err}`);
+            continue;
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch (err) {
+            logger.warn(`[extensions] Could not parse widget docs index ${source.indexPath}: ${err?.message || err}`);
+            continue;
+        }
+        const entries = Array.isArray(parsed?.widgets) ? parsed.widgets : [];
+        for (const entry of entries) {
+            if (!entry || typeof entry.type !== 'string' || !entry.type || !entry.doc) continue;
+            if (seen.has(entry.type)) {
+                logger.warn(`[extensions] Duplicate widget type "${entry.type}" in ${source.indexPath} — skipped`);
+                continue;
+            }
+            seen.add(entry.type);
+            result.push({
+                type: entry.type,
+                title: typeof entry.title === 'string' ? entry.title : entry.type,
+                category: typeof entry.category === 'string' ? entry.category : 'Other',
+                icon: typeof entry.icon === 'string' ? entry.icon : '',
+                preferredOrder: typeof entry.preferredOrder === 'number' ? entry.preferredOrder : 999,
+                doc: entry.doc,
+                docPath: path.join(source.path, entry.doc),
+                compatibilityOnly: !!entry.compatibilityOnly,
+                extensionId: source.extensionId,
+            });
+        }
+    }
+    return result;
+}
+
+function mergeDatasources(sortedRecords) {
+    const seen = new Set();
+    const result = [];
+    for (const record of sortedRecords) {
+        if (!record.enabled && record.id !== 'core') continue;
+        for (const ds of record.datasources) {
+            if (seen.has(ds.type)) continue;
+            seen.add(ds.type);
+            result.push({ ...ds, extensionId: record.id });
+        }
+    }
+    return result;
+}
+
 function buildExtensionRuntime(options = {}) {
     const logger = createLogger(options.logger);
     const appRoot = path.resolve(options.appRoot || path.join(__dirname, '..'));
@@ -441,6 +516,8 @@ function buildExtensionRuntime(options = {}) {
 
     const inventory = sortedRecords.map(toInventoryEntry);
     const bootstrap = registry.buildBootstrap(inventory);
+    bootstrap.widgetDocs = loadWidgetDocs(bootstrap.widgetDocsRoots, logger);
+    bootstrap.datasources = mergeDatasources(sortedRecords);
 
     return {
         appRoot,
