@@ -118,7 +118,8 @@ ipcMain.on('renderer-log', (_event, { level = 'log', args = [] } = {}) => {
 });
 
 // App menu is custom: Edit only hosts "Widget Categories" and View/Window are removed.
-// Build a nested Examples menu from dashboard/docs/examples/**/README.md.
+// ── Documentation menu helpers ────────────────────────────────────────────────
+
 function collectReadmes(baseDir) {
     const readmes = [];
     if (!fs.existsSync(baseDir)) return readmes;
@@ -148,9 +149,12 @@ function collectReadmesFromRoots(rootEntries) {
     return readmes;
 }
 
-function buildExamplesMenuItems() {
+function buildExamplesForExtension(extensionId) {
     try {
-        const readmes = collectReadmesFromRoots(extensionRuntime.bootstrap.exampleRoots);
+        const roots = (extensionRuntime.bootstrap.exampleRoots || []).filter(
+            (r) => r.extensionId === extensionId
+        );
+        const readmes = collectReadmesFromRoots(roots);
         if (!readmes.length) return [];
 
         const root = { children: new Map(), exampleId: null };
@@ -172,15 +176,9 @@ function buildExamplesMenuItems() {
             for (const key of keys) {
                 const child = node.children.get(key);
                 if (child.children.size > 0) {
-                    items.push({
-                        label: key,
-                        submenu: buildMenuFromNode(child)
-                    });
+                    items.push({ label: key, submenu: buildMenuFromNode(child) });
                 } else if (child.exampleId) {
-                    items.push({
-                        label: key,
-                        click: () => openExampleTab(child.exampleId)
-                    });
+                    items.push({ label: key, click: () => openExampleTab(child.exampleId) });
                 }
             }
             return items;
@@ -188,18 +186,17 @@ function buildExamplesMenuItems() {
 
         return buildMenuFromNode(root);
     } catch (err) {
-        console.warn('Failed to build Examples menu:', err?.message || err);
+        console.warn(`Failed to build Examples menu for ${extensionId}:`, err?.message || err);
         return [];
     }
 }
 
-function buildWidgetDocsMenuItems() {
+function buildWidgetDocsForExtension(extensionId) {
     try {
-        const entries = extensionRuntime.bootstrap.widgetDocs.filter((entry) => {
-            if (!entry) return false;
-            if (!entry.type || !entry.title) return false;
+        const entries = (extensionRuntime.bootstrap.widgetDocs || []).filter((entry) => {
+            if (!entry || !entry.type || !entry.title) return false;
             if (entry.compatibilityOnly) return false;
-            return true;
+            return entry.extensionId === extensionId;
         });
         if (!entries.length) return [];
 
@@ -222,9 +219,29 @@ function buildWidgetDocsMenuItems() {
             };
         });
     } catch (err) {
-        console.warn('Failed to build Widgets menu:', err?.message || err);
+        console.warn(`Failed to build Widgets menu for ${extensionId}:`, err?.message || err);
         return [];
     }
+}
+
+function buildExtensionsMenuItems() {
+    const sections = [];
+    for (const ext of extensionRuntime.inventory) {
+        if (!ext.enabled) continue;
+
+        const widgetItems = buildWidgetDocsForExtension(ext.id);
+        const exampleItems = buildExamplesForExtension(ext.id);
+
+        if (!widgetItems.length && !exampleItems.length) continue;
+
+        if (sections.length) sections.push({ type: 'separator' });
+        sections.push({ label: ext.displayName, enabled: false });
+        if (widgetItems.length) sections.push({ label: 'Widgets Help', submenu: widgetItems });
+        if (exampleItems.length) sections.push({ label: 'Examples', submenu: exampleItems });
+    }
+    return sections.length
+        ? sections
+        : [{ label: 'No extension documentation found', enabled: false }];
 }
 
 // Renderer-facing docs helpers (used by tabs / example viewer).
@@ -419,9 +436,7 @@ ipcMain.handle('extensions-manager-disable', (_event, { id } = {}) => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function setAppMenu() {
-    const examplesMenu = buildExamplesMenuItems();
-    const widgetDocsMenu = buildWidgetDocsMenuItems();
-    // Activity toggle state (off by default to reduce UI noise).
+    const extensionsMenu = buildExtensionsMenuItems();
     const template = [
         {
             label: 'File',
@@ -489,31 +504,8 @@ function setAppMenu() {
             ]
         },
         {
-            label: 'Help',
-            submenu: [
-                {
-                    label: 'Widgets',
-                    submenu: widgetDocsMenu.length ? widgetDocsMenu : [{ label: 'No widget docs found', enabled: false }]
-                }
-            ]
-        },
-        {
-            label: 'OwnTech Examples',
-            submenu: (() => {
-                const providers = [];
-                const seen = new Set();
-                for (const root of extensionRuntime.bootstrap.exampleRoots || []) {
-                    if (!root.extensionId || seen.has(root.extensionId)) continue;
-                    seen.add(root.extensionId);
-                    const inv = extensionRuntime.inventory.find((e) => e.id === root.extensionId);
-                    providers.push(inv ? inv.displayName : root.extensionId);
-                }
-                const header = providers.length
-                    ? [{ label: providers.join(', '), enabled: false }, { type: 'separator' }]
-                    : [];
-                const items = examplesMenu.length ? examplesMenu : [{ label: 'No examples found', enabled: false }];
-                return header.concat(items);
-            })()
+            label: 'Extensions',
+            submenu: extensionsMenu
         }
     ];
 
