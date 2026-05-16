@@ -1,26 +1,16 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Serial CSV Recorder
 
-## What it does
-Record serial stream data to CSV files.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Start/stop recording of a serial datasource stream to a CSV file with configurable format options.
 
-- CSV File Path: Output CSV path.
-- Separator: Field separator used in the incoming stream.
-- End Of Line: Line ending used in the stream.
-- Data Order: Oldest-first or newest-first output order.
-- Add label on the first line: Include header row labels.
-- Timestamp: None, relative, or absolute timestamps.
+## Parameters
 
-## Usage (in dashboard)
-![Usage](usage.png)
-
-- Datasource selector: Pick the serial datasource.
-- CSV File: Edit the output file name/path.
-- Data Order: Choose ordering for recorded rows.
-- Add label: Toggle header line inclusion.
-- Timestamp: Select timestamp mode.
-- Start Record: Begin/stop recording.
-
+| Parameter   | Type    | Default    | Description                                   |
+|-------------|---------|------------|-----------------------------------------------|
+| File Path   | text    | record.csv | Output CSV file path.                         |
+| Separator   | text    | :          | Field separator used in the incoming stream.  |
+| End Of Line | text    | \n         | Line ending used in the incoming stream.      |
+| Data Order  | option  | old        | Oldest-first or newest-first row ordering.    |
+| Add Header  | boolean | true       | Write column names on the first line.         |
+| Timestamp   | option  | none       | Off, relative elapsed time, or wall-clock.    |

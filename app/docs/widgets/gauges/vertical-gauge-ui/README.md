@@ -1,21 +1,11 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Vertical Gauge UI
 
-## What it does
-Control panel for adjusting settings of a target Vertical Gauge widget.
+![Widget screenshot](widget.png)
 
-## Status
-- Compatibility-only: this widget remains loadable for older dashboards.
-- Preferred replacement: configure `vertical_gauge` directly from its integrated editor instead of using a separate UI controller.
+Companion panel that configures title, range, color, and alarm settings on a target Vertical Gauge widget.
 
-## Creation (settings)
-- No settings: This widget is configured directly in the panel UI.
+## Notes
 
-## Usage (in dashboard)
-- Select Target Widget: Choose the Vertical Gauge to control.
-- Title: Update the target widget title.
-- Minimum / Maximum: Set the gauge range.
-- Bar Color: Pick the active bar color.
-- Alarm settings: Configure alarm enablement, threshold, and direction.
-- Refresh Rate: Tune how often the target gauge refreshes.
-- Apply Settings: Push updates to the selected Vertical Gauge.
+This widget has no creation-time settings. It is a compatibility helper — prefer the Vertical Gauge integrated editor (pencil icon) for new dashboards.
+
+In the panel UI, select the target gauge, adjust Title, Min/Max, Bar Color, Alarm threshold, and Refresh Rate, then click **Apply Settings**.

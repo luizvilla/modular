@@ -1,23 +1,11 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Plot Channel Manager
 
-## What it does
-Manage plot channel definitions: datasource, variables, and math operations for a target plot.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Companion panel that adds, removes, and edits the data channels on a target Plot (uPlot) widget.
 
-- No settings: All configuration happens in the panel UI.
+## Notes
 
-## Usage (in dashboard)
-![Usage](usage.png)
+This widget has no creation-time settings. It is a compatibility helper — prefer the integrated Plot editor (pencil icon on the Plot widget) for new dashboards.
 
-- Target Plot: Select the plot to edit channels for.
-- Update sources: Refresh datasources/devices/variables list.
-- Operation: Choose identity, scale, offset, or x*y math.
-- k / b: Parameter for scale or offset operations.
-- Source X / Source Y: Pick datasource/device/variable inputs.
-- Label: Optional channel label.
-- Add channel: Append a new channel definition.
-- Reset channels: Clear all channels from the target plot.
-- Channel list: Shows the active channel definitions.
+In the panel UI, select the target plot, choose datasource/device/variable and an optional math transform (identity, scale, offset, or multiply), then click **Add channel**.

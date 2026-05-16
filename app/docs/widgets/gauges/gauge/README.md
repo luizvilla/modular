@@ -1,21 +1,19 @@
-<!-- Widget doc: Gauge (gauge). -->
 # Gauge
 
-## What it does
-Legacy JustGage-based dial gauge kept for backwards compatibility with older dashboards.
+![Widget screenshot](widget.png)
 
-## Status
-- Compatibility-only: this widget stays loadable for existing dashboards, but it is hidden from the normal add-widget picker.
-- Preferred replacement: use the integrated gauge family (`vertical_gauge`, `horizontal_gauge`, `radial_arc_gauge`, `radial_needle_gauge`, or `donut_gauge`) for new dashboards.
+Legacy JustGage dial gauge kept for backwards compatibility with older dashboards.
 
-## Settings
-- Title: visible label in the widget header.
-- Value: calculated value expression rendered by the legacy dial.
-- Units: short unit label shown inside the dial.
-- Minimum / Maximum: fixed range for the legacy dial rendering.
+## Parameters
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
+| Parameter | Type       | Default | Description                                  |
+|-----------|------------|---------|----------------------------------------------|
+| Title     | text       | —       | Label shown in the pane header.              |
+| Value     | calculated | —       | Calculated expression rendered by the gauge. |
+| Units     | text       | —       | Short unit label shown inside the dial.      |
+| Minimum   | number     | 0       | Lower bound of the dial range.               |
+| Maximum   | number     | 100     | Upper bound of the dial range.               |
 
-## Related
-- See the newer gauge family widgets in the Gauges category for integrated source binding and zone styling.
+## Notes
+
+Compatibility-only widget — hidden from the add-widget picker but remains loadable for existing dashboards. For new dashboards use the gauge family instead: Vertical Gauge, Horizontal Gauge, Radial Arc Gauge, Radial Needle Gauge, or Donut Gauge.

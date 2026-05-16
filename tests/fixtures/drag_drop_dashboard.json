@@ -20,7 +20,7 @@
         { "type": "uplot_config_panel",      "settings": {} },
         { "type": "xy_plot_uplot",           "settings": { "title": "XY Plot", "helperWidgets": "none" } },
         { "type": "xy_plot_source_manager",  "settings": {} },
-        { "type": "fast_frame_plot",         "settings": { "title": "FF Plot", "helperWidgets": "none", "csvSourceMode": "fixed", "csvDirectory": "tests/fixtures", "csvPath": "tests/fixtures/fast_frame_plot.csv", "refreshRate": 150, "timeColumn": "time_ms", "seriesDefs": [] } },
+        { "type": "fast_frame_plot",         "settings": { "title": "FF Plot", "helperWidgets": "none", "csvSourceMode": "fixed", "csvDirectory": "tests/fixtures", "csvPath": "tests/fixtures/2026-04-07_14-42-49-record.csv", "refreshRate": 150, "timeColumn": "column_1", "xMin": "", "xMax": "", "yMin": "-3", "yMax": "3", "seriesDefs": [ { "variable": "I1_low_value", "label": "i1", "color": "#4e79a7", "visible": true }, { "variable": "I2_low_value", "label": "i2", "color": "#e15759", "visible": true } ] } },
         { "type": "fast_frame_plot_ui",      "settings": {} },
         { "type": "fast_frame_channel_manager", "settings": {} },
         { "type": "fast_frame_control",      "settings": { "datasource": "MockFast", "armCommand": "t", "retrieveCommand": "r", "retrieveDelayMs": 100 } },

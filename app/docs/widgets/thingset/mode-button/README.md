@@ -1,20 +1,13 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # ThingSet Mode Button
 
-## What it does
-Per-device power toggle for ThingSet devices.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Per-device power toggle for ThingSet CAN devices.
 
-- Channel: CAN channel to target.
-- Label (active): Text when device is ON.
-- Label (idle): Text when device is OFF.
+## Parameters
 
-## Usage (in dashboard)
-![Usage](usage.png)
-
-- All OFF: Disable all devices on the bus.
-- Refresh: Reload device list and states.
-- Per-device button: Toggle each device ON/OFF.
-
+| Parameter   | Type | Default  | Description                             |
+|-------------|------|----------|-----------------------------------------|
+| Channel     | text | can0     | CAN channel to target.                  |
+| Label (on)  | text | Power ON | Button label when the device is active. |
+| Label (off) | text | Idle     | Button label when the device is idle.   |

@@ -1,22 +1,11 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Plot UI Controller
 
-## What it does
-Control panel for adjusting settings of a target Plot (uPlot) widget.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Companion panel that configures a target Plot (uPlot) widget's display, axes, and channels.
 
-- No settings: This widget is configured directly in the panel UI.
+## Notes
 
-## Usage (in dashboard)
-![Usage](usage.png)
+This widget has no creation-time settings. It is a compatibility helper — prefer the integrated Plot editor (pencil icon on the Plot widget) for new dashboards.
 
-- Select Target Widget: Choose the plot widget to control.
-- Display Duration: Time window shown on the X axis (ms).
-- Refresh Rate: How often the plot refreshes (ms).
-- Y Axis Label: Label text shown on the Y axis.
-- Y Min / Y Max: Manual Y axis bounds (optional).
-- Show Legend: Toggle legend visibility.
-- Color palette: Select the palette used for plot series colors.
-- Apply Settings: Push updates to the target plot.
+In the panel UI, select the target plot, then adjust Duration, Refresh Rate, Y axis bounds, Show Legend, and Color Palette, and click **Apply Settings**.

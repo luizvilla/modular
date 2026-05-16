@@ -1,20 +1,14 @@
-<!-- Widget doc: Sparkline (sparkline). -->
 # Sparkline
 
-## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+![Widget screenshot](widget.png)
 
-## When to use
-- Use this widget when you want to expose sparkline behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+Inline trend line that displays a rolling history of a single calculated value.
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+## Parameters
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
-
-## Related
-- See other widgets in the Plots category.
+| Parameter      | Type       | Default | Description                                  |
+|----------------|------------|---------|----------------------------------------------|
+| Title          | text       | —       | Label shown in the pane header.              |
+| Value          | calculated | —       | Expression or datasource path to plot.       |
+| Include Legend | boolean    | false   | Show a legend beside the sparkline.          |
+| Legend         | text       | —       | Legend text shown when Include Legend is on. |

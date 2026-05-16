@@ -1,17 +1,22 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Plot (uPlot)
 
-## What it does
-Realtime uPlot chart for streaming values or full datasets. Use helper widgets to manage channels and tuning.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Realtime uPlot chart that streams live values or renders a full dataset with per-channel math transforms.
 
-- Title: Widget title shown in the header.
-- Helper Widgets: Auto-spawn the Plot UI Controller and/or Plot Channel Manager when the plot is created.
+## Parameters
 
-## Usage (in dashboard)
-![Usage](usage.png)
+| Parameter    | Type    | Default | Description                                           |
+|--------------|---------|---------|-------------------------------------------------------|
+| Title        | text    | —       | Label shown in the pane header.                       |
+| Y Label      | text    | —       | Label for the Y axis.                                 |
+| Duration     | number  | 5000    | Visible time window in milliseconds.                  |
+| Refresh Rate | number  | 500     | Plot update interval in milliseconds.                 |
+| Min Y        | number  | —       | Minimum Y bound; leave empty for auto.                |
+| Max Y        | number  | —       | Maximum Y bound; leave empty for auto.                |
+| Show Legend  | boolean | false   | Show channel names in the legend.                     |
+| Channels     | list    | —       | Series definitions managed in the Edit Widget dialog. |
 
-- Plot area: Shows live channel data.
-- Legend: Displays channel names when enabled from the UI Controller.
+## Notes
+
+Duration, Refresh Rate, Y axis settings, and Channels are configured through the **Plot UI Controller** or **Plot Channel Manager** helper widgets. Add them to the same pane to expose the full settings panel.

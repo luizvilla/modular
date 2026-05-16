@@ -14,7 +14,8 @@
     "ts:query": "ELECTRON_RUN_AS_NODE=1 electron app/js/query_nodes.js",
     "ts:test": "ELECTRON_RUN_AS_NODE=1 electron app/js/test_ts_bin.js",
     "ts:query:node": "npm rebuild socketcan --silent && node app/js/query_nodes.js",
-    "generate:dashboards": "node app/dashboard/scripts/generate_dashboards.js"
+    "generate:dashboards": "node app/dashboard/scripts/generate_dashboards.js",
+    "docs:screenshots": "node scripts/capture-widget-screenshots.js"
   },
   "keywords": [],
   "author": "",

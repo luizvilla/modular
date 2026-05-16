@@ -1,18 +1,11 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # ThingSet Measurements
 
-## What it does
-Toggle measurement subscriptions per ThingSet device.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Toggle measurement subscriptions per ThingSet CAN device.
 
-- Channel: CAN channel to scan.
+## Parameters
 
-## Usage (in dashboard)
-![Usage](usage.png)
-
-- Refresh: Reload device list.
-- Device cards: Show device IDs and measurement controls.
-- Measurement toggles: Enable/disable per measurement.
-
+| Parameter | Type | Default | Description                               |
+|-----------|------|---------|-------------------------------------------|
+| Channel   | text | can0    | CAN channel to scan for ThingSet devices. |

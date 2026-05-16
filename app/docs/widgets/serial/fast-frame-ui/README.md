@@ -1,13 +1,11 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Fast Frame UI
 
-## What it does
-Controls the settings of a target Fast Frame Plot widget.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-- No creation-time settings. Select the target plot in the widget body.
+Companion panel that configures the title and axes on a target Fast Frame Plot widget.
 
-## Usage (in dashboard)
-- Choose the target fast-frame plot widget.
-- Use this widget only for title and axis configuration.
-- Click `Apply Settings` to push the configuration into the target plot widget.
+## Notes
+
+This widget has no creation-time settings. It is a compatibility helper — prefer the Fast Frame Plot integrated editor (pencil icon) for new dashboards.
+
+In the panel UI, select the target fast-frame plot, adjust Title, X/Y labels, and axis bounds, then click **Apply Settings**.

@@ -1,19 +1,18 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Fast Frame Control
 
-## What it does
-Sends a trigger command, monitors fast-frame acquisition status, and exports the latest completed fast-frame dataset to CSV.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-- Datasource Name: Fast Serial Frame datasource to control.
-- Arm Command: Command that tells the target to prepare/store the data.
-- Retrieve Command: Command that asks the target to send the stored fast-frame data back.
-- Retrieve Delay: Delay between the arm command and the retrieve command.
-- CSV File Path: Output path used when saving the latest dataset.
-- Auto-save after complete: Automatically export CSV when a triggered acquisition completes.
-- Status Refresh: Poll interval used to refresh acquisition state.
+Triggers fast-frame acquisitions over serial, monitors status, and exports the captured dataset to CSV.
 
-## Usage (in dashboard)
-- Trigger + Retrieve: Sends the arm command first, then the retrieve command after the configured delay.
-- Save Latest CSV: Exports the most recently completed fast-frame dataset.
-- Status: Shows acquisition state, message, point count, and last completion time.
+## Parameters
+
+| Parameter           | Type    | Default        | Description                                          |
+|---------------------|---------|----------------|------------------------------------------------------|
+| Datasource          | option  | —              | Fast Frame datasource to trigger and monitor.        |
+| Arm Command         | text    | t              | Command sent to arm the acquisition.                 |
+| Retrieve Command    | text    | r              | Command sent to retrieve the stored frame.           |
+| Retrieve Delay (ms) | number  | 100            | Delay between arm and retrieve commands.             |
+| CSV Base File Path  | text    | fast_frame.csv | Output path for exported CSV files.                  |
+| Timestamped Name    | boolean | true           | Prepend a timestamp to the CSV file name.            |
+| Auto-save           | boolean | false          | Automatically export CSV when acquisition completes. |
+| Status Refresh (ms) | number  | 250            | Poll interval for acquisition status updates.        |

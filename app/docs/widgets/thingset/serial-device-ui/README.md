@@ -1,22 +1,14 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # ThingSet Serial Device UI
 
-## What it does
-Inspect and control ThingSet devices over the serial shell.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Inspect and edit ThingSet device values over the serial shell.
 
-- Serial datasource: Serial datasource used for ThingSet shell.
-- Prefix commands with "thingset ": Send commands with an extra prefix.
-- Log ThingSet serial I/O to console: Verbose logging for troubleshooting.
-- Load on start: Auto-refresh the tree when the widget loads.
+## Parameters
 
-## Usage (in dashboard)
-![Usage](usage.png)
-
-- Datasource selector: Choose the serial ThingSet datasource.
-- Refresh: Reload tree and values.
-- Tree view: Expand nodes and edit values.
-- Status line: Shows loading state and errors.
-
+| Parameter     | Type    | Default | Description                                         |
+|---------------|---------|---------|-----------------------------------------------------|
+| Datasource    | text    | —       | Serial datasource used for ThingSet shell commands. |
+| Use Prefix    | boolean | false   | Prefix each command with 'thingset '.               |
+| Debug Log     | boolean | false   | Log all ThingSet serial I/O to the console.         |
+| Load on Start | boolean | true    | Auto-refresh the device tree when the widget loads. |

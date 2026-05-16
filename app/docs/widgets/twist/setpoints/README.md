@@ -1,24 +1,13 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # Twist/Ownverter Setpoints
 
-## What it does
-Send reference, duty, frequency, phase, and dead-time setpoints for Twist or Ownverter boards.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Send reference, duty, frequency, phase, and dead-time setpoints to a Twist or Ownverter board over serial.
 
-- Title: Widget title shown in the header.
-- Device Type: Select Twist or Ownverter to match leg count and variables.
-- Datasource Name: Serial datasource used to send commands.
+## Parameters
 
-## Usage (in dashboard)
-![Usage](usage.png)
-
-- Datasource: Choose the serial datasource (e.g., MockSerial).
-- Device: Switch between Twist (2 legs) and Ownverter (3 legs).
-- Reference: Select leg/variable and send setpoints.
-- Duty: Send duty cycle per leg.
-- Frequency: Send switching frequency per leg.
-- Phase Shift: Send phase shift per leg.
-- Dead Time Rising/Falling: Send dead-time values per leg.
-- Last command: Shows the most recent command sent.
+| Parameter   | Type   | Default | Description                                   |
+|-------------|--------|---------|-----------------------------------------------|
+| Title       | text   | —       | Label shown in the pane header.               |
+| Device Type | option | TWIST   | Board family: 2-leg Twist or 3-leg Ownverter. |
+| Datasource  | option | —       | Serial datasource used to send commands.      |

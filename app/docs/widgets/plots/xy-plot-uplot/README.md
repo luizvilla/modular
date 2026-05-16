@@ -1,18 +1,24 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # XY Plot
 
-## What it does
-Plots live `x` versus `y` data as a trajectory with trailing history.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-- Title: Widget title shown in the header.
-- History Length: Number of recent points retained in the trail.
-- Refresh Rate: Poll/update period in milliseconds.
-- X Axis Label / Y Axis Label: Labels for the plot axes.
-- X Min / X Max / Y Min / Y Max: Optional manual axis bounds.
-- Helper Widgets: Auto-spawn the XY Source Manager when the widget is created.
+Plots live X versus Y data as a trajectory with trailing history.
 
-## Usage (in dashboard)
-- Plot area: Displays the `x` vs `y` trajectory.
-- Trailing history: Retains the latest points so motion and drift remain visible.
-- Clear history: Removes the current trail without changing sources.
+## Parameters
+
+| Parameter    | Type   | Default | Description                                       |
+|--------------|--------|---------|---------------------------------------------------|
+| Title        | text   | XY Plot | Label shown in the pane header.                   |
+| History      | number | 200     | Number of recent points retained in the trail.    |
+| Refresh Rate | number | 500     | Poll and redraw interval in milliseconds.         |
+| X Label      | text   | —       | Label for the X axis.                             |
+| Y Label      | text   | —       | Label for the Y axis.                             |
+| Min X        | number | —       | Minimum X bound; leave empty for auto.            |
+| Max X        | number | —       | Maximum X bound; leave empty for auto.            |
+| Min Y        | number | —       | Minimum Y bound; leave empty for auto.            |
+| Max Y        | number | —       | Maximum Y bound; leave empty for auto.            |
+| Sources      | object | —       | X and Y source definitions managed via the panel. |
+
+## Notes
+
+X and Y source bindings are configured through the **XY Source Manager** helper widget. Add it to the same pane to expose the full source selection panel.

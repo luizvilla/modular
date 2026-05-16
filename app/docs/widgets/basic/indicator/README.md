@@ -1,20 +1,14 @@
-<!-- Widget doc: Indicator Light (indicator). -->
 # Indicator Light
 
-## What it does
-Describe the widget purpose and the kind of data it presents or controls.
+![Widget screenshot](widget.png)
 
-## When to use
-- Use this widget when you want to expose indicator light behavior in a dashboard.
-- Pair it with the relevant data source or controller widget.
+Boolean indicator that shows a labelled on/off state driven by a calculated expression.
 
-## Settings
-- Title: visible label in the widget header.
-- Data/Inputs: bind the widget to the right datasource fields.
-- Advanced: adjust any widget-specific options if needed.
+## Parameters
 
-## Screenshot
-Screenshot pending. Capture it with the widget gallery flow.
-
-## Related
-- See other widgets in the Basic category.
+| Parameter    | Type       | Default | Description                                     |
+|--------------|------------|---------|-------------------------------------------------|
+| Title        | text       | —       | Label shown in the pane header.                 |
+| Value        | calculated | —       | Truthy expression controls the indicator state. |
+| Active Label | text       | —       | Text shown when the value is truthy.            |
+| Idle Label   | text       | —       | Text shown when the value is falsy.             |

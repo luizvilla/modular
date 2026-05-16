@@ -1,20 +1,12 @@
-<!-- Widget documentation (auto-generated from widget definitions). -->
 # ThingSet Control Panel
 
-## What it does
-Per-device control panel for voltage/current mode and reference.
+![Widget screenshot](widget.png)
 
-## Creation (settings)
-![Creation](creation.png)
+Per-device voltage/current mode and reference control for ThingSet CAN devices.
 
-- Channel: CAN channel to target.
-- Auto height (fit devices): Resize to match device count.
+## Parameters
 
-## Usage (in dashboard)
-![Usage](usage.png)
-
-- Refresh: Reload device list and values.
-- Reset to Voltage: Set all devices back to voltage mode.
-- Voltage/Current: Select wModeVC per device.
-- Reference input: Send wRef setpoints per device.
-
+| Parameter   | Type    | Default | Description                                              |
+|-------------|---------|---------|----------------------------------------------------------|
+| Channel     | text    | can0    | CAN channel to target.                                   |
+| Auto Height | boolean | false   | Resize the panel to fit the number of connected devices. |
