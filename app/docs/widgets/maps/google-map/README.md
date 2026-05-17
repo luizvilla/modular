@@ -1,6 +1,8 @@
 # Google Map
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Embedded Google Map centred on a calculated latitude/longitude position.
 

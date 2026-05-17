@@ -1,6 +1,8 @@
 # Gauge
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Legacy JustGage dial gauge kept for backwards compatibility with older dashboards.
 

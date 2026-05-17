@@ -1,6 +1,8 @@
 # XY Plot
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Plots live X versus Y data as a trajectory with trailing history.
 

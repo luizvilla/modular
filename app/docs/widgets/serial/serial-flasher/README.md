@@ -1,6 +1,8 @@
 # Serial Flasher
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Flash firmware to a device over serial or CAN using mcumgr.
 

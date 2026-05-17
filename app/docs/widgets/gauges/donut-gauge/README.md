@@ -1,6 +1,8 @@
 # Donut Gauge
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Single-channel donut ring gauge with integrated source binding, warning/critical zones, and optional alarm state.
 

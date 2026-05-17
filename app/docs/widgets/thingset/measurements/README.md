@@ -1,6 +1,8 @@
 # ThingSet Measurements
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Toggle measurement subscriptions per ThingSet CAN device.
 

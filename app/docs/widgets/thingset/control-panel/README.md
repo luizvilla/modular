@@ -1,6 +1,8 @@
 # ThingSet Control Panel
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Per-device voltage/current mode and reference control for ThingSet CAN devices.
 

@@ -1,6 +1,8 @@
 # HTML
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Renders an arbitrary HTML expression inside a dashboard pane.
 

@@ -1,6 +1,8 @@
 # Serial CSV Recorder
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Start/stop recording of a serial datasource stream to a CSV file with configurable format options.
 

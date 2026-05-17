@@ -1,6 +1,8 @@
 # ThingSet Device UI
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Renders a full ThingSet device tree over CAN, with live value editing and reporting toggle.
 

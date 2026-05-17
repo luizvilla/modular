@@ -1,6 +1,8 @@
 # Twist/Ownverter Setpoints
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Send reference, duty, frequency, phase, and dead-time setpoints to a Twist or Ownverter board over serial.
 

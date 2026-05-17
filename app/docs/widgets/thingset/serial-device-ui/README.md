@@ -1,6 +1,8 @@
 # ThingSet Serial Device UI
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Inspect and edit ThingSet device values over the serial shell.
 

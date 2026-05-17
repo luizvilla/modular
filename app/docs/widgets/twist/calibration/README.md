@@ -1,6 +1,8 @@
 # Twist/Ownverter Calibration
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Send gain and offset calibration commands for Twist or Ownverter measurement channels over serial.
 

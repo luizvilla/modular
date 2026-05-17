@@ -1,6 +1,8 @@
 # Indicator Light
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Boolean indicator that shows a labelled on/off state driven by a calculated expression.
 

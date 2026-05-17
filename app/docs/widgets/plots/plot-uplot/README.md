@@ -1,6 +1,8 @@
 # Plot (uPlot)
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Realtime uPlot chart that streams live values or renders a full dataset with per-channel math transforms.
 

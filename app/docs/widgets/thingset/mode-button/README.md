@@ -1,6 +1,8 @@
 # ThingSet Mode Button
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Per-device power toggle for ThingSet CAN devices.
 

@@ -1,6 +1,8 @@
 # Picture
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Displays an image from a URL with optional periodic refresh.
 

@@ -1,6 +1,8 @@
 # Sparkline
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Inline trend line that displays a rolling history of a single calculated value.
 

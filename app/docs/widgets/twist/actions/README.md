@@ -1,6 +1,8 @@
 # Twist/Ownverter Actions
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Send power-on, power-off, and per-leg toggle commands to a Twist or Ownverter board over serial.
 

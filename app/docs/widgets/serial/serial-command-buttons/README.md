@@ -1,6 +1,8 @@
 # Serial Command Buttons
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Configurable buttons that send predefined text commands over a serial datasource.
 

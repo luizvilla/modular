@@ -1,6 +1,8 @@
 # Text
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Displays a calculated value with an optional unit label, size variant, and sparkline history.
 

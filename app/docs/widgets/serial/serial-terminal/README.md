@@ -1,6 +1,8 @@
 # Serial Terminal
 
-![Widget screenshot](widget.png)
+| Widget View | Edit Widget Window View |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Live terminal view of a serial datasource with optional colorization and auto-scroll.
 
