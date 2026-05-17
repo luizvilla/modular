@@ -300,8 +300,8 @@
         const durationField = createInputRow('Display Duration (ms)', 'number', settings.duration || 20000);
         const refreshField = createInputRow('Refresh Rate (ms)', 'number', settings.refreshRate || 1000);
         const yLabelField = createInputRow('Y Axis Label', 'text', settings.yLabel || '');
-        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '');
-        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '');
+        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '', 'auto');
+        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '', 'auto');
         const legendField = createCheckboxRow('Show Legend', settings.showLegend);
         const paletteThemes = shared.getColorThemes();
         const paletteOptions = Object.keys(paletteThemes).map((key) => ({ value: key, label: key })).filter((entry) => (paletteThemes[entry.value] || []).length);
@@ -487,10 +487,10 @@
         const titleField = createInputRow('Title', 'text', settings.title || 'Fast Frame Plot');
         const xLabelField = createInputRow('X Label', 'text', settings.xLabel || '');
         const yLabelField = createInputRow('Y Label', 'text', settings.yLabel || '');
-        const xMinField = createInputRow('X Min', 'number', settings.xMin ?? '');
-        const xMaxField = createInputRow('X Max', 'number', settings.xMax ?? '');
-        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '');
-        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '');
+        const xMinField = createInputRow('X Min', 'number', settings.xMin ?? '', 'auto');
+        const xMaxField = createInputRow('X Max', 'number', settings.xMax ?? '', 'auto');
+        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '', 'auto');
+        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '', 'auto');
         const legendField = createCheckboxRow('Show Legend', settings.showLegend);
         displaySection.append(
             titleField.row,
@@ -807,10 +807,10 @@
         const refreshField = createInputRow('Refresh Rate (ms)', 'number', settings.refreshRate || 250);
         const xLabelField = createInputRow('X Axis Label', 'text', settings.xLabel || 'X');
         const yLabelField = createInputRow('Y Axis Label', 'text', settings.yLabel || 'Y');
-        const xMinField = createInputRow('X Min', 'number', settings.xMin ?? '');
-        const xMaxField = createInputRow('X Max', 'number', settings.xMax ?? '');
-        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '');
-        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '');
+        const xMinField = createInputRow('X Min', 'number', settings.xMin ?? '', 'auto');
+        const xMaxField = createInputRow('X Max', 'number', settings.xMax ?? '', 'auto');
+        const yMinField = createInputRow('Y Min', 'number', settings.yMin ?? '', 'auto');
+        const yMaxField = createInputRow('Y Max', 'number', settings.yMax ?? '', 'auto');
         displaySection.append(
             titleField.row,
             historyField.row,

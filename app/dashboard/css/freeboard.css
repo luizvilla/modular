@@ -2777,6 +2777,10 @@ input:-moz-placeholder, textarea:-moz-placeholder {
 	color: #636363;
 }
 
+input::placeholder, textarea::placeholder {
+	color: #636363;
+}
+
 ::-webkit-scrollbar {
 	height: 0px;
 	width: 4px;

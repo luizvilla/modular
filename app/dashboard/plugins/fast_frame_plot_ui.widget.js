@@ -38,10 +38,10 @@
             this.controls.title = $('<input type="text" class="form-control form-control-sm">');
             this.controls.xLabel = $('<input type="text" class="form-control form-control-sm">');
             this.controls.yLabel = $('<input type="text" class="form-control form-control-sm">');
-            this.controls.xMin = $('<input type="number" step="any" class="form-control form-control-sm">');
-            this.controls.xMax = $('<input type="number" step="any" class="form-control form-control-sm">');
-            this.controls.yMin = $('<input type="number" step="any" class="form-control form-control-sm">');
-            this.controls.yMax = $('<input type="number" step="any" class="form-control form-control-sm">');
+            this.controls.xMin = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="auto">');
+            this.controls.xMax = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="auto">');
+            this.controls.yMin = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="auto">');
+            this.controls.yMax = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="auto">');
             this.controls.showLegend = $('<input type="checkbox" class="form-check-input mt-0">');
             this.legendRow = $('<div class="input-group input-group-sm fast-frame-plot-ui"></div>').append('<label class="input-group-text">Show Legend</label>', $('<span class="input-group-text"></span>').append(this.controls.showLegend));
 
