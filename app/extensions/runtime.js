@@ -202,6 +202,20 @@ function normalizeExampleRoots(manifest, appRoot) {
     });
 }
 
+function normalizeCoursewareRoots(manifest, appRoot) {
+    if (!Array.isArray(manifest.coursewareRoots)) return [];
+    return manifest.coursewareRoots.map((entry, index) => {
+        const relPath = typeof entry === 'string'
+            ? entry
+            : ensureObject(entry, `coursewareRoots[${index}]`).path;
+        const absolutePath = ensureAppFile(appRoot, relPath, `coursewareRoots[${index}]`);
+        return {
+            extensionId: manifest.id,
+            path: absolutePath,
+        };
+    });
+}
+
 function normalizeDashboardRoots(manifest, appRoot) {
     if (!Array.isArray(manifest.dashboardRoots)) return [];
     return manifest.dashboardRoots.map((entry, index) => {
@@ -261,6 +275,7 @@ function normalizeManifestRecord(manifestPath, options) {
         rendererScripts: normalizeRendererScripts(manifest, appRoot),
         widgetDocsRoots: normalizeWidgetDocsRoots(manifest, appRoot),
         exampleRoots: normalizeExampleRoots(manifest, appRoot),
+        coursewareRoots: normalizeCoursewareRoots(manifest, appRoot),
         dashboardRoots: normalizeDashboardRoots(manifest, appRoot),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
         capabilities: normalizeCapabilities(manifest.capabilities),
@@ -272,8 +287,9 @@ function normalizeManifestRecord(manifestPath, options) {
 function sortExtensions(records) {
     const rank = new Map([
         ['core', 0],
-        ['owntech', 1],
-        ['thingset', 2],
+        ['courseware', 1],
+        ['owntech', 2],
+        ['thingset', 3],
     ]);
     return records.slice().sort((left, right) => {
         const leftRank = rank.has(left.id) ? rank.get(left.id) : 100;
@@ -287,10 +303,12 @@ function createContributionRegistry() {
     const rendererScriptKeys = new Set();
     const widgetDocsKeys = new Set();
     const exampleRootKeys = new Set();
+    const coursewareRootKeys = new Set();
     const dashboardRootKeys = new Set();
     const rendererScripts = [];
     const widgetDocsRoots = [];
     const exampleRoots = [];
+    const coursewareRoots = [];
     const dashboardRoots = [];
     const flags = {};
 
@@ -325,6 +343,15 @@ function createContributionRegistry() {
         }
     }
 
+    function addCoursewareRoots(list) {
+        for (const entry of list || []) {
+            const key = entry.path;
+            if (coursewareRootKeys.has(key)) continue;
+            coursewareRootKeys.add(key);
+            coursewareRoots.push({ ...entry });
+        }
+    }
+
     function addDashboardRoots(list) {
         for (const entry of list || []) {
             const key = entry.path;
@@ -344,6 +371,7 @@ function createContributionRegistry() {
         addRendererScripts(extension, extension.rendererScripts);
         addWidgetDocsRoots(extension.widgetDocsRoots);
         addExampleRoots(extension.exampleRoots);
+        addCoursewareRoots(extension.coursewareRoots);
         addDashboardRoots(extension.dashboardRoots);
         addFlags(extension.preloadFlags);
     }
@@ -363,6 +391,7 @@ function createContributionRegistry() {
         }
         addWidgetDocsRoots(contribution.widgetDocsRoots);
         addExampleRoots(contribution.exampleRoots);
+        addCoursewareRoots(contribution.coursewareRoots);
         addDashboardRoots(contribution.dashboardRoots);
         addFlags(contribution.flags);
     }
@@ -377,6 +406,7 @@ function createContributionRegistry() {
             extensions: inventory.map((entry) => ({ ...entry })),
             widgetDocsRoots: widgetDocsRoots.map((entry) => ({ ...entry })),
             exampleRoots: exampleRoots.map((entry) => ({ ...entry })),
+            coursewareRoots: coursewareRoots.map((entry) => ({ ...entry })),
             dashboardRoots: dashboardRoots.map((entry) => ({ ...entry })),
         };
     }
@@ -499,6 +529,19 @@ function normalizeInstalledExampleRoots(manifest, bundleDir) {
     });
 }
 
+function normalizeInstalledCoursewareRoots(manifest, bundleDir) {
+    if (!Array.isArray(manifest.coursewareRoots)) return [];
+    return manifest.coursewareRoots.map((entry, index) => {
+        const relPath = typeof entry === 'string'
+            ? entry
+            : ensureObject(entry, `coursewareRoots[${index}]`).path;
+        return {
+            extensionId: manifest.id,
+            path: ensureRelativeFile(bundleDir, relPath, `coursewareRoots[${index}]`),
+        };
+    });
+}
+
 function normalizeInstalledDashboardRoots(manifest, bundleDir) {
     if (!Array.isArray(manifest.dashboardRoots)) return [];
     return manifest.dashboardRoots.map((entry, index) => {
@@ -555,6 +598,7 @@ function normalizeInstalledBundleRecord(manifestPath, options) {
         rendererScripts: normalizeInstalledRendererScripts(manifest, bundleDir),
         widgetDocsRoots: normalizeInstalledWidgetDocsRoots(manifest, bundleDir),
         exampleRoots: normalizeInstalledExampleRoots(manifest, bundleDir),
+        coursewareRoots: normalizeInstalledCoursewareRoots(manifest, bundleDir),
         dashboardRoots: normalizeInstalledDashboardRoots(manifest, bundleDir),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
         capabilities: normalizeCapabilities(manifest.capabilities),
@@ -651,6 +695,125 @@ function loadWidgetDocs(widgetDocsRoots, logger) {
     return result;
 }
 
+function isPathInside(baseDir, candidatePath) {
+    const relative = path.relative(baseDir, candidatePath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function humanizePathSegment(segment) {
+    return String(segment || '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function resolveCoursewareEntryPath(labDir, relativePath, label, kind) {
+    if (typeof relativePath !== 'string' || !relativePath.trim()) {
+        throw new Error(`${label} must be a non-empty string`);
+    }
+    const absolutePath = path.resolve(labDir, relativePath);
+    if (!isPathInside(labDir, absolutePath)) {
+        throw new Error(`${label} must stay inside ${labDir}`);
+    }
+    if (!fs.existsSync(absolutePath)) {
+        throw new Error(`${label} does not exist: ${absolutePath}`);
+    }
+    const stat = fs.statSync(absolutePath);
+    if (kind === 'directory' && !stat.isDirectory()) {
+        throw new Error(`${label} must be a directory: ${absolutePath}`);
+    }
+    if (kind === 'file' && !stat.isFile()) {
+        throw new Error(`${label} must be a file: ${absolutePath}`);
+    }
+    return absolutePath;
+}
+
+function loadCourseware(coursewareRoots, logger) {
+    const seen = new Set();
+    const result = [];
+
+    function collectManifests(baseDir) {
+        const manifests = [];
+        if (!baseDir || !fs.existsSync(baseDir)) return manifests;
+        const walk = (currentDir) => {
+            let entries = [];
+            try {
+                entries = fs.readdirSync(currentDir, { withFileTypes: true });
+            } catch (err) {
+                logger.warn(`[extensions] Could not read courseware directory ${currentDir}: ${err?.message || err}`);
+                return;
+            }
+            for (const entry of entries) {
+                const full = path.join(currentDir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(full);
+                } else if (entry.isFile() && entry.name === 'courseware.json') {
+                    manifests.push(full);
+                }
+            }
+        };
+        walk(baseDir);
+        return manifests;
+    }
+
+    for (const root of coursewareRoots || []) {
+        if (!root || !root.path) continue;
+        const manifests = collectManifests(root.path).sort((left, right) => left.localeCompare(right));
+        for (const manifestPath of manifests) {
+            const labDir = path.dirname(manifestPath);
+            try {
+                const raw = fs.readFileSync(manifestPath, 'utf8');
+                const parsed = ensureObject(JSON.parse(raw), manifestPath);
+                const relativeDir = path.relative(root.path, labDir);
+                const rawSegments = relativeDir.split(path.sep).filter(Boolean);
+                const menuSegments = rawSegments.length ? rawSegments.slice() : [path.basename(labDir)];
+                const id = menuSegments.join('/');
+                if (seen.has(id)) {
+                    logger.warn(`[extensions] Duplicate courseware id "${id}" in ${manifestPath} — skipped`);
+                    continue;
+                }
+                const title = typeof parsed.title === 'string' && parsed.title.trim()
+                    ? parsed.title.trim()
+                    : null;
+                if (!title) {
+                    throw new Error('title must be a non-empty string');
+                }
+                const order = Number.isFinite(Number(parsed.order)) ? Number(parsed.order) : 999;
+                const markdownPath = resolveCoursewareEntryPath(labDir, parsed.markdown, 'markdown', 'file');
+                const dashboardPath = resolveCoursewareEntryPath(labDir, parsed.dashboard, 'dashboard', 'file');
+                const binaryPath = resolveCoursewareEntryPath(labDir, parsed.binary, 'binary', 'file');
+                const figuresDirPath = resolveCoursewareEntryPath(labDir, parsed.figuresDir, 'figuresDir', 'directory');
+
+                seen.add(id);
+                result.push({
+                    id,
+                    title,
+                    order,
+                    extensionId: root.extensionId,
+                    rootPath: root.path,
+                    dirPath: labDir,
+                    markdownPath,
+                    dashboardPath,
+                    binaryPath,
+                    figuresDirPath,
+                    menuSegments: menuSegments.map(humanizePathSegment),
+                });
+            } catch (err) {
+                logger.warn(`[extensions] Invalid courseware entry ${manifestPath}: ${err?.message || err}`);
+            }
+        }
+    }
+
+    return result.sort((left, right) => {
+        if (left.extensionId !== right.extensionId) return left.extensionId.localeCompare(right.extensionId);
+        const leftMenu = left.menuSegments.join('/');
+        const rightMenu = right.menuSegments.join('/');
+        if (leftMenu !== rightMenu) return leftMenu.localeCompare(rightMenu);
+        if (left.order !== right.order) return left.order - right.order;
+        return left.title.localeCompare(right.title);
+    });
+}
+
 function mergeDatasources(sortedRecords) {
     const seen = new Set();
     const result = [];
@@ -724,6 +887,7 @@ function buildExtensionRuntime(options = {}) {
     const inventory = sortedRecords.map(toInventoryEntry);
     const bootstrap = registry.buildBootstrap(inventory);
     bootstrap.widgetDocs = loadWidgetDocs(bootstrap.widgetDocsRoots, logger);
+    bootstrap.courseware = loadCourseware(bootstrap.coursewareRoots, logger);
     bootstrap.datasources = mergeDatasources(sortedRecords);
 
     return {

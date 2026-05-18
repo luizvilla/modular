@@ -55,6 +55,39 @@
         return [{ path: docsRoot, dashboardRoot: dashboardPathRoot, firmwareRoot: firmwarePathRoot }];
     }
 
+    function normalizeDocRequest(payload) {
+        if (!payload || typeof payload !== 'object') return null;
+        const kind = String(payload.kind || '').trim().toLowerCase();
+        const id = String(payload.id || '').trim();
+        if (!kind || !id) return null;
+        if (!['example', 'courseware'].includes(kind)) return null;
+        return { kind, id };
+    }
+
+    function tabIdForDoc(kind, id) {
+        return kind === 'example' ? `doc:${id}` : `doc:${kind}:${id}`;
+    }
+
+    function humanizeSegment(segment) {
+        return String(segment || '')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, (match) => match.toUpperCase());
+    }
+
+    function docKindLabel(kind) {
+        return kind === 'courseware' ? 'Courseware' : 'Example';
+    }
+
+    function getDocMap(kind) {
+        return kind === 'courseware' ? coursewareById : examplesById;
+    }
+
+    function getDocItem(kind, id) {
+        return getDocMap(kind).get(id) || null;
+    }
+
     if (!api && (!ipcRenderer || !fs || !path)) {
         console.warn('Tabs: missing Electron/Node context; docs tabs disabled.');
         return;
@@ -70,6 +103,7 @@
     const docSubtitle = document.getElementById('doc-subtitle');
     const docContent = document.getElementById('doc-content');
     const exampleSelect = document.getElementById('doc-example-select');
+    const docPickerLabel = document.querySelector('.doc-picker label');
     const loadDashboardBtn = document.getElementById('doc-load-dashboard-btn');
     const uploadFirmwareBtn = document.getElementById('doc-upload-firmware-btn');
     const refreshPortsBtn = document.getElementById('doc-refresh-ports-btn');
@@ -86,11 +120,13 @@
     const progressLabel = document.getElementById('doc-upload-label');
 
     const dashboardTabId = 'dashboard';
-    const tabs = new Map(); // id -> { id, type, exampleId, button }
+    const tabs = new Map(); // id -> { id, type, exampleId|coursewareId, button }
     const examplesById = new Map();
+    const coursewareById = new Map();
     const widgetDocsByType = new Map();
     let activeTabId = dashboardTabId;
     let pendingOpenId = null;
+    let pendingDocRequest = null;
     let pendingWidgetType = null;
     let isUploading = false;
     let uploadCanceled = false;
@@ -106,7 +142,7 @@
     const dashboardModeClass = 'dashboard-mode';
     // Dock preview state for popping an example window back into the tab strip.
     let dockPreviewTab = null;
-    let dockPreviewExampleId = null;
+    let dockPreviewRequest = null;
 
     function setStatus(message) {
         statusBar.textContent = message || '';
@@ -161,10 +197,21 @@
         setProgress(100);
     }
 
+    function getActiveDocTab() {
+        const tab = tabs.get(activeTabId);
+        return tab && tab.type === 'doc' ? tab : null;
+    }
+
     function updateUploadButton() {
         if (!uploadFirmwareBtn) return;
         uploadFirmwareBtn.disabled = false;
-        uploadFirmwareBtn.textContent = isUploading ? 'Cancel upload' : 'Upload example to target';
+        if (isUploading) {
+            uploadFirmwareBtn.textContent = 'Cancel upload';
+            return;
+        }
+        const tab = getActiveDocTab();
+        const kind = tab && tab.kind ? tab.kind : 'example';
+        uploadFirmwareBtn.textContent = `Upload ${docKindLabel(kind).toLowerCase()} to target`;
     }
 
     async function cancelUpload() {
@@ -498,9 +545,12 @@
             const label = parts.length ? parts.join(' / ') : leaf;
             examplesById.set(id, {
                 id,
+                kind: 'example',
                 title: leaf,
                 subtitle,
                 label,
+                menuRoot: parts[0] || 'Examples',
+                menuLabel: parts.slice(1).join(' / ') || leaf,
                 docPath: entry.docPath,
                 dashboardPath: (paths && paths.join
                     ? paths.join(entry.root.dashboardRoot || '', leaf, `${leaf}.json`)
@@ -510,6 +560,36 @@
                     : path.join(entry.root.firmwareRoot || '', leaf, `${leaf}.mcuboot.bin`))
             });
         }
+    }
+
+    async function loadCoursewareIndex() {
+        coursewareById.clear();
+        const bootstrap = await getExtensionBootstrap();
+        const entries = bootstrap && Array.isArray(bootstrap.courseware) ? bootstrap.courseware : [];
+        entries.forEach((entry) => {
+            if (!entry || !entry.id || !entry.markdownPath || !entry.dashboardPath || !entry.binaryPath) return;
+            const segments = Array.isArray(entry.menuSegments) && entry.menuSegments.length
+                ? entry.menuSegments.slice()
+                : entry.id.split('/').filter(Boolean).map(humanizeSegment);
+            const root = segments[0] || 'Courseware';
+            const trail = segments.slice(1, -1);
+            const menuLabel = trail.length ? `${trail.join(' / ')} / ${entry.title}` : entry.title;
+            const subtitle = trail.length ? `${root} - ${trail.join(' / ')}` : root;
+            const label = trail.length ? `${root} / ${trail.join(' / ')} / ${entry.title}` : `${root} / ${entry.title}`;
+            coursewareById.set(entry.id, {
+                id: entry.id,
+                kind: 'courseware',
+                title: entry.title,
+                subtitle,
+                label,
+                menuRoot: root,
+                menuLabel,
+                docPath: entry.markdownPath,
+                dashboardPath: entry.dashboardPath,
+                firmwarePath: entry.binaryPath,
+            });
+        });
+        console.log('[tabs] courseware loaded:', coursewareById.size);
     }
 
     function getWidgetsDocsRoot() {
@@ -594,50 +674,56 @@
         if (progressPanel) progressPanel.style.display = isWidget ? 'none' : '';
     }
 
-    function populateExampleSelect() {
-        // Build a tree-like dropdown using optgroups to mirror the menu structure.
+    function setDocActionLabels(kind) {
+        const label = docKindLabel(kind).toLowerCase();
+        if (docPickerLabel) docPickerLabel.textContent = docKindLabel(kind);
+        if (loadDashboardBtn) loadDashboardBtn.textContent = `Load ${label} dashboard`;
+        if (uploadFirmwareBtn && !isUploading) uploadFirmwareBtn.textContent = `Upload ${label} to target`;
+    }
+
+    function populateDocSelect(kind) {
         exampleSelect.innerHTML = '';
         const grouped = new Map();
-        for (const ex of examplesById.values()) {
-            const parts = ex.id.split('/').filter(Boolean);
-            const root = parts[0] || 'Examples';
-            const label = parts.slice(1).join(' / ') || ex.title || ex.id;
+        for (const item of getDocMap(kind).values()) {
+            const root = item.menuRoot || docKindLabel(kind);
+            const label = item.menuLabel || item.title || item.id;
             if (!grouped.has(root)) grouped.set(root, []);
-            grouped.get(root).push({ ...ex, menuLabel: label });
+            grouped.get(root).push({ ...item, menuLabel: label });
         }
         const roots = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
         for (const root of roots) {
             const group = document.createElement('optgroup');
             group.label = root;
             const items = grouped.get(root).slice().sort((a, b) => a.menuLabel.localeCompare(b.menuLabel));
-            for (const ex of items) {
+            for (const item of items) {
                 const opt = document.createElement('option');
-                opt.value = ex.id;
-                opt.textContent = ex.menuLabel;
+                opt.value = item.id;
+                opt.textContent = item.menuLabel;
                 group.appendChild(opt);
             }
             exampleSelect.appendChild(group);
         }
-        console.log(`[tabs] example list populated (${examplesById.size})`);
+        console.log(`[tabs] ${kind} list populated (${getDocMap(kind).size})`);
     }
 
-    async function loadExample(exampleId) {
-        const example = examplesById.get(exampleId);
-        if (!example) {
-            setStatus('Example not found.');
-            docContent.innerHTML = '<p>Example configuration missing.</p>';
-            console.warn('[tabs] loadExample: missing example', exampleId);
+    async function loadDocItem(kind, itemId) {
+        const item = getDocItem(kind, itemId);
+        if (!item) {
+            setStatus(`${docKindLabel(kind)} not found.`);
+            docContent.innerHTML = '<p>Documentation configuration missing.</p>';
+            console.warn('[tabs] loadDocItem: missing item', kind, itemId);
             return;
         }
-        console.log('[tabs] loadExample:', exampleId);
-        docTitle.textContent = example.title;
-        docSubtitle.textContent = example.subtitle || '';
+        console.log('[tabs] loadDocItem:', kind, itemId);
+        docTitle.textContent = item.title;
+        docSubtitle.textContent = item.subtitle || '';
+        setDocActionLabels(kind);
         setStatus('Loading documentation...');
         try {
             const markdown = docsApi && docsApi.readMarkdown
-                ? await docsApi.readMarkdown(example.docPath)
-                : await fs.promises.readFile(example.docPath, 'utf8');
-            const baseDir = paths && paths.dirname ? paths.dirname(example.docPath) : path.dirname(example.docPath);
+                ? await docsApi.readMarkdown(item.docPath)
+                : await fs.promises.readFile(item.docPath, 'utf8');
+            const baseDir = paths && paths.dirname ? paths.dirname(item.docPath) : path.dirname(item.docPath);
             await renderMarkdownInto(docContent, markdown, baseDir);
             setStatus('Ready.');
         } catch (err) {
@@ -698,14 +784,14 @@
     }
 
     async function loadDashboard() {
-        const tab = tabs.get(activeTabId);
-        if (!tab || !tab.exampleId) return;
-        const example = examplesById.get(tab.exampleId);
-        if (!example) return;
+        const tab = getActiveDocTab();
+        if (!tab || !tab.docId) return;
+        const item = getDocItem(tab.kind, tab.docId);
+        if (!item) return;
         setStatus('Loading dashboard in main window...');
         const res = dashboardApi && dashboardApi.loadDashboardFromPath
-            ? await dashboardApi.loadDashboardFromPath(example.dashboardPath)
-            : await ipcRenderer.invoke('load-dashboard-from-path', { dashboardPath: example.dashboardPath });
+            ? await dashboardApi.loadDashboardFromPath(item.dashboardPath)
+            : await ipcRenderer.invoke('load-dashboard-from-path', { dashboardPath: item.dashboardPath });
         if (res && res.ok) {
             setStatus('Dashboard loaded.');
         } else {
@@ -714,15 +800,15 @@
     }
 
     async function uploadFirmware() {
-        const tab = tabs.get(activeTabId);
+        const tab = getActiveDocTab();
         if (isUploading) {
             await cancelUpload();
             return;
         }
-        if (!tab || !tab.exampleId) return;
-        const example = examplesById.get(tab.exampleId);
+        if (!tab || !tab.docId) return;
+        const item = getDocItem(tab.kind, tab.docId);
         const port = portSelect.value;
-        if (!example || !port) {
+        if (!item || !port) {
             setStatus('Select a target port before uploading.');
             return;
         }
@@ -738,11 +824,11 @@
 
         try {
             if (flashApi && flashApi.startFlash) {
-                await flashApi.startFlash({ comPort: port, firmwarePath: example.firmwarePath });
+                await flashApi.startFlash({ comPort: port, firmwarePath: item.firmwarePath });
             } else {
                 await ipcRenderer.invoke('start-flash', {
                     comPort: port,
-                    firmwarePath: example.firmwarePath
+                    firmwarePath: item.firmwarePath
                 });
             }
         } catch (err) {
@@ -1094,10 +1180,11 @@
         document.body.classList.remove(dashboardModeClass);
         document.documentElement.classList.remove(dashboardModeClass);
         const tab = tabs.get(tabId);
-        if (tab && tab.type === 'doc' && tab.exampleId) {
-            setDocMode('example');
-            exampleSelect.value = tab.exampleId;
-            loadExample(tab.exampleId);
+        if (tab && tab.type === 'doc' && tab.docId) {
+            setDocMode(tab.kind || 'example');
+            populateDocSelect(tab.kind || 'example');
+            exampleSelect.value = tab.docId;
+            loadDocItem(tab.kind || 'example', tab.docId);
         } else if (tab && tab.type === 'widget-doc' && tab.widgetType) {
             setDocMode('widget');
             loadWidgetDoc(tab.widgetType);
@@ -1117,38 +1204,38 @@
     }
 
     function clearDockPreview() {
-        if (dockPreviewExampleId) {
-            const existing = tabs.get(`doc:${dockPreviewExampleId}`);
+        if (dockPreviewRequest) {
+            const existing = tabs.get(tabIdForDoc(dockPreviewRequest.kind, dockPreviewRequest.id));
             if (existing) existing.button.classList.remove('dock-preview');
         }
         if (dockPreviewTab) {
             dockPreviewTab.remove();
             dockPreviewTab = null;
         }
-        dockPreviewExampleId = null;
+        dockPreviewRequest = null;
     }
 
-    function showDockPreview(exampleId) {
-        if (!exampleId) {
+    function showDockPreview(kind, itemId) {
+        if (!itemId) {
             clearDockPreview();
             return;
         }
-        if (dockPreviewExampleId === exampleId) return;
+        if (dockPreviewRequest && dockPreviewRequest.kind === kind && dockPreviewRequest.id === itemId) return;
         clearDockPreview();
-        dockPreviewExampleId = exampleId;
-        const existing = tabs.get(`doc:${exampleId}`);
+        dockPreviewRequest = { kind, id: itemId };
+        const existing = tabs.get(tabIdForDoc(kind, itemId));
         if (existing) {
             existing.button.classList.add('dock-preview');
             return;
         }
-        const example = examplesById.get(exampleId);
-        const label = example ? example.title : exampleId;
+        const item = getDocItem(kind, itemId);
+        const label = item ? item.title : itemId;
         const btn = document.createElement('button');
         btn.className = 'tab tab-dock-preview';
         btn.textContent = label;
         btn.disabled = true;
         btn.setAttribute('aria-disabled', 'true');
-        btn.dataset.previewId = exampleId;
+        btn.dataset.previewId = itemId;
         tabStrip.appendChild(btn);
         dockPreviewTab = btn;
     }
@@ -1161,17 +1248,17 @@
         return screenX >= left && screenX <= right && screenY >= top && screenY <= bottom;
     }
 
-    function createDocTab(exampleId) {
-        const id = `doc:${exampleId}`;
+    function createDocTab(kind, itemId) {
+        const id = tabIdForDoc(kind, itemId);
         if (tabs.has(id)) {
             setActiveTab(id);
             return;
         }
-        if (dockPreviewExampleId === exampleId) {
+        if (dockPreviewRequest && dockPreviewRequest.kind === kind && dockPreviewRequest.id === itemId) {
             clearDockPreview();
         }
-        const example = examplesById.get(exampleId);
-        const label = example ? example.title : exampleId;
+        const item = getDocItem(kind, itemId);
+        const label = item ? item.title : itemId;
         const btn = document.createElement('button');
         btn.className = 'tab';
         btn.dataset.tabId = id;
@@ -1191,13 +1278,13 @@
         btn.addEventListener('dragend', (e) => {
             const outside = !isPointInWindow(e.screenX, e.screenY);
             if (outside) {
-                if (examplesApi && examplesApi.undockDocTab) examplesApi.undockDocTab(exampleId);
-                else ipcRenderer.send('undock-doc-tab', { id: exampleId });
+                if (docsApi && docsApi.undockTab) docsApi.undockTab({ kind, id: itemId });
+                else ipcRenderer.send('undock-doc-tab', { kind, id: itemId });
                 closeTab(id);
             }
         });
 
-        tabs.set(id, { id, type: 'doc', exampleId, button: btn });
+        tabs.set(id, { id, type: 'doc', kind, docId: itemId, button: btn });
         tabStrip.appendChild(btn);
         setActiveTab(id);
     }
@@ -1232,22 +1319,30 @@
         setActiveTab(id);
     }
 
-    function updateActiveTabExample(exampleId) {
+    function updateActiveDocTab(itemId) {
         const tab = tabs.get(activeTabId);
         if (!tab || tab.type !== 'doc') return;
-        tab.exampleId = exampleId;
-        const example = examplesById.get(exampleId);
-        if (example) {
-            tab.button.childNodes[0].nodeValue = example.title;
+        tab.docId = itemId;
+        const item = getDocItem(tab.kind, itemId);
+        if (item) {
+            tab.button.childNodes[0].nodeValue = item.title;
         }
-        loadExample(exampleId);
+        loadDocItem(tab.kind, itemId);
     }
 
     function openExampleTab(exampleId) {
         if (examplesById.has(exampleId)) {
-            createDocTab(exampleId);
+            createDocTab('example', exampleId);
         } else {
             pendingOpenId = exampleId;
+        }
+    }
+
+    function openCoursewareTab(coursewareId) {
+        if (coursewareById.has(coursewareId)) {
+            createDocTab('courseware', coursewareId);
+        } else {
+            pendingDocRequest = { kind: 'courseware', id: coursewareId };
         }
     }
 
@@ -1262,7 +1357,6 @@
     tabs.set(dashboardTabId, {
         id: dashboardTabId,
         type: 'dashboard',
-        exampleId: null,
         button: tabStrip.querySelector('[data-tab-id="dashboard"]')
     });
     const dashboardButton = tabs.get(dashboardTabId).button;
@@ -1278,19 +1372,30 @@
 
     exampleSelect.addEventListener('change', () => {
         const id = exampleSelect.value;
-        if (id) updateActiveTabExample(id);
+        const tab = getActiveDocTab();
+        if (id && tab) updateActiveDocTab(id);
     });
     loadDashboardBtn.addEventListener('click', loadDashboard);
     uploadFirmwareBtn.addEventListener('click', uploadFirmware);
     refreshPortsBtn.addEventListener('click', refreshPorts);
     updateUploadButton();
 
+    if (docsApi && docsApi.onOpenTab) {
+        docsApi.onOpenTab((payload = {}) => {
+            const request = normalizeDocRequest(payload);
+            console.log('[tabs] open-doc-tab IPC:', request);
+            if (!request) return;
+            if (request.kind === 'courseware') openCoursewareTab(request.id);
+            else openExampleTab(request.id);
+        });
+    }
     if (examplesApi && examplesApi.onOpenExampleTab) {
         examplesApi.onOpenExampleTab(({ id } = {}) => {
             console.log('[tabs] open-example-tab IPC:', id);
             if (id) openExampleTab(id);
         });
-    } else if (ipcRenderer) {
+    }
+    if (ipcRenderer) {
         ipcRenderer.on('open-example-tab', (_e, { id }) => {
             console.log('[tabs] open-example-tab IPC:', id);
             if (id) openExampleTab(id);
@@ -1307,36 +1412,51 @@
             if (type) openWidgetTab(type);
         });
     }
-    if (examplesApi && examplesApi.onDockPreview) {
-        examplesApi.onDockPreview(({ id, active } = {}) => {
-            if (active) showDockPreview(id);
+    if (docsApi && docsApi.onDockPreview) {
+        docsApi.onDockPreview(({ kind, id, active } = {}) => {
+            if (active) showDockPreview(kind || 'example', id);
             else clearDockPreview();
         });
-    } else if (ipcRenderer) {
+    }
+    if (examplesApi && examplesApi.onDockPreview) {
+        examplesApi.onDockPreview(({ id, active } = {}) => {
+            if (active) showDockPreview('example', id);
+            else clearDockPreview();
+        });
+    }
+    if (ipcRenderer) {
         ipcRenderer.on('example-dock-preview', (_e, { id, active }) => {
-            if (active) showDockPreview(id);
+            if (active) showDockPreview('example', id);
             else clearDockPreview();
         });
     }
 
     resetProgress();
     refreshPorts();
-    loadExamplesIndex().then(() => {
-        console.log('[tabs] loadExamplesIndex complete');
-        populateExampleSelect();
+    Promise.all([loadExamplesIndex(), loadCoursewareIndex()]).then(() => {
+        console.log('[tabs] doc indexes loaded');
+        populateDocSelect('example');
         if (pendingOpenId && examplesById.has(pendingOpenId)) {
             console.log('[tabs] opening pending example', pendingOpenId);
-            createDocTab(pendingOpenId);
+            createDocTab('example', pendingOpenId);
             pendingOpenId = null;
         }
+        if (pendingDocRequest && pendingDocRequest.kind === 'courseware' && coursewareById.has(pendingDocRequest.id)) {
+            console.log('[tabs] opening pending courseware', pendingDocRequest.id);
+            createDocTab('courseware', pendingDocRequest.id);
+            pendingDocRequest = null;
+        }
     }).catch((err) => {
-        console.error('[tabs] loadExamplesIndex failed', err);
+        console.error('[tabs] doc index load failed', err);
     }).finally(async () => {
         try {
-            const pending = examplesApi && examplesApi.getPendingExampleTab
-                ? await examplesApi.getPendingExampleTab()
-                : await ipcRenderer.invoke('get-pending-example-tab');
-            if (pending) openExampleTab(pending);
+            const pending = docsApi && docsApi.getPendingTab
+                ? await docsApi.getPendingTab()
+                : await ipcRenderer.invoke('get-pending-doc-tab');
+            const request = normalizeDocRequest(pending);
+            if (!request) return;
+            if (request.kind === 'courseware') openCoursewareTab(request.id);
+            else openExampleTab(request.id);
         } catch {}
     });
 

@@ -1,0 +1,16 @@
+{
+  "id": "courseware",
+  "apiVersion": 1,
+  "version": "0.0.0-test",
+  "displayName": "CourseWare Test",
+  "enabledByDefault": true,
+  "mainEntry": "main.js",
+  "capabilities": [
+    "courseware"
+  ],
+  "coursewareRoots": [
+    {
+      "path": "../tests/fixtures/courseware_runtime/labs"
+    }
+  ]
+}

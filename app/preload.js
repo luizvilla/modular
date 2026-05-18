@@ -9,6 +9,13 @@ function on(channel, handler) {
     return () => ipcRenderer.removeListener(channel, wrapped);
 }
 
+function onDocKind(channel, kind, handler) {
+    return on(channel, (payload = {}) => {
+        if (!payload || payload.kind !== kind) return;
+        handler({ id: payload.id });
+    });
+}
+
 const api = {
     activity: {
         on: (cb) => on('activity', cb),
@@ -25,7 +32,14 @@ const api = {
     },
     docs: {
         listReadmes: (baseDir) => ipcRenderer.invoke('docs-list-readmes', { baseDir }),
-        readMarkdown: (docPath) => ipcRenderer.invoke('docs-read-markdown', { docPath })
+        readMarkdown: (docPath) => ipcRenderer.invoke('docs-read-markdown', { docPath }),
+        openTab: (payload) => ipcRenderer.send('open-doc-tab', payload),
+        onOpenTab: (cb) => on('open-doc-tab', cb),
+        setActiveTab: (payload) => ipcRenderer.send('doc-active-ref', payload),
+        onSelect: (cb) => on('doc-select', cb),
+        onDockPreview: (cb) => on('doc-dock-preview', cb),
+        undockTab: (payload) => ipcRenderer.send('undock-doc-tab', payload),
+        getPendingTab: () => ipcRenderer.invoke('get-pending-doc-tab')
     },
     files: {
         readText: (filePath) => ipcRenderer.invoke('files-read-text', { filePath }),
@@ -42,7 +56,7 @@ const api = {
         setActiveExampleId: (id) => ipcRenderer.send('example-active-id', { id }),
         onExampleSelect: (cb) => on('example-select', cb),
         onDockPreview: (cb) => on('example-dock-preview', cb),
-        undockDocTab: (id) => ipcRenderer.send('undock-doc-tab', { id }),
+        undockDocTab: (id) => ipcRenderer.send('undock-doc-tab', { kind: 'example', id }),
         getPendingExampleTab: () => ipcRenderer.invoke('get-pending-example-tab')
     },
     widgets: {

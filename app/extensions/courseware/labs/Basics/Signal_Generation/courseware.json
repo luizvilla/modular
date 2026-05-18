@@ -1,0 +1,8 @@
+{
+  "title": "Signal Generation Basics",
+  "markdown": "README.md",
+  "dashboard": "dashboard.json",
+  "binary": "firmware.mcuboot.bin",
+  "figuresDir": "figures",
+  "order": 20
+}

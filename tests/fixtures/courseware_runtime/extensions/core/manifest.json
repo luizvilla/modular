@@ -1,0 +1,8 @@
+{
+  "id": "core",
+  "apiVersion": 1,
+  "version": "0.0.0-test",
+  "displayName": "Core Test",
+  "enabledByDefault": true,
+  "capabilities": []
+}

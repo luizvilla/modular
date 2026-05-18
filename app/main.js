@@ -50,18 +50,20 @@ function cloneExtensionBootstrap() {
         extensions: cloneExtensionInventory(),
         widgetDocsRoots: extensionRuntime.bootstrap.widgetDocsRoots.map((entry) => ({ ...entry })),
         exampleRoots: extensionRuntime.bootstrap.exampleRoots.map((entry) => ({ ...entry })),
+        coursewareRoots: extensionRuntime.bootstrap.coursewareRoots.map((entry) => ({ ...entry })),
         dashboardRoots: extensionRuntime.bootstrap.dashboardRoots.map((entry) => ({ ...entry })),
         widgetDocs: extensionRuntime.bootstrap.widgetDocs.map((entry) => ({ ...entry })),
+        courseware: extensionRuntime.bootstrap.courseware.map((entry) => ({ ...entry })),
         datasources: extensionRuntime.bootstrap.datasources.map((entry) => ({ ...entry })),
     };
 }
 
 let mainWindow; // reference to the main BrowserWindow
-let exampleWindow; // dedicated window for example documentation and actions
-let exampleTabRequestTimer; // debounce example tab requests
-let pendingExampleTabId = null; // last requested example tab (for late renderer init)
-// Track example window docking previews/selection so popped tabs can be dragged back.
-let exampleWindowActiveId = null;
+let exampleWindow; // dedicated window for docs and lab actions
+let exampleTabRequestTimer; // debounce docs tab requests
+let pendingDocTabRequest = null; // last requested docs tab (for late renderer init)
+// Track docs window docking previews/selection so popped tabs can be dragged back.
+let exampleWindowActiveRef = null;
 let exampleDockPreviewActive = false;
 let exampleDockMoveTimer = null;
 let exampleDockLastOverlap = false;
@@ -242,6 +244,83 @@ function buildExtensionsMenuItems() {
     return sections.length
         ? sections
         : [{ label: 'No extension documentation found', enabled: false }];
+}
+
+function getExtensionDisplayName(extensionId) {
+    const entry = extensionRuntime.inventory.find((item) => item.id === extensionId);
+    return entry ? entry.displayName : extensionId;
+}
+
+function buildCoursewareTree(entries) {
+    const root = { groups: new Map(), labs: [] };
+    for (const entry of entries) {
+        const segments = Array.isArray(entry.menuSegments) ? entry.menuSegments.filter(Boolean) : [];
+        const parents = segments.length > 1 ? segments.slice(0, -1) : [];
+        let node = root;
+        for (const segment of parents) {
+            if (!node.groups.has(segment)) node.groups.set(segment, { groups: new Map(), labs: [] });
+            node = node.groups.get(segment);
+        }
+        node.labs.push(entry);
+    }
+
+    const toMenu = (node) => {
+        const items = [];
+        const groupLabels = Array.from(node.groups.keys()).sort((a, b) => a.localeCompare(b));
+        for (const label of groupLabels) {
+            items.push({
+                label,
+                submenu: toMenu(node.groups.get(label)),
+            });
+        }
+        node.labs
+            .slice()
+            .sort((left, right) => {
+                if (left.order !== right.order) return left.order - right.order;
+                return left.title.localeCompare(right.title);
+            })
+            .forEach((entry) => {
+                items.push({
+                    label: entry.title,
+                    click: () => openCoursewareTab(entry.id),
+                });
+            });
+        return items;
+    };
+
+    return toMenu(root);
+}
+
+function buildCoursewareMenuItems() {
+    try {
+        const entries = Array.isArray(extensionRuntime.bootstrap.courseware)
+            ? extensionRuntime.bootstrap.courseware.slice()
+            : [];
+        if (!entries.length) return [{ label: 'No courseware found', enabled: false }];
+
+        const grouped = new Map();
+        for (const entry of entries) {
+            if (!entry || !entry.id || !entry.extensionId) continue;
+            if (!grouped.has(entry.extensionId)) grouped.set(entry.extensionId, []);
+            grouped.get(entry.extensionId).push(entry);
+        }
+
+        const extensionIds = Array.from(grouped.keys());
+        if (extensionIds.length === 1) {
+            return buildCoursewareTree(grouped.get(extensionIds[0]));
+        }
+
+        const sections = [];
+        for (const extensionId of extensionIds) {
+            if (sections.length) sections.push({ type: 'separator' });
+            sections.push({ label: getExtensionDisplayName(extensionId), enabled: false });
+            sections.push(...buildCoursewareTree(grouped.get(extensionId)));
+        }
+        return sections.length ? sections : [{ label: 'No courseware found', enabled: false }];
+    } catch (err) {
+        console.warn(`Failed to build Courseware menu:`, err?.message || err);
+        return [{ label: 'No courseware found', enabled: false }];
+    }
 }
 
 // Renderer-facing docs helpers (used by tabs / example viewer).
@@ -437,6 +516,7 @@ ipcMain.handle('extensions-manager-disable', (_event, { id } = {}) => {
 
 function setAppMenu() {
     const extensionsMenu = buildExtensionsMenuItems();
+    const coursewareMenu = buildCoursewareMenuItems();
     const template = [
         {
             label: 'File',
@@ -502,6 +582,10 @@ function setAppMenu() {
                     }
                 }
             ]
+        },
+        {
+            label: 'Courseware',
+            submenu: coursewareMenu
         },
         {
             label: 'Extensions',
@@ -893,42 +977,109 @@ function createWindow() {
         });
 }
 
-// Route examples to the in-app tab strip when available.
-function openExampleTab(exampleId) {
-    pendingExampleTabId = exampleId;
+function normalizeDocRequest(kindOrPayload, id) {
+    let payload = kindOrPayload;
+    if (typeof payload === 'string') {
+        payload = { kind: kindOrPayload, id };
+    }
+    if (!payload || typeof payload !== 'object') return null;
+    const kindValue = String(payload.kind || '').trim().toLowerCase();
+    const idValue = String(payload.id || '').trim();
+    if (!kindValue || !idValue) return null;
+    if (!['example', 'courseware'].includes(kindValue)) return null;
+    return { kind: kindValue, id: idValue };
+}
+
+function emitDocTabOpen(targetWindow, payload) {
+    if (!targetWindow || !targetWindow.webContents || !payload) return;
+    targetWindow.webContents.send('open-doc-tab', payload);
+    if (payload.kind === 'example') {
+        targetWindow.webContents.send('open-example-tab', { id: payload.id });
+    }
+}
+
+function emitDocSelect(targetWindow, payload) {
+    if (!targetWindow || !targetWindow.webContents || !payload) return;
+    targetWindow.webContents.send('doc-select', payload);
+    if (payload.kind === 'example') {
+        targetWindow.webContents.send('example-select', { id: payload.id });
+    }
+}
+
+function emitDockPreview(targetWindow, payload) {
+    if (!targetWindow || !targetWindow.webContents) return;
+    targetWindow.webContents.send('doc-dock-preview', payload);
+    if (payload && payload.kind === 'example') {
+        targetWindow.webContents.send('example-dock-preview', {
+            id: payload.id,
+            active: payload.active,
+        });
+    } else if (payload && payload.active === false) {
+        targetWindow.webContents.send('example-dock-preview', { id: null, active: false });
+    }
+}
+
+function openDocTab(kindOrPayload, id) {
+    const payload = normalizeDocRequest(kindOrPayload, id);
+    if (!payload) return;
+    pendingDocTabRequest = payload;
     if (mainWindow && mainWindow.webContents) {
         try {
             clearTimeout(exampleTabRequestTimer);
             exampleTabRequestTimer = setTimeout(() => {
-                mainWindow.webContents.send('open-example-tab', { id: exampleId });
+                emitDocTabOpen(mainWindow, payload);
             }, 0);
             return;
         } catch {
             // Fall back to a dedicated window if the tab IPC fails.
         }
     }
-    openExampleWindow(exampleId);
+    openExampleWindow(payload);
 }
 
-// Allow renderer to fetch any pending example tab request.
+function openExampleTab(exampleId) {
+    openDocTab('example', exampleId);
+}
+
+function openCoursewareTab(coursewareId) {
+    openDocTab('courseware', coursewareId);
+}
+
+ipcMain.on('open-doc-tab', (_event, payload) => {
+    openDocTab(payload);
+});
+
+ipcMain.on('open-example-tab', (_event, { id } = {}) => {
+    openExampleTab(id);
+});
+
+ipcMain.handle('get-pending-doc-tab', () => {
+    const pending = pendingDocTabRequest ? { ...pendingDocTabRequest } : null;
+    pendingDocTabRequest = null;
+    return pending;
+});
+
 ipcMain.handle('get-pending-example-tab', () => {
-    const id = pendingExampleTabId;
-    pendingExampleTabId = null;
+    if (!pendingDocTabRequest || pendingDocTabRequest.kind !== 'example') return null;
+    const id = pendingDocTabRequest.id;
+    pendingDocTabRequest = null;
     return id;
 });
 
-// Standalone examples window for offline markdown docs and example actions.
-function openExampleWindow(exampleId) {
+// Standalone docs window for offline markdown docs and lab actions.
+function openExampleWindow(kindOrPayload, maybeId) {
+    const payload = normalizeDocRequest(kindOrPayload, maybeId);
+    if (!payload) return;
     if (exampleWindow) {
         exampleWindow.focus();
-        exampleWindow.webContents.send('example-select', { id: exampleId });
+        emitDocSelect(exampleWindow, payload);
         return;
     }
-    exampleWindowActiveId = exampleId || null;
+    exampleWindowActiveRef = payload;
     exampleWindow = new BrowserWindow({
         width: 1100,
         height: 800,
-        title: 'Modular Examples',
+        title: 'Modular Docs',
         icon: path.join(__dirname, 'assets', 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -938,7 +1089,7 @@ function openExampleWindow(exampleId) {
         }
     });
     exampleWindow.loadFile(path.join(__dirname, 'dashboard', 'examples', 'example_viewer.html'), {
-        query: { id: exampleId || '' }
+        query: { kind: payload.kind, id: payload.id }
     });
     // Watch for window moves to show a dock preview and pop the tab back in on release.
     const updateDockPreview = () => {
@@ -950,12 +1101,13 @@ function openExampleWindow(exampleId) {
         const overlapArea = overlapX * overlapY;
         const exampleArea = eb.width * eb.height || 1;
         const overlapRatio = overlapArea / exampleArea;
-        const shouldPreview = overlapRatio >= 0.2 && Boolean(exampleWindowActiveId);
+        const shouldPreview = overlapRatio >= 0.2 && Boolean(exampleWindowActiveRef && exampleWindowActiveRef.id);
         if (shouldPreview !== exampleDockPreviewActive || exampleDockLastOverlap !== shouldPreview) {
             exampleDockPreviewActive = shouldPreview;
             exampleDockLastOverlap = shouldPreview;
-            mainWindow.webContents.send('example-dock-preview', {
-                id: exampleWindowActiveId,
+            emitDockPreview(mainWindow, {
+                kind: exampleWindowActiveRef ? exampleWindowActiveRef.kind : null,
+                id: exampleWindowActiveRef ? exampleWindowActiveRef.id : null,
                 active: shouldPreview
             });
         }
@@ -964,16 +1116,17 @@ function openExampleWindow(exampleId) {
         clearTimeout(exampleDockMoveTimer);
         exampleDockMoveTimer = setTimeout(() => {
             if (!exampleWindow || !mainWindow) return;
-            if (!exampleDockLastOverlap || !exampleWindowActiveId) return;
+            if (!exampleDockLastOverlap || !exampleWindowActiveRef || !exampleWindowActiveRef.id) return;
             if (exampleDockingInProgress) return;
             exampleDockingInProgress = true;
             try {
                 if (mainWindow && mainWindow.webContents) {
-                    mainWindow.webContents.send('example-dock-preview', {
-                        id: exampleWindowActiveId,
+                    emitDockPreview(mainWindow, {
+                        kind: exampleWindowActiveRef.kind,
+                        id: exampleWindowActiveRef.id,
                         active: false
                     });
-                    mainWindow.webContents.send('open-example-tab', { id: exampleWindowActiveId });
+                    emitDocTabOpen(mainWindow, exampleWindowActiveRef);
                 }
                 if (exampleWindow) exampleWindow.close();
             } finally {
@@ -986,28 +1139,46 @@ function openExampleWindow(exampleId) {
         tryDockOnRelease();
     });
     exampleWindow.on('closed', () => {
-        exampleWindowActiveId = null;
+        exampleWindowActiveRef = null;
         exampleDockPreviewActive = false;
         exampleDockLastOverlap = false;
         clearTimeout(exampleDockMoveTimer);
         if (mainWindow && mainWindow.webContents) {
-            mainWindow.webContents.send('example-dock-preview', { id: null, active: false });
+            emitDockPreview(mainWindow, { kind: null, id: null, active: false });
         }
         exampleWindow = null;
     });
 }
 
-// Allow renderer tabs to be popped out into a dedicated examples window.
-ipcMain.on('undock-doc-tab', (_event, { id } = {}) => {
-    if (id) openExampleWindow(id);
+// Allow renderer tabs to be popped out into a dedicated docs window.
+ipcMain.on('undock-doc-tab', (_event, payload = {}) => {
+    const request = normalizeDocRequest(payload.kind || 'example', payload.id);
+    if (request) openExampleWindow(request);
 });
-// Keep main process updated with the example window's active selection for docking.
-ipcMain.on('example-active-id', (_event, { id } = {}) => {
-    exampleWindowActiveId = id || null;
+// Keep main process updated with the docs window's active selection for docking.
+ipcMain.on('doc-active-ref', (_event, payload) => {
+    const request = normalizeDocRequest(payload);
+    exampleWindowActiveRef = request;
     if (exampleDockPreviewActive && mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('example-dock-preview', {
-            id: exampleWindowActiveId,
-            active: !!exampleWindowActiveId
+        emitDockPreview(mainWindow, {
+            kind: request ? request.kind : null,
+            id: request ? request.id : null,
+            active: !!(request && request.id)
+        });
+    }
+});
+
+ipcMain.on('example-active-id', (_event, { id } = {}) => {
+    if (!id) {
+        exampleWindowActiveRef = null;
+        return;
+    }
+    exampleWindowActiveRef = { kind: 'example', id: String(id) };
+    if (exampleDockPreviewActive && mainWindow && mainWindow.webContents) {
+        emitDockPreview(mainWindow, {
+            kind: 'example',
+            id: String(id),
+            active: true
         });
     }
 });
@@ -1602,4 +1773,3 @@ ipcMain.handle('is-serial-port-open', async (_event, { path }) => {
     const port = openPorts.get(path);
     return port ? port.isOpen : false;
 });
-

@@ -1,0 +1,8 @@
+{
+  "title": "Valid Lab",
+  "markdown": "README.md",
+  "dashboard": "dashboard.json",
+  "binary": "firmware.bin",
+  "figuresDir": "figures",
+  "order": 5
+}

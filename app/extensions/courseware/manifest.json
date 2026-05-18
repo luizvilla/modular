@@ -1,0 +1,18 @@
+{
+  "id": "courseware",
+  "apiVersion": 1,
+  "version": "0.9.3",
+  "displayName": "CourseWare",
+  "enabledByDefault": true,
+  "mainEntry": "main.js",
+  "capabilities": [
+    "courseware",
+    "labs",
+    "docs"
+  ],
+  "coursewareRoots": [
+    {
+      "path": "extensions/courseware/labs"
+    }
+  ]
+}

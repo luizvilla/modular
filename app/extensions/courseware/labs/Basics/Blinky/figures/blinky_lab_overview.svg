@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320">
+  <rect width="960" height="320" fill="#0f1720"/>
+  <rect x="40" y="60" width="240" height="200" rx="18" fill="#1e293b" stroke="#60a5fa" stroke-width="3"/>
+  <rect x="360" y="60" width="240" height="200" rx="18" fill="#1f3b2b" stroke="#34d399" stroke-width="3"/>
+  <rect x="680" y="60" width="240" height="200" rx="18" fill="#3b1f2f" stroke="#f472b6" stroke-width="3"/>
+  <text x="160" y="120" fill="#e2e8f0" font-size="32" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Connect</text>
+  <text x="160" y="170" fill="#94a3b8" font-size="20" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Board + USB</text>
+  <text x="480" y="120" fill="#e2e8f0" font-size="32" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Load</text>
+  <text x="480" y="170" fill="#94a3b8" font-size="20" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Matching dashboard</text>
+  <text x="800" y="120" fill="#e2e8f0" font-size="32" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Flash</text>
+  <text x="800" y="170" fill="#94a3b8" font-size="20" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Lab binary</text>
+  <path d="M280 160H360" stroke="#cbd5e1" stroke-width="6" marker-end="url(#arrow)"/>
+  <path d="M600 160H680" stroke="#cbd5e1" stroke-width="6" marker-end="url(#arrow)"/>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#cbd5e1"/>
+    </marker>
+  </defs>
+</svg>

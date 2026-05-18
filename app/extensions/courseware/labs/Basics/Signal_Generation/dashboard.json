@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "panes": [
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "time_plot_uplot",
+          "settings": {
+            "title": "signal_generation Plot",
+            "refreshRate": 100,
+            "duration": 20000,
+            "showLegend": true,
+            "yLabel": "Value",
+            "helperWidgets": "none",
+            "seriesDefs": [
+              {
+                "label": "Channel 1",
+                "op": "identity",
+                "param": 0,
+                "a": {
+                  "ds": "Serial",
+                  "type": "serialport_datasource",
+                  "device": null,
+                  "device_uid": null,
+                  "var": 0
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 5
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "uplot_config_panel",
+          "settings": {
+            "title": "Plot UI controller"
+          }
+        },
+        {
+          "type": "uplot_series_manager",
+          "settings": {
+            "title": "Plot Series Manager"
+          }
+        }
+      ]
+    },
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 3
+      },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "serial_terminal",
+          "settings": {
+            "title": "Serial Port",
+            "datasourceName": "Serial",
+            "refresh": 250,
+            "maxLines": 200,
+            "autoScroll": true,
+            "colorize": true
+          }
+        },
+        {
+          "type": "serial_command_buttons",
+          "settings": {
+            "buttons": [],
+            "layout": "vertical",
+            "datasource": "Serial"
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [
+    {
+      "name": "Serial",
+      "type": "serialport_datasource",
+      "settings": {
+        "portPath": "",
+        "baudRate": 115200,
+        "separator": ":",
+        "eol": "\\n",
+        "refresh": 250,
+        "paused": true
+      }
+    }
+  ],
+  "columns": 3
+}

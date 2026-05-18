@@ -52,11 +52,33 @@
         return [{ path: docsRoot, dashboardRoot: dashboardPathRoot, firmwareRoot: firmwarePathRoot }];
     }
 
+    function normalizeDocRequest(payload) {
+        if (!payload || typeof payload !== 'object') return null;
+        const kind = String(payload.kind || '').trim().toLowerCase() || 'example';
+        const id = String(payload.id || '').trim();
+        if (!id) return null;
+        if (!['example', 'courseware'].includes(kind)) return null;
+        return { kind, id };
+    }
+
+    function humanizeSegment(segment) {
+        return String(segment || '')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, (match) => match.toUpperCase());
+    }
+
+    function docKindLabel(kind) {
+        return kind === 'courseware' ? 'Courseware' : 'Example';
+    }
+
     const statusBar = document.getElementById('status-bar');
     const titleEl = document.getElementById('example-title');
     const subtitleEl = document.getElementById('example-subtitle');
     const docContent = document.getElementById('doc-content');
     const exampleSelect = document.getElementById('example-select');
+    const pickerLabel = document.querySelector('.example-picker label');
     const portSelect = document.getElementById('port-select');
     const loadDashboardBtn = document.getElementById('load-dashboard-btn');
     const uploadFirmwareBtn = document.getElementById('upload-firmware-btn');
@@ -69,20 +91,39 @@
 
     // Examples are discovered from app/dashboard/docs/examples at runtime.
     const examplesById = new Map();
+    const coursewareById = new Map();
 
-    let currentExample = null;
+    let currentDocRequest = null;
+    let currentItem = null;
     let isUploading = false;
     let uploadCanceled = false;
     let uploadFailed = false;
     let lastProgress = 0;
 
-    // Notify the main process which example is active so it can dock correctly.
-    function notifyActiveExample() {
-        if (currentExample) {
-            if (examplesApi && examplesApi.setActiveExampleId) {
-                examplesApi.setActiveExampleId(currentExample.id);
+    function getDocMap(kind) {
+        return kind === 'courseware' ? coursewareById : examplesById;
+    }
+
+    function getDocItem(kind, id) {
+        return getDocMap(kind).get(id) || null;
+    }
+
+    function setActionLabels(kind) {
+        const label = docKindLabel(kind);
+        if (pickerLabel) pickerLabel.textContent = label;
+        loadDashboardBtn.textContent = `Load ${label.toLowerCase()} dashboard`;
+        if (!isUploading) uploadFirmwareBtn.textContent = `Upload ${label.toLowerCase()} to target`;
+    }
+
+    // Notify the main process which doc is active so it can dock correctly.
+    function notifyActiveDoc() {
+        if (currentDocRequest) {
+            if (docsApi && docsApi.setActiveTab) {
+                docsApi.setActiveTab(currentDocRequest);
+            } else if (examplesApi && currentDocRequest.kind === 'example' && examplesApi.setActiveExampleId) {
+                examplesApi.setActiveExampleId(currentDocRequest.id);
             } else if (ipcRenderer) {
-                ipcRenderer.send('example-active-id', { id: currentExample.id });
+                ipcRenderer.send('doc-active-ref', currentDocRequest);
             }
         }
     }
@@ -144,7 +185,12 @@
     function updateUploadButton() {
         if (!uploadFirmwareBtn) return;
         uploadFirmwareBtn.disabled = false;
-        uploadFirmwareBtn.textContent = isUploading ? 'Cancel upload' : 'Upload example to target';
+        if (isUploading) {
+            uploadFirmwareBtn.textContent = 'Cancel upload';
+            return;
+        }
+        const kind = currentDocRequest ? currentDocRequest.kind : 'example';
+        uploadFirmwareBtn.textContent = `Upload ${docKindLabel(kind).toLowerCase()} to target`;
     }
 
     async function cancelUpload() {
@@ -475,11 +521,14 @@
             const category = parts.slice(1, -1).join(' / ');
             const subtitle = board ? (category ? `${board} - ${category}` : board) : '';
             const label = parts.length ? parts.join(' / ') : leaf;
-            const example = {
+            examplesById.set(id, {
                 id,
+                kind: 'example',
                 title: leaf,
                 subtitle,
                 label,
+                menuRoot: parts[0] || 'Examples',
+                menuLabel: parts.slice(1).join(' / ') || leaf,
                 docPath: entry.docPath,
                 dashboardPath: (paths && paths.join
                     ? paths.join(entry.root.dashboardRoot || '', leaf, `${leaf}.json`)
@@ -487,40 +536,72 @@
                 firmwarePath: (paths && paths.join
                     ? paths.join(entry.root.firmwareRoot || '', leaf, `${leaf}.mcuboot.bin`)
                     : path.join(entry.root.firmwareRoot || '', leaf, `${leaf}.mcuboot.bin`))
-            };
-            examplesById.set(id, example);
+            });
         }
         return examplesById;
     }
 
-    function populateExampleSelect() {
-        exampleSelect.innerHTML = '';
-        for (const ex of examplesById.values()) {
-            const opt = document.createElement('option');
-            opt.value = ex.id;
-            opt.textContent = ex.label;
-            exampleSelect.appendChild(opt);
-        }
+    async function loadCoursewareIndex() {
+        coursewareById.clear();
+        const bootstrap = await getExtensionBootstrap();
+        const entries = bootstrap && Array.isArray(bootstrap.courseware) ? bootstrap.courseware : [];
+        entries.forEach((entry) => {
+            if (!entry || !entry.id || !entry.markdownPath || !entry.dashboardPath || !entry.binaryPath) return;
+            const segments = Array.isArray(entry.menuSegments) && entry.menuSegments.length
+                ? entry.menuSegments.slice()
+                : entry.id.split('/').filter(Boolean).map(humanizeSegment);
+            const root = segments[0] || 'Courseware';
+            const trail = segments.slice(1, -1);
+            const menuLabel = trail.length ? `${trail.join(' / ')} / ${entry.title}` : entry.title;
+            const subtitle = trail.length ? `${root} - ${trail.join(' / ')}` : root;
+            const label = trail.length ? `${root} / ${trail.join(' / ')} / ${entry.title}` : `${root} / ${entry.title}`;
+            coursewareById.set(entry.id, {
+                id: entry.id,
+                kind: 'courseware',
+                title: entry.title,
+                subtitle,
+                label,
+                menuRoot: root,
+                menuLabel,
+                docPath: entry.markdownPath,
+                dashboardPath: entry.dashboardPath,
+                firmwarePath: entry.binaryPath,
+            });
+        });
+        return coursewareById;
     }
 
-    async function loadExample(exampleId) {
-        const example = examplesById.get(exampleId) || null;
-        if (!example) {
-            setStatus('Example not found.');
-            docContent.innerHTML = '<p>Example configuration missing.</p>';
+    function populateDocSelect(kind) {
+        exampleSelect.innerHTML = '';
+        for (const item of getDocMap(kind).values()) {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.label;
+            exampleSelect.appendChild(opt);
+        }
+        setActionLabels(kind);
+    }
+
+    async function loadDocItem(kind, itemId) {
+        const item = getDocItem(kind, itemId) || null;
+        if (!item) {
+            setStatus(`${docKindLabel(kind)} not found.`);
+            docContent.innerHTML = '<p>Documentation configuration missing.</p>';
             return;
         }
-        currentExample = example;
-        titleEl.textContent = example.title;
-        subtitleEl.textContent = example.subtitle || '';
-        notifyActiveExample();
+        currentDocRequest = { kind, id: itemId };
+        currentItem = item;
+        titleEl.textContent = item.title;
+        subtitleEl.textContent = item.subtitle || '';
+        setActionLabels(kind);
+        notifyActiveDoc();
         setStatus('Loading documentation...');
 
         try {
             const markdown = docsApi && docsApi.readMarkdown
-                ? await docsApi.readMarkdown(example.docPath)
-                : await fs.promises.readFile(example.docPath, 'utf8');
-            const baseDir = paths && paths.dirname ? paths.dirname(example.docPath) : path.dirname(example.docPath);
+                ? await docsApi.readMarkdown(item.docPath)
+                : await fs.promises.readFile(item.docPath, 'utf8');
+            const baseDir = paths && paths.dirname ? paths.dirname(item.docPath) : path.dirname(item.docPath);
             await renderMarkdownInto(docContent, markdown, baseDir);
             setStatus('Ready.');
         } catch (err) {
@@ -554,12 +635,12 @@
     }
 
     async function loadDashboard() {
-        if (!currentExample) return;
+        if (!currentItem) return;
         setStatus('Loading dashboard in main window...');
         const res = dashboardApi && dashboardApi.loadDashboardFromPath
-            ? await dashboardApi.loadDashboardFromPath(currentExample.dashboardPath)
+            ? await dashboardApi.loadDashboardFromPath(currentItem.dashboardPath)
             : await ipcRenderer.invoke('load-dashboard-from-path', {
-                dashboardPath: currentExample.dashboardPath
+                dashboardPath: currentItem.dashboardPath
             });
         if (res && res.ok) {
             setStatus('Dashboard loaded.');
@@ -573,7 +654,7 @@
             await cancelUpload();
             return;
         }
-        if (!currentExample) return;
+        if (!currentItem) return;
         const port = portSelect.value;
         if (!port) {
             setStatus('Select a target port before uploading.');
@@ -591,11 +672,11 @@
 
         try {
             if (flashApi && flashApi.startFlash) {
-                await flashApi.startFlash({ comPort: port, firmwarePath: currentExample.firmwarePath });
+                await flashApi.startFlash({ comPort: port, firmwarePath: currentItem.firmwarePath });
             } else {
                 await ipcRenderer.invoke('start-flash', {
                     comPort: port,
-                    firmwarePath: currentExample.firmwarePath
+                    firmwarePath: currentItem.firmwarePath
                 });
             }
         } catch (err) {
@@ -670,18 +751,29 @@
         });
     }
 
+    if (docsApi && docsApi.onSelect) {
+        docsApi.onSelect((payload = {}) => {
+            const request = normalizeDocRequest(payload);
+            if (!request || !getDocMap(request.kind).has(request.id)) return;
+            populateDocSelect(request.kind);
+            exampleSelect.value = request.id;
+            loadDocItem(request.kind, request.id);
+        });
+    }
     if (examplesApi && examplesApi.onExampleSelect) {
         examplesApi.onExampleSelect(({ id } = {}) => {
             if (id && examplesById.has(id)) {
+                populateDocSelect('example');
                 exampleSelect.value = id;
-                loadExample(id);
+                loadDocItem('example', id);
             }
         });
     } else if (ipcRenderer) {
         ipcRenderer.on('example-select', (_event, { id }) => {
             if (id && examplesById.has(id)) {
+                populateDocSelect('example');
                 exampleSelect.value = id;
-                loadExample(id);
+                loadDocItem('example', id);
             }
         });
     }
@@ -691,25 +783,28 @@
     refreshPortsBtn.addEventListener('click', refreshPorts);
     exampleSelect.addEventListener('change', () => {
         const id = exampleSelect.value;
-        if (id) loadExample(id);
+        const kind = currentDocRequest ? currentDocRequest.kind : 'example';
+        if (id) loadDocItem(kind, id);
     });
 
     const urlParams = new URLSearchParams(window.location.search);
     const requestedId = urlParams.get('id');
+    const requestedKind = String(urlParams.get('kind') || 'example').toLowerCase();
     resetProgress();
     updateUploadButton();
     refreshPorts();
-    loadExamplesIndex().then(() => {
-        populateExampleSelect();
+    Promise.all([loadExamplesIndex(), loadCoursewareIndex()]).then(() => {
+        const initialKind = requestedKind === 'courseware' ? 'courseware' : 'example';
+        populateDocSelect(initialKind);
         const first = exampleSelect.options.length ? exampleSelect.options[0].value : null;
-        const initialId = (requestedId && examplesById.has(requestedId)) ? requestedId : first;
+        const initialId = (requestedId && getDocMap(initialKind).has(requestedId)) ? requestedId : first;
         if (initialId) {
             exampleSelect.value = initialId;
-            loadExample(initialId);
-            notifyActiveExample();
+            loadDocItem(initialKind, initialId);
+            notifyActiveDoc();
         } else {
-            setStatus('No examples found.');
-            docContent.innerHTML = '<p>No examples found in dashboard/docs/examples.</p>';
+            setStatus(`No ${docKindLabel(initialKind).toLowerCase()} found.`);
+            docContent.innerHTML = `<p>No ${docKindLabel(initialKind).toLowerCase()} found.</p>`;
         }
     });
 })();
