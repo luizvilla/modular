@@ -779,6 +779,48 @@ body.pane-resize-active .pane-resize-handle {
   margin-inline: auto;
 }
 
+.gauge-offset-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #9aa0a6;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.gauge-offset-btn {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: #9aa0a6;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 120ms, color 120ms;
+}
+
+.gauge-offset-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e5e7eb;
+}
+
+.gauge-offset-btn:active {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.gauge-offset-value {
+  opacity: 0.65;
+}
+
 /* Tidy pane/widget tool buttons */
 .pane-tools,
 .sub-section-tools {

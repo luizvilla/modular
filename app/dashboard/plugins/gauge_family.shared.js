@@ -41,7 +41,8 @@
                 colorPalette: 'ColorBlind10',
                 barColor: 'blue',
                 alarmEnabled: false,
-                alarmDirection: 'above'
+                alarmDirection: 'above',
+                offsetStep: 1
             }
         },
         horizontal_gauge: {
@@ -64,7 +65,8 @@
                 alarmDirection: 'above',
                 compactMode: false,
                 labelPosition: 'top',
-                fillDirection: 'ltr'
+                fillDirection: 'ltr',
+                offsetStep: 1
             }
         },
         radial_arc_gauge: {
@@ -87,7 +89,8 @@
                 alarmDirection: 'above',
                 sweepAngle: 180,
                 startAnglePreset: 'left',
-                valueSize: 'big'
+                valueSize: 'big',
+                offsetStep: 1
             }
         },
         radial_needle_gauge: {
@@ -112,7 +115,8 @@
                 startAnglePreset: 'left',
                 valueSize: 'big',
                 needleStyle: 'classic',
-                showHub: true
+                showHub: true,
+                offsetStep: 1
             }
         },
         donut_gauge: {
@@ -134,7 +138,8 @@
                 alarmEnabled: false,
                 alarmDirection: 'above',
                 ringThickness: 'medium',
-                valueSize: 'big'
+                valueSize: 'big',
+                offsetStep: 1
             }
         }
     };
@@ -181,6 +186,10 @@
         merged.colorPalette = merged.colorPalette || defaults.colorPalette || 'ColorBlind10';
         merged.warningThreshold = parseFiniteOrUndefined(merged.warningThreshold);
         merged.criticalThreshold = parseFiniteOrUndefined(merged.criticalThreshold);
+        merged.offsetStep = parseNumber(merged.offsetStep, 1);
+        if (merged.offsetStep <= 0) merged.offsetStep = 1;
+        merged.sourceOp = merged.sourceOp || 'identity';
+        merged.sourceParam = parseNumber(merged.sourceParam, 0);
         return merged;
     }
 
@@ -626,10 +635,29 @@
             this.valueEl = $('<div class="gauge-family__value"></div>');
             this.timer = null;
             this.currentValue = null;
+            this._rawValue = null;
+            this._runtimeOffset = 0;
             this._summaryRequestId = 0;
             this.renderer = RENDERERS[this.family] || RENDERERS.vertical;
             this.normalizedSettings = normalizeSettings(type, settings);
             this._built = false;
+
+            this.offsetDecrBtn = $('<button class="gauge-offset-btn" type="button">−</button>');
+            this.offsetIncrBtn = $('<button class="gauge-offset-btn" type="button">+</button>');
+            this.offsetValueEl = $('<span class="gauge-offset-value">0</span>');
+            this.offsetControlEl = $('<div class="gauge-offset-control"></div>')
+                .append(this.offsetDecrBtn, $('<span>offset </span>'), this.offsetValueEl, this.offsetIncrBtn);
+
+            this.offsetDecrBtn.on('click', () => {
+                const step = this.normalizedSettings.offsetStep || 1;
+                this._runtimeOffset = parseFloat((this._runtimeOffset - step).toFixed(10));
+                this._onOffsetChanged();
+            });
+            this.offsetIncrBtn.on('click', () => {
+                const step = this.normalizedSettings.offsetStep || 1;
+                this._runtimeOffset = parseFloat((this._runtimeOffset + step).toFixed(10));
+                this._onOffsetChanged();
+            });
         }
 
         render(el) {
@@ -639,6 +667,7 @@
                 this.container.addClass(`gauge-family--${this.family}`);
                 this.container.append(this.titleEl, this.summaryEl, this.bodyEl);
                 this.renderer.build(this);
+                this.container.append(this.offsetControlEl);
                 host.append(this.container);
                 this._built = true;
             } else {
@@ -718,16 +747,52 @@
             const sourceDef = this._getSourceDef();
             if (!sourceDef || !sourceDef.ds) return;
             try {
-                const value = await this._readInstantValue(sourceDef);
+                const op = this.normalizedSettings.sourceOp || 'identity';
+                let value;
+                if (op === 'mulvar') {
+                    const sourceBDef = this._getSourceBDef();
+                    if (sourceBDef && sourceBDef.ds) {
+                        const yA = await this._readInstantValue(sourceDef);
+                        const yB = await this._readInstantValue(sourceBDef);
+                        if (yA != null && yB != null) value = yA * yB;
+                    }
+                } else {
+                    const raw = await this._readInstantValue(sourceDef);
+                    value = this._applySourceOp(op, this.normalizedSettings.sourceParam, raw);
+                }
                 if (value != null && Number.isFinite(value)) this._updateValue(value);
             } catch {}
         }
 
+        _applySourceOp(op, param, value) {
+            const v = Number(value);
+            if (!isFinite(v)) return null;
+            switch (op) {
+                case 'negate': return -v;
+                case 'abs': return Math.abs(v);
+                case 'scale': return v * (Number(param) || 0);
+                case 'offset': return v + (Number(param) || 0);
+                default: return v;
+            }
+        }
+
+        _getSourceBDef() {
+            return parseSourceDef(this.settings.sourceBDef);
+        }
+
         _updateValue(value) {
-            this.currentValue = value;
-            this.renderer.updateValue(this, value);
-            this._applyValueDisplay(value);
-            this._applyAlarmState(value);
+            this._rawValue = value;
+            const adjusted = value + this._runtimeOffset;
+            this.currentValue = adjusted;
+            this.renderer.updateValue(this, adjusted);
+            this._applyValueDisplay(adjusted);
+            this._applyAlarmState(adjusted);
+        }
+
+        _onOffsetChanged() {
+            const v = this._runtimeOffset;
+            this.offsetValueEl.text(v === 0 ? '0' : (v > 0 ? '+' : '') + (Math.round(v * 100) / 100));
+            if (this._rawValue != null) this._updateValue(this._rawValue);
         }
 
         _applyAlarmState(value) {

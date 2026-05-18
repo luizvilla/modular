@@ -202,11 +202,11 @@
         card.append($('<h4 class="small text-uppercase text-muted mb-0"></h4>').text(title));
         const source = buildSourceControls(shared, 'Datasource', normalized);
         const opField = createSelectRow('Transform', [
-            { value: 'identity', label: 'x' },
-            { value: 'negate', label: '-x' },
-            { value: 'abs', label: 'abs(x)' },
-            { value: 'scale', label: 'x * k' },
-            { value: 'offset', label: 'x + b' }
+            { value: 'identity', label: 'x  (signal x value)' },
+            { value: 'negate', label: '-x  (signal x inverse value)' },
+            { value: 'abs', label: 'abs(x)  (signal x absolute value)' },
+            { value: 'scale', label: 'x * k  (signal x times a constant k)' },
+            { value: 'offset', label: 'x + b  (signal x plus a constant b)' }
         ], normalized.op || 'identity');
         const paramField = createInputRow('Parameter', 'number', normalized.param || 0, 'k or b');
 
@@ -271,11 +271,11 @@
 
         const addLabelField = createInputRow('Label', 'text', '', 'Optional channel label');
         const addOpField = createSelectRow('Operation', [
-            { value: 'identity', label: 'x' },
-            { value: 'negate', label: '-x' },
-            { value: 'abs', label: 'abs(x)' },
-            { value: 'scale', label: 'x * k' },
-            { value: 'offset', label: 'x + b' }
+            { value: 'identity', label: 'x  (signal x value)' },
+            { value: 'negate', label: '-x  (signal x inverse value)' },
+            { value: 'abs', label: 'abs(x)  (signal x absolute value)' },
+            { value: 'scale', label: 'x * k  (signal x times a constant k)' },
+            { value: 'offset', label: 'x + b  (signal x plus a constant b)' }
         ], 'identity');
         const addParamField = createInputRow('Parameter', 'number', 0, 'k or b');
         addParamField.row.hide();
@@ -709,7 +709,30 @@
 
         const sourceSection = createSection('Source');
         const sourceControls = buildSourceControls(shared, 'Datasource', settings.sourceDef);
-        sourceSection.append(sourceControls.wrapper);
+        const opField = createSelectRow('Operation', [
+            { value: 'identity', label: 'x  (signal x value)' },
+            { value: 'negate', label: '-x  (signal x inverse value)' },
+            { value: 'abs', label: 'abs(x)  (signal x absolute value)' },
+            { value: 'scale', label: 'x * k  (signal x times a constant k)' },
+            { value: 'offset', label: 'x + b  (signal x plus a constant b)' },
+            { value: 'mulvar', label: 'x * y  (signal x times a signal y)' }
+        ], settings.sourceOp || 'identity');
+        const paramField = createInputRow('Parameter', 'number', settings.sourceParam ?? 0, 'k or b');
+        const sourceBControls = buildSourceControls(shared, 'Source B', settings.sourceBDef);
+        const sourceBWrapper = $('<div class="d-flex flex-column gap-2"></div>').append(
+            $('<div class="small text-muted mt-1">Second source (y)</div>'),
+            sourceBControls.wrapper
+        );
+
+        function syncGaugeOpVisibility() {
+            const op = opField.select.val() || 'identity';
+            paramField.row.toggle(op === 'scale' || op === 'offset');
+            sourceBWrapper.toggle(op === 'mulvar');
+        }
+        opField.select.on('change', syncGaugeOpVisibility);
+        syncGaugeOpVisibility();
+
+        sourceSection.append(sourceControls.wrapper, opField.row, paramField.row, sourceBWrapper);
         left.append(sourceSection);
 
         const displaySection = createSection('Display');
@@ -718,6 +741,7 @@
         const maxField = createInputRow('Maximum', 'number', settings.max ?? 100);
         const unitsField = createInputRow('Units', 'text', settings.units || '');
         const refreshField = createInputRow('Refresh Rate (ms)', 'number', settings.refreshRate ?? 500);
+        const offsetStepField = createInputRow('Offset Step', 'number', settings.offsetStep ?? 1, '1');
         const showValueField = createCheckboxRow('Show Value', settings.showValue !== false);
         const showMinMaxField = createCheckboxRow('Show Min/Max', settings.showMinMax !== false);
         displaySection.append(
@@ -726,6 +750,7 @@
             maxField.row,
             unitsField.row,
             refreshField.row,
+            offsetStepField.row,
             showValueField.row,
             showMinMaxField.row
         );
@@ -765,12 +790,14 @@
 
         new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
             const sourceDef = sourceControls.buildValue();
+            const op = opField.select.val() || 'identity';
             const updated = _.extend({}, settings, buildGaugeSpecificSettings(type, styleFields, settings), {
                 title: titleField.input.val() || settings.title || (gaugeMeta ? gaugeMeta.displayName : 'Gauge'),
                 min: shared.parseNumber(minField.input.val()) ?? 0,
                 max: shared.parseNumber(maxField.input.val()) ?? 100,
                 units: unitsField.input.val() || '',
                 refreshRate: Math.max(50, parseInt(refreshField.input.val(), 10) || 500),
+                offsetStep: Math.max(0.001, parseFloat(offsetStepField.input.val()) || 1),
                 showValue: showValueField.input.prop('checked'),
                 showMinMax: showMinMaxField.input.prop('checked'),
                 alarmEnabled: alarmEnabledField.input.prop('checked'),
@@ -779,7 +806,10 @@
                 alarmDirection: alarmDirectionField.select.val() || 'above',
                 colorPalette: paletteField.select.val() || 'ColorBlind10',
                 barColor: colorField.select.val() || 'blue',
-                sourceDef
+                sourceDef,
+                sourceOp: op,
+                sourceParam: (op === 'scale' || op === 'offset') ? (parseFloat(paramField.input.val()) || 0) : 0,
+                sourceBDef: op === 'mulvar' ? sourceBControls.buildValue() : null
             });
             delete updated.helperWidgets;
             shared.commitWidgetSettings(widgetModel, updated);

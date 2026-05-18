@@ -68,12 +68,12 @@
       const opRow = $('<div class="input-group input-group-sm plot-channel-manager"></div>');
       const opLabel = $('<span class="input-group-text">Operation</span>');
       const opSelect = $('<select class="form-select form-select-sm"></select>')
-        .append('<option value="identity">x</option>')
-        .append('<option value="negate">-x</option>')
-        .append('<option value="abs">abs(x)</option>')
-        .append('<option value="scale">x * k</option>')
-        .append('<option value="offset">x + b</option>')
-        .append('<option value="mulvar">x * y</option>');
+        .append('<option value="identity">x  (signal x value)</option>')
+        .append('<option value="negate">-x  (signal x inverse value)</option>')
+        .append('<option value="abs">abs(x)  (signal x absolute value)</option>')
+        .append('<option value="scale">x * k  (signal x times a constant k)</option>')
+        .append('<option value="offset">x + b  (signal x plus a constant b)</option>')
+        .append('<option value="mulvar">x * y  (signal x times a signal y)</option>');
       const paramInput = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="k or b">').hide();
       opSelect.on('change', () => {
         const v = opSelect.val();
