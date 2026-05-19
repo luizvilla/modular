@@ -131,13 +131,25 @@
     </script>
 </head>
 <body>
-<!-- App-level tabs live above the dashboard/header and remain visible. -->
-<div id="app-tabs" class="app-tabs">
-    <div id="tab-strip" class="tab-strip">
-        <button class="tab active" data-tab-id="dashboard" draggable="false">Dashboard</button>
-    </div>
-</div>
-
+<header id="top-bar">
+    <h1 id="board-logo" class="title bordered">modular</h1>
+    <!-- ko if: allow_edit -->
+    <ul id="board-actions" class="board-toolbar board-toolbar--header">
+        <li id="new-dashboard-btn" title="New dashboard">
+            <i class="fa-solid fa-file" aria-hidden="true"></i>
+        </li>
+        <li title="Open dashboard" data-bind="click: loadDashboardFromLocalFile">
+            <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
+        </li>
+        <li title="Save dashboard" data-bind="click: saveDashboardClicked">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+        </li>
+        <li id="add-pane" title="Add pane" data-bind="click: createPane">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </li>
+    </ul>
+    <!-- /ko -->
+</header>
 <!-- Documentation panel for example/courseware tabs (hidden until activated). -->
 <div id="doc-panel" class="doc-panel" hidden>
     <div class="doc-header">
@@ -183,84 +195,13 @@
         </ul>
     </div>
 </div>
-<header id="main-header" data-bind="if:allow_edit">
-    <div id="admin-bar">
-        <div id="admin-menu">
-            <div id="admin-brand-band">
-                <h1 id="board-logo" class="title bordered">modular</h1>
-                <div id="board-tools">
-                    <div id="board-actions">
-                        <ul class="board-toolbar board-toolbar--header">
-                            <li id="new-dashboard-btn" title="New dashboard">
-                                <i class="fa-solid fa-file" aria-hidden="true"></i>
-                            </li>
-                            <li title="Open dashboard" data-bind="click: loadDashboardFromLocalFile">
-                                <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
-                            </li>
-                            <li title="Save dashboard" data-bind="click: saveDashboardClicked">
-                                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
-                                <!-- Pretty/Minified options removed; Save uses pretty JSON by default. -->
-                            </li>
-                            <li id="add-pane" title="Add pane" data-bind="click: createPane">
-                                <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                            </li>
-                            <!-- Widget Categories moved to the app Edit menu. -->
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            <div id="admin-workspace">
-                <div id="datasources">
-                    <h2 class="title">DATASOURCES</h2>
 
-                    <div class="datasource-list-container">
-                        <table class="table table-condensed sub-table" id="datasources-list" data-bind="if: datasources().length">
-                            <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Last Updated</th>
-                                <th>&nbsp;</th>
-                            </tr>
-                            </thead>
-                            <tbody data-bind="foreach: datasources">
-                            <tr data-bind="css: { 'datasource-paused': isPaused }">
-                                <td>
-                                    <span class="text-button datasource-name" data-bind="text: name, pluginEditor: {operation: 'edit', type: 'datasource'}"></span>
-                                </td>
-                                <td data-bind="text: last_updated"></td>
-                                <td>
-                                    <ul class="board-toolbar">
-                                        <li data-bind="click: updateNow"><i class="icon-refresh icon-white"></i></li>
-                                        <!-- Pause/resume datasource -->
-                                        <li data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume datasource' : 'Pause datasource' }">
-                                            <i class="fa-solid" data-bind="css: { 'fa-pause': !isPaused(), 'fa-play': isPaused() }"></i>
-                                        </li>
-                                        <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">
-                                            <i class="icon-trash icon-white"></i></li>
-                                    </ul>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <span class="text-button table-operation" data-bind="pluginEditor: {operation: 'add', type: 'datasource'}">ADD</span>
-                </div>
-            </div>
-        </div>
+<!-- App-level tabs pinned to the bottom of the viewport. -->
+<div id="app-tabs" class="app-tabs">
+    <div id="tab-strip" class="tab-strip">
+        <button class="tab active" data-tab-id="dashboard" draggable="false">Dashboard</button>
     </div>
-	<div id="column-tools" class="responsive-column-width">
-		<ul class="board-toolbar left-columns">
-			<li class="column-tool add" data-bind="click: addGridColumnLeft"><span class="column-icon right"></span><i class="icon-arrow-left icon-white"></i></li>
-			<li class="column-tool sub" data-bind="click: subGridColumnLeft"><span class="column-icon left"></span><i class="icon-arrow-right icon-white"></i></li>
-		</ul>
-		<ul class="board-toolbar right-columns">
-			<li class="column-tool sub" data-bind="click: subGridColumnRight"><span class="column-icon right"></span><i class="icon-arrow-left icon-white"></i></li>
-			<li class="column-tool add" data-bind="click: addGridColumnRight"><span class="column-icon left"></span><i class="icon-arrow-right icon-white"></i></li>
-		</ul>
-	</div>
-    <div id="toggle-header" data-bind="click: toggleEditing">
-        <i id="toggle-header-icon" class="icon-chevron-down icon-white"></i></div>
-</header>
+</div>
 
 <div style="display:hidden">
     <ul data-bind="template: { name: 'pane-template', foreach: panes}">

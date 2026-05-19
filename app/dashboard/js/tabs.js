@@ -19,11 +19,10 @@
     const localDir = (typeof __dirname !== 'undefined') ? __dirname : null;
     let extensionBootstrapPromise = null;
 
-    function getDashboardRoot() {
-        // Runtime assets moved under app/, so resolve dashboard from app/dashboard.
-        if (paths && paths.appDir && paths.join) return paths.join(paths.appDir(), 'dashboard');
-        if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'dashboard');
-        if (localDir && path) return path.join(localDir, '..');
+    function getExampleExtensionRoot() {
+        if (paths && paths.appDir && paths.join) return paths.join(paths.appDir(), 'extensions', 'owntech-examples', 'dashboard');
+        if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'extensions', 'owntech-examples', 'dashboard');
+        if (localDir && path) return path.join(localDir, '..', '..', 'extensions', 'owntech-examples', 'dashboard');
         return null;
     }
 
@@ -42,16 +41,16 @@
         if (bootstrap && Array.isArray(bootstrap.exampleRoots) && bootstrap.exampleRoots.length) {
             return bootstrap.exampleRoots;
         }
-        const dashboardRoot = getDashboardRoot();
+        const dashboardRoot = getExampleExtensionRoot();
         const docsRoot = dashboardRoot
             ? (paths && paths.join ? paths.join(dashboardRoot, 'docs', 'examples') : path.join(dashboardRoot, 'docs', 'examples'))
-            : (path && localDir ? path.join(localDir, 'docs', 'examples') : '');
+            : '';
         const dashboardPathRoot = dashboardRoot
             ? (paths && paths.join ? paths.join(dashboardRoot, 'dashboards') : path.join(dashboardRoot, 'dashboards'))
-            : (path && localDir ? path.join(localDir, 'dashboards') : '');
+            : '';
         const firmwarePathRoot = dashboardRoot
             ? (paths && paths.join ? paths.join(dashboardRoot, 'binaries') : path.join(dashboardRoot, 'binaries'))
-            : (path && localDir ? path.join(localDir, 'binaries') : '');
+            : '';
         return [{ path: docsRoot, dashboardRoot: dashboardPathRoot, firmwareRoot: firmwarePathRoot }];
     }
 
@@ -527,7 +526,7 @@
             }
         }
 
-        console.log('[tabs] README count:', readmes.length);
+        console.log('[tabs] example README count:', readmes.length);
         readmes.sort((a, b) => a.docPath.localeCompare(b.docPath));
         for (const entry of readmes) {
             const dir = paths && paths.dirname ? paths.dirname(entry.docPath) : path.dirname(entry.docPath);
@@ -1094,20 +1093,9 @@
                 }
             }
             try {
-                const tabsEl = document.getElementById('app-tabs');
-                const tabsOffset = tabsEl ? tabsEl.offsetHeight : 0;
-                const adminBar = document.getElementById('admin-bar');
-                const barHeight = adminBar ? adminBar.offsetHeight : 0;
-                const editing = (window.freeboard && typeof window.freeboard.isEditing === 'function')
-                    ? window.freeboard.isEditing()
-                    : null;
-                const top = (editing === false)
-                    ? tabsOffset + 20
-                    : tabsOffset + barHeight + 20;
-                boardContent.style.top = `${top}px`;
-                boardContent.style.minHeight = `calc(100vh - ${tabsOffset}px)`;
+                boardContent.style.top = '';
+                boardContent.style.minHeight = '';
                 boardContent.style.height = 'auto';
-                console.log('[tabs] board-content top reset:', { tabsOffset, barHeight, top });
             } catch {}
             // Trigger a resize so gridster/layout recalculates after restoring.
             try { window.dispatchEvent(new Event('resize')); } catch {}

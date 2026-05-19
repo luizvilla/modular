@@ -336,17 +336,6 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.version = 0;
 	this.isEditing = ko.observable(false);
 	this.allow_edit = ko.observable(false);
-	this.allow_edit.subscribe(function(newValue)
-	{
-		if(newValue)
-		{
-			$("#main-header").show();
-		}
-		else
-		{
-			$("#main-header").hide();
-		}
-	});
 
 	this.header_image = ko.observable();
 	this.plugins = ko.observableArray();
@@ -958,32 +947,15 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 		self.isEditing(editing);
 
-		if(_.isUndefined(animate))
-		{
-			animate = true;
-		}
-
-		var animateLength = (animate) ? 250 : 0;
-		var barHeight = $("#admin-bar").outerHeight();
-		var tabsOffset = $("#app-tabs").outerHeight() || 0;
-
 		if(!editing)
 		{
-			$("#toggle-header-icon").addClass("icon-chevron-down").removeClass("icon-chevron-up");
 			$(".gridster .gs_w").css({cursor: "default"});
-			$("#main-header").animate({"top": (tabsOffset - barHeight) + "px"}, animateLength);
-			$("#board-content").animate({"top": (tabsOffset + 20) + "px"}, animateLength);
-			$("#main-header").data().shown = false;
 			$(".sub-section").unbind();
 			freeboardUI.disableGrid();
 		}
 		else
 		{
-			$("#toggle-header-icon").addClass("icon-chevron-up").removeClass("icon-chevron-down");
 			$(".gridster .gs_w").css({cursor: "pointer"});
-			$("#main-header").animate({"top": tabsOffset + "px"}, animateLength);
-			$("#board-content").animate({"top": (tabsOffset + barHeight + 20) + "px"}, animateLength);
-			$("#main-header").data().shown = true;
 			freeboardUI.attachWidgetEditIcons($(".sub-section"));
 			freeboardUI.enableGrid();
 		}
