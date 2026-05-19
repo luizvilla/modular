@@ -1,3 +1,9 @@
+:root {
+  --topbar-height: 52px;
+  --tabbar-height: 44px;
+  --side-pane-width: 280px;
+}
+
 select.form-select,
 select.custom-select,
 input.form-control,
@@ -103,66 +109,47 @@ textarea.form-control {
   }
 }
 
-/* Dashboard header layout */
-#admin-bar {
-  height: auto;
-  overflow: visible;
-}
-
-#admin-menu {
-  position: relative;
-  top: auto;
-  left: auto;
-  right: auto;
-  width: min(100%, 960px);
-  margin: 0 auto;
-  padding: 14px 18px 12px;
+/* Top bar — fixed single-row toolbar replacing the old collapsible header */
+#top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-height);
+  z-index: 850;
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 24px;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  background: #1a1d23;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-sizing: border-box;
 }
 
-#admin-brand-band {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  flex: 0 0 auto;
-}
-
-#admin-workspace {
-  display: flex;
-  align-items: flex-start;
-  flex: 1 1 0;
-}
-
-#board-tools {
-  width: auto;
-  float: none;
+#board-logo {
+  margin: 0;
   flex: 0 0 auto;
 }
 
 #board-actions {
-  float: none;
-}
-
-#board-logo {
-  float: none;
+  display: flex;
+  align-items: center;
+  gap: 0;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .board-toolbar--header {
   display: flex;
   align-items: stretch;
-  gap: 10px;
+  gap: 6px;
 }
 
 .board-toolbar--header li {
   margin: 0;
-  min-width: 60px;
-  min-height: 52px;
+  min-width: 44px;
+  min-height: 36px;
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -176,20 +163,14 @@ textarea.form-control {
 }
 
 .board-toolbar--header li i {
-  font-size: 20px;
+  font-size: 18px;
 }
 
-#datasources {
-  width: auto;
-  height: auto;
-  float: none;
-  flex: 1 1 440px;
-  max-width: 470px;
-  margin-left: auto;
-}
-
-#datasources > .title {
-  margin: 0 0 10px;
+/* Board content sits below the fixed top bar and above the fixed tab strip */
+#board-content {
+  margin-top: var(--topbar-height);
+  margin-bottom: var(--tabbar-height);
+  top: 0 !important;
 }
 
 .datasource-list-container {
@@ -288,29 +269,6 @@ textarea.form-control {
   padding: 6px;
 }
 
-@media screen and (max-width: 960px) {
-  #admin-menu {
-    width: 100%;
-    padding: 12px 12px 10px;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  #admin-brand-band,
-  #admin-workspace {
-    width: 100%;
-  }
-
-  #datasources {
-    width: 100%;
-    max-width: none;
-    flex: 1 1 auto;
-  }
-
-  .board-toolbar--header {
-    flex-wrap: wrap;
-  }
-}
 
 /* Freeboard/Gridster overrides to keep widgets scrollable within their box */
 /* Make the widget content area (section) fill the pane below the 30px header */
