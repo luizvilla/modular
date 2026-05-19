@@ -188,11 +188,51 @@
     <article id="doc-content" class="doc-content"></article>
 </div>
 
-<div id="board-content">
-    <img id="dash-logo" data-bind="attr:{src: header_image}, visible:header_image()">
-    <div class="gridster responsive-column-width">
-        <ul data-bind="grid: true">
-        </ul>
+<div id="main-area">
+    <aside id="side-pane">
+        <div id="side-pane-list">
+            <h2 class="title">DATASOURCES</h2>
+            <div class="datasource-list-container">
+                <table class="table table-condensed sub-table" id="datasources-list" data-bind="if: datasources().length">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Last Updated</th>
+                            <th>&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody data-bind="foreach: datasources">
+                        <tr data-bind="css: { 'datasource-paused': isPaused }">
+                            <td>
+                                <span class="text-button datasource-name" data-bind="text: name, pluginEditor: {operation: 'edit', type: 'datasource'}"></span>
+                            </td>
+                            <td data-bind="text: last_updated"></td>
+                            <td>
+                                <ul class="board-toolbar">
+                                    <li data-bind="click: updateNow"><i class="icon-refresh icon-white"></i></li>
+                                    <li data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume datasource' : 'Pause datasource' }">
+                                        <i class="fa-solid" data-bind="css: { 'fa-pause': !isPaused(), 'fa-play': isPaused() }"></i>
+                                    </li>
+                                    <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">
+                                        <i class="icon-trash icon-white"></i>
+                                    </li>
+                                </ul>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- ko if: allow_edit -->
+            <span class="text-button table-operation" data-bind="pluginEditor: {operation: 'add', type: 'datasource'}">ADD</span>
+            <!-- /ko -->
+        </div>
+    </aside>
+    <div id="board-content">
+        <img id="dash-logo" data-bind="attr:{src: header_image}, visible:header_image()">
+        <div class="gridster responsive-column-width">
+            <ul data-bind="grid: true">
+            </ul>
+        </div>
     </div>
 </div>
 

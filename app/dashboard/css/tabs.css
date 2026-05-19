@@ -60,9 +60,9 @@
     opacity: 0.7;
 }
 
-/* Docs mode moves the board content off-screen; top bar stays visible. */
-body.docs-mode #board-content,
-html.docs-mode #board-content {
+/* Docs mode moves the board content and side pane off-screen; top bar stays visible. */
+body.docs-mode #main-area,
+html.docs-mode #main-area {
     position: fixed !important;
     top: -20000px !important;
     left: 0 !important;
