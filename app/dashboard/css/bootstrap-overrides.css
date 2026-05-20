@@ -1182,6 +1182,7 @@ body.pane-resize-active .pane-resize-handle {
 
 /* ── Theme toggle button ─────────────────────────────────────────────────── */
 #theme-toggle {
+    display: none;
     margin-left: auto;
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.15);
