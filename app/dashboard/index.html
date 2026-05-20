@@ -209,7 +209,7 @@
                     <tbody data-bind="foreach: datasources">
                         <tr data-bind="css: { 'datasource-paused': isPaused }, click: $root.selectDatasource">
                             <td>
-                                <span class="text-button datasource-name" data-bind="text: name, pluginEditor: {operation: 'edit', type: 'datasource'}"></span>
+                                <span class="datasource-name" data-bind="text: name"></span>
                             </td>
                             <td data-bind="text: last_updated"></td>
                             <td>
