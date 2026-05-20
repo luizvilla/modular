@@ -1209,7 +1209,7 @@ html.theme-light {
 }
 
 html.theme-light body {
-    background: #f0f0f0;
+    background: #dde1e8;
     color: #1a1a1a;
 }
 
@@ -1366,25 +1366,45 @@ html.theme-light .tab.active {
 }
 
 html.theme-light .gridster .gs_w {
-    background: #ffffff;
-    border: 1px solid #d8dce6;
+    background: #f7f8fc;
+    border: 1px solid #cdd1dc;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
 }
 
 html.theme-light .pane-header {
-    background: #f0f2f8;
-    border-bottom: 1px solid #d8dce6;
+    background: #ebedf5;
+    border-bottom: 1px solid #cdd1dc;
 }
 
 html.theme-light .pane-header h1 {
     color: #222;
 }
 
+html.theme-light .sub-section {
+    border-bottom-color: #cdd1dc;
+}
+
+html.theme-light .sub-section-tools .widget-tools-title {
+    color: #556;
+}
+
 html.theme-light .board-toolbar li {
     background: rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(0, 0, 0, 0.14);
     color: #333;
 }
 
 html.theme-light .board-toolbar li:hover {
-    background: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.13);
+    color: #000;
+}
+
+html.theme-light .board-toolbar li i {
+    color: #444;
+}
+
+html.theme-light .pane-resize-e::before,
+html.theme-light .pane-resize-s::before,
+html.theme-light .pane-resize-se::before {
+    background: rgba(60, 90, 160, 0.35);
 }
