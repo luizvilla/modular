@@ -190,8 +190,13 @@
 
 <div id="main-area">
     <aside id="side-pane">
+        <div id="side-pane-header">
+            <button id="side-pane-toggle" title="Toggle datasource pane">
+                <i id="side-pane-chevron" class="fa-solid fa-chevron-left"></i>
+            </button>
+            <span class="side-pane-title">DATASOURCES</span>
+        </div>
         <div id="side-pane-list">
-            <h2 class="title">DATASOURCES</h2>
             <div class="datasource-list-container">
                 <table class="table table-condensed sub-table" id="datasources-list" data-bind="if: datasources().length">
                     <thead>
@@ -202,7 +207,7 @@
                         </tr>
                     </thead>
                     <tbody data-bind="foreach: datasources">
-                        <tr data-bind="css: { 'datasource-paused': isPaused }">
+                        <tr data-bind="css: { 'datasource-paused': isPaused }, click: $root.selectDatasource">
                             <td>
                                 <span class="text-button datasource-name" data-bind="text: name, pluginEditor: {operation: 'edit', type: 'datasource'}"></span>
                             </td>
@@ -227,6 +232,39 @@
             <!-- /ko -->
         </div>
         <div id="side-pane-resizer" title="Drag to resize"></div>
+        <div id="side-pane-detail">
+            <!-- ko ifnot: selectedDatasource -->
+            <p class="detail-empty">Select a datasource to view details.</p>
+            <!-- /ko -->
+            <!-- ko with: selectedDatasource -->
+            <div class="detail-content">
+                <div class="detail-name" data-bind="text: name"></div>
+                <div class="detail-meta">
+                    <span data-bind="text: displayType"></span>
+                    &nbsp;&bull;&nbsp;
+                    <span data-bind="text: last_updated"></span>
+                </div>
+                <!-- ko foreach: settingsList -->
+                <div class="detail-setting-row">
+                    <span class="setting-key" data-bind="text: key"></span>
+                    <span class="setting-val" data-bind="text: value"></span>
+                </div>
+                <!-- /ko -->
+                <ul class="board-toolbar detail-toolbar">
+                    <li data-bind="click: updateNow" title="Refresh"><i class="icon-refresh icon-white"></i></li>
+                    <li data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume' : 'Pause' }">
+                        <i class="fa-solid" data-bind="css: { 'fa-pause': !isPaused(), 'fa-play': isPaused() }"></i>
+                    </li>
+                    <li data-bind="pluginEditor: {operation: 'edit', type: 'datasource'}" title="Edit">
+                        <i class="icon-wrench icon-white"></i>
+                    </li>
+                    <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}" title="Delete">
+                        <i class="icon-trash icon-white"></i>
+                    </li>
+                </ul>
+            </div>
+            <!-- /ko -->
+        </div>
     </aside>
     <div id="board-content">
         <img id="dash-logo" data-bind="attr:{src: header_image}, visible:header_image()">

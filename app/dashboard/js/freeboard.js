@@ -80,6 +80,25 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 	this.last_updated = ko.observable("never");
 	this.last_error = ko.observable();
 
+	this.displayType = ko.computed(function() {
+		var t = self.type();
+		if (!t) return '';
+		var plugin = datasourcePlugins[t];
+		return (plugin && plugin.display_name) || t;
+	});
+
+	this.settingsList = ko.computed(function() {
+		var s = self.settings() || {};
+		return Object.keys(s)
+			.filter(function(k) { return k !== 'paused'; })
+			.map(function(k) {
+				var v = s[k];
+				var display = (v === null || v === undefined) ? '' :
+				              (typeof v === 'object') ? JSON.stringify(v) : String(v);
+				return { key: k, value: display };
+			});
+	});
+
 	this.settings.subscribe(function(newValue)
 	{
 		syncPausedFromSettings(newValue);
@@ -342,6 +361,19 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.datasources = ko.observableArray();
 	this.panes = ko.observableArray();
 	this.datasourceData = {};
+
+	this.selectedDatasource = ko.observable(null);
+
+	this.selectDatasource = function(datasource) {
+		self.selectedDatasource(datasource);
+	};
+
+	this.datasources.subscribe(function() {
+		var current = self.selectedDatasource();
+		if (current && self.datasources.indexOf(current) < 0) {
+			self.selectedDatasource(null);
+		}
+	});
 	this.processDatasourceUpdate = function(datasourceModel, newData)
 	{
 		var datasourceName = datasourceModel.name();
