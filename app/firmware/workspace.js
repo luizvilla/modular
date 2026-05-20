@@ -11,6 +11,7 @@ const DEFAULT_WORKSPACE_STATE = Object.freeze({
     workspaceRoot: null,
     advancedMode: false,
     activeFile: null,
+    selectedEnv: null,
 });
 
 const ADVANCED_SKIP_DIRS = new Set([

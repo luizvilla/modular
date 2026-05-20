@@ -14,11 +14,15 @@ const state = {
 };
 
 function appendConsoleLine(message) {
-    const line = String(message || '').trim();
-    if (!line) return;
-    state.consoleLines.push(line);
-    if (state.consoleLines.length > 120) {
-        state.consoleLines.splice(0, state.consoleLines.length - 120);
+    const lines = String(message || '')
+        .replace(/\r/g, '')
+        .split('\n')
+        .map((line) => line.trimEnd())
+        .filter((line) => line.trim().length > 0);
+    if (!lines.length) return;
+    state.consoleLines.push(...lines);
+    if (state.consoleLines.length > 220) {
+        state.consoleLines.splice(0, state.consoleLines.length - 220);
     }
     document.getElementById('console-output').textContent = state.consoleLines.join('\n');
 }
@@ -32,19 +36,25 @@ function formatToolchainSummary(toolchainState) {
     if (!toolchainState || typeof toolchainState !== 'object') {
         return 'Toolchain status unavailable';
     }
-    const platformio = toolchainState.platformio?.status || 'unknown';
-    const clangd = toolchainState.clangd?.status || 'unknown';
-    return `PlatformIO: ${platformio} · clangd: ${clangd}`;
+    if (toolchainState.platformio?.status === 'available') {
+        const version = toolchainState.platformio?.version || 'PlatformIO available';
+        return `PlatformIO ready · ${version}`;
+    }
+    return `PlatformIO unavailable · ${toolchainState.platformio?.error || 'No working local CLI detected'}`;
 }
 
 function formatBuildSummary(buildState) {
     if (!buildState || typeof buildState !== 'object') {
         return 'Build status unavailable';
     }
-    if (!buildState.supported) {
-        return buildState.placeholderMessage || 'Build actions disabled';
+    if (buildState.activeJob) {
+        const action = String(buildState.activeJob.action || 'build').toUpperCase();
+        return `${action} running for ${buildState.activeJob.env || 'unknown env'}`;
     }
-    return buildState.status || 'Build status unavailable';
+    if (buildState.supported) {
+        return `Ready on ${buildState.selectedEnv || 'no env selected'}`;
+    }
+    return buildState.placeholderMessage || 'Build actions disabled';
 }
 
 function getTab(relativePath) {
@@ -187,7 +197,7 @@ function updateWorkspaceSummary() {
     workspaceSummary.textContent = workspace?.summary || 'Attach an existing Core checkout to start editing in Monaco.';
     filePanelTitle.textContent = advancedMode ? 'Advanced Workspace Tree' : 'Focused Workspace';
     toggleAdvanced.textContent = advancedMode ? 'Advanced View On' : 'Advanced View Off';
-    toggleAdvanced.disabled = !root;
+    toggleAdvanced.disabled = !root || !!state.build?.activeJob;
 
     if (root) {
         workspaceRoot.textContent = root;
@@ -197,7 +207,13 @@ function updateWorkspaceSummary() {
         workspaceRoot.textContent = 'No workspace attached';
     }
 
-    envPill.textContent = root ? 'Workspace attached' : 'No workspace selected';
+    if (!root) {
+        envPill.textContent = 'No environment selected';
+    } else if (state.build?.selectedEnv) {
+        envPill.textContent = `Env: ${state.build.selectedEnv}`;
+    } else {
+        envPill.textContent = 'No environment selected';
+    }
 }
 
 function updateEditorStatus() {
@@ -230,6 +246,43 @@ function updateEditorStatus() {
     saveButton.disabled = !activeTab.dirty;
     showEditorEmptyState('');
     if (state.editor) state.editor.updateOptions({ readOnly: false });
+}
+
+function renderBuildControls() {
+    const envSelect = document.getElementById('env-select');
+    const attachButton = document.getElementById('attach-workspace');
+    const buildButton = document.getElementById('run-build');
+    const cleanButton = document.getElementById('run-clean');
+    const reindexButton = document.getElementById('run-reindex');
+    const cancelButton = document.getElementById('cancel-build');
+    const buildState = state.build;
+    const running = !!buildState?.activeJob;
+    const envs = Array.isArray(buildState?.envs) ? buildState.envs : [];
+    const selectedEnv = buildState?.selectedEnv || '';
+
+    envSelect.innerHTML = '';
+    if (!envs.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No environment selected';
+        envSelect.appendChild(option);
+        envSelect.disabled = true;
+    } else {
+        envs.forEach((envName) => {
+            const option = document.createElement('option');
+            option.value = envName;
+            option.textContent = envName;
+            option.selected = envName === selectedEnv;
+            envSelect.appendChild(option);
+        });
+        envSelect.disabled = !buildState?.supported || running;
+    }
+
+    attachButton.disabled = running;
+    buildButton.disabled = !buildState?.actions?.build;
+    cleanButton.disabled = !buildState?.actions?.clean;
+    reindexButton.disabled = !buildState?.actions?.reindex;
+    cancelButton.disabled = !buildState?.actions?.cancel;
 }
 
 function renderTabs() {
@@ -401,13 +454,13 @@ async function openFile(relativePath) {
     const existingTab = getTab(relativePath);
     if (existingTab) {
         activateTab(relativePath);
-        appendConsoleLine(`[session-3] Switched to ${relativePath}.`);
+        appendConsoleLine(`[session-4] Switched to ${relativePath}.`);
         return;
     }
 
     const response = await window.api.firmwareWorkspace.readFile(relativePath);
     if (!response?.ok) {
-        appendConsoleLine(`[session-3] Open failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-4] Open failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not open the selected file.');
         return;
     }
@@ -431,7 +484,7 @@ async function openFile(relativePath) {
     state.tabOrder.push(tab.relativePath);
     activateTab(tab.relativePath);
     updateWorkspaceSummary();
-    appendConsoleLine(`[session-3] Opened ${tab.relativePath}.`);
+    appendConsoleLine(`[session-4] Opened ${tab.relativePath}.`);
 }
 
 async function closeTab(relativePath) {
@@ -483,6 +536,7 @@ async function refreshWorkspaceState() {
     setStatusChip('toolchain-status', formatToolchainSummary(toolchainState));
     setStatusChip('build-status', formatBuildSummary(buildState));
     updateWorkspaceSummary();
+    renderBuildControls();
     renderTabs();
     renderFileEntries();
     updateEditorStatus();
@@ -494,7 +548,7 @@ async function saveActiveFile() {
 
     const response = await window.api.firmwareWorkspace.writeFile(activeTab.relativePath, activeTab.model.getValue());
     if (!response?.ok) {
-        appendConsoleLine(`[session-3] Save failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-4] Save failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not save the selected file.');
         return;
     }
@@ -503,7 +557,7 @@ async function saveActiveFile() {
     syncTabDirtyState(activeTab);
     if (response.state) state.workspace = response.state;
     updateWorkspaceSummary();
-    appendConsoleLine(`[session-3] Saved ${activeTab.relativePath}.`);
+    appendConsoleLine(`[session-4] Saved ${activeTab.relativePath}.`);
 }
 
 async function attachWorkspace() {
@@ -512,7 +566,7 @@ async function attachWorkspace() {
     const response = await window.api.firmwareWorkspace.attachExistingWorkspace();
     if (!response?.ok) {
         if (!response?.canceled) {
-            appendConsoleLine(`[session-3] Attach failed: ${response?.error || 'Unknown error'}`);
+            appendConsoleLine(`[session-4] Attach failed: ${response?.error || 'Unknown error'}`);
             window.alert(response?.error || 'Could not attach the selected workspace.');
         }
         return;
@@ -520,7 +574,7 @@ async function attachWorkspace() {
 
     clearTabs();
     await refreshWorkspaceState();
-    appendConsoleLine(`[session-3] Attached ${response.state?.workspace?.root || 'workspace'}.`);
+    appendConsoleLine(`[session-4] Attached ${response.state?.workspace?.root || 'workspace'}.`);
 
     const nextFile = pickInitialFileFromState();
     if (nextFile) {
@@ -533,12 +587,53 @@ async function toggleAdvancedMode() {
     const nextMode = !state.workspace.workspace.advancedMode;
     const response = await window.api.firmwareWorkspace.setAdvancedMode(nextMode);
     if (!response?.ok) {
-        appendConsoleLine(`[session-3] Could not toggle advanced view: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-4] Could not toggle advanced view: ${response?.error || 'Unknown error'}`);
         return;
     }
     if (response.state) state.workspace = response.state;
     await refreshWorkspaceState();
-    appendConsoleLine(`[session-3] Advanced view ${nextMode ? 'enabled' : 'disabled'}.`);
+    appendConsoleLine(`[session-4] Advanced view ${nextMode ? 'enabled' : 'disabled'}.`);
+}
+
+async function selectEnvironment(envName) {
+    const response = await window.api.firmwareBuild.selectEnv(envName);
+    if (!response?.ok) {
+        appendConsoleLine(`[session-4] Could not select env ${envName}: ${response?.error || 'Unknown error'}`);
+        window.alert(response?.error || 'Could not change the PlatformIO environment.');
+        renderBuildControls();
+        return;
+    }
+    state.build = response.state || state.build;
+    setStatusChip('build-status', formatBuildSummary(state.build));
+    updateWorkspaceSummary();
+    renderBuildControls();
+    appendConsoleLine(`[session-4] Selected environment ${response.selectedEnv}.`);
+}
+
+async function runBuildAction(action) {
+    if (!action) return;
+    const response = await window.api.firmwareBuild[action]();
+    if (!response?.ok) {
+        appendConsoleLine(`[session-4] ${action} failed to start: ${response?.error || 'Unknown error'}`);
+        window.alert(response?.error || `Could not start ${action}.`);
+        return;
+    }
+    state.build = response.state || state.build;
+    setStatusChip('build-status', formatBuildSummary(state.build));
+    renderBuildControls();
+}
+
+async function cancelBuildAction() {
+    const response = await window.api.firmwareBuild.cancel();
+    if (!response?.ok && !response?.canceled) {
+        appendConsoleLine(`[session-4] Cancel failed: ${response?.error || 'Unknown error'}`);
+        window.alert(response?.error || 'Could not cancel the current PlatformIO job.');
+        return;
+    }
+    state.build = response.state || state.build;
+    setStatusChip('build-status', formatBuildSummary(state.build));
+    renderBuildControls();
+    appendConsoleLine('[session-4] Cancel requested.');
 }
 
 function installDiagnosticsRuntime() {
@@ -547,6 +642,7 @@ function installDiagnosticsRuntime() {
         getOpenTabs: () => state.tabOrder.slice(),
         getActiveTab: () => state.activeTabId,
         getEditorValue: () => getActiveTab()?.model?.getValue() || '',
+        getBuildState: () => state.build,
         setEditorValue: (value) => {
             if (!state.editor || !getActiveTab()) return false;
             state.editor.setValue(String(value));
@@ -554,6 +650,8 @@ function installDiagnosticsRuntime() {
         },
         getDebugState: () => ({
             workspace: state.workspace,
+            build: state.build,
+            toolchain: state.toolchain,
             fileEntries: state.fileEntries.slice(),
             openTabs: state.tabOrder.slice(),
             activeTab: state.activeTabId,
@@ -574,6 +672,28 @@ function bindEvents() {
     document.getElementById('save-file').addEventListener('click', () => {
         saveActiveFile();
     });
+
+    document.getElementById('env-select').addEventListener('change', (event) => {
+        const nextEnv = event.target.value;
+        if (!nextEnv || nextEnv === state.build?.selectedEnv) return;
+        selectEnvironment(nextEnv);
+    });
+
+    document.getElementById('run-build').addEventListener('click', () => {
+        runBuildAction('build');
+    });
+
+    document.getElementById('run-clean').addEventListener('click', () => {
+        runBuildAction('clean');
+    });
+
+    document.getElementById('run-reindex').addEventListener('click', () => {
+        runBuildAction('reindex');
+    });
+
+    document.getElementById('cancel-build').addEventListener('click', () => {
+        cancelBuildAction();
+    });
 }
 
 async function bootFirmwareShell() {
@@ -585,7 +705,7 @@ async function bootFirmwareShell() {
 
     installDiagnosticsRuntime();
     bindEvents();
-    appendConsoleLine('[session-3] Firmware Workspace shell booted.');
+    appendConsoleLine('[session-4] Firmware Workspace shell booted.');
 
     try {
         await ensureEditor();
@@ -598,12 +718,25 @@ async function bootFirmwareShell() {
     } catch (error) {
         setStatusChip('api-status', 'Bridge error');
         document.getElementById('workspace-summary').textContent = 'Could not load Monaco for the firmware workspace.';
-        appendConsoleLine(`[session-3] Boot failed: ${error?.message || error}`);
+        appendConsoleLine(`[session-4] Boot failed: ${error?.message || error}`);
     }
 
     window.api.firmwareWorkspace.onStateChange((nextState) => {
         state.workspace = nextState;
         updateWorkspaceSummary();
+    });
+    window.api.firmwareToolchain.onStatusChange((nextState) => {
+        state.toolchain = nextState;
+        setStatusChip('toolchain-status', formatToolchainSummary(nextState));
+    });
+    window.api.firmwareBuild.onOutput((payload = {}) => {
+        appendConsoleLine(payload.text || '');
+    });
+    window.api.firmwareBuild.onStateChange((nextState) => {
+        state.build = nextState;
+        setStatusChip('build-status', formatBuildSummary(nextState));
+        updateWorkspaceSummary();
+        renderBuildControls();
     });
 }
 

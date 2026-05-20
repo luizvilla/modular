@@ -25,7 +25,11 @@ function makeWorkspaceFixture(rootDir) {
     fs.mkdirSync(path.join(rootDir, '.git'), { recursive: true });
     fs.mkdirSync(path.join(rootDir, 'old'), { recursive: true });
 
-    fs.writeFileSync(path.join(rootDir, 'platformio.ini'), '[platformio]\ndefault_envs = USB\n', 'utf8');
+    fs.writeFileSync(
+        path.join(rootDir, 'platformio.ini'),
+        '[platformio]\ndefault_envs = USB\n\n[env:USB]\nplatform = native\n\n[env:SIM]\nplatform = native\n',
+        'utf8'
+    );
     fs.writeFileSync(path.join(rootDir, 'src', 'main.cpp'), 'int main() { return 0; }\n', 'utf8');
     fs.writeFileSync(path.join(rootDir, 'src', 'app.ini'), '[app]\nmode = test\n', 'utf8');
     fs.writeFileSync(path.join(rootDir, 'docs', 'notes.md'), '# Notes\n', 'utf8');

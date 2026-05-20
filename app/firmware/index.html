@@ -26,10 +26,17 @@
             <button type="button" id="toggle-advanced" data-testid="firmware-action-advanced">Advanced View Off</button>
             <button type="button" id="save-file" data-testid="firmware-action-save">Save File</button>
             <button type="button" disabled data-testid="firmware-action-install">Install Toolchain</button>
-            <button type="button" disabled data-testid="firmware-action-build">Build</button>
+            <label class="env-select-shell" for="env-select">
+                <span>Environment</span>
+                <select id="env-select" data-testid="firmware-env-select" disabled>
+                    <option value="">No environment selected</option>
+                </select>
+            </label>
+            <button type="button" id="run-build" disabled data-testid="firmware-action-build">Build</button>
             <button type="button" disabled data-testid="firmware-action-upload">Upload</button>
-            <button type="button" disabled data-testid="firmware-action-clean">Clean</button>
-            <button type="button" disabled data-testid="firmware-action-reindex">Reindex</button>
+            <button type="button" id="run-clean" disabled data-testid="firmware-action-clean">Clean</button>
+            <button type="button" id="run-reindex" disabled data-testid="firmware-action-reindex">Reindex</button>
+            <button type="button" id="cancel-build" disabled data-testid="firmware-action-cancel">Cancel</button>
             <div class="env-pill" id="env-pill">No environment selected</div>
         </section>
 
@@ -50,7 +57,7 @@
                         <h2 id="editor-title">Workspace Surface</h2>
                     </div>
                     <div class="editor-state">
-                        <span class="tab session-chip">Session 3</span>
+                        <span class="tab session-chip">Session 4</span>
                         <span class="tab" id="file-status-chip">No file open</span>
                     </div>
                 </div>

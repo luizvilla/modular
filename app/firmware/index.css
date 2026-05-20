@@ -145,6 +145,44 @@ body {
     outline-offset: 2px;
 }
 
+.env-select-shell {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.env-select-shell span {
+    font-size: 0.84rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-soft);
+}
+
+.env-select-shell select {
+    min-width: 140px;
+    border: 1px solid rgba(242, 180, 109, 0.22);
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: rgba(8, 17, 25, 0.88);
+    color: var(--text);
+    font: inherit;
+}
+
+.env-select-shell select:disabled {
+    color: rgba(238, 243, 251, 0.54);
+    cursor: not-allowed;
+}
+
+.env-select-shell select:focus-visible {
+    outline: 2px solid rgba(144, 216, 190, 0.9);
+    outline-offset: 2px;
+}
+
 .env-pill {
     margin-left: auto;
     color: var(--mint);
@@ -426,6 +464,11 @@ body {
 
     .env-pill {
         margin-left: 0;
+    }
+
+    .env-select-shell {
+        width: 100%;
+        justify-content: space-between;
     }
 
     .tabs-shell {
