@@ -270,6 +270,7 @@ textarea.form-control {
   min-height: 0;
   overflow-y: auto;
   padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .detail-empty {
@@ -280,46 +281,96 @@ textarea.form-control {
   padding-top: 16px;
 }
 
-.detail-content {
+.detail-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.detail-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e6e6e6;
-}
-
-.detail-meta {
-  font-size: 11px;
-  color: #9aa4b2;
-}
-
-.detail-setting-row {
+.detail-field {
   display: flex;
-  gap: 8px;
-  font-size: 12px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.setting-key {
-  flex: 0 0 auto;
-  min-width: 80px;
-  font-size: 11px;
+.detail-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
   color: #9aa4b2;
 }
 
-.setting-val {
-  flex: 1 1 0;
-  min-width: 0;
+.detail-input {
+  background: #10141d;
+  border: 1px solid #2e3849;
   color: #e6e6e6;
-  word-break: break-all;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.detail-toolbar {
+.detail-input:focus {
+  outline: none;
+  border-color: #4a6fa0;
+}
+
+.detail-select {
+  background: #10141d;
+  border: 1px solid #2e3849;
+  color: #e6e6e6;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-readonly {
+  font-size: 12px;
+  color: #9aa4b2;
+  padding: 2px 0;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
   margin-top: 4px;
+}
+
+.detail-btn {
+  border: 1px solid #2e3849;
+  background: #1c2130;
+  color: #e6e6e6;
+  padding: 4px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.detail-btn.primary {
+  background: #2c4cff;
+  border-color: #2c4cff;
+  color: #fff;
+}
+
+.detail-btn.danger {
+  border-color: #8b2020;
+  color: #e05c5c;
+  background: transparent;
+}
+
+.detail-btn:hover {
+  filter: brightness(1.2);
+}
+
+.detail-status {
+  font-size: 11px;
+  color: #9aa4b2;
+  margin-top: 2px;
 }
 
 #side-pane-list .title {

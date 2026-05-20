@@ -87,17 +87,54 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 		return (plugin && plugin.display_name) || t;
 	});
 
-	this.settingsList = ko.computed(function() {
+	this._editableName   = ko.observable('');
+	this._editableFields = ko.observableArray([]);
+
+	this.buildEditableFields = function() {
+		var t = self.type();
 		var s = self.settings() || {};
-		return Object.keys(s)
-			.filter(function(k) { return k !== 'paused'; })
-			.map(function(k) {
-				var v = s[k];
-				var display = (v === null || v === undefined) ? '' :
-				              (typeof v === 'object') ? JSON.stringify(v) : String(v);
-				return { key: k, value: display };
-			});
-	});
+		var plugin = t ? datasourcePlugins[t] : null;
+		var defs   = (plugin && Array.isArray(plugin.settings)) ? plugin.settings : [];
+
+		self._editableName(self.name() || '');
+
+		self._editableFields(
+			defs
+				.filter(function(d) { return d.type !== 'calculated' && d.type !== 'array'; })
+				.map(function(def) {
+					var cur = s[def.name] !== undefined ? s[def.name]
+					        : (def.default_value !== undefined ? def.default_value : '');
+					var opts = [];
+					if (def.type === 'option' && Array.isArray(def.options)) {
+						opts = def.options.map(function(o) {
+							if (typeof o === 'string') return { display: o, value: o };
+							return {
+								display: o.name || String(o.value !== undefined ? o.value : o),
+								value:   o.value !== undefined ? o.value : (o.name || o)
+							};
+						});
+					}
+					return { def: def, value: ko.observable(cur), options: opts };
+				})
+		);
+	};
+
+	this.saveInlineSettings = function() {
+		var newName = self._editableName();
+		if (newName) self.name(newName);
+
+		var current = self.settings() || {};
+		var updated = Object.assign({}, current);
+		self._editableFields().forEach(function(field) {
+			var v = field.value();
+			if (field.def.type === 'number') {
+				v = parseFloat(v);
+				if (isNaN(v)) v = 0;
+			}
+			updated[field.def.name] = v;
+		});
+		self.settings(updated);
+	};
 
 	this.settings.subscribe(function(newValue)
 	{
@@ -363,6 +400,10 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.datasourceData = {};
 
 	this.selectedDatasource = ko.observable(null);
+
+	this.selectedDatasource.subscribe(function(ds) {
+		if (ds) ds.buildEditableFields();
+	});
 
 	this.selectDatasource = function(datasource) {
 		self.selectedDatasource(datasource);

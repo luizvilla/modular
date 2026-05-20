@@ -234,35 +234,45 @@
         <div id="side-pane-resizer" title="Drag to resize"></div>
         <div id="side-pane-detail">
             <!-- ko ifnot: selectedDatasource -->
-            <p class="detail-empty">Select a datasource to view details.</p>
+            <p class="detail-empty">Select a datasource to view its settings.</p>
             <!-- /ko -->
             <!-- ko with: selectedDatasource -->
-            <div class="detail-content">
-                <div class="detail-name" data-bind="text: name"></div>
-                <div class="detail-meta">
-                    <span data-bind="text: displayType"></span>
-                    &nbsp;&bull;&nbsp;
-                    <span data-bind="text: last_updated"></span>
+            <form class="detail-form" data-bind="submit: saveInlineSettings">
+                <div class="detail-field">
+                    <label class="detail-label">Name</label>
+                    <input class="detail-input" type="text" data-bind="value: _editableName, valueUpdate: 'input'" placeholder="Datasource name">
                 </div>
-                <!-- ko foreach: settingsList -->
-                <div class="detail-setting-row">
-                    <span class="setting-key" data-bind="text: key"></span>
-                    <span class="setting-val" data-bind="text: value"></span>
+                <div class="detail-field">
+                    <label class="detail-label">Type</label>
+                    <span class="detail-readonly" data-bind="text: displayType"></span>
+                </div>
+                <!-- ko foreach: _editableFields -->
+                <div class="detail-field">
+                    <label class="detail-label" data-bind="text: def.display_name || def.name, attr: { title: def.description || '' }"></label>
+                    <!-- ko if: def.type === 'boolean' -->
+                    <input type="checkbox" data-bind="checked: value">
+                    <!-- /ko -->
+                    <!-- ko if: def.type === 'option' -->
+                    <select class="detail-select" data-bind="value: value, options: options, optionsText: 'display', optionsValue: 'value'"></select>
+                    <!-- /ko -->
+                    <!-- ko if: def.type !== 'boolean' && def.type !== 'option' -->
+                    <input class="detail-input" data-bind="value: value, valueUpdate: 'input', attr: { type: def.type === 'number' ? 'number' : 'text' }">
+                    <!-- /ko -->
                 </div>
                 <!-- /ko -->
-                <ul class="board-toolbar detail-toolbar">
-                    <li data-bind="click: updateNow" title="Refresh"><i class="icon-refresh icon-white"></i></li>
-                    <li data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume' : 'Pause' }">
-                        <i class="fa-solid" data-bind="css: { 'fa-pause': !isPaused(), 'fa-play': isPaused() }"></i>
-                    </li>
-                    <li data-bind="pluginEditor: {operation: 'edit', type: 'datasource'}" title="Edit">
-                        <i class="icon-wrench icon-white"></i>
-                    </li>
-                    <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}" title="Delete">
-                        <i class="icon-trash icon-white"></i>
-                    </li>
-                </ul>
-            </div>
+                <div class="detail-actions">
+                    <button type="submit" class="detail-btn primary">Save</button>
+                    <button type="button" class="detail-btn" data-bind="click: buildEditableFields">Reset</button>
+                    <button type="button" class="detail-btn" data-bind="click: updateNow" title="Refresh now">Refresh</button>
+                    <button type="button" class="detail-btn" data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume' : 'Pause' }">
+                        <!-- ko if: isPaused() -->Resume<!-- /ko --><!-- ko ifnot: isPaused() -->Pause<!-- /ko -->
+                    </button>
+                    <button type="button" class="detail-btn danger" data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">Delete</button>
+                </div>
+                <div class="detail-status">
+                    Last updated: <span data-bind="text: last_updated"></span>
+                </div>
+            </form>
             <!-- /ko -->
         </div>
     </aside>
