@@ -207,7 +207,7 @@
                         </tr>
                     </thead>
                     <tbody data-bind="foreach: datasources">
-                        <tr data-bind="css: { 'datasource-paused': isPaused }, click: $root.selectDatasource">
+                        <tr data-bind="css: { 'datasource-paused': isPaused, 'datasource-selected': $root.selectedDatasource() === $data }, click: $root.selectDatasource">
                             <td>
                                 <span class="datasource-name" data-bind="text: name"></span>
                             </td>

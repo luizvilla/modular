@@ -269,6 +269,7 @@ textarea.form-control {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -308,6 +309,8 @@ textarea.form-control {
   border-radius: 4px;
   font-size: 12px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -324,6 +327,8 @@ textarea.form-control {
   border-radius: 4px;
   font-size: 12px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -1115,6 +1120,21 @@ body.pane-resize-active .pane-resize-handle {
 .sub-table {
     margin-bottom: 0px;
 }
+/* Datasource list row states */
+.datasource-name {
+  color: #B88F51;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.datasource-selected {
+  background: rgba(184, 143, 81, 0.12);
+}
+
+.datasource-selected .datasource-name {
+  color: #e3b060;
+}
+
 /* Dim paused datasources so it's clear they are inactive. */
 .datasource-paused {
   opacity: 0.6;
