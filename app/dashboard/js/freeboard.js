@@ -674,7 +674,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 				detail: String(object.panes.length)
 			});
 
-			if(self.allow_edit() && self.panes().length == 0)
+			if(self.allow_edit())
 			{
 				self.setEditing(true);
 			}
@@ -862,8 +862,9 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 								title: "Dashboard",
 								label: "File parsed"
 							});
-							self.loadDashboard(jsonObject);
-							self.setEditing(false);
+							self.loadDashboard(jsonObject, function() {
+								self.setEditing(jsonObject.allow_edit !== false);
+							});
 						}
 						catch(err)
 						{

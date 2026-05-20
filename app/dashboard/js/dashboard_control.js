@@ -45,13 +45,14 @@
     });
 
     function applyDashboardJson(jsonObject) {
+        var allowEdit = jsonObject && jsonObject.allow_edit !== false;
         if (window.freeboard && typeof window.freeboard.loadDashboard === 'function') {
             window.freeboard.loadDashboard(jsonObject, function () {
-                window.freeboard.setEditing(false);
+                window.freeboard.setEditing(allowEdit);
             });
         } else if (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function') {
             window.freeboardModel.loadDashboard(jsonObject, function () {
-                window.freeboardModel.setEditing(false);
+                window.freeboardModel.setEditing(allowEdit);
             });
         }
     }
