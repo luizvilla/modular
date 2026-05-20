@@ -55,7 +55,15 @@ class TimePlotUPlot {
             this.summaryHost = $('<div class="uplot-source-summary small text-muted border rounded p-2"></div>');
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.readoutHost = $('<div class="uplot-readout-grid"></div>');
-            this.container.append(this.chartHost, this.summaryHost, this.readoutHost, this.resizeHandle);
+            this.paused = false;
+            this.pauseBtn = $('<button class="btn btn-sm btn-outline-secondary" title="Pause / resume data">⏸ Pause</button>');
+            this.controlsRow = $('<div class="d-flex justify-content-end" style="flex:0 0 auto;"></div>');
+            this.controlsRow.append(this.pauseBtn);
+            this.pauseBtn.on('click', () => {
+                this.paused = !this.paused;
+                this.pauseBtn.text(this.paused ? '▶ Resume' : '⏸ Pause');
+            });
+            this.container.append(this.chartHost, this.summaryHost, this.readoutHost, this.controlsRow, this.resizeHandle);
             this.plot = null;
             this.seriesCount = 0;
             this.dataBuffer = [[], []]; // [timestamps, [series1, series2, ...]]
@@ -585,6 +593,7 @@ class TimePlotUPlot {
         }
 
         onCalculatedValueChanged(settingName, newValue) {
+            if (this.paused) return;
             if (this.localMode) return; // ignore external data when using local seriesDefs
             this._maybeUpdateHeaders();
             if (!newValue) return;
@@ -713,6 +722,7 @@ class TimePlotUPlot {
             const summary = this.summaryHost?.[0];
             const readout = this.readoutHost?.[0];
             const handle = this.resizeHandle?.[0];
+            const controls = this.controlsRow?.[0];
             if (!subSection || !shell) return 0;
 
             const subSectionStyles = window.getComputedStyle ? window.getComputedStyle(subSection) : null;
@@ -725,6 +735,7 @@ class TimePlotUPlot {
             const summaryHeight = summary ? summary.offsetHeight : 0;
             const readoutHeight = readout ? readout.offsetHeight : 0;
             const handleHeight = handle ? handle.offsetHeight : 0;
+            const controlsHeight = controls ? controls.offsetHeight : 0;
 
             const available = subSection.clientHeight
                 - paddingTop
@@ -734,9 +745,11 @@ class TimePlotUPlot {
                 - summaryHeight
                 - readoutHeight
                 - handleHeight
+                - controlsHeight
                 - (summaryHeight > 0 ? shellGap : 0)
                 - (readoutHeight > 0 ? shellGap : 0)
-                - (handleHeight > 0 ? shellGap : 0);
+                - (handleHeight > 0 ? shellGap : 0)
+                - (controlsHeight > 0 ? shellGap : 0);
             const measured = Math.max(160, available);
             this._debugLog('measureAutoChartHeight', {
                 subSectionHeight: subSection.clientHeight,
@@ -1210,6 +1223,7 @@ class TimePlotUPlot {
         }
 
         async _pollOnce() {
+            if (this.paused) return;
             if (Array.isArray(this.seriesDefs) && this.seriesDefs.length) {
                 // Streaming multiple series via instantaneous sampling
                 const yvals = [];

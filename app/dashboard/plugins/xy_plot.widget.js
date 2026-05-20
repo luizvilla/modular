@@ -64,7 +64,7 @@
             this.status = $('<div class="small text-muted flex-grow-1">Configure X and Y sources.</div>');
             this.clearBtn = $('<button class="btn btn-outline-secondary btn-sm xy-plot-clear">Clear history</button>');
             this.chartHost = $('<div class="xy-plot-chart" style="min-height:220px;"></div>');
-            this.readout = $('<div class="small text-muted xy-plot-readout">No points yet.</div>');
+            this.readout = $('<div class="uplot-readout-grid"></div>');
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.toolbar.append(this.status, this.clearBtn);
             this.container.append(this.toolbar, this.chartHost, this.readout, this.resizeHandle);
@@ -141,7 +141,7 @@
                 height: Math.max(160, this.chartHost.height() || this.container.height() || 240),
                 legend: { show: false },
                 scales: {
-                    x: {},
+                    x: { time: false },
                     y: {}
                 },
                 axes: [
@@ -407,13 +407,26 @@
         _renderReadout() {
             const xs = this.dataBuffer[0];
             const ys = this.dataBuffer[1];
-            if (!xs.length || !ys.length) {
-                this.readout.text('No points yet.');
-                return;
-            }
-            const lastX = xs[xs.length - 1];
-            const lastY = ys[ys.length - 1];
-            this.readout.text(`Points: ${xs.length} | Latest: (${this._fmt(lastX)}, ${this._fmt(lastY)})`);
+            const xLabel = _.escape(this._resolveSetting('xLabel') || 'X');
+            const yLabel = _.escape(this._resolveSetting('yLabel') || 'Y');
+            const lastX = xs.length ? this._fmt(xs[xs.length - 1]) : '---';
+            const lastY = ys.length ? this._fmt(ys[ys.length - 1]) : '---';
+            this.readout.html(
+                `<div class="uplot-readout-item uplot-readout-time">` +
+                `<span class="uplot-readout-label">Points</span>` +
+                `<span class="uplot-readout-value">${xs.length}</span>` +
+                `</div>` +
+                `<div class="uplot-readout-item">` +
+                `<span class="uplot-readout-swatch" style="border-color:#4e79a7;"></span>` +
+                `<span class="uplot-readout-label">${xLabel}</span>` +
+                `<span class="uplot-readout-value">${lastX}</span>` +
+                `</div>` +
+                `<div class="uplot-readout-item">` +
+                `<span class="uplot-readout-swatch" style="border-color:#e15759;"></span>` +
+                `<span class="uplot-readout-label">${yLabel}</span>` +
+                `<span class="uplot-readout-value">${lastY}</span>` +
+                `</div>`
+            );
         }
 
         _fmt(value) {

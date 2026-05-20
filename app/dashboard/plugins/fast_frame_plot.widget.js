@@ -49,11 +49,13 @@
             this._dragCleanup = null;
             this.plotHeightPx = null;
             this.hostElement = null;
+            this.subSectionElement = null;
+            this.sectionElement = null;
             this.container = $('<div class="fast-frame-plot h-100 d-flex flex-column gap-2 p-2"></div>');
             this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure a CSV source, time column, and one or more plotted channels.</div>');
-            this.summary = $('<div class="small text-muted border rounded p-2 mb-2"></div>');
-            this.chartShell = $('<div class="d-flex flex-column flex-grow-1 gap-2"></div>');
-            this.chartHost = $('<div class="fast-frame-plot-host flex-grow-1" style="min-height:0;overflow:hidden;"></div>');
+            this.readoutHost = $('<div class="uplot-readout-grid"></div>');
+            this.chartShell = $('<div class="d-flex flex-column gap-2"></div>');
+            this.chartHost = $('<div class="fast-frame-plot-host" style="min-height:0;overflow:hidden;"></div>');
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.emptyState = $('<div class="small text-muted border rounded p-3">Use the Fast Frame Channel Manager to add channels to this plot.</div>');
             this.chartShell.append(this.chartHost, this.resizeHandle);
@@ -61,13 +63,19 @@
 
         render(el) {
             this.hostElement = el || null;
+            this.subSectionElement = el?.closest?.('.sub-section') || null;
+            this.sectionElement = this.subSectionElement?.parentElement || null;
             $(el).append(this.container);
-            this.container.empty().append(this.status, this.summary, this.chartShell);
+            this.container.empty().append(this.status, this.chartShell, this.readoutHost);
             this._applyPlotHeight();
             this._bindHeightDrag();
             this._bindResize();
             this._scheduleHelperSpawn();
             this._startPolling();
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                this._applyPlotHeight();
+                this._requestResize();
+            }));
         }
 
         _scheduleHelperSpawn(delay = 0) {
@@ -107,9 +115,6 @@
                 this.lastRenderedSignature = '';
             }
             const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns);
-            const sourceLabel = source.mode === 'latest' ? 'Latest CSV' : 'Fixed CSV';
-            const fileLabel = source.filePath ? shared.displayPath(source.filePath) : 'none';
-            this.summary.text(`Source: ${sourceLabel} | File: ${fileLabel} | Time: ${this.settings.timeColumn || 'Row index'} | Channels: ${defs.map(def => `${def.label} (${def.variable})`).join(', ') || '--'}`);
             if (!this.dataset) {
                 this.status.text('Select a CSV source and choose the X/time column.');
                 this._renderPlaceholder();
@@ -135,6 +140,8 @@
             this.lastRenderedSignature = 'empty';
             this._destroyPlot();
             this.chartHost.empty().append(this.emptyState);
+            if (this.readoutHost) this.readoutHost.html('');
+            this._applyPlotHeight();
         }
 
         _renderPlot(defs) {
@@ -206,7 +213,37 @@
                 ],
                 series
             }, data, host[0]);
+            const lastValues = data.slice(1).map(arr => Array.isArray(arr) && arr.length ? arr[arr.length - 1] : null);
+            this._renderReadout(defs, lastValues);
             this._requestResize();
+        }
+
+        _renderReadout(defs, lastValues) {
+            if (!this.readoutHost) return;
+            if (!defs || !defs.length) {
+                this.readoutHost.html('');
+                this._applyPlotHeight();
+                return;
+            }
+            const cards = defs.map((def, i) => {
+                const val = lastValues && lastValues[i] != null ? this._formatValue(lastValues[i]) : '---';
+                const color = _.escape(def.color || '#7aa2f7');
+                const label = _.escape(def.label || `Series ${i + 1}`);
+                return `<div class="uplot-readout-item">` +
+                    `<span class="uplot-readout-swatch" style="border-color:${color};"></span>` +
+                    `<span class="uplot-readout-label">${label}</span>` +
+                    `<span class="uplot-readout-value">${val}</span>` +
+                    `</div>`;
+            });
+            this.readoutHost.html(cards.join(''));
+            this._applyPlotHeight();
+        }
+
+        _formatValue(val) {
+            if (!Number.isFinite(val)) return '---';
+            const abs = Math.abs(val);
+            if (abs >= 1000 || (abs > 0 && abs < 0.01)) return val.toExponential(2);
+            return Number(val.toFixed(3)).toString();
         }
 
         _destroyPlot() {
@@ -221,7 +258,10 @@
                 this._resizeObs = null;
             }
             if (typeof ResizeObserver !== 'function') return;
-            this._resizeObs = new ResizeObserver(() => this._requestResize());
+            this._resizeObs = new ResizeObserver(() => {
+                this._applyPlotHeight();
+                this._requestResize();
+            });
             if (this.hostElement) this._resizeObs.observe(this.hostElement);
             if (this.chartHost?.[0]) this._resizeObs.observe(this.chartHost[0]);
         }
@@ -243,22 +283,41 @@
             } catch {}
         }
 
+        _measureAutoChartHeight() {
+            const subSection = this.subSectionElement;
+            const shell = this.container?.[0];
+            const status = this.status?.[0];
+            const readout = this.readoutHost?.[0];
+            if (!subSection || !shell) return 0;
+            const shellStyles = window.getComputedStyle(shell);
+            const shellPaddingTop = parseFloat(shellStyles.paddingTop) || 0;
+            const shellPaddingBottom = parseFloat(shellStyles.paddingBottom) || 0;
+            const shellGap = parseFloat(shellStyles.rowGap || shellStyles.gap) || 0;
+            const statusH = status ? status.offsetHeight : 0;
+            const readoutH = readout ? readout.offsetHeight : 0;
+            const available = subSection.clientHeight
+                - shellPaddingTop - shellPaddingBottom
+                - statusH - readoutH
+                - (statusH > 0 ? shellGap : 0)
+                - (readoutH > 0 ? shellGap : 0);
+            return Math.max(160, available);
+        }
+
         _applyPlotHeight() {
-            if (typeof this.plotHeightPx === 'number' && Number.isFinite(this.plotHeightPx)) {
-                this.chartHost.css({
-                    height: `${Math.max(160, this.plotHeightPx)}px`,
-                    flex: '0 0 auto',
-                    overflow: 'hidden',
-                    minHeight: '0'
-                });
+            const next = this.plotHeightPx;
+            if (typeof next === 'number' && Number.isFinite(next)) {
+                const maxAllowed = this._measureAutoChartHeight();
+                this.plotHeightPx = Math.min(Math.max(160, next), maxAllowed || Math.max(160, next));
+                this.chartShell.css({ height: `${this.plotHeightPx}px`, flex: '0 0 auto' });
             } else {
-                this.chartHost.css({
-                    height: '',
-                    flex: '1 1 auto',
-                    overflow: 'hidden',
-                    minHeight: '0'
+                const autoH = this._measureAutoChartHeight();
+                this.plotHeightPx = null;
+                this.chartShell.css({
+                    height: autoH > 0 ? `${autoH}px` : '',
+                    flex: '1 1 auto'
                 });
             }
+            this.chartHost.css({ flex: '1 1 auto' });
         }
 
         _bindHeightDrag() {
@@ -267,9 +326,9 @@
             this.resizeHandle.on('mousedown', (event) => {
                 event.preventDefault();
                 const startY = event.clientY;
-                const startHeight = this.chartHost[0]?.clientHeight || this.plotHeightPx || 320;
+                const startHeight = this.chartShell[0]?.clientHeight || this.plotHeightPx || 320;
                 const onMove = (moveEvent) => {
-                    this.plotHeightPx = Math.max(160, startHeight + (moveEvent.clientY - startY));
+                    this.plotHeightPx = startHeight + (moveEvent.clientY - startY);
                     this._applyPlotHeight();
                     this._requestResize();
                 };
@@ -277,6 +336,7 @@
                     $(window)
                         .off('mousemove.fast-frame-plot-resize', onMove)
                         .off('mouseup.fast-frame-plot-resize', onUp);
+                    this._dragCleanup = null;
                 };
                 $(window)
                     .on('mousemove.fast-frame-plot-resize', onMove)
@@ -318,6 +378,6 @@
             this._destroyPlot();
         }
 
-        getHeight() { return 8; }
+        getHeight() { return 10; }
     }
 }());
