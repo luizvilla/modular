@@ -295,28 +295,33 @@
             const shellGap = parseFloat(shellStyles.rowGap || shellStyles.gap) || 0;
             const statusH = status ? status.offsetHeight : 0;
             const readoutH = readout ? readout.offsetHeight : 0;
-            const available = subSection.clientHeight
+            // Use container.clientHeight when available — it accounts for the .widget
+            // padding (5px top + 5px bottom) that subSection.clientHeight does not.
+            // Fall back to subSection minus the hardcoded widget padding (10px).
+            const containerH = shell.clientHeight;
+            const baseH = containerH > 0 ? containerH : subSection.clientHeight - 10;
+            // 3 flex items (status, chartShell, readout) → always 2 gaps between them.
+            const available = baseH
                 - shellPaddingTop - shellPaddingBottom
                 - statusH - readoutH
-                - (statusH > 0 ? shellGap : 0)
-                - (readoutH > 0 ? shellGap : 0);
+                - shellGap * 2;
             return Math.max(160, available);
         }
 
         _applyPlotHeight() {
             const next = this.plotHeightPx;
+            let targetH;
             if (typeof next === 'number' && Number.isFinite(next)) {
                 const maxAllowed = this._measureAutoChartHeight();
                 this.plotHeightPx = Math.min(Math.max(160, next), maxAllowed || Math.max(160, next));
-                this.chartShell.css({ height: `${this.plotHeightPx}px`, flex: '0 0 auto' });
+                targetH = this.plotHeightPx;
             } else {
-                const autoH = this._measureAutoChartHeight();
                 this.plotHeightPx = null;
-                this.chartShell.css({
-                    height: autoH > 0 ? `${autoH}px` : '',
-                    flex: '1 1 auto'
-                });
+                targetH = this._measureAutoChartHeight();
             }
+            // Always use flex: 0 0 auto so chartShell never grows beyond the computed
+            // height and the readout + resize handle remain visible.
+            this.chartShell.css({ height: targetH > 0 ? `${targetH}px` : '', flex: '0 0 auto' });
             this.chartHost.css({ flex: '1 1 auto' });
         }
 
