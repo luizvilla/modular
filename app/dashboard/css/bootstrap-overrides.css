@@ -1132,6 +1132,7 @@ body.pane-resize-active .pane-resize-handle {
   color: #B88F51;
   text-transform: uppercase;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .datasource-selected {
