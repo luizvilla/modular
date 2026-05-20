@@ -1174,7 +1174,9 @@ body.pane-resize-active .pane-resize-handle {
 }
 
 .gridster .gs_w > .pane-header > .pane-tools {
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0;
   z-index: 3;
 }
 
