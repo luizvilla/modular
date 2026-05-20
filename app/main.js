@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
 const fs = require('fs');
@@ -119,6 +119,10 @@ ipcMain.on('renderer-log', (_event, { level = 'log', args = [] } = {}) => {
     }
 });
 
+ipcMain.on('set-theme', (_event, theme) => {
+    nativeTheme.themeSource = theme === 'light' ? 'light' : 'dark';
+});
+
 // App menu is custom: Edit only hosts "Widget Categories" and View/Window are removed.
 // ── Documentation menu helpers ────────────────────────────────────────────────
 
@@ -226,24 +230,33 @@ function buildWidgetDocsForExtension(extensionId) {
     }
 }
 
-function buildExtensionsMenuItems() {
-    const sections = [];
-    for (const ext of extensionRuntime.inventory) {
-        if (!ext.enabled) continue;
+function isExtensionEnabled(extensionId) {
+    return extensionRuntime.inventory.some((entry) => entry.id === extensionId && entry.enabled);
+}
 
-        const widgetItems = buildWidgetDocsForExtension(ext.id);
-        const exampleItems = buildExamplesForExtension(ext.id);
+function buildWidgetExtensionsMenuItems() {
+    const widgetSections = [
+        { extensionId: 'core', label: 'Modular Core Widgets' },
+        { extensionId: 'owntech', label: 'OwnTech Widgets' },
+        { extensionId: 'thingset', label: 'Thingset Widgets' },
+    ];
+    const items = [];
+    widgetSections.forEach(({ extensionId, label }) => {
+        if (!isExtensionEnabled(extensionId)) return;
+        const submenu = buildWidgetDocsForExtension(extensionId);
+        if (!submenu.length) return;
+        items.push({ label, submenu });
+    });
+    return items.length
+        ? items
+        : [{ label: 'No widget documentation found', enabled: false }];
+}
 
-        if (!widgetItems.length && !exampleItems.length) continue;
-
-        if (sections.length) sections.push({ type: 'separator' });
-        sections.push({ label: ext.displayName, enabled: false });
-        if (widgetItems.length) sections.push({ label: 'Widgets Help', submenu: widgetItems });
-        if (exampleItems.length) sections.push({ label: 'Examples', submenu: exampleItems });
-    }
-    return sections.length
-        ? sections
-        : [{ label: 'No extension documentation found', enabled: false }];
+function buildExamplesMenuItems(extensionId) {
+    const items = buildExamplesForExtension(extensionId);
+    return items.length
+        ? items
+        : [{ label: 'No examples found', enabled: false }];
 }
 
 function getExtensionDisplayName(extensionId) {
@@ -515,7 +528,8 @@ ipcMain.handle('extensions-manager-disable', (_event, { id } = {}) => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function setAppMenu() {
-    const extensionsMenu = buildExtensionsMenuItems();
+    const widgetExtensionsMenu = buildWidgetExtensionsMenuItems();
+    const owntechExamplesMenu = buildExamplesMenuItems('owntech-examples');
     const coursewareMenu = buildCoursewareMenuItems();
     const template = [
         {
@@ -584,14 +598,23 @@ function setAppMenu() {
             ]
         },
         {
-            label: 'Courseware',
-            submenu: coursewareMenu
-        },
-        {
-            label: 'Extensions',
-            submenu: extensionsMenu
+            label: 'Widget Extensions',
+            submenu: widgetExtensionsMenu
         }
     ];
+
+    if (isExtensionEnabled('owntech-examples')) {
+        template.push({
+            label: 'OwnTech Examples',
+            submenu: owntechExamplesMenu
+        });
+    }
+    if (isExtensionEnabled('courseware')) {
+        template.push({
+            label: 'Courseware',
+            submenu: coursewareMenu
+        });
+    }
 
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
     // Sync activity toggle state to the renderer on menu build.

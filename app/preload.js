@@ -146,6 +146,9 @@ const api = {
     diagnostics: {
         captureSnapshot: () => ipcRenderer.invoke('diagnostics-capture-snapshot')
     },
+    theme: {
+        setTheme: (theme) => ipcRenderer.send('set-theme', theme)
+    },
     extensions: {
         list: () => ipcRenderer.invoke('extensions-list'),
         isEnabled: (id) => ipcRenderer.invoke('extensions-is-enabled', { id }),
@@ -442,8 +445,8 @@ if (isMock) {
         api.flash = {
             chooseFirmwareFile: async () => {
                 if (mockFwMissing) return null;
-                // Keep mock mode returning a file path while avoiding the AC_client_server example bias.
-                return path.join(__dirname, 'dashboard', 'binaries', 'blinky', 'blinky.mcuboot.bin');
+                // Keep mock mode returning a real example binary without biasing toward a specific microgrid demo.
+                return path.join(__dirname, 'extensions', 'owntech-examples', 'dashboard', 'binaries', 'blinky', 'blinky.mcuboot.bin');
             },
             startFlash: async ({ firmwarePath }) => {
                 if (mockFwMissing || !firmwarePath) throw new Error('Missing firmware file');
