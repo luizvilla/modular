@@ -191,6 +191,13 @@ textarea.form-control {
   width: 40px;
 }
 
+#side-pane.collapsed .side-pane-title,
+#side-pane.collapsed #side-pane-list,
+#side-pane.collapsed #side-pane-resizer,
+#side-pane.collapsed #side-pane-detail {
+  display: none;
+}
+
 #side-pane-header {
   flex: 0 0 auto;
   display: flex;
