@@ -241,6 +241,22 @@ function normalizePreloadFlags(value) {
     return flags;
 }
 
+function normalizeRequiredExtensions(value, label = 'requiresExtensions') {
+    if (!Array.isArray(value)) return [];
+    const seen = new Set();
+    const result = [];
+    value.forEach((entry, index) => {
+        if (typeof entry !== 'string' || !entry.trim()) {
+            throw new Error(`${label}[${index}] must be a non-empty string`);
+        }
+        const id = entry.trim();
+        if (seen.has(id)) return;
+        seen.add(id);
+        result.push(id);
+    });
+    return result;
+}
+
 function normalizeManifestRecord(manifestPath, options) {
     const { appRoot, env, persistedState } = options;
     const manifestDir = path.dirname(manifestPath);
@@ -278,6 +294,7 @@ function normalizeManifestRecord(manifestPath, options) {
         coursewareRoots: normalizeCoursewareRoots(manifest, appRoot),
         dashboardRoots: normalizeDashboardRoots(manifest, appRoot),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
+        requiresExtensions: normalizeRequiredExtensions(manifest.requiresExtensions),
         capabilities: normalizeCapabilities(manifest.capabilities),
         compatibilityTypes: normalizeCompatibilityTypes(manifest.compatibilityTypes),
         datasources: normalizeDatasources(manifest),
@@ -289,7 +306,8 @@ function sortExtensions(records) {
         ['core', 0],
         ['courseware', 1],
         ['owntech', 2],
-        ['thingset', 3],
+        ['owntech-workspace', 3],
+        ['thingset', 4],
     ]);
     return records.slice().sort((left, right) => {
         const leftRank = rank.has(left.id) ? rank.get(left.id) : 100;
@@ -297,6 +315,27 @@ function sortExtensions(records) {
         if (leftRank !== rightRank) return leftRank - rightRank;
         return left.id.localeCompare(right.id);
     });
+}
+
+function applyRequiredExtensionConstraints(records, logger) {
+    const byId = new Map(records.map((record) => [record.id, record]));
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const record of records) {
+            if (!record.enabled) continue;
+            if (!Array.isArray(record.requiresExtensions) || !record.requiresExtensions.length) continue;
+            const missingId = record.requiresExtensions.find((dependencyId) => {
+                const dependency = byId.get(dependencyId);
+                return !dependency || !dependency.enabled;
+            });
+            if (!missingId) continue;
+            record.enabled = false;
+            record.disabledByDependency = missingId;
+            logger.warn(`[extensions] Disabling ${record.id}: requires enabled extension "${missingId}"`);
+            changed = true;
+        }
+    }
 }
 
 function createContributionRegistry() {
@@ -601,6 +640,7 @@ function normalizeInstalledBundleRecord(manifestPath, options) {
         coursewareRoots: normalizeInstalledCoursewareRoots(manifest, bundleDir),
         dashboardRoots: normalizeInstalledDashboardRoots(manifest, bundleDir),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
+        requiresExtensions: normalizeRequiredExtensions(manifest.requiresExtensions),
         capabilities: normalizeCapabilities(manifest.capabilities),
         compatibilityTypes: normalizeCompatibilityTypes(manifest.compatibilityTypes),
         datasources: normalizeDatasources(manifest),
@@ -618,6 +658,7 @@ function toInventoryEntry(record) {
         version: record.version || '0.0.0',
         enabled: record.enabled,
         capabilities: record.capabilities.slice(),
+        requiresExtensions: Array.isArray(record.requiresExtensions) ? record.requiresExtensions.slice() : [],
         isInstalled: !!record.isInstalled,
     };
 }
@@ -880,6 +921,7 @@ function buildExtensionRuntime(options = {}) {
         }
     }
 
+    applyRequiredExtensionConstraints(records, logger);
     const sortedRecords = sortExtensions(records);
     const registry = createContributionRegistry();
     loadExtensionEntries(sortedRecords, registry, logger, options.extensionContext);

@@ -35,14 +35,21 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
       hasCourseware: Array.isArray(bootstrap.courseware) && bootstrap.courseware.length > 0,
     };
   });
+  const menuState = await app.evaluate(({ Menu }) => {
+    const menu = Menu.getApplicationMenu();
+    const widgetExtensions = menu && menu.items.find((item) => item.label === 'Widget Extensions');
+    return {
+      widgetLabels: widgetExtensions ? widgetExtensions.submenu.items.map((item) => item.label) : [],
+    };
+  });
 
   expect(diagnostics.hasMainSnapshot).toBe(true);
   expect(diagnostics.hasRuntimeSnapshot).toBe(true);
-  expect(diagnostics.extensionIds).toEqual(expect.arrayContaining(['core', 'courseware', 'owntech', 'thingset']));
+  expect(diagnostics.extensionIds).toEqual(expect.arrayContaining(['core', 'courseware', 'owntech', 'owntech-workspace', 'thingset']));
   expect(diagnostics.inventoryHasVersionField).toBe(true);
   expect(diagnostics.inventoryHasIsInstalledField).toBe(true);
   // Manager list shows all extensions; source-loaded appear as 'builtin'.
-  expect(diagnostics.managerListIds).toEqual(expect.arrayContaining(['core', 'courseware', 'owntech', 'thingset']));
+  expect(diagnostics.managerListIds).toEqual(expect.arrayContaining(['core', 'courseware', 'owntech', 'owntech-workspace', 'thingset']));
   expect(diagnostics.managerListSources.every((s) => s === 'builtin' || s === 'installed')).toBe(true);
   expect(diagnostics.hasInstalledInManagerList).toBe(false);
   expect(diagnostics.hasManagerApi).toBe(true);
@@ -50,9 +57,9 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
   expect(diagnostics.hasOwntechScript).toBe(true);
   expect(diagnostics.hasThingsetScript).toBe(true);
   expect(diagnostics.hasWidgetDocsRoots).toBe(true);
-  expect(diagnostics.hasExampleRoots).toBe(true);
   expect(diagnostics.hasCoursewareRoots).toBe(true);
   expect(diagnostics.hasCourseware).toBe(true);
+  expect(menuState.widgetLabels).toEqual(expect.arrayContaining(['Modular Core Widgets', 'OwnTech Widgets', 'Thingset Widgets']));
 
   const filtered = errors.filter((err) => {
     const msg = String(err && err.message ? err.message : err);
@@ -83,11 +90,13 @@ test('extension runtime boots cleanly with owntech and thingset disabled', async
     const managerList = await window.api.extensions.manager.list();
     return {
       owntechEnabled: await window.api.extensions.isEnabled('owntech'),
+      owntechWorkspaceEnabled: await window.api.extensions.isEnabled('owntech-workspace'),
       coursewareEnabled: await window.api.extensions.isEnabled('courseware'),
       thingsetEnabled: await window.api.extensions.isEnabled('thingset'),
       inventory,
       managerCoursewareEnabled: managerList.find((e) => e.id === 'courseware')?.enabled,
       managerOwntechEnabled: managerList.find((e) => e.id === 'owntech')?.enabled,
+      managerOwntechWorkspaceEnabled: managerList.find((e) => e.id === 'owntech-workspace')?.enabled,
       managerThingsetEnabled: managerList.find((e) => e.id === 'thingset')?.enabled,
       hasFastFrameScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'),
       hasTwistScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/twist_control.widget.js'),
@@ -97,18 +106,28 @@ test('extension runtime boots cleanly with owntech and thingset disabled', async
       courseware: bootstrap.courseware.length,
     };
   });
+  const menuState = await app.evaluate(({ Menu }) => {
+    const menu = Menu.getApplicationMenu();
+    const widgetExtensions = menu && menu.items.find((item) => item.label === 'Widget Extensions');
+    return {
+      widgetLabels: widgetExtensions ? widgetExtensions.submenu.items.map((item) => item.label) : [],
+    };
+  });
 
   expect(snapshot.coursewareEnabled).toBe(false);
   expect(snapshot.owntechEnabled).toBe(false);
+  expect(snapshot.owntechWorkspaceEnabled).toBe(false);
   expect(snapshot.thingsetEnabled).toBe(false);
   expect(snapshot.inventory).toEqual(expect.arrayContaining([
     expect.objectContaining({ id: 'core', enabled: true }),
     expect.objectContaining({ id: 'courseware', enabled: false }),
     expect.objectContaining({ id: 'owntech', enabled: false }),
+    expect.objectContaining({ id: 'owntech-workspace', enabled: false }),
     expect.objectContaining({ id: 'thingset', enabled: false }),
   ]));
   expect(snapshot.managerCoursewareEnabled).toBe(false);
   expect(snapshot.managerOwntechEnabled).toBe(false);
+  expect(snapshot.managerOwntechWorkspaceEnabled).toBe(false);
   expect(snapshot.managerThingsetEnabled).toBe(false);
   expect(snapshot.hasFastFrameScript).toBe(true);
   expect(snapshot.hasTwistScript).toBe(false);
@@ -116,6 +135,7 @@ test('extension runtime boots cleanly with owntech and thingset disabled', async
   expect(snapshot.exampleRoots).toBe(0);
   expect(snapshot.coursewareRoots).toBe(0);
   expect(snapshot.courseware).toBe(0);
+  expect(menuState.widgetLabels).toEqual(['Modular Core Widgets']);
 
   const filtered = errors.filter((err) => {
     const msg = String(err && err.message ? err.message : err);

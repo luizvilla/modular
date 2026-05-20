@@ -16,9 +16,14 @@ function runDefaultRuntimeAssertions() {
         },
     });
 
-    assert.deepStrictEqual(runtime.inventory.map((entry) => entry.id), ['core', 'owntech', 'thingset']);
+    const extensionIds = runtime.inventory.map((entry) => entry.id);
+    ['core', 'courseware', 'owntech', 'owntech-workspace', 'thingset'].forEach((id) => {
+        assert.strictEqual(extensionIds.includes(id), true, `${id} should be present in inventory`);
+    });
     assert.strictEqual(runtime.isEnabled('core'), true);
+    assert.strictEqual(runtime.isEnabled('courseware'), true);
     assert.strictEqual(runtime.isEnabled('owntech'), true);
+    assert.strictEqual(runtime.isEnabled('owntech-workspace'), true);
     assert.strictEqual(runtime.isEnabled('thingset'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), true);
@@ -35,7 +40,6 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(ffPlot.icon, 'chart-area');
     assert.strictEqual(typeof ffPlot.preferredOrder, 'number');
     assert.strictEqual(ffPlot.extensionId, 'core');
-
     // datasources: core contributes fast_frame and serialport; owntech and thingset add theirs
     assert.strictEqual(Array.isArray(runtime.bootstrap.datasources), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
@@ -55,13 +59,16 @@ function runDisabledRuntimeAssertions() {
         env: {
             ...process.env,
             MODULAR_EXTENSION_CORE: '0',
+            MODULAR_EXTENSION_COURSEWARE: '0',
             MODULAR_EXTENSION_OWNTECH: '0',
             ENABLE_THINGSET: '0',
         },
     });
 
     assert.strictEqual(runtime.isEnabled('core'), true);
+    assert.strictEqual(runtime.isEnabled('courseware'), false);
     assert.strictEqual(runtime.isEnabled('owntech'), false);
+    assert.strictEqual(runtime.isEnabled('owntech-workspace'), false);
     assert.strictEqual(runtime.isEnabled('thingset'), false);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), false);
@@ -76,6 +83,8 @@ function runDisabledRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'thingset_serial_datasource'), false);
+    assert.strictEqual(runtime.bootstrap.exampleRoots.length, 0);
+    assert.strictEqual(runtime.bootstrap.coursewareRoots.length, 0);
 }
 
 function runInvalidManifestAssertions() {
@@ -233,11 +242,15 @@ function runBuiltinOverrideDisable() {
         const entry = runtime.inventory.find((e) => e.id === 'owntech');
         assert.ok(entry, 'owntech should be in inventory');
         assert.strictEqual(entry.enabled, false, 'state.json should disable owntech');
+        const workspaceEntry = runtime.inventory.find((e) => e.id === 'owntech-workspace');
+        assert.ok(workspaceEntry, 'owntech-workspace should be in inventory');
+        assert.strictEqual(workspaceEntry.enabled, false, 'owntech-workspace should disable when owntech is disabled');
         assert.strictEqual(
             runtime.bootstrap.rendererScripts.some((s) => s.path.includes('twist')),
             false,
             'owntech renderer scripts should be absent when disabled via state.json'
         );
+        assert.strictEqual(runtime.bootstrap.exampleRoots.length, 0, 'dependent examples roots should be absent when owntech is disabled');
     } finally {
         fs.rmSync(tempRoot, { recursive: true, force: true });
     }

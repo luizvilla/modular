@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Firmware Workspace</title>
+    <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+    <div class="shell" data-testid="firmware-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">OwnTech Firmware</p>
+                <h1>Firmware Workspace</h1>
+                <p class="subhead" id="workspace-summary">Attach an existing Core checkout to start editing in Monaco.</p>
+            </div>
+            <div class="status-strip">
+                <span class="status-chip" id="api-status">Bridge pending</span>
+                <span class="status-chip" id="toolchain-status">Toolchains unavailable</span>
+                <span class="status-chip" id="build-status">Build actions disabled</span>
+            </div>
+        </header>
+
+        <section class="toolbar" aria-label="Firmware actions" data-testid="firmware-toolbar">
+            <button type="button" id="attach-workspace" data-testid="firmware-action-attach">Attach Existing Workspace</button>
+            <button type="button" id="toggle-advanced" data-testid="firmware-action-advanced">Advanced View Off</button>
+            <button type="button" id="save-file" data-testid="firmware-action-save">Save File</button>
+            <button type="button" disabled data-testid="firmware-action-install">Install Toolchain</button>
+            <button type="button" disabled data-testid="firmware-action-build">Build</button>
+            <button type="button" disabled data-testid="firmware-action-upload">Upload</button>
+            <button type="button" disabled data-testid="firmware-action-clean">Clean</button>
+            <button type="button" disabled data-testid="firmware-action-reindex">Reindex</button>
+            <div class="env-pill" id="env-pill">No environment selected</div>
+        </section>
+
+        <main class="layout">
+            <aside class="panel">
+                <div class="panel-heading">
+                    <p class="panel-kicker">Workspace Tree</p>
+                    <h2 id="file-panel-title">Focused Workspace</h2>
+                </div>
+                <div class="workspace-root" id="workspace-root" data-testid="firmware-root">No workspace attached</div>
+                <ul class="file-list" id="file-list" data-testid="firmware-file-list"></ul>
+            </aside>
+
+            <section class="panel editor-panel">
+                <div class="panel-heading editor-heading">
+                    <div>
+                        <p class="panel-kicker">Editor</p>
+                        <h2 id="editor-title">Workspace Surface</h2>
+                    </div>
+                    <div class="editor-state">
+                        <span class="tab session-chip">Session 3</span>
+                        <span class="tab" id="file-status-chip">No file open</span>
+                    </div>
+                </div>
+
+                <div class="tabs-shell">
+                    <div class="tabs-list" id="editor-tabs" data-testid="firmware-tabs"></div>
+                    <span class="tab muted-chip">No clangd yet</span>
+                </div>
+
+                <div class="editor-host" data-testid="firmware-editor-host">
+                    <div class="editor-surface" id="editor-surface" data-testid="firmware-editor-surface"></div>
+                    <div class="editor-empty-state" id="editor-empty-state">
+                        <strong>Monaco is ready.</strong>
+                        <span>Attach a workspace and open a file to start editing.</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <section class="panel console-panel">
+            <div class="panel-heading">
+                <p class="panel-kicker">Console</p>
+                <h2>Build Output</h2>
+            </div>
+            <pre class="console-output" id="console-output" data-testid="firmware-console"></pre>
+        </section>
+    </div>
+    <script src="./index.js"></script>
+</body>
+</html>

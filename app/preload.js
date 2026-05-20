@@ -162,6 +162,34 @@ const api = {
             chooseBundle: () => ipcRenderer.invoke('extensions-choose-bundle'),
             onOpen: (cb) => on('open-extension-manager', cb),
         }
+    },
+    firmwareWorkspace: {
+        openWindow: () => ipcRenderer.invoke('firmware-workspace-open-window'),
+        getState: () => ipcRenderer.invoke('firmware-workspace-get-state'),
+        useManagedWorkspace: () => ipcRenderer.invoke('firmware-workspace-use-managed'),
+        attachExistingWorkspace: (workspacePath) => ipcRenderer.invoke('firmware-workspace-attach-existing', { workspacePath }),
+        listFiles: () => ipcRenderer.invoke('firmware-workspace-list-files'),
+        readFile: (relativePath) => ipcRenderer.invoke('firmware-workspace-read-file', { relativePath }),
+        writeFile: (relativePath, content) => ipcRenderer.invoke('firmware-workspace-write-file', { relativePath, content }),
+        setAdvancedMode: (enabled) => ipcRenderer.invoke('firmware-workspace-set-advanced-mode', { enabled }),
+        onStateChange: (cb) => on('firmware-workspace-state', cb)
+    },
+    firmwareToolchain: {
+        getStatus: () => ipcRenderer.invoke('firmware-toolchain-get-status'),
+        install: () => ipcRenderer.invoke('firmware-toolchain-install'),
+        onStatusChange: (cb) => on('firmware-toolchain-status', cb)
+    },
+    firmwareBuild: {
+        getState: () => ipcRenderer.invoke('firmware-build-get-state'),
+        listEnvs: () => ipcRenderer.invoke('firmware-build-list-envs'),
+        selectEnv: (env) => ipcRenderer.invoke('firmware-build-select-env', { env }),
+        build: () => ipcRenderer.invoke('firmware-build-run', { action: 'build' }),
+        upload: () => ipcRenderer.invoke('firmware-build-run', { action: 'upload' }),
+        clean: () => ipcRenderer.invoke('firmware-build-run', { action: 'clean' }),
+        reindex: () => ipcRenderer.invoke('firmware-build-run', { action: 'reindex' }),
+        cancel: (jobId) => ipcRenderer.invoke('firmware-build-cancel', { jobId }),
+        onOutput: (cb) => on('firmware-build-output', cb),
+        onStateChange: (cb) => on('firmware-build-state', cb)
     }
 };
 

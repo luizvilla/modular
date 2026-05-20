@@ -1,0 +1,17 @@
+{
+  "id": "owntech-workspace",
+  "apiVersion": 1,
+  "version": "0.9.3",
+  "displayName": "OwnTech Firmware Workspace",
+  "enabledByDefault": true,
+  "mainEntry": "main.js",
+  "preloadFlags": {
+    "firmwareWorkspace": true
+  },
+  "requiresExtensions": [
+    "owntech"
+  ],
+  "capabilities": [
+    "firmware-workspace"
+  ]
+}

@@ -5,6 +5,19 @@ const fs = require('fs');
 const { flashFirmware, cancelFlash } = require('./flasher');
 const { spawn } = require('child_process');
 const { buildExtensionRuntime, readInstalledState } = require('./extensions/runtime');
+const {
+    FIRMWARE_FOCUSED_FILES,
+    getFirmwareWorkspaceStatePath,
+    listAdvancedWorkspaceEntries,
+    listFocusedWorkspaceEntries,
+    pickDefaultActiveFile,
+    readFirmwareWorkspaceState,
+    readWorkspaceTextFile,
+    resolveWorkspacePath,
+    validateFirmwareWorkspaceRoot,
+    writeFirmwareWorkspaceState,
+    writeWorkspaceTextFile,
+} = require('./firmware/workspace');
 
 const argv = process.argv || [];
 const noGpu = argv.includes('--no-gpu') || argv.includes('--disable-gpu');
@@ -12,6 +25,14 @@ if (noGpu) {
     // Must be called before app is ready
     app.disableHardwareAcceleration();
     app.commandLine.appendSwitch('disable-gpu');
+}
+
+if (process.env.MODULAR_USER_DATA_DIR) {
+    try {
+        app.setPath('userData', path.resolve(process.env.MODULAR_USER_DATA_DIR));
+    } catch (err) {
+        console.warn('Failed to override userData path:', err?.message || err);
+    }
 }
 
 // Set ENABLE_THINGSET for preload.js detection; extension runtime handles actual enablement.
@@ -60,6 +81,7 @@ function cloneExtensionBootstrap() {
 
 let mainWindow; // reference to the main BrowserWindow
 let exampleWindow; // dedicated window for docs and lab actions
+let firmwareWindow; // dedicated window for firmware editing sessions
 let exampleTabRequestTimer; // debounce docs tab requests
 let pendingDocTabRequest = null; // last requested docs tab (for late renderer init)
 // Track docs window docking previews/selection so popped tabs can be dragged back.
@@ -82,6 +104,198 @@ function resolveTimestampedCsvPath(filePath) {
     const ext = parsed.ext || '.csv';
     const baseName = parsed.name || 'fast_frame';
     return path.join(parsed.dir || '.', `${buildTimestampStamp()}-${baseName}${ext}`);
+}
+
+function isFirmwareWorkspaceEnabled() {
+    return extensionRuntime.isEnabled('owntech-workspace');
+}
+
+function getFirmwareWorkspaceSessionPath() {
+    return getFirmwareWorkspaceStatePath(app.getPath('userData'));
+}
+
+function readFirmwareSessionState() {
+    return readFirmwareWorkspaceState(getFirmwareWorkspaceSessionPath());
+}
+
+function writeFirmwareSessionState(patch) {
+    const currentState = readFirmwareSessionState();
+    const nextState = {
+        ...currentState,
+        ...(patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {}),
+    };
+    return writeFirmwareWorkspaceState(getFirmwareWorkspaceSessionPath(), nextState);
+}
+
+function resolveFirmwareWorkspaceContext(inputState = null) {
+    const persistedState = inputState || readFirmwareSessionState();
+    if (!persistedState.workspaceRoot) {
+        return {
+            persistedState,
+            workspaceRoot: null,
+            invalidWorkspaceRoot: null,
+            validationError: null,
+            activeFile: null,
+        };
+    }
+
+    try {
+        const workspaceRoot = validateFirmwareWorkspaceRoot(persistedState.workspaceRoot);
+        let activeFile = null;
+        if (persistedState.activeFile) {
+            try {
+                const resolved = resolveWorkspacePath(workspaceRoot, persistedState.activeFile);
+                if (fs.existsSync(resolved.absolutePath) && fs.statSync(resolved.absolutePath).isFile()) {
+                    activeFile = resolved.relativePath;
+                }
+            } catch { /* fall back to a default file below */ }
+        }
+        if (!activeFile) {
+            activeFile = pickDefaultActiveFile(workspaceRoot);
+        }
+        return {
+            persistedState,
+            workspaceRoot,
+            invalidWorkspaceRoot: null,
+            validationError: null,
+            activeFile,
+        };
+    } catch (err) {
+        return {
+            persistedState,
+            workspaceRoot: null,
+            invalidWorkspaceRoot: persistedState.workspaceRoot,
+            validationError: err?.message || String(err),
+            activeFile: null,
+        };
+    }
+}
+
+function listFirmwareWorkspaceEntries(context) {
+    if (!context || !context.workspaceRoot) return [];
+    return context.persistedState.advancedMode
+        ? listAdvancedWorkspaceEntries(context.workspaceRoot, { maxDepth: 4 })
+        : listFocusedWorkspaceEntries(context.workspaceRoot);
+}
+
+function emitFirmwareWorkspaceState(nextState = null) {
+    if (!firmwareWindow || firmwareWindow.isDestroyed() || !firmwareWindow.webContents) return;
+    const state = nextState || getFirmwareWorkspaceState();
+    firmwareWindow.webContents.send('firmware-workspace-state', state);
+}
+
+function getFirmwareWorkspaceState() {
+    const context = resolveFirmwareWorkspaceContext();
+    const fileEntries = listFirmwareWorkspaceEntries(context);
+    const summary = context.workspaceRoot
+        ? `Attached workspace: ${path.basename(context.workspaceRoot)}`
+        : 'Attach an existing Core checkout to start editing in Monaco.';
+    const placeholderMessage = context.workspaceRoot
+        ? 'Session 3 embeds Monaco, multi-tab editing, and Session 2 attached-workspace persistence.'
+        : 'Attach an existing firmware workspace to enable Monaco-backed editing.';
+
+    return {
+        session: 3,
+        extensionId: 'owntech-workspace',
+        enabled: isFirmwareWorkspaceEnabled(),
+        windowOpen: !!(firmwareWindow && !firmwareWindow.isDestroyed()),
+        summary,
+        placeholderMessage,
+        workspace: {
+            mode: context.workspaceRoot ? 'attached' : 'detached',
+            root: context.workspaceRoot,
+            requestedRoot: context.invalidWorkspaceRoot,
+            validationError: context.validationError,
+            focusedFiles: FIRMWARE_FOCUSED_FILES.slice(),
+            advancedMode: !!context.persistedState.advancedMode,
+            activeFile: context.activeFile,
+            fileCount: fileEntries.length,
+        },
+    };
+}
+
+function getFirmwareToolchainStatus() {
+    return {
+        session: 3,
+        managed: false,
+        status: 'placeholder',
+        platformio: {
+            status: 'not-installed',
+            source: 'none',
+        },
+        clangd: {
+            status: 'not-installed',
+            source: 'none',
+        },
+    };
+}
+
+function getFirmwareBuildState() {
+    const context = resolveFirmwareWorkspaceContext();
+    return {
+        session: 3,
+        status: 'idle',
+        supported: false,
+        selectedEnv: null,
+        envs: [],
+        workspaceAttached: !!context.workspaceRoot,
+        actions: {
+            installToolchain: false,
+            build: false,
+            upload: false,
+            clean: false,
+            reindex: false,
+        },
+        placeholderMessage: 'Build, upload, and indexing actions remain disabled in Session 3.',
+    };
+}
+
+function firmwareStubResponse(action) {
+    return {
+        ok: false,
+        session: 3,
+        error: `${action} is not implemented in Session 3.`,
+    };
+}
+
+function openFirmwareWorkspaceWindow() {
+    if (!isFirmwareWorkspaceEnabled()) {
+        return null;
+    }
+    if (firmwareWindow && !firmwareWindow.isDestroyed()) {
+        if (firmwareWindow.isMinimized()) firmwareWindow.restore();
+        firmwareWindow.focus();
+        return firmwareWindow;
+    }
+
+    firmwareWindow = new BrowserWindow({
+        width: 1280,
+        height: 860,
+        minWidth: 920,
+        minHeight: 640,
+        title: 'Firmware Workspace',
+        icon: path.join(__dirname, 'assets', 'icon.png'),
+        backgroundColor: '#0c1320',
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            sandbox: false,
+            nodeIntegration: false,
+            contextIsolation: true,
+        }
+    });
+
+    if (!app.isPackaged) {
+        firmwareWindow.webContents.on('did-fail-load', (_event, code, desc, url) => {
+            console.error('[firmware] did-fail-load', code, desc, url);
+        });
+    }
+
+    firmwareWindow.loadFile(path.join(__dirname, 'firmware', 'index.html'));
+    firmwareWindow.on('closed', () => {
+        firmwareWindow = null;
+    });
+
+    return firmwareWindow;
 }
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
@@ -421,6 +635,131 @@ ipcMain.handle('extensions-is-enabled', (_event, { id } = {}) => {
 });
 
 ipcMain.handle('extensions-get-bootstrap', () => cloneExtensionBootstrap());
+ipcMain.handle('firmware-workspace-open-window', () => {
+    const win = openFirmwareWorkspaceWindow();
+    if (!win) {
+        return {
+            ok: false,
+            windowOpen: false,
+            error: 'OwnTech Firmware Workspace is disabled.',
+            state: getFirmwareWorkspaceState(),
+        };
+    }
+    return {
+        ok: !!win,
+        windowOpen: !!win,
+        state: getFirmwareWorkspaceState(),
+    };
+});
+ipcMain.handle('firmware-workspace-get-state', () => getFirmwareWorkspaceState());
+ipcMain.handle('firmware-workspace-use-managed', () => firmwareStubResponse('useManagedWorkspace'));
+ipcMain.handle('firmware-workspace-attach-existing', async (_event, { workspacePath } = {}) => {
+    let selectedPath = typeof workspacePath === 'string' && workspacePath.trim() ? workspacePath.trim() : '';
+    if (!selectedPath) {
+        const ownerWindow = (firmwareWindow && !firmwareWindow.isDestroyed()) ? firmwareWindow : mainWindow;
+        const { canceled, filePaths } = await dialog.showOpenDialog(ownerWindow, {
+            title: 'Attach Existing Firmware Workspace',
+            defaultPath: process.cwd(),
+            properties: ['openDirectory'],
+        });
+        if (canceled || !filePaths || filePaths.length === 0) {
+            return { ok: false, canceled: true, state: getFirmwareWorkspaceState() };
+        }
+        [selectedPath] = filePaths;
+    }
+
+    try {
+        const workspaceRoot = validateFirmwareWorkspaceRoot(selectedPath);
+        const activeFile = pickDefaultActiveFile(workspaceRoot);
+        writeFirmwareSessionState({
+            workspaceRoot,
+            advancedMode: false,
+            activeFile,
+        });
+        const state = getFirmwareWorkspaceState();
+        emitFirmwareWorkspaceState(state);
+        return { ok: true, state };
+    } catch (err) {
+        return {
+            ok: false,
+            error: err?.message || String(err),
+            state: getFirmwareWorkspaceState(),
+        };
+    }
+});
+ipcMain.handle('firmware-workspace-list-files', () => {
+    const context = resolveFirmwareWorkspaceContext();
+    return {
+        ok: true,
+        session: 3,
+        mode: context.persistedState.advancedMode ? 'advanced' : 'focused',
+        files: listFirmwareWorkspaceEntries(context),
+    };
+});
+ipcMain.handle('firmware-workspace-read-file', (_event, { relativePath } = {}) => {
+    const context = resolveFirmwareWorkspaceContext();
+    if (!context.workspaceRoot) {
+        return { ok: false, error: context.validationError || 'No attached firmware workspace.' };
+    }
+
+    try {
+        const targetPath = relativePath || context.activeFile || pickDefaultActiveFile(context.workspaceRoot);
+        if (!targetPath) {
+            return { ok: false, error: 'No readable file is available in the attached workspace.' };
+        }
+        const file = readWorkspaceTextFile(context.workspaceRoot, targetPath);
+        writeFirmwareSessionState({ activeFile: file.relativePath });
+        const state = getFirmwareWorkspaceState();
+        emitFirmwareWorkspaceState(state);
+        return {
+            ok: true,
+            session: 3,
+            relativePath: file.relativePath,
+            content: file.content,
+            state,
+        };
+    } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
+ipcMain.handle('firmware-workspace-write-file', (_event, { relativePath, content } = {}) => {
+    const context = resolveFirmwareWorkspaceContext();
+    if (!context.workspaceRoot) {
+        return { ok: false, error: context.validationError || 'No attached firmware workspace.' };
+    }
+
+    try {
+        const targetPath = relativePath || context.activeFile;
+        if (!targetPath) {
+            return { ok: false, error: 'No active file selected.' };
+        }
+        const file = writeWorkspaceTextFile(context.workspaceRoot, targetPath, content ?? '');
+        writeFirmwareSessionState({ activeFile: file.relativePath });
+        const state = getFirmwareWorkspaceState();
+        emitFirmwareWorkspaceState(state);
+        return {
+            ok: true,
+            session: 3,
+            relativePath: file.relativePath,
+            state,
+        };
+    } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
+ipcMain.handle('firmware-workspace-set-advanced-mode', (_event, { enabled } = {}) => {
+    writeFirmwareSessionState({ advancedMode: !!enabled });
+    const state = getFirmwareWorkspaceState();
+    emitFirmwareWorkspaceState(state);
+    return { ok: true, state };
+});
+ipcMain.handle('firmware-toolchain-get-status', () => getFirmwareToolchainStatus());
+ipcMain.handle('firmware-toolchain-install', () => firmwareStubResponse('installToolchain'));
+ipcMain.handle('firmware-build-get-state', () => getFirmwareBuildState());
+ipcMain.handle('firmware-build-list-envs', () => ({ ok: true, session: 3, envs: [] }));
+ipcMain.handle('firmware-build-select-env', () => firmwareStubResponse('selectEnv'));
+ipcMain.handle('firmware-build-run', (_event, { action } = {}) => firmwareStubResponse(action || 'runBuildAction'));
+ipcMain.handle('firmware-build-cancel', () => firmwareStubResponse('cancelBuildAction'));
 
 // ── Extension Manager ──────────────────────────────────────────────────────
 
@@ -551,6 +890,14 @@ function setAppMenu() {
                         }
                     }
                 },
+                {
+                    label: 'Firmware Workspace',
+                    enabled: isExtensionEnabled('owntech-workspace'),
+                    click: () => {
+                        openFirmwareWorkspaceWindow();
+                    }
+                },
+                { type: 'separator' },
                 {
                     label: 'Save Dashboard',
                     click: () => {
@@ -782,10 +1129,10 @@ async function captureDiagnosticsSnapshot() {
                 bounds: exampleWindow.getBounds()
             } : null
         },
-        state: {
-            openPorts: openPorts.size,
-            activeRecordings: activeRecordings.size,
-            serialLocks: serialLocks.size,
+                state: {
+                    openPorts: openPorts.size,
+                    activeRecordings: activeRecordings.size,
+                    serialLocks: serialLocks.size,
             portSettings: portSettings.size,
             pendingReopens: pendingReopens.size,
             serialBuffers: summarizeArrayMap(serialBuffers),
@@ -795,9 +1142,9 @@ async function captureDiagnosticsSnapshot() {
             fastStates: summarizeMapEntries(fastStates),
             fastBuffers: summarizeFastBuffers(fastBuffers),
             fastStatus: summarizeMapEntries(fastStatus)
-        },
-        appMetrics
-    };
+                },
+                appMetrics
+            };
 }
 
 function decodeEolToken(token) {
