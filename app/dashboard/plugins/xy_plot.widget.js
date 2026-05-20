@@ -50,6 +50,10 @@
             this.lastRender = 0;
             this._resizeObs = null;
             this._helpersSpawned = false;
+            this._dragCleanup = null;
+            this.plotHeightPx = null;
+            this.subSectionElement = null;
+            this.sectionElement = null;
 
             this.xSourceDef = this._parseSourceDef(this._resolveSetting('xSourceDef'));
             this.ySourceDef = this._parseSourceDef(this._resolveSetting('ySourceDef'));
@@ -59,10 +63,11 @@
             this.toolbar = $('<div class="d-flex align-items-center justify-content-between gap-2"></div>');
             this.status = $('<div class="small text-muted flex-grow-1">Configure X and Y sources.</div>');
             this.clearBtn = $('<button class="btn btn-outline-secondary btn-sm xy-plot-clear">Clear history</button>');
-            this.chartHost = $('<div class="xy-plot-chart flex-grow-1" style="min-height:220px;"></div>');
+            this.chartHost = $('<div class="xy-plot-chart" style="min-height:220px;"></div>');
             this.readout = $('<div class="small text-muted xy-plot-readout">No points yet.</div>');
+            this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.toolbar.append(this.status, this.clearBtn);
-            this.container.append(this.toolbar, this.chartHost, this.readout);
+            this.container.append(this.toolbar, this.chartHost, this.readout, this.resizeHandle);
         }
 
         _resolveSetting(key) {
@@ -103,13 +108,21 @@
         }
 
         render(containerElement) {
+            this.subSectionElement = containerElement?.closest?.('.sub-section') || null;
+            this.sectionElement = this.subSectionElement?.parentElement || null;
             this.container.appendTo(containerElement);
             this.clearBtn.off('click').on('click', () => this._clearHistory());
             this._maybeSpawnHelpers();
             this._initPlot();
+            this._applyPlotHeight();
+            this._bindHeightDrag();
             this._bindResize(containerElement);
             this._restartPollTimer();
             this._refreshStatus();
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                this._applyPlotHeight();
+                this._resizePlot();
+            }));
         }
 
         _maybeSpawnHelpers() {
@@ -125,7 +138,7 @@
             const opts = {
                 title: this._resolveSetting('title') || '',
                 width: this.chartHost.width() || this.container.width() || 480,
-                height: Math.max(220, this.chartHost.height() || 280),
+                height: Math.max(160, this.chartHost.height() || this.container.height() || 240),
                 legend: { show: false },
                 scales: {
                     x: {},
@@ -178,7 +191,10 @@
                 this._resizeObs = null;
             }
             if (typeof ResizeObserver !== 'function') return;
-            this._resizeObs = new ResizeObserver(() => this._resizePlot());
+            this._resizeObs = new ResizeObserver(() => {
+                this._applyPlotHeight();
+                this._resizePlot();
+            });
             this._resizeObs.observe(containerElement);
             this._resizeObs.observe(this.chartHost[0]);
         }
@@ -491,6 +507,11 @@
 
         onCalculatedValueChanged() {}
 
+        onSizeChanged() {
+            this._applyPlotHeight();
+            this._resizePlot();
+        }
+
         onDispose() {
             if (this.pollTimer) {
                 clearInterval(this.pollTimer);
@@ -504,10 +525,96 @@
                 try { this._resizeObs.disconnect(); } catch {}
                 this._resizeObs = null;
             }
+            if (this._dragCleanup) {
+                this._dragCleanup();
+                this._dragCleanup = null;
+            }
+        }
+
+        _applyPlotHeight() {
+            const next = this.plotHeightPx;
+            if (typeof next === 'number' && Number.isFinite(next)) {
+                const maxAllowed = this._measureAutoChartHeight();
+                this.plotHeightPx = Math.min(Math.max(220, next), maxAllowed || Math.max(220, next));
+                this.chartHost.css({ height: `${this.plotHeightPx}px`, flex: '0 0 auto' });
+                return;
+            }
+            const autoHeight = this._measureAutoChartHeight();
+            this.plotHeightPx = null;
+            this.chartHost.css({
+                height: autoHeight > 0 ? `${autoHeight}px` : '',
+                flex: '1 1 auto'
+            });
+        }
+
+        _syncSubSectionHeight() {
+            const subSection = this.subSectionElement;
+            const section = this.sectionElement;
+            if (!subSection || !section) return;
+            const isOnlyWidget = section.children && section.children.length === 1;
+            if (isOnlyWidget) {
+                const h = section.clientHeight;
+                if (h > 0) subSection.style.height = `${h}px`;
+            } else {
+                subSection.style.height = '';
+            }
+        }
+
+        _measureAutoChartHeight() {
+            const subSection = this.subSectionElement;
+            const shell = this.container?.[0];
+            const toolbar = this.toolbar?.[0];
+            const readout = this.readout?.[0];
+            const handle = this.resizeHandle?.[0];
+            if (!subSection || !shell) return 0;
+
+            const subSectionStyles = window.getComputedStyle ? window.getComputedStyle(subSection) : null;
+            const shellStyles = window.getComputedStyle ? window.getComputedStyle(shell) : null;
+            const paddingTop = subSectionStyles ? parseFloat(subSectionStyles.paddingTop) || 0 : 0;
+            const paddingBottom = subSectionStyles ? parseFloat(subSectionStyles.paddingBottom) || 0 : 0;
+            const shellGap = shellStyles ? parseFloat(shellStyles.rowGap || shellStyles.gap) || 0 : 0;
+            const shellPaddingTop = shellStyles ? parseFloat(shellStyles.paddingTop) || 0 : 0;
+            const shellPaddingBottom = shellStyles ? parseFloat(shellStyles.paddingBottom) || 0 : 0;
+            const toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+            const readoutHeight = readout ? readout.offsetHeight : 0;
+            const handleHeight = handle ? handle.offsetHeight : 0;
+
+            const available = subSection.clientHeight
+                - paddingTop - paddingBottom
+                - shellPaddingTop - shellPaddingBottom
+                - toolbarHeight - readoutHeight - handleHeight
+                - (toolbarHeight > 0 ? shellGap : 0)
+                - (readoutHeight > 0 ? shellGap : 0)
+                - (handleHeight > 0 ? shellGap : 0);
+            return Math.max(220, available);
+        }
+
+        _bindHeightDrag() {
+            if (!this.resizeHandle || this.resizeHandle.data('xy-plot-bound')) return;
+            this.resizeHandle.data('xy-plot-bound', true);
+            this.resizeHandle.on('mousedown', (event) => {
+                event.preventDefault();
+                const startY = event.clientY;
+                const startHeight = this.chartHost[0]?.clientHeight || this.plotHeightPx || 280;
+                const onMove = (moveEvent) => {
+                    const delta = moveEvent.clientY - startY;
+                    this.plotHeightPx = startHeight + delta;
+                    this._applyPlotHeight();
+                    this._resizePlot();
+                };
+                const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                    this._dragCleanup = null;
+                };
+                this._dragCleanup = onUp;
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+            });
         }
 
         getHeight() {
-            return 8;
+            return 10;
         }
     }
 })();
