@@ -17,10 +17,9 @@
     const localDir = (typeof __dirname !== 'undefined') ? __dirname : null;
     let extensionBootstrapPromise = null;
 
-    function getDashboardRoot() {
-        // Runtime assets moved under app/, so resolve dashboard from app/dashboard.
-        if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'dashboard');
-        if (localDir && path) return path.join(localDir, '..');
+    function getExampleExtensionRoot() {
+        if (paths && paths.cwd && paths.join) return paths.join(paths.cwd(), 'app', 'extensions', 'owntech-examples', 'dashboard');
+        if (localDir && path) return path.join(localDir, '..', '..', 'extensions', 'owntech-examples', 'dashboard');
         return null;
     }
 
@@ -39,16 +38,16 @@
         if (bootstrap && Array.isArray(bootstrap.exampleRoots) && bootstrap.exampleRoots.length) {
             return bootstrap.exampleRoots;
         }
-        const dashboardRoot = getDashboardRoot();
+        const dashboardRoot = getExampleExtensionRoot();
         const docsRoot = dashboardRoot
             ? (paths && paths.join ? paths.join(dashboardRoot, 'docs', 'examples') : path.join(dashboardRoot, 'docs', 'examples'))
-            : (path && localDir ? path.join(localDir, '..', 'docs', 'examples') : '');
+            : '';
         const dashboardPathRoot = dashboardRoot
             ? (paths && paths.join ? paths.join(dashboardRoot, 'dashboards') : path.join(dashboardRoot, 'dashboards'))
-            : (path && localDir ? path.join(localDir, '..', 'dashboards') : '');
+            : '';
         const firmwarePathRoot = dashboardRoot
             ? (paths && paths.join ? paths.join(dashboardRoot, 'binaries') : path.join(dashboardRoot, 'binaries'))
-            : (path && localDir ? path.join(localDir, '..', 'binaries') : '');
+            : '';
         return [{ path: docsRoot, dashboardRoot: dashboardPathRoot, firmwareRoot: firmwarePathRoot }];
     }
 
@@ -89,7 +88,7 @@
     const progressState = document.getElementById('upload-state');
     const progressLabel = document.getElementById('upload-label');
 
-    // Examples are discovered from app/dashboard/docs/examples at runtime.
+    // Examples are discovered from the OwnTech Examples extension at runtime.
     const examplesById = new Map();
     const coursewareById = new Map();
 
@@ -468,7 +467,7 @@
         await typesetMath(element);
     }
 
-    // Build example list by scanning dashboard/docs/examples/**/README.md.
+    // Build example list by scanning the OwnTech Examples extension README tree.
     async function loadExamplesIndex() {
         examplesById.clear();
         const rootEntries = await getExampleSourceRoots();

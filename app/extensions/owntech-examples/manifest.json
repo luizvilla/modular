@@ -1,0 +1,24 @@
+{
+  "id": "owntech-examples",
+  "apiVersion": 1,
+  "version": "0.9.3",
+  "displayName": "OwnTech Examples",
+  "enabledByDefault": true,
+  "mainEntry": "main.js",
+  "requiresExtensions": [
+    "owntech"
+  ],
+  "capabilities": [
+    "examples"
+  ],
+  "exampleRoots": [
+    {
+      "path": "extensions/owntech-examples/dashboard/docs/examples",
+      "dashboardRoot": "extensions/owntech-examples/dashboard/dashboards",
+      "firmwareRoot": "extensions/owntech-examples/dashboard/binaries"
+    }
+  ],
+  "dashboardRoots": [
+    "extensions/owntech-examples/dashboard/dashboards"
+  ]
+}

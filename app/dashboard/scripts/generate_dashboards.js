@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * Generate dashboard JSON files from example main.cpp sources.
- * - Scans app/dashboard/docs/examples/.../main.cpp
+ * - Scans app/extensions/owntech-examples/dashboard/docs/examples/.../main.cpp
  * - Extracts communication commands from loop_communication_task
  * - Extracts application task numeric outputs from loop_application_task
  * - Builds dashboards with serial terminal, plot, separate plot UI + series manager, serial command buttons
@@ -11,8 +11,8 @@ const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
-const examplesRoot = path.join(repoRoot, 'app', 'dashboard', 'docs', 'examples');
-const dashboardsRoot = path.join(repoRoot, 'app', 'dashboard', 'dashboards');
+const examplesRoot = path.join(repoRoot, 'app', 'extensions', 'owntech-examples', 'dashboard', 'docs', 'examples');
+const dashboardsRoot = path.join(repoRoot, 'app', 'extensions', 'owntech-examples', 'dashboard', 'dashboards');
 
 function walk(dir, acc = []) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });

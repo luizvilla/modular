@@ -16,19 +16,8 @@
   },
   "capabilities": [
     "twist",
-    "ownverter",
-    "examples"
+    "ownverter"
   ],
   "widgetDocsIndex": "docs/widgets/index.owntech.json",
-  "datasources": [],
-  "exampleRoots": [
-    {
-      "path": "dashboard/docs/examples",
-      "dashboardRoot": "dashboard/dashboards",
-      "firmwareRoot": "dashboard/binaries"
-    }
-  ],
-  "dashboardRoots": [
-    "dashboard/dashboards"
-  ]
+  "datasources": []
 }
