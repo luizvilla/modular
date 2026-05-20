@@ -418,6 +418,13 @@ textarea.form-control {
   top: 0 !important;
 }
 
+/* Left-align the grid so the left edge of the board area is usable.
+   freeboard.css applies margin:0 auto which centers the fixed-pixel-width
+   gridster container, leaving unreachable dead space on the left. */
+.gridster.responsive-column-width {
+  margin: 0;
+}
+
 .datasource-list-container {
   width: 100%;
   max-height: none;

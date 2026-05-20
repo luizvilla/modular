@@ -1048,7 +1048,7 @@ function FreeboardUI()
 {
 	var PANE_MARGIN = 10;
 	var PANE_WIDTH = 300;
-	var MIN_COLUMNS = 3;
+	var MIN_COLUMNS = 10;
 	var COLUMN_WIDTH = PANE_MARGIN + PANE_WIDTH + PANE_MARGIN;
 	var ROW_HEIGHT = 30;
 
