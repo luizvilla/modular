@@ -100,7 +100,7 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 
 		self._editableFields(
 			defs
-				.filter(function(d) { return d.type !== 'calculated' && d.type !== 'array'; })
+				.filter(function(d) { return d.type !== 'calculated' && d.type !== 'array' && d.name !== 'name'; })
 				.map(function(def) {
 					var cur = s[def.name] !== undefined ? s[def.name]
 					        : (def.default_value !== undefined ? def.default_value : '');
