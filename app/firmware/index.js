@@ -24,7 +24,9 @@ function appendConsoleLine(message) {
     if (state.consoleLines.length > 220) {
         state.consoleLines.splice(0, state.consoleLines.length - 220);
     }
-    document.getElementById('console-output').textContent = state.consoleLines.join('\n');
+    const consoleOutput = document.getElementById('console-output');
+    consoleOutput.textContent = state.consoleLines.join('\n');
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
 }
 
 function setStatusChip(id, message) {

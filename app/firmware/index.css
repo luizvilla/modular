@@ -425,7 +425,9 @@ body {
 
 .console-panel {
     display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 14px;
+    min-height: 0;
 }
 
 .console-output {
@@ -434,7 +436,10 @@ body {
     color: #b8c5d8;
     white-space: pre-wrap;
     font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-    min-height: 160px;
+    height: 220px;
+    max-height: 220px;
+    overflow-y: auto;
+    overflow-x: hidden;
     border-radius: 18px;
     border: 1px solid var(--line);
     background-color: var(--console);
@@ -478,5 +483,10 @@ body {
 
     .editor-host {
         min-height: 420px;
+    }
+
+    .console-output {
+        height: 180px;
+        max-height: 180px;
     }
 }
