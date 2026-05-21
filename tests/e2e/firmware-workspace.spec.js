@@ -187,7 +187,7 @@ test('firmware workspace attach/edit flow persists across relaunch', async ({}, 
       };
     });
 
-    expect(snapshot.session).toBe(5);
+    expect(snapshot.session).toBe(6);
     expect(snapshot.mode).toBe('attached');
     expect(snapshot.root).toBe(temp.workspaceRoot);
     expect(snapshot.activeFile).toBe('src/main.cpp');
@@ -265,6 +265,70 @@ test('firmware workspace build flow streams PlatformIO output and supports cance
     expect(buildState.selectedEnv).toBe('SIM');
     expect(buildState.activeJob).toBe(null);
     expect(buildState.envs).toEqual(['USB', 'SIM']);
+
+    const filtered = errors.filter((err) => {
+      const msg = String(err && err.message ? err.message : err);
+      return /Uncaught|ReferenceError|TypeError|window\\.api|firmware/i.test(msg);
+    });
+    expect(filtered).toEqual([]);
+  } finally {
+    if (app) {
+      await app.close().catch(() => {});
+    }
+    fs.rmSync(temp.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('firmware workspace installs and uses a managed PlatformIO runtime', async ({}, testInfo) => {
+  testInfo.setTimeout(90_000);
+  const temp = makeTempFirmwareWorkspace();
+  const env = {
+    MODULAR_USER_DATA_DIR: temp.userDataRoot,
+    MODULAR_FIRMWARE_DISABLE_LOCAL_PIO: '1',
+    MODULAR_FIRMWARE_MANAGED_PIO_SEED_PATH: temp.fakePioPath,
+  };
+
+  let app;
+  let errors = [];
+
+  try {
+    const launch = await launchApp(env);
+    app = launch.app;
+    errors = launch.errors;
+    await waitForDashboard(launch.page);
+
+    const firmwarePage = await openFirmwareWindow(app);
+    firmwarePage.on('pageerror', (err) => errors.push(err));
+    firmwarePage.on('console', (msg) => {
+      if (msg.type() !== 'error') return;
+      errors.push(new Error(msg.text() || 'console.error'));
+    });
+
+    const attachResult = await firmwarePage.evaluate((workspaceRoot) => {
+      return window.api.firmwareWorkspace.attachExistingWorkspace(workspaceRoot);
+    }, temp.workspaceRoot);
+    expect(attachResult.ok).toBe(true);
+
+    await expect(firmwarePage.locator('[data-testid="firmware-action-install"]')).toBeEnabled();
+    await expect(firmwarePage.locator('[data-testid="firmware-action-build"]')).toBeDisabled();
+    await expect(firmwarePage.locator('#toolchain-status')).toContainText('PlatformIO missing');
+
+    await firmwarePage.locator('[data-testid="firmware-action-install"]').click();
+    await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText('Managed PlatformIO runtime installed');
+    await expect(firmwarePage.locator('#toolchain-status')).toContainText('Managed PlatformIO ready');
+    await expect(firmwarePage.locator('[data-testid="firmware-action-build"]')).toBeEnabled();
+    await expect(firmwarePage.locator('[data-testid="firmware-action-install"]')).toBeDisabled();
+
+    const managedPioPath = path.join(temp.userDataRoot, 'toolchains', 'platformio', 'penv', 'bin', 'pio');
+    expect(fs.existsSync(managedPioPath)).toBe(true);
+
+    await firmwarePage.locator('[data-testid="firmware-action-build"]').click();
+    await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText(`Running ${managedPioPath} run -e USB`);
+    await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText('build complete for USB');
+
+    const debugState = await firmwarePage.evaluate(() => window.__firmwareWorkspaceRuntime?.getDebugState() || null);
+    expect(debugState.toolchain.platformio.usingManagedRuntime).toBe(true);
+    expect(debugState.toolchain.platformio.managedStatus).toBe('installed');
 
     const filtered = errors.filter((err) => {
       const msg = String(err && err.message ? err.message : err);

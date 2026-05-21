@@ -13,6 +13,14 @@ const {
     selectPlatformioEnv,
 } = require('./firmware/platformio');
 const {
+    getManagedPlatformioCoreDir,
+    getManagedPlatformioExecutable,
+    getManagedPlatformioPython,
+    getManagedPlatformioRoot,
+    readManagedPlatformioState,
+    writeManagedPlatformioState,
+} = require('./firmware/toolchain');
+const {
     FIRMWARE_FOCUSED_FILES,
     getFirmwareWorkspaceStatePath,
     listAdvancedWorkspaceEntries,
@@ -92,6 +100,7 @@ let firmwareWindow; // dedicated window for firmware editing sessions
 let firmwareBuildJob = null; // currently running PlatformIO child process
 let firmwareBuildSequence = 0;
 let firmwarePlatformioCache = null;
+let firmwareToolchainJob = null;
 let exampleTabRequestTimer; // debounce docs tab requests
 let pendingDocTabRequest = null; // last requested docs tab (for late renderer init)
 // Track docs window docking previews/selection so popped tabs can be dragged back.
@@ -203,6 +212,18 @@ function emitFirmwareBuildState(nextState = null) {
     firmwareWindow.webContents.send('firmware-build-state', nextState || getFirmwareBuildState());
 }
 
+function getManagedPlatformioState() {
+    return readManagedPlatformioState(app.getPath('userData'));
+}
+
+function writeManagedPlatformioRuntimeState(patch) {
+    const current = getManagedPlatformioState();
+    return writeManagedPlatformioState(app.getPath('userData'), {
+        ...current,
+        ...(patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {}),
+    });
+}
+
 function emitFirmwareWorkspaceState(nextState = null) {
     if (!firmwareWindow || firmwareWindow.isDestroyed() || !firmwareWindow.webContents) return;
     const state = nextState || getFirmwareWorkspaceState();
@@ -221,7 +242,120 @@ function canWriteDirectory(targetPath) {
 function getFirmwarePlatformioCacheKey() {
     return JSON.stringify({
         envPath: process.env.MODULAR_FIRMWARE_PIO_PATH || '',
+        disableLocal: process.env.MODULAR_FIRMWARE_DISABLE_LOCAL_PIO === '1',
+        managedPath: getManagedPlatformioState().path || '',
+        managedStatus: getManagedPlatformioState().status || '',
     });
+}
+
+function probePlatformioExecutable(executablePath, source, extraEnv = {}) {
+    if (!executablePath) {
+        return {
+            available: false,
+            path: executablePath || null,
+            source,
+            version: null,
+            error: 'Missing PlatformIO executable path.',
+        };
+    }
+
+    try {
+        const probe = spawnSync(executablePath, ['--version'], {
+            env: {
+                ...process.env,
+                PLATFORMIO_SETTING_ENABLE_TELEMETRY: 'no',
+                ...extraEnv,
+            },
+            encoding: 'utf8',
+            timeout: 5000,
+            windowsHide: true,
+        });
+        if (probe.status === 0) {
+            return {
+                available: true,
+                path: executablePath,
+                source,
+                version: `${probe.stdout || ''}${probe.stderr || ''}`.trim().split(/\r?\n/)[0] || 'PlatformIO available',
+                error: null,
+            };
+        }
+        return {
+            available: false,
+            path: executablePath,
+            source,
+            version: null,
+            error: (probe.stderr || probe.stdout || `Exited with code ${probe.status}`).trim(),
+        };
+    } catch (err) {
+        return {
+            available: false,
+            path: executablePath,
+            source,
+            version: null,
+            error: err?.message || String(err),
+        };
+    }
+}
+
+function resolveManagedPlatformioStatus() {
+    const state = getManagedPlatformioState();
+    const managedRoot = getManagedPlatformioRoot(app.getPath('userData'));
+    const coreDir = state.coreDir || getManagedPlatformioCoreDir(app.getPath('userData'));
+    const executablePath = state.path || getManagedPlatformioExecutable(app.getPath('userData'));
+    const status = firmwareToolchainJob ? 'installing' : state.status;
+    const installError = firmwareToolchainJob ? null : state.lastError;
+
+    if (status === 'installing') {
+        return {
+            available: false,
+            managed: true,
+            source: 'managed',
+            status: 'installing',
+            version: state.version,
+            path: executablePath,
+            coreDir,
+            rootDir: managedRoot,
+            error: null,
+            installedAt: state.installedAt,
+        };
+    }
+
+    const probe = probePlatformioExecutable(executablePath, 'managed', {
+        PLATFORMIO_CORE_DIR: coreDir,
+    });
+    if (probe.available) {
+        if (state.status !== 'installed' || state.version !== probe.version || state.path !== executablePath || state.coreDir !== coreDir) {
+            writeManagedPlatformioRuntimeState({
+                status: 'installed',
+                version: probe.version,
+                path: executablePath,
+                coreDir,
+                lastError: null,
+                installedAt: state.installedAt || new Date().toISOString(),
+            });
+        }
+        return {
+            ...probe,
+            managed: true,
+            status: 'installed',
+            coreDir,
+            rootDir: managedRoot,
+            installedAt: state.installedAt,
+        };
+    }
+
+    return {
+        available: false,
+        managed: true,
+        source: 'managed',
+        status: state.status === 'installed' ? 'broken' : (state.status || 'not-installed'),
+        version: state.version,
+        path: executablePath,
+        coreDir,
+        rootDir: managedRoot,
+        error: installError || probe.error,
+        installedAt: state.installedAt,
+    };
 }
 
 function resolveFirmwarePlatformioStatus(options = {}) {
@@ -231,53 +365,57 @@ function resolveFirmwarePlatformioStatus(options = {}) {
         return firmwarePlatformioCache.result;
     }
 
+    const managed = resolveManagedPlatformioStatus();
+    if (managed.available) {
+        const result = {
+            available: true,
+            source: managed.source,
+            path: managed.path,
+            version: managed.version,
+            managed: true,
+            coreDir: managed.coreDir,
+            errors: [],
+            managedStatus: managed.status,
+        };
+        firmwarePlatformioCache = { cacheKey, result };
+        return result;
+    }
+
+    const disableLocal = process.env.MODULAR_FIRMWARE_DISABLE_LOCAL_PIO === '1';
     const candidates = [];
     const pushCandidate = (candidatePath, source) => {
         if (!candidatePath) return;
         if (candidates.some((entry) => entry.path === candidatePath)) return;
         candidates.push({ path: candidatePath, source });
     };
+    if (!disableLocal) {
+        pushCandidate(process.env.MODULAR_FIRMWARE_PIO_PATH, 'env');
+        pushCandidate(DEFAULT_PLATFORMIO_VENV_PATH, 'local-venv');
+        pushCandidate('pio', 'path');
+    }
 
-    pushCandidate(process.env.MODULAR_FIRMWARE_PIO_PATH, 'env');
-    pushCandidate(DEFAULT_PLATFORMIO_VENV_PATH, 'local-venv');
-    pushCandidate('pio', 'path');
-
-    const errors = [];
+    const errors = managed.error ? [{ path: managed.path, source: 'managed', error: managed.error }] : [];
     for (const candidate of candidates) {
-        try {
-            const probe = spawnSync(candidate.path, ['--version'], {
-                env: {
-                    ...process.env,
-                    PLATFORMIO_SETTING_ENABLE_TELEMETRY: 'no',
-                },
-                encoding: 'utf8',
-                timeout: 5000,
-                windowsHide: true,
-            });
-            if (probe.status === 0) {
-                const version = `${probe.stdout || ''}${probe.stderr || ''}`.trim().split(/\r?\n/)[0] || 'PlatformIO available';
-                const result = {
-                    available: true,
-                    source: candidate.source,
-                    path: candidate.path,
-                    version,
-                    errors,
-                };
-                firmwarePlatformioCache = { cacheKey, result };
-                return result;
-            }
-            errors.push({
-                path: candidate.path,
+        const probe = probePlatformioExecutable(candidate.path, candidate.source);
+        if (probe.available) {
+            const result = {
+                available: true,
                 source: candidate.source,
-                error: (probe.stderr || probe.stdout || `Exited with code ${probe.status}`).trim(),
-            });
-        } catch (err) {
-            errors.push({
                 path: candidate.path,
-                source: candidate.source,
-                error: err?.message || String(err),
-            });
+                version: probe.version,
+                managed: false,
+                coreDir: null,
+                errors,
+                managedStatus: managed.status,
+            };
+            firmwarePlatformioCache = { cacheKey, result };
+            return result;
         }
+        errors.push({
+            path: candidate.path,
+            source: candidate.source,
+            error: probe.error,
+        });
     }
 
     const result = {
@@ -285,17 +423,25 @@ function resolveFirmwarePlatformioStatus(options = {}) {
         source: 'none',
         path: null,
         version: null,
+        managed: false,
+        coreDir: managed.coreDir || null,
+        managedStatus: managed.status,
         errors,
     };
     firmwarePlatformioCache = { cacheKey, result };
     return result;
 }
 
-function getFirmwarePlatformioProcessEnv() {
+function getFirmwarePlatformioProcessEnv(runtime = null) {
     const nextEnv = {
         ...process.env,
         PLATFORMIO_SETTING_ENABLE_TELEMETRY: 'no',
     };
+    if (runtime?.managed && runtime.coreDir) {
+        fs.mkdirSync(runtime.coreDir, { recursive: true });
+        nextEnv.PLATFORMIO_CORE_DIR = runtime.coreDir;
+        return nextEnv;
+    }
     if (process.env.MODULAR_FIRMWARE_PLATFORMIO_CORE_DIR) {
         nextEnv.PLATFORMIO_CORE_DIR = path.resolve(process.env.MODULAR_FIRMWARE_PLATFORMIO_CORE_DIR);
         return nextEnv;
@@ -382,10 +528,117 @@ function cancelRunningFirmwareBuild(reason = 'canceled') {
         emitFirmwareBuildOutput({
             jobId: firmwareBuildJob.id,
             stream: 'stderr',
-            text: `[session-5] Failed to cancel job ${firmwareBuildJob.id}: ${err?.message || err}`,
+            text: `[session-6] Failed to cancel job ${firmwareBuildJob.id}: ${err?.message || err}`,
         });
         return false;
     }
+}
+
+function emitFirmwareRuntimeOutput(text, stream = 'stdout') {
+    emitFirmwareBuildOutput({
+        jobId: firmwareToolchainJob?.id || 'firmware-toolchain',
+        action: 'install-toolchain',
+        env: null,
+        stream,
+        text,
+    });
+}
+
+function runToolchainCommand(command, args, options = {}) {
+    const {
+        env = process.env,
+        cwd = process.cwd(),
+        label = command,
+    } = options;
+
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+            cwd,
+            env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+        });
+
+        child.stdout?.on('data', (chunk) => {
+            emitFirmwareRuntimeOutput(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || ''), 'stdout');
+        });
+        child.stderr?.on('data', (chunk) => {
+            emitFirmwareRuntimeOutput(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || ''), 'stderr');
+        });
+        child.on('error', (err) => {
+            reject(new Error(`${label} failed to start: ${err?.message || err}`));
+        });
+        child.on('close', (code, signal) => {
+            if (code === 0) {
+                resolve();
+                return;
+            }
+            reject(new Error(`${label} failed with exit ${code}${signal ? ` via ${signal}` : ''}`));
+        });
+    });
+}
+
+async function installManagedPlatformioRuntime() {
+    const userDataDir = app.getPath('userData');
+    const managedRoot = getManagedPlatformioRoot(userDataDir);
+    const managedVenvDir = path.join(managedRoot, 'penv');
+    const managedPythonPath = getManagedPlatformioPython(userDataDir);
+    const managedPioPath = getManagedPlatformioExecutable(userDataDir);
+    const managedCoreDir = getManagedPlatformioCoreDir(userDataDir);
+    const seedPath = process.env.MODULAR_FIRMWARE_MANAGED_PIO_SEED_PATH;
+
+    fs.mkdirSync(managedRoot, { recursive: true });
+    fs.mkdirSync(managedCoreDir, { recursive: true });
+
+    if (seedPath) {
+        const sourcePath = path.resolve(seedPath);
+        if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+            throw new Error(`Managed PlatformIO seed path does not exist: ${sourcePath}`);
+        }
+        fs.rmSync(managedVenvDir, { recursive: true, force: true });
+        fs.mkdirSync(path.dirname(managedPioPath), { recursive: true });
+        fs.copyFileSync(sourcePath, managedPioPath);
+        fs.chmodSync(managedPioPath, 0o755);
+        const probe = probePlatformioExecutable(managedPioPath, 'managed', {
+            PLATFORMIO_CORE_DIR: managedCoreDir,
+        });
+        if (!probe.available) {
+            throw new Error(probe.error || 'Seeded managed PlatformIO runtime failed verification.');
+        }
+        return {
+            path: managedPioPath,
+            version: probe.version,
+            coreDir: managedCoreDir,
+        };
+    }
+
+    const pythonPath = process.env.MODULAR_FIRMWARE_PYTHON_PATH || 'python3';
+    emitFirmwareRuntimeOutput(`[session-6] Creating managed PlatformIO runtime in ${managedRoot}\n`);
+    await runToolchainCommand(pythonPath, ['-m', 'venv', managedVenvDir], {
+        cwd: managedRoot,
+        label: 'python -m venv',
+    });
+    await runToolchainCommand(managedPythonPath, ['-m', 'pip', 'install', '--upgrade', 'pip'], {
+        cwd: managedRoot,
+        label: 'pip upgrade',
+    });
+    await runToolchainCommand(managedPythonPath, ['-m', 'pip', 'install', '--upgrade', 'platformio'], {
+        cwd: managedRoot,
+        label: 'pip install platformio',
+    });
+
+    const probe = probePlatformioExecutable(managedPioPath, 'managed', {
+        PLATFORMIO_CORE_DIR: managedCoreDir,
+    });
+    if (!probe.available) {
+        throw new Error(probe.error || 'Managed PlatformIO runtime failed verification.');
+    }
+
+    return {
+        path: managedPioPath,
+        version: probe.version,
+        coreDir: managedCoreDir,
+    };
 }
 
 function getFirmwareWorkspaceState() {
@@ -395,11 +648,11 @@ function getFirmwareWorkspaceState() {
         ? `Attached workspace: ${path.basename(context.workspaceRoot)}`
         : 'Attach an existing Core checkout to start editing in Monaco.';
     const placeholderMessage = context.workspaceRoot
-        ? 'Session 5 adds upload support on top of the Monaco workspace shell and PlatformIO build flow.'
+        ? 'Session 6 adds a managed PlatformIO runtime on top of the Monaco workspace shell and local build flow.'
         : 'Attach an existing firmware workspace to enable Monaco-backed editing.';
 
     return {
-        session: 5,
+        session: 6,
         extensionId: 'owntech-workspace',
         enabled: isFirmwareWorkspaceEnabled(),
         windowOpen: !!(firmwareWindow && !firmwareWindow.isDestroyed()),
@@ -419,18 +672,29 @@ function getFirmwareWorkspaceState() {
 }
 
 function getFirmwareToolchainStatus() {
+    const managedPlatformio = resolveManagedPlatformioStatus();
     const platformio = resolveFirmwarePlatformioStatus();
-    const status = platformio.available ? 'local-cli-ready' : 'missing';
+    const status = firmwareToolchainJob
+        ? 'installing'
+        : (managedPlatformio.available ? 'managed-ready' : (platformio.available ? 'local-cli-ready' : 'missing'));
     return {
-        session: 5,
-        managed: false,
+        session: 6,
+        managed: !!(managedPlatformio.available || firmwareToolchainJob),
         status,
         platformio: {
-            status: platformio.available ? 'available' : 'missing',
+            status: firmwareToolchainJob
+                ? 'installing'
+                : (managedPlatformio.available ? 'installed' : (platformio.available ? 'available' : 'missing')),
             source: platformio.source,
             path: platformio.path,
             version: platformio.version,
-            error: platformio.available ? null : (platformio.errors[0]?.error || 'PlatformIO CLI not found'),
+            error: firmwareToolchainJob ? null : (platformio.available ? null : (managedPlatformio.error || platformio.errors[0]?.error || 'PlatformIO CLI not found')),
+            managedPath: getManagedPlatformioExecutable(app.getPath('userData')),
+            managedCoreDir: getManagedPlatformioCoreDir(app.getPath('userData')),
+            managedStatus: managedPlatformio.status,
+            managedInstalledAt: managedPlatformio.installedAt || null,
+            installButtonEnabled: !firmwareToolchainJob && !managedPlatformio.available,
+            usingManagedRuntime: !!platformio.managed,
         },
         clangd: {
             status: 'not-configured',
@@ -441,6 +705,7 @@ function getFirmwareToolchainStatus() {
 
 function getFirmwareBuildState() {
     const projectState = resolveFirmwareProjectState();
+    const managedPlatformio = resolveManagedPlatformioStatus();
     const platformio = resolveFirmwarePlatformioStatus();
     const activeJob = firmwareBuildJob;
     const supported = !!(projectState.context.workspaceRoot && projectState.envs.length && platformio.available);
@@ -454,14 +719,16 @@ function getFirmwareBuildState() {
         placeholderMessage = projectState.configError;
     } else if (!projectState.envs.length) {
         placeholderMessage = 'No [env:*] sections were found in platformio.ini.';
+    } else if (firmwareToolchainJob) {
+        placeholderMessage = 'Installing the managed PlatformIO runtime.';
     } else if (!platformio.available) {
-        placeholderMessage = platformio.errors[0]?.error || 'No working local PlatformIO CLI was detected.';
+        placeholderMessage = platformio.errors[0]?.error || 'No working PlatformIO runtime was detected. Install the managed toolchain or configure a local CLI.';
     } else {
         placeholderMessage = 'Ready to run PlatformIO build actions.';
     }
 
     return {
-        session: 5,
+        session: 6,
         status,
         supported,
         selectedEnv: projectState.selectedEnv,
@@ -482,7 +749,7 @@ function getFirmwareBuildState() {
             version: platformio.version,
         },
         actions: {
-            installToolchain: false,
+            installToolchain: !firmwareToolchainJob && !managedPlatformio.available,
             build: supported && !activeJob,
             upload: supported && !activeJob,
             clean: supported && !activeJob,
@@ -496,8 +763,8 @@ function getFirmwareBuildState() {
 function firmwareStubResponse(action) {
     return {
         ok: false,
-        session: 5,
-        error: `${action} is not implemented in Session 5.`,
+        session: 6,
+        error: `${action} is not implemented in Session 6.`,
     };
 }
 
@@ -940,7 +1207,7 @@ ipcMain.handle('firmware-workspace-list-files', () => {
     const context = resolveFirmwareWorkspaceContext();
     return {
         ok: true,
-        session: 5,
+        session: 6,
         mode: context.persistedState.advancedMode ? 'advanced' : 'focused',
         files: listFirmwareWorkspaceEntries(context),
     };
@@ -962,7 +1229,7 @@ ipcMain.handle('firmware-workspace-read-file', (_event, { relativePath } = {}) =
         emitFirmwareWorkspaceState(state);
         return {
             ok: true,
-            session: 5,
+            session: 6,
             relativePath: file.relativePath,
             content: file.content,
             state,
@@ -988,7 +1255,7 @@ ipcMain.handle('firmware-workspace-write-file', (_event, { relativePath, content
         emitFirmwareWorkspaceState(state);
         return {
             ok: true,
-            session: 5,
+            session: 6,
             relativePath: file.relativePath,
             state,
         };
@@ -1003,13 +1270,83 @@ ipcMain.handle('firmware-workspace-set-advanced-mode', (_event, { enabled } = {}
     return { ok: true, state };
 });
 ipcMain.handle('firmware-toolchain-get-status', () => getFirmwareToolchainStatus());
-ipcMain.handle('firmware-toolchain-install', () => firmwareStubResponse('installToolchain'));
+ipcMain.handle('firmware-toolchain-install', async () => {
+    if (firmwareToolchainJob) {
+        return {
+            ok: false,
+            session: 6,
+            error: 'Managed PlatformIO installation is already running.',
+            state: getFirmwareToolchainStatus(),
+        };
+    }
+
+    const existingManaged = resolveManagedPlatformioStatus();
+    if (existingManaged.available) {
+        return {
+            ok: true,
+            session: 6,
+            installed: true,
+            state: getFirmwareToolchainStatus(),
+        };
+    }
+
+    firmwareToolchainJob = {
+        id: `firmware-toolchain-${Date.now()}`,
+        startedAt: new Date().toISOString(),
+    };
+    writeManagedPlatformioRuntimeState({
+        status: 'installing',
+        lastError: null,
+    });
+    firmwarePlatformioCache = null;
+    emitFirmwareToolchainStatus();
+    emitFirmwareBuildState();
+
+    try {
+        const result = await installManagedPlatformioRuntime();
+        writeManagedPlatformioRuntimeState({
+            status: 'installed',
+            path: result.path,
+            coreDir: result.coreDir,
+            version: result.version,
+            installedAt: new Date().toISOString(),
+            lastError: null,
+        });
+        emitFirmwareRuntimeOutput(`[session-6] Managed PlatformIO runtime installed at ${result.path}\n`);
+        firmwareToolchainJob = null;
+        firmwarePlatformioCache = null;
+        emitFirmwareToolchainStatus();
+        emitFirmwareBuildState();
+        return {
+            ok: true,
+            session: 6,
+            installed: true,
+            state: getFirmwareToolchainStatus(),
+        };
+    } catch (err) {
+        writeManagedPlatformioRuntimeState({
+            status: 'error',
+            lastError: err?.message || String(err),
+        });
+        emitFirmwareRuntimeOutput(`[session-6] Managed PlatformIO install failed: ${err?.message || err}\n`, 'stderr');
+        firmwareToolchainJob = null;
+        firmwarePlatformioCache = null;
+        emitFirmwareToolchainStatus();
+        emitFirmwareBuildState();
+        return {
+            ok: false,
+            session: 6,
+            error: err?.message || String(err),
+            state: getFirmwareToolchainStatus(),
+        };
+    }
+});
 ipcMain.handle('firmware-build-get-state', () => getFirmwareBuildState());
 ipcMain.handle('firmware-build-list-envs', () => {
     const buildState = getFirmwareBuildState();
     return {
         ok: true,
-        session: 5,
+        session: 6,
         envs: buildState.envs,
         selectedEnv: buildState.selectedEnv,
         defaultEnv: buildState.defaultEnv,
@@ -1027,40 +1364,40 @@ ipcMain.handle('firmware-build-select-env', (_event, { env } = {}) => {
     writeFirmwareSessionState({ selectedEnv: nextEnv });
     const state = getFirmwareBuildState();
     emitFirmwareBuildState(state);
-    return { ok: true, session: 5, selectedEnv: nextEnv, state };
+    return { ok: true, session: 6, selectedEnv: nextEnv, state };
 });
 ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
     if (firmwareBuildJob) {
-        return { ok: false, session: 5, error: 'A PlatformIO job is already running.', state: getFirmwareBuildState() };
+        return { ok: false, session: 6, error: 'A PlatformIO job is already running.', state: getFirmwareBuildState() };
     }
 
     const projectState = resolveFirmwareProjectState();
     if (!projectState.context.workspaceRoot) {
-        return { ok: false, session: 5, error: projectState.configError || 'No attached firmware workspace.' };
+        return { ok: false, session: 6, error: projectState.configError || 'No attached firmware workspace.' };
     }
     if (projectState.configError) {
-        return { ok: false, session: 5, error: projectState.configError };
+        return { ok: false, session: 6, error: projectState.configError };
     }
 
-    const platformio = resolveFirmwarePlatformioStatus({ forceRefresh: true });
-    if (!platformio.available) {
-        const errorMessage = platformio.errors[0]?.error || 'No working local PlatformIO CLI was detected.';
+    const platformioRuntime = resolveFirmwarePlatformioStatus({ forceRefresh: true });
+    if (!platformioRuntime.available) {
+        const errorMessage = platformioRuntime.errors[0]?.error || 'No working PlatformIO runtime was detected.';
         emitFirmwareToolchainStatus();
         emitFirmwareBuildState();
-        return { ok: false, session: 5, error: errorMessage, state: getFirmwareBuildState() };
+        return { ok: false, session: 6, error: errorMessage, state: getFirmwareBuildState() };
     }
 
     let args;
     try {
         args = resolvePlatformioActionArgs(action, projectState.selectedEnv);
     } catch (err) {
-        return { ok: false, session: 5, error: err?.message || String(err) };
+        return { ok: false, session: 6, error: err?.message || String(err) };
     }
 
     const jobId = `firmware-build-${Date.now()}-${firmwareBuildSequence += 1}`;
-    const child = spawn(platformio.path, args, {
+    const child = spawn(platformioRuntime.path, args, {
         cwd: projectState.context.workspaceRoot,
-        env: getFirmwarePlatformioProcessEnv(),
+        env: getFirmwarePlatformioProcessEnv(platformioRuntime),
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
     });
@@ -1090,7 +1427,7 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
     child.stdout?.on('data', (chunk) => emitChunk('stdout', chunk));
     child.stderr?.on('data', (chunk) => emitChunk('stderr', chunk));
     child.on('error', (err) => {
-        emitChunk('stderr', `[session-5] Failed to start PlatformIO: ${err?.message || err}\n`);
+        emitChunk('stderr', `[session-6] Failed to start PlatformIO: ${err?.message || err}\n`);
         finalizeFirmwareBuild({
             completedAt: new Date().toISOString(),
             result: 'failed',
@@ -1103,7 +1440,7 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
         const result = canceled ? 'canceled' : (code === 0 ? 'succeeded' : 'failed');
         emitChunk(
             code === 0 ? 'stdout' : 'stderr',
-            `[session-5] ${String(action || 'build')} ${result} for ${projectState.selectedEnv}${code !== null ? ` (exit ${code})` : ''}${signal ? ` via ${signal}` : ''}\n`
+            `[session-6] ${String(action || 'build')} ${result} for ${projectState.selectedEnv}${code !== null ? ` (exit ${code})` : ''}${signal ? ` via ${signal}` : ''}\n`
         );
         finalizeFirmwareBuild({
             completedAt: new Date().toISOString(),
@@ -1118,20 +1455,20 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
         action: firmwareBuildJob.action,
         env: projectState.selectedEnv,
         stream: 'stdout',
-        text: `[session-5] Running ${platformio.path} ${args.join(' ')} in ${projectState.context.workspaceRoot}\n`,
+        text: `[session-6] Running ${platformioRuntime.path} ${args.join(' ')} in ${projectState.context.workspaceRoot}\n`,
     });
     emitFirmwareBuildState();
-    return { ok: true, session: 5, jobId, state: getFirmwareBuildState() };
+    return { ok: true, session: 6, jobId, state: getFirmwareBuildState() };
 });
 ipcMain.handle('firmware-build-cancel', () => {
     if (!firmwareBuildJob) {
-        return { ok: false, session: 5, error: 'No PlatformIO job is running.' };
+        return { ok: false, session: 6, error: 'No PlatformIO job is running.' };
     }
     const canceled = cancelRunningFirmwareBuild('user-request');
     emitFirmwareBuildState();
     return {
         ok: canceled,
-        session: 5,
+        session: 6,
         canceled,
         jobId: firmwareBuildJob?.id || null,
         state: getFirmwareBuildState(),

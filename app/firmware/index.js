@@ -38,11 +38,37 @@ function formatToolchainSummary(toolchainState) {
     if (!toolchainState || typeof toolchainState !== 'object') {
         return 'Toolchain status unavailable';
     }
-    if (toolchainState.platformio?.status === 'available') {
-        const version = toolchainState.platformio?.version || 'PlatformIO available';
-        return `PlatformIO ready · ${version}`;
+    const platformio = toolchainState.platformio || {};
+    if (platformio.status === 'installing') {
+        return 'Installing managed PlatformIO…';
     }
-    return `PlatformIO unavailable · ${toolchainState.platformio?.error || 'No working local CLI detected'}`;
+    if (platformio.usingManagedRuntime || platformio.status === 'installed') {
+        return `Managed PlatformIO ready · ${platformio.version || 'PlatformIO available'}`;
+    }
+    if (platformio.status === 'available') {
+        return `Using local PlatformIO · ${platformio.version || 'PlatformIO available'}`;
+    }
+    if (platformio.managedStatus === 'error') {
+        return `Managed PlatformIO error · ${platformio.error || 'Retry the managed toolchain install.'}`;
+    }
+    return `PlatformIO missing · ${platformio.error || 'Install the managed toolchain or configure a local CLI.'}`;
+}
+
+function formatInstallButtonLabel(toolchainState) {
+    const platformio = toolchainState?.platformio || {};
+    if (platformio.status === 'installing') {
+        return 'Installing Toolchain…';
+    }
+    if (platformio.usingManagedRuntime || platformio.status === 'installed') {
+        return 'Managed Toolchain Ready';
+    }
+    if (platformio.status === 'available') {
+        return 'Install Managed Toolchain';
+    }
+    if (platformio.managedStatus === 'error') {
+        return 'Retry Install Toolchain';
+    }
+    return 'Install Toolchain';
 }
 
 function formatBuildSummary(buildState) {
@@ -253,12 +279,14 @@ function updateEditorStatus() {
 function renderBuildControls() {
     const envSelect = document.getElementById('env-select');
     const attachButton = document.getElementById('attach-workspace');
+    const installButton = document.getElementById('install-toolchain');
     const buildButton = document.getElementById('run-build');
     const uploadButton = document.getElementById('run-upload');
     const cleanButton = document.getElementById('run-clean');
     const reindexButton = document.getElementById('run-reindex');
     const cancelButton = document.getElementById('cancel-build');
     const buildState = state.build;
+    const toolchainState = state.toolchain;
     const running = !!buildState?.activeJob;
     const envs = Array.isArray(buildState?.envs) ? buildState.envs : [];
     const selectedEnv = buildState?.selectedEnv || '';
@@ -282,6 +310,8 @@ function renderBuildControls() {
     }
 
     attachButton.disabled = running;
+    installButton.textContent = formatInstallButtonLabel(toolchainState);
+    installButton.disabled = !buildState?.actions?.installToolchain;
     buildButton.disabled = !buildState?.actions?.build;
     uploadButton.disabled = !buildState?.actions?.upload;
     cleanButton.disabled = !buildState?.actions?.clean;
@@ -458,13 +488,13 @@ async function openFile(relativePath) {
     const existingTab = getTab(relativePath);
     if (existingTab) {
         activateTab(relativePath);
-        appendConsoleLine(`[session-5] Switched to ${relativePath}.`);
+        appendConsoleLine(`[session-6] Switched to ${relativePath}.`);
         return;
     }
 
     const response = await window.api.firmwareWorkspace.readFile(relativePath);
     if (!response?.ok) {
-        appendConsoleLine(`[session-5] Open failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-6] Open failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not open the selected file.');
         return;
     }
@@ -488,7 +518,7 @@ async function openFile(relativePath) {
     state.tabOrder.push(tab.relativePath);
     activateTab(tab.relativePath);
     updateWorkspaceSummary();
-    appendConsoleLine(`[session-5] Opened ${tab.relativePath}.`);
+    appendConsoleLine(`[session-6] Opened ${tab.relativePath}.`);
 }
 
 async function closeTab(relativePath) {
@@ -552,7 +582,7 @@ async function saveActiveFile() {
 
     const response = await window.api.firmwareWorkspace.writeFile(activeTab.relativePath, activeTab.model.getValue());
     if (!response?.ok) {
-        appendConsoleLine(`[session-5] Save failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-6] Save failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not save the selected file.');
         return;
     }
@@ -561,7 +591,7 @@ async function saveActiveFile() {
     syncTabDirtyState(activeTab);
     if (response.state) state.workspace = response.state;
     updateWorkspaceSummary();
-    appendConsoleLine(`[session-5] Saved ${activeTab.relativePath}.`);
+    appendConsoleLine(`[session-6] Saved ${activeTab.relativePath}.`);
 }
 
 async function attachWorkspace() {
@@ -570,7 +600,7 @@ async function attachWorkspace() {
     const response = await window.api.firmwareWorkspace.attachExistingWorkspace();
     if (!response?.ok) {
         if (!response?.canceled) {
-            appendConsoleLine(`[session-5] Attach failed: ${response?.error || 'Unknown error'}`);
+            appendConsoleLine(`[session-6] Attach failed: ${response?.error || 'Unknown error'}`);
             window.alert(response?.error || 'Could not attach the selected workspace.');
         }
         return;
@@ -578,7 +608,7 @@ async function attachWorkspace() {
 
     clearTabs();
     await refreshWorkspaceState();
-    appendConsoleLine(`[session-5] Attached ${response.state?.workspace?.root || 'workspace'}.`);
+    appendConsoleLine(`[session-6] Attached ${response.state?.workspace?.root || 'workspace'}.`);
 
     const nextFile = pickInitialFileFromState();
     if (nextFile) {
@@ -591,18 +621,18 @@ async function toggleAdvancedMode() {
     const nextMode = !state.workspace.workspace.advancedMode;
     const response = await window.api.firmwareWorkspace.setAdvancedMode(nextMode);
     if (!response?.ok) {
-        appendConsoleLine(`[session-5] Could not toggle advanced view: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-6] Could not toggle advanced view: ${response?.error || 'Unknown error'}`);
         return;
     }
     if (response.state) state.workspace = response.state;
     await refreshWorkspaceState();
-    appendConsoleLine(`[session-5] Advanced view ${nextMode ? 'enabled' : 'disabled'}.`);
+    appendConsoleLine(`[session-6] Advanced view ${nextMode ? 'enabled' : 'disabled'}.`);
 }
 
 async function selectEnvironment(envName) {
     const response = await window.api.firmwareBuild.selectEnv(envName);
     if (!response?.ok) {
-        appendConsoleLine(`[session-5] Could not select env ${envName}: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-6] Could not select env ${envName}: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not change the PlatformIO environment.');
         renderBuildControls();
         return;
@@ -611,14 +641,14 @@ async function selectEnvironment(envName) {
     setStatusChip('build-status', formatBuildSummary(state.build));
     updateWorkspaceSummary();
     renderBuildControls();
-    appendConsoleLine(`[session-5] Selected environment ${response.selectedEnv}.`);
+    appendConsoleLine(`[session-6] Selected environment ${response.selectedEnv}.`);
 }
 
 async function runBuildAction(action) {
     if (!action) return;
     const response = await window.api.firmwareBuild[action]();
     if (!response?.ok) {
-        appendConsoleLine(`[session-5] ${action} failed to start: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-6] ${action} failed to start: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || `Could not start ${action}.`);
         return;
     }
@@ -627,17 +657,32 @@ async function runBuildAction(action) {
     renderBuildControls();
 }
 
+async function installToolchain() {
+    const response = await window.api.firmwareToolchain.install();
+    if (response?.state) {
+        state.toolchain = response.state;
+        setStatusChip('toolchain-status', formatToolchainSummary(state.toolchain));
+    }
+    await refreshWorkspaceState();
+    if (!response?.ok) {
+        appendConsoleLine(`[session-6] Install toolchain failed: ${response?.error || 'Unknown error'}`);
+        window.alert(response?.error || 'Could not install the managed PlatformIO runtime.');
+        return;
+    }
+    appendConsoleLine('[session-6] Managed PlatformIO install flow completed.');
+}
+
 async function cancelBuildAction() {
     const response = await window.api.firmwareBuild.cancel();
     if (!response?.ok && !response?.canceled) {
-        appendConsoleLine(`[session-5] Cancel failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-6] Cancel failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not cancel the current PlatformIO job.');
         return;
     }
     state.build = response.state || state.build;
     setStatusChip('build-status', formatBuildSummary(state.build));
     renderBuildControls();
-    appendConsoleLine('[session-5] Cancel requested.');
+    appendConsoleLine('[session-6] Cancel requested.');
 }
 
 function installDiagnosticsRuntime() {
@@ -677,6 +722,10 @@ function bindEvents() {
         saveActiveFile();
     });
 
+    document.getElementById('install-toolchain').addEventListener('click', () => {
+        installToolchain();
+    });
+
     document.getElementById('env-select').addEventListener('change', (event) => {
         const nextEnv = event.target.value;
         if (!nextEnv || nextEnv === state.build?.selectedEnv) return;
@@ -713,7 +762,7 @@ async function bootFirmwareShell() {
 
     installDiagnosticsRuntime();
     bindEvents();
-    appendConsoleLine('[session-5] Firmware Workspace shell booted.');
+    appendConsoleLine('[session-6] Firmware Workspace shell booted.');
 
     try {
         await ensureEditor();
@@ -726,7 +775,7 @@ async function bootFirmwareShell() {
     } catch (error) {
         setStatusChip('api-status', 'Bridge error');
         document.getElementById('workspace-summary').textContent = 'Could not load Monaco for the firmware workspace.';
-        appendConsoleLine(`[session-5] Boot failed: ${error?.message || error}`);
+        appendConsoleLine(`[session-6] Boot failed: ${error?.message || error}`);
     }
 
     window.api.firmwareWorkspace.onStateChange((nextState) => {
@@ -736,6 +785,7 @@ async function bootFirmwareShell() {
     window.api.firmwareToolchain.onStatusChange((nextState) => {
         state.toolchain = nextState;
         setStatusChip('toolchain-status', formatToolchainSummary(nextState));
+        renderBuildControls();
     });
     window.api.firmwareBuild.onOutput((payload = {}) => {
         appendConsoleLine(payload.text || '');
