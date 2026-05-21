@@ -57,6 +57,11 @@ if [[ "$target" == "compiledb" ]]; then
   exit 0
 fi
 
+if [[ "$target" == "upload" ]]; then
+  echo "upload complete for $env_name"
+  exit 0
+fi
+
 echo "build complete for $env_name"
 `, 'utf8');
   fs.chmodSync(fakePioPath, 0o755);
@@ -182,7 +187,7 @@ test('firmware workspace attach/edit flow persists across relaunch', async ({}, 
       };
     });
 
-    expect(snapshot.session).toBe(4);
+    expect(snapshot.session).toBe(5);
     expect(snapshot.mode).toBe('attached');
     expect(snapshot.root).toBe(temp.workspaceRoot);
     expect(snapshot.activeFile).toBe('src/main.cpp');
@@ -239,6 +244,10 @@ test('firmware workspace build flow streams PlatformIO output and supports cance
     await firmwarePage.locator('[data-testid="firmware-action-build"]').click();
     await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText('fake-pio target=build env=SIM');
     await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText('build complete for SIM');
+
+    await firmwarePage.locator('[data-testid="firmware-action-upload"]').click();
+    await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText('fake-pio target=upload env=SIM');
+    await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText('upload complete for SIM');
 
     await firmwarePage.locator('[data-testid="firmware-action-reindex"]').click();
     await expect(firmwarePage.locator('[data-testid="firmware-console"]')).toContainText('compiledb ready for SIM');

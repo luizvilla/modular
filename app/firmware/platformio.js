@@ -136,6 +136,24 @@ function selectPlatformioEnv(config, selectedEnv) {
     return preferred || envs[0];
 }
 
+function resolvePlatformioActionArgs(action, envName) {
+    if (!envName) throw new Error('No PlatformIO environment is selected.');
+    const normalizedAction = String(action || '').trim().toLowerCase();
+    if (normalizedAction === 'build') {
+        return ['run', '-e', envName];
+    }
+    if (normalizedAction === 'upload') {
+        return ['run', '-e', envName, '-t', 'upload'];
+    }
+    if (normalizedAction === 'clean') {
+        return ['run', '-e', envName, '-t', 'clean'];
+    }
+    if (normalizedAction === 'reindex') {
+        return ['run', '-e', envName, '-t', 'compiledb'];
+    }
+    throw new Error(`Unsupported firmware build action: ${action}`);
+}
+
 function readPlatformioProjectConfig(workspaceRoot) {
     const normalizedRoot = validateFirmwareWorkspaceRoot(workspaceRoot);
     const configPath = path.join(normalizedRoot, 'platformio.ini');
@@ -199,6 +217,7 @@ module.exports = {
     parseEnvList,
     parsePlatformioIni,
     readPlatformioProjectConfig,
+    resolvePlatformioActionArgs,
     selectPlatformioEnv,
     stripIniComment,
 };

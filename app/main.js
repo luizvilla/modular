@@ -9,6 +9,7 @@ const {
     DEFAULT_PLATFORMIO_HOME,
     DEFAULT_PLATFORMIO_VENV_PATH,
     readPlatformioProjectConfig,
+    resolvePlatformioActionArgs,
     selectPlatformioEnv,
 } = require('./firmware/platformio');
 const {
@@ -357,21 +358,6 @@ function resolveFirmwareProjectState() {
     }
 }
 
-function resolveFirmwareBuildActionArgs(action, envName) {
-    if (!envName) throw new Error('No PlatformIO environment is selected.');
-    const normalizedAction = String(action || '').trim().toLowerCase();
-    if (normalizedAction === 'build') {
-        return ['run', '-e', envName];
-    }
-    if (normalizedAction === 'clean') {
-        return ['run', '-e', envName, '-t', 'clean'];
-    }
-    if (normalizedAction === 'reindex') {
-        return ['run', '-e', envName, '-t', 'compiledb'];
-    }
-    throw new Error(`Unsupported firmware build action: ${action}`);
-}
-
 function finalizeFirmwareBuild(jobPatch = {}) {
     if (!firmwareBuildJob) return null;
     firmwareBuildJob = {
@@ -396,7 +382,7 @@ function cancelRunningFirmwareBuild(reason = 'canceled') {
         emitFirmwareBuildOutput({
             jobId: firmwareBuildJob.id,
             stream: 'stderr',
-            text: `[session-4] Failed to cancel job ${firmwareBuildJob.id}: ${err?.message || err}`,
+            text: `[session-5] Failed to cancel job ${firmwareBuildJob.id}: ${err?.message || err}`,
         });
         return false;
     }
@@ -409,11 +395,11 @@ function getFirmwareWorkspaceState() {
         ? `Attached workspace: ${path.basename(context.workspaceRoot)}`
         : 'Attach an existing Core checkout to start editing in Monaco.';
     const placeholderMessage = context.workspaceRoot
-        ? 'Session 4 adds PlatformIO environment discovery and basic build actions on top of the Monaco workspace shell.'
+        ? 'Session 5 adds upload support on top of the Monaco workspace shell and PlatformIO build flow.'
         : 'Attach an existing firmware workspace to enable Monaco-backed editing.';
 
     return {
-        session: 4,
+        session: 5,
         extensionId: 'owntech-workspace',
         enabled: isFirmwareWorkspaceEnabled(),
         windowOpen: !!(firmwareWindow && !firmwareWindow.isDestroyed()),
@@ -436,7 +422,7 @@ function getFirmwareToolchainStatus() {
     const platformio = resolveFirmwarePlatformioStatus();
     const status = platformio.available ? 'local-cli-ready' : 'missing';
     return {
-        session: 4,
+        session: 5,
         managed: false,
         status,
         platformio: {
@@ -475,7 +461,7 @@ function getFirmwareBuildState() {
     }
 
     return {
-        session: 4,
+        session: 5,
         status,
         supported,
         selectedEnv: projectState.selectedEnv,
@@ -498,7 +484,7 @@ function getFirmwareBuildState() {
         actions: {
             installToolchain: false,
             build: supported && !activeJob,
-            upload: false,
+            upload: supported && !activeJob,
             clean: supported && !activeJob,
             reindex: supported && !activeJob,
             cancel: !!activeJob,
@@ -510,8 +496,8 @@ function getFirmwareBuildState() {
 function firmwareStubResponse(action) {
     return {
         ok: false,
-        session: 4,
-        error: `${action} is not implemented in Session 4.`,
+        session: 5,
+        error: `${action} is not implemented in Session 5.`,
     };
 }
 
@@ -954,7 +940,7 @@ ipcMain.handle('firmware-workspace-list-files', () => {
     const context = resolveFirmwareWorkspaceContext();
     return {
         ok: true,
-        session: 4,
+        session: 5,
         mode: context.persistedState.advancedMode ? 'advanced' : 'focused',
         files: listFirmwareWorkspaceEntries(context),
     };
@@ -976,7 +962,7 @@ ipcMain.handle('firmware-workspace-read-file', (_event, { relativePath } = {}) =
         emitFirmwareWorkspaceState(state);
         return {
             ok: true,
-            session: 4,
+            session: 5,
             relativePath: file.relativePath,
             content: file.content,
             state,
@@ -1002,7 +988,7 @@ ipcMain.handle('firmware-workspace-write-file', (_event, { relativePath, content
         emitFirmwareWorkspaceState(state);
         return {
             ok: true,
-            session: 4,
+            session: 5,
             relativePath: file.relativePath,
             state,
         };
@@ -1023,7 +1009,7 @@ ipcMain.handle('firmware-build-list-envs', () => {
     const buildState = getFirmwareBuildState();
     return {
         ok: true,
-        session: 4,
+        session: 5,
         envs: buildState.envs,
         selectedEnv: buildState.selectedEnv,
         defaultEnv: buildState.defaultEnv,
@@ -1041,19 +1027,19 @@ ipcMain.handle('firmware-build-select-env', (_event, { env } = {}) => {
     writeFirmwareSessionState({ selectedEnv: nextEnv });
     const state = getFirmwareBuildState();
     emitFirmwareBuildState(state);
-    return { ok: true, session: 4, selectedEnv: nextEnv, state };
+    return { ok: true, session: 5, selectedEnv: nextEnv, state };
 });
 ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
     if (firmwareBuildJob) {
-        return { ok: false, session: 4, error: 'A PlatformIO job is already running.', state: getFirmwareBuildState() };
+        return { ok: false, session: 5, error: 'A PlatformIO job is already running.', state: getFirmwareBuildState() };
     }
 
     const projectState = resolveFirmwareProjectState();
     if (!projectState.context.workspaceRoot) {
-        return { ok: false, session: 4, error: projectState.configError || 'No attached firmware workspace.' };
+        return { ok: false, session: 5, error: projectState.configError || 'No attached firmware workspace.' };
     }
     if (projectState.configError) {
-        return { ok: false, session: 4, error: projectState.configError };
+        return { ok: false, session: 5, error: projectState.configError };
     }
 
     const platformio = resolveFirmwarePlatformioStatus({ forceRefresh: true });
@@ -1061,14 +1047,14 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
         const errorMessage = platformio.errors[0]?.error || 'No working local PlatformIO CLI was detected.';
         emitFirmwareToolchainStatus();
         emitFirmwareBuildState();
-        return { ok: false, session: 4, error: errorMessage, state: getFirmwareBuildState() };
+        return { ok: false, session: 5, error: errorMessage, state: getFirmwareBuildState() };
     }
 
     let args;
     try {
-        args = resolveFirmwareBuildActionArgs(action, projectState.selectedEnv);
+        args = resolvePlatformioActionArgs(action, projectState.selectedEnv);
     } catch (err) {
-        return { ok: false, session: 4, error: err?.message || String(err) };
+        return { ok: false, session: 5, error: err?.message || String(err) };
     }
 
     const jobId = `firmware-build-${Date.now()}-${firmwareBuildSequence += 1}`;
@@ -1104,7 +1090,7 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
     child.stdout?.on('data', (chunk) => emitChunk('stdout', chunk));
     child.stderr?.on('data', (chunk) => emitChunk('stderr', chunk));
     child.on('error', (err) => {
-        emitChunk('stderr', `[session-4] Failed to start PlatformIO: ${err?.message || err}\n`);
+        emitChunk('stderr', `[session-5] Failed to start PlatformIO: ${err?.message || err}\n`);
         finalizeFirmwareBuild({
             completedAt: new Date().toISOString(),
             result: 'failed',
@@ -1117,7 +1103,7 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
         const result = canceled ? 'canceled' : (code === 0 ? 'succeeded' : 'failed');
         emitChunk(
             code === 0 ? 'stdout' : 'stderr',
-            `[session-4] ${String(action || 'build')} ${result} for ${projectState.selectedEnv}${code !== null ? ` (exit ${code})` : ''}${signal ? ` via ${signal}` : ''}\n`
+            `[session-5] ${String(action || 'build')} ${result} for ${projectState.selectedEnv}${code !== null ? ` (exit ${code})` : ''}${signal ? ` via ${signal}` : ''}\n`
         );
         finalizeFirmwareBuild({
             completedAt: new Date().toISOString(),
@@ -1132,20 +1118,20 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
         action: firmwareBuildJob.action,
         env: projectState.selectedEnv,
         stream: 'stdout',
-        text: `[session-4] Running ${platformio.path} ${args.join(' ')} in ${projectState.context.workspaceRoot}\n`,
+        text: `[session-5] Running ${platformio.path} ${args.join(' ')} in ${projectState.context.workspaceRoot}\n`,
     });
     emitFirmwareBuildState();
-    return { ok: true, session: 4, jobId, state: getFirmwareBuildState() };
+    return { ok: true, session: 5, jobId, state: getFirmwareBuildState() };
 });
 ipcMain.handle('firmware-build-cancel', () => {
     if (!firmwareBuildJob) {
-        return { ok: false, session: 4, error: 'No PlatformIO job is running.' };
+        return { ok: false, session: 5, error: 'No PlatformIO job is running.' };
     }
     const canceled = cancelRunningFirmwareBuild('user-request');
     emitFirmwareBuildState();
     return {
         ok: canceled,
-        session: 4,
+        session: 5,
         canceled,
         jobId: firmwareBuildJob?.id || null,
         state: getFirmwareBuildState(),

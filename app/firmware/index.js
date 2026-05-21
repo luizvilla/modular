@@ -254,6 +254,7 @@ function renderBuildControls() {
     const envSelect = document.getElementById('env-select');
     const attachButton = document.getElementById('attach-workspace');
     const buildButton = document.getElementById('run-build');
+    const uploadButton = document.getElementById('run-upload');
     const cleanButton = document.getElementById('run-clean');
     const reindexButton = document.getElementById('run-reindex');
     const cancelButton = document.getElementById('cancel-build');
@@ -282,6 +283,7 @@ function renderBuildControls() {
 
     attachButton.disabled = running;
     buildButton.disabled = !buildState?.actions?.build;
+    uploadButton.disabled = !buildState?.actions?.upload;
     cleanButton.disabled = !buildState?.actions?.clean;
     reindexButton.disabled = !buildState?.actions?.reindex;
     cancelButton.disabled = !buildState?.actions?.cancel;
@@ -456,13 +458,13 @@ async function openFile(relativePath) {
     const existingTab = getTab(relativePath);
     if (existingTab) {
         activateTab(relativePath);
-        appendConsoleLine(`[session-4] Switched to ${relativePath}.`);
+        appendConsoleLine(`[session-5] Switched to ${relativePath}.`);
         return;
     }
 
     const response = await window.api.firmwareWorkspace.readFile(relativePath);
     if (!response?.ok) {
-        appendConsoleLine(`[session-4] Open failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-5] Open failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not open the selected file.');
         return;
     }
@@ -486,7 +488,7 @@ async function openFile(relativePath) {
     state.tabOrder.push(tab.relativePath);
     activateTab(tab.relativePath);
     updateWorkspaceSummary();
-    appendConsoleLine(`[session-4] Opened ${tab.relativePath}.`);
+    appendConsoleLine(`[session-5] Opened ${tab.relativePath}.`);
 }
 
 async function closeTab(relativePath) {
@@ -550,7 +552,7 @@ async function saveActiveFile() {
 
     const response = await window.api.firmwareWorkspace.writeFile(activeTab.relativePath, activeTab.model.getValue());
     if (!response?.ok) {
-        appendConsoleLine(`[session-4] Save failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-5] Save failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not save the selected file.');
         return;
     }
@@ -559,7 +561,7 @@ async function saveActiveFile() {
     syncTabDirtyState(activeTab);
     if (response.state) state.workspace = response.state;
     updateWorkspaceSummary();
-    appendConsoleLine(`[session-4] Saved ${activeTab.relativePath}.`);
+    appendConsoleLine(`[session-5] Saved ${activeTab.relativePath}.`);
 }
 
 async function attachWorkspace() {
@@ -568,7 +570,7 @@ async function attachWorkspace() {
     const response = await window.api.firmwareWorkspace.attachExistingWorkspace();
     if (!response?.ok) {
         if (!response?.canceled) {
-            appendConsoleLine(`[session-4] Attach failed: ${response?.error || 'Unknown error'}`);
+            appendConsoleLine(`[session-5] Attach failed: ${response?.error || 'Unknown error'}`);
             window.alert(response?.error || 'Could not attach the selected workspace.');
         }
         return;
@@ -576,7 +578,7 @@ async function attachWorkspace() {
 
     clearTabs();
     await refreshWorkspaceState();
-    appendConsoleLine(`[session-4] Attached ${response.state?.workspace?.root || 'workspace'}.`);
+    appendConsoleLine(`[session-5] Attached ${response.state?.workspace?.root || 'workspace'}.`);
 
     const nextFile = pickInitialFileFromState();
     if (nextFile) {
@@ -589,18 +591,18 @@ async function toggleAdvancedMode() {
     const nextMode = !state.workspace.workspace.advancedMode;
     const response = await window.api.firmwareWorkspace.setAdvancedMode(nextMode);
     if (!response?.ok) {
-        appendConsoleLine(`[session-4] Could not toggle advanced view: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-5] Could not toggle advanced view: ${response?.error || 'Unknown error'}`);
         return;
     }
     if (response.state) state.workspace = response.state;
     await refreshWorkspaceState();
-    appendConsoleLine(`[session-4] Advanced view ${nextMode ? 'enabled' : 'disabled'}.`);
+    appendConsoleLine(`[session-5] Advanced view ${nextMode ? 'enabled' : 'disabled'}.`);
 }
 
 async function selectEnvironment(envName) {
     const response = await window.api.firmwareBuild.selectEnv(envName);
     if (!response?.ok) {
-        appendConsoleLine(`[session-4] Could not select env ${envName}: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-5] Could not select env ${envName}: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not change the PlatformIO environment.');
         renderBuildControls();
         return;
@@ -609,14 +611,14 @@ async function selectEnvironment(envName) {
     setStatusChip('build-status', formatBuildSummary(state.build));
     updateWorkspaceSummary();
     renderBuildControls();
-    appendConsoleLine(`[session-4] Selected environment ${response.selectedEnv}.`);
+    appendConsoleLine(`[session-5] Selected environment ${response.selectedEnv}.`);
 }
 
 async function runBuildAction(action) {
     if (!action) return;
     const response = await window.api.firmwareBuild[action]();
     if (!response?.ok) {
-        appendConsoleLine(`[session-4] ${action} failed to start: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-5] ${action} failed to start: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || `Could not start ${action}.`);
         return;
     }
@@ -628,14 +630,14 @@ async function runBuildAction(action) {
 async function cancelBuildAction() {
     const response = await window.api.firmwareBuild.cancel();
     if (!response?.ok && !response?.canceled) {
-        appendConsoleLine(`[session-4] Cancel failed: ${response?.error || 'Unknown error'}`);
+        appendConsoleLine(`[session-5] Cancel failed: ${response?.error || 'Unknown error'}`);
         window.alert(response?.error || 'Could not cancel the current PlatformIO job.');
         return;
     }
     state.build = response.state || state.build;
     setStatusChip('build-status', formatBuildSummary(state.build));
     renderBuildControls();
-    appendConsoleLine('[session-4] Cancel requested.');
+    appendConsoleLine('[session-5] Cancel requested.');
 }
 
 function installDiagnosticsRuntime() {
@@ -685,6 +687,10 @@ function bindEvents() {
         runBuildAction('build');
     });
 
+    document.getElementById('run-upload').addEventListener('click', () => {
+        runBuildAction('upload');
+    });
+
     document.getElementById('run-clean').addEventListener('click', () => {
         runBuildAction('clean');
     });
@@ -707,7 +713,7 @@ async function bootFirmwareShell() {
 
     installDiagnosticsRuntime();
     bindEvents();
-    appendConsoleLine('[session-4] Firmware Workspace shell booted.');
+    appendConsoleLine('[session-5] Firmware Workspace shell booted.');
 
     try {
         await ensureEditor();
@@ -720,7 +726,7 @@ async function bootFirmwareShell() {
     } catch (error) {
         setStatusChip('api-status', 'Bridge error');
         document.getElementById('workspace-summary').textContent = 'Could not load Monaco for the firmware workspace.';
-        appendConsoleLine(`[session-4] Boot failed: ${error?.message || error}`);
+        appendConsoleLine(`[session-5] Boot failed: ${error?.message || error}`);
     }
 
     window.api.firmwareWorkspace.onStateChange((nextState) => {

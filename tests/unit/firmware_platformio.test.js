@@ -10,6 +10,7 @@ const {
     parseEnvList,
     parsePlatformioIni,
     readPlatformioProjectConfig,
+    resolvePlatformioActionArgs,
     selectPlatformioEnv,
     stripIniComment,
 } = require('../../app/firmware/platformio');
@@ -42,6 +43,12 @@ platform = native ; inline comment
     assert.strictEqual(selectPlatformioEnv(parsed, 'MISSING'), 'USB');
     assert.strictEqual(DEFAULT_PLATFORMIO_HOME.endsWith('.platformio'), true);
     assert.strictEqual(typeof DEFAULT_PLATFORMIO_VENV_PATH, 'string');
+    assert.deepStrictEqual(resolvePlatformioActionArgs('build', 'USB'), ['run', '-e', 'USB']);
+    assert.deepStrictEqual(resolvePlatformioActionArgs('upload', 'USB'), ['run', '-e', 'USB', '-t', 'upload']);
+    assert.deepStrictEqual(resolvePlatformioActionArgs('clean', 'USB'), ['run', '-e', 'USB', '-t', 'clean']);
+    assert.deepStrictEqual(resolvePlatformioActionArgs('reindex', 'USB'), ['run', '-e', 'USB', '-t', 'compiledb']);
+    assert.throws(() => resolvePlatformioActionArgs('upload', ''), /environment is selected/i);
+    assert.throws(() => resolvePlatformioActionArgs('flash', 'USB'), /Unsupported firmware build action/i);
 }
 
 function runConfigReadTest() {
