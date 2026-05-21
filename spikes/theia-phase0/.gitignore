@@ -1,0 +1,6 @@
+node_modules/
+app/lib/
+app/src-gen/
+app/gen-webpack.config.js
+app/gen-webpack.node.config.js
+extensions/modular-dashboard/lib/
