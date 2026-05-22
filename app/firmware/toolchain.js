@@ -10,6 +10,14 @@ const DEFAULT_MANAGED_PLATFORMIO_STATE = Object.freeze({
     lastError: null,
 });
 
+const DEFAULT_MANAGED_CLANGD_STATE = Object.freeze({
+    status: 'not-installed',
+    version: null,
+    path: null,
+    installedAt: null,
+    lastError: null,
+});
+
 function getToolchainsRoot(userDataDir) {
     return path.join(userDataDir, 'toolchains');
 }
@@ -42,6 +50,20 @@ function getManagedPlatformioStatePath(userDataDir) {
     return path.join(getManagedPlatformioRoot(userDataDir), 'state.json');
 }
 
+function getManagedClangdRoot(userDataDir) {
+    return path.join(getToolchainsRoot(userDataDir), 'clangd');
+}
+
+function getManagedClangdExecutable(userDataDir) {
+    return process.platform === 'win32'
+        ? path.join(getManagedClangdRoot(userDataDir), 'bin', 'clangd.exe')
+        : path.join(getManagedClangdRoot(userDataDir), 'bin', 'clangd');
+}
+
+function getManagedClangdStatePath(userDataDir) {
+    return path.join(getManagedClangdRoot(userDataDir), 'state.json');
+}
+
 function readManagedPlatformioState(userDataDir) {
     try {
         const raw = fs.readFileSync(getManagedPlatformioStatePath(userDataDir), 'utf8');
@@ -66,8 +88,36 @@ function writeManagedPlatformioState(userDataDir, nextState) {
     return normalized;
 }
 
+function readManagedClangdState(userDataDir) {
+    try {
+        const raw = fs.readFileSync(getManagedClangdStatePath(userDataDir), 'utf8');
+        const parsed = JSON.parse(raw);
+        return {
+            ...DEFAULT_MANAGED_CLANGD_STATE,
+            ...(parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}),
+        };
+    } catch {
+        return { ...DEFAULT_MANAGED_CLANGD_STATE };
+    }
+}
+
+function writeManagedClangdState(userDataDir, nextState) {
+    const statePath = getManagedClangdStatePath(userDataDir);
+    const normalized = {
+        ...DEFAULT_MANAGED_CLANGD_STATE,
+        ...(nextState && typeof nextState === 'object' && !Array.isArray(nextState) ? nextState : {}),
+    };
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(statePath, JSON.stringify(normalized, null, 2), 'utf8');
+    return normalized;
+}
+
 module.exports = {
+    DEFAULT_MANAGED_CLANGD_STATE,
     DEFAULT_MANAGED_PLATFORMIO_STATE,
+    getManagedClangdExecutable,
+    getManagedClangdRoot,
+    getManagedClangdStatePath,
     getManagedPlatformioCoreDir,
     getManagedPlatformioExecutable,
     getManagedPlatformioPython,
@@ -75,6 +125,8 @@ module.exports = {
     getManagedPlatformioStatePath,
     getManagedPlatformioVenvDir,
     getToolchainsRoot,
+    readManagedClangdState,
     readManagedPlatformioState,
+    writeManagedClangdState,
     writeManagedPlatformioState,
 };

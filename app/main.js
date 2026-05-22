@@ -8,11 +8,17 @@ const { buildExtensionRuntime, readInstalledState } = require('./extensions/runt
 const {
     DEFAULT_PLATFORMIO_HOME,
     DEFAULT_PLATFORMIO_VENV_PATH,
+    getCompileCommandsPath,
     readPlatformioProjectConfig,
+    resolveCompileCommandsState,
     resolvePlatformioActionArgs,
     selectPlatformioEnv,
 } = require('./firmware/platformio');
 const {
+    getManagedClangdExecutable,
+    getManagedClangdRoot,
+    readManagedClangdState,
+    writeManagedClangdState,
     getManagedPlatformioCoreDir,
     getManagedPlatformioExecutable,
     getManagedPlatformioPython,
@@ -20,6 +26,7 @@ const {
     readManagedPlatformioState,
     writeManagedPlatformioState,
 } = require('./firmware/toolchain');
+const { ClangdClient, toDocumentUri } = require('./firmware/clangd-client');
 const {
     FIRMWARE_FOCUSED_FILES,
     getFirmwareWorkspaceStatePath,
@@ -100,7 +107,10 @@ let firmwareWindow; // dedicated window for firmware editing sessions
 let firmwareBuildJob = null; // currently running PlatformIO child process
 let firmwareBuildSequence = 0;
 let firmwarePlatformioCache = null;
+let firmwareClangdCache = null;
 let firmwareToolchainJob = null;
+let firmwareLanguageClient = null;
+let firmwareLanguageClientKey = null;
 let exampleTabRequestTimer; // debounce docs tab requests
 let pendingDocTabRequest = null; // last requested docs tab (for late renderer init)
 // Track docs window docking previews/selection so popped tabs can be dragged back.
@@ -212,13 +222,35 @@ function emitFirmwareBuildState(nextState = null) {
     firmwareWindow.webContents.send('firmware-build-state', nextState || getFirmwareBuildState());
 }
 
+function emitFirmwareLanguageDiagnostics(payload) {
+    if (!firmwareWindow || firmwareWindow.isDestroyed() || !firmwareWindow.webContents) return;
+    firmwareWindow.webContents.send('firmware-language-diagnostics', payload);
+}
+
+function emitFirmwareLanguageState(nextState = null) {
+    if (!firmwareWindow || firmwareWindow.isDestroyed() || !firmwareWindow.webContents) return;
+    firmwareWindow.webContents.send('firmware-language-state', nextState || getFirmwareLanguageState());
+}
+
 function getManagedPlatformioState() {
     return readManagedPlatformioState(app.getPath('userData'));
+}
+
+function getManagedClangdState() {
+    return readManagedClangdState(app.getPath('userData'));
 }
 
 function writeManagedPlatformioRuntimeState(patch) {
     const current = getManagedPlatformioState();
     return writeManagedPlatformioState(app.getPath('userData'), {
+        ...current,
+        ...(patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {}),
+    });
+}
+
+function writeManagedClangdRuntimeState(patch) {
+    const current = getManagedClangdState();
+    return writeManagedClangdState(app.getPath('userData'), {
         ...current,
         ...(patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {}),
     });
@@ -246,6 +278,19 @@ function getFirmwarePlatformioCacheKey() {
         managedPath: getManagedPlatformioState().path || '',
         managedStatus: getManagedPlatformioState().status || '',
     });
+}
+
+function formatSpawnProbeError(probe, fallbackLabel) {
+    const stderr = typeof probe?.stderr === 'string' ? probe.stderr.trim() : '';
+    if (stderr) return stderr;
+    const stdout = typeof probe?.stdout === 'string' ? probe.stdout.trim() : '';
+    if (stdout) return stdout;
+    if (probe?.error?.message) return probe.error.message;
+    if (probe?.signal) return `${fallbackLabel} exited via ${probe.signal}`;
+    if (probe && probe.status !== null && probe.status !== undefined) {
+        return `${fallbackLabel} exited with code ${probe.status}`;
+    }
+    return `${fallbackLabel} could not be executed.`;
 }
 
 function probePlatformioExecutable(executablePath, source, extraEnv = {}) {
@@ -284,7 +329,61 @@ function probePlatformioExecutable(executablePath, source, extraEnv = {}) {
             path: executablePath,
             source,
             version: null,
-            error: (probe.stderr || probe.stdout || `Exited with code ${probe.status}`).trim(),
+            error: formatSpawnProbeError(probe, 'PlatformIO'),
+        };
+    } catch (err) {
+        return {
+            available: false,
+            path: executablePath,
+            source,
+            version: null,
+            error: err?.message || String(err),
+        };
+    }
+}
+
+function getFirmwareClangdCacheKey() {
+    return JSON.stringify({
+        envPath: process.env.MODULAR_FIRMWARE_CLANGD_PATH || '',
+        disableLocal: process.env.MODULAR_FIRMWARE_DISABLE_LOCAL_CLANGD === '1',
+        managedPath: getManagedClangdState().path || '',
+        managedStatus: getManagedClangdState().status || '',
+    });
+}
+
+function probeClangdExecutable(executablePath, source) {
+    if (!executablePath) {
+        return {
+            available: false,
+            path: executablePath || null,
+            source,
+            version: null,
+            error: 'Missing clangd executable path.',
+        };
+    }
+
+    try {
+        const probe = spawnSync(executablePath, ['--version'], {
+            env: process.env,
+            encoding: 'utf8',
+            timeout: 5000,
+            windowsHide: true,
+        });
+        if (probe.status === 0) {
+            return {
+                available: true,
+                path: executablePath,
+                source,
+                version: `${probe.stdout || ''}${probe.stderr || ''}`.trim().split(/\r?\n/)[0] || 'clangd available',
+                error: null,
+            };
+        }
+        return {
+            available: false,
+            path: executablePath,
+            source,
+            version: null,
+            error: formatSpawnProbeError(probe, 'clangd'),
         };
     } catch (err) {
         return {
@@ -352,6 +451,60 @@ function resolveManagedPlatformioStatus() {
         version: state.version,
         path: executablePath,
         coreDir,
+        rootDir: managedRoot,
+        error: installError || probe.error,
+        installedAt: state.installedAt,
+    };
+}
+
+function resolveManagedClangdStatus() {
+    const state = getManagedClangdState();
+    const managedRoot = getManagedClangdRoot(app.getPath('userData'));
+    const executablePath = state.path || getManagedClangdExecutable(app.getPath('userData'));
+    const status = firmwareToolchainJob ? 'installing' : state.status;
+    const installError = firmwareToolchainJob ? null : state.lastError;
+
+    if (status === 'installing') {
+        return {
+            available: false,
+            managed: true,
+            source: 'managed',
+            status: 'installing',
+            version: state.version,
+            path: executablePath,
+            rootDir: managedRoot,
+            error: null,
+            installedAt: state.installedAt,
+        };
+    }
+
+    const probe = probeClangdExecutable(executablePath, 'managed');
+    if (probe.available) {
+        if (state.status !== 'installed' || state.version !== probe.version || state.path !== executablePath) {
+            writeManagedClangdRuntimeState({
+                status: 'installed',
+                version: probe.version,
+                path: executablePath,
+                lastError: null,
+                installedAt: state.installedAt || new Date().toISOString(),
+            });
+        }
+        return {
+            ...probe,
+            managed: true,
+            status: 'installed',
+            rootDir: managedRoot,
+            installedAt: state.installedAt,
+        };
+    }
+
+    return {
+        available: false,
+        managed: true,
+        source: 'managed',
+        status: state.status === 'installed' ? 'broken' : (state.status || 'not-installed'),
+        version: state.version,
+        path: executablePath,
         rootDir: managedRoot,
         error: installError || probe.error,
         installedAt: state.installedAt,
@@ -429,6 +582,76 @@ function resolveFirmwarePlatformioStatus(options = {}) {
         errors,
     };
     firmwarePlatformioCache = { cacheKey, result };
+    return result;
+}
+
+function resolveFirmwareClangdStatus(options = {}) {
+    const forceRefresh = !!options.forceRefresh;
+    const cacheKey = getFirmwareClangdCacheKey();
+    if (!forceRefresh && firmwareClangdCache && firmwareClangdCache.cacheKey === cacheKey) {
+        return firmwareClangdCache.result;
+    }
+
+    const managed = resolveManagedClangdStatus();
+    if (managed.available) {
+        const result = {
+            available: true,
+            source: managed.source,
+            path: managed.path,
+            version: managed.version,
+            managed: true,
+            errors: [],
+            managedStatus: managed.status,
+        };
+        firmwareClangdCache = { cacheKey, result };
+        return result;
+    }
+
+    const disableLocal = process.env.MODULAR_FIRMWARE_DISABLE_LOCAL_CLANGD === '1';
+    const candidates = [];
+    const pushCandidate = (candidatePath, source) => {
+        if (!candidatePath) return;
+        if (candidates.some((entry) => entry.path === candidatePath)) return;
+        candidates.push({ path: candidatePath, source });
+    };
+    if (!disableLocal) {
+        pushCandidate(process.env.MODULAR_FIRMWARE_CLANGD_PATH, 'env');
+        pushCandidate('clangd', 'path');
+    }
+
+    const errors = managed.error ? [{ path: managed.path, source: 'managed', error: managed.error }] : [];
+    for (const candidate of candidates) {
+        const probe = probeClangdExecutable(candidate.path, candidate.source);
+        if (probe.available) {
+            const result = {
+                available: true,
+                source: candidate.source,
+                path: candidate.path,
+                version: probe.version,
+                managed: false,
+                errors,
+                managedStatus: managed.status,
+            };
+            firmwareClangdCache = { cacheKey, result };
+            return result;
+        }
+        errors.push({
+            path: candidate.path,
+            source: candidate.source,
+            error: probe.error,
+        });
+    }
+
+    const result = {
+        available: false,
+        source: 'none',
+        path: null,
+        version: null,
+        managed: false,
+        managedStatus: managed.status,
+        errors,
+    };
+    firmwareClangdCache = { cacheKey, result };
     return result;
 }
 
@@ -528,7 +751,7 @@ function cancelRunningFirmwareBuild(reason = 'canceled') {
         emitFirmwareBuildOutput({
             jobId: firmwareBuildJob.id,
             stream: 'stderr',
-            text: `[session-6] Failed to cancel job ${firmwareBuildJob.id}: ${err?.message || err}`,
+            text: `[session-7] Failed to cancel job ${firmwareBuildJob.id}: ${err?.message || err}`,
         });
         return false;
     }
@@ -613,7 +836,7 @@ async function installManagedPlatformioRuntime() {
     }
 
     const pythonPath = process.env.MODULAR_FIRMWARE_PYTHON_PATH || 'python3';
-    emitFirmwareRuntimeOutput(`[session-6] Creating managed PlatformIO runtime in ${managedRoot}\n`);
+    emitFirmwareRuntimeOutput(`[session-7] Creating managed PlatformIO runtime in ${managedRoot}\n`);
     await runToolchainCommand(pythonPath, ['-m', 'venv', managedVenvDir], {
         cwd: managedRoot,
         label: 'python -m venv',
@@ -641,6 +864,235 @@ async function installManagedPlatformioRuntime() {
     };
 }
 
+async function installManagedClangdRuntime() {
+    const userDataDir = app.getPath('userData');
+    const managedRoot = getManagedClangdRoot(userDataDir);
+    const managedClangdPath = getManagedClangdExecutable(userDataDir);
+    const seedPath = process.env.MODULAR_FIRMWARE_MANAGED_CLANGD_SEED_PATH;
+
+    fs.mkdirSync(path.dirname(managedClangdPath), { recursive: true });
+
+    let sourcePath = null;
+    if (seedPath) {
+        sourcePath = path.resolve(seedPath);
+    } else {
+        const local = resolveFirmwareClangdStatus({ forceRefresh: true });
+        if (local.available && !local.managed && local.path) {
+            sourcePath = local.path;
+        }
+    }
+
+    if (!sourcePath) {
+        throw new Error('No clangd seed is available. Set MODULAR_FIRMWARE_MANAGED_CLANGD_SEED_PATH or install clangd locally first.');
+    }
+    if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+        throw new Error(`Managed clangd seed path does not exist: ${sourcePath}`);
+    }
+
+    emitFirmwareRuntimeOutput(`[session-7] Installing managed clangd in ${managedRoot}\n`);
+    fs.copyFileSync(sourcePath, managedClangdPath);
+    fs.chmodSync(managedClangdPath, 0o755);
+
+    const probe = probeClangdExecutable(managedClangdPath, 'managed');
+    if (!probe.available) {
+        throw new Error(probe.error || 'Managed clangd runtime failed verification.');
+    }
+
+    return {
+        path: managedClangdPath,
+        version: probe.version,
+    };
+}
+
+function disposeFirmwareLanguageClient(options = {}) {
+    const { clearDiagnostics = true } = options;
+    if (firmwareLanguageClient) {
+        try {
+            firmwareLanguageClient.dispose();
+        } catch {}
+    }
+    firmwareLanguageClient = null;
+    firmwareLanguageClientKey = null;
+    if (clearDiagnostics) {
+        emitFirmwareLanguageDiagnostics({
+            workspaceRoot: resolveFirmwareWorkspaceContext().workspaceRoot || null,
+            diagnostics: [],
+        });
+    }
+}
+
+function getFirmwareLanguageContext() {
+    const projectState = resolveFirmwareProjectState();
+    const clangd = resolveFirmwareClangdStatus();
+    const activeEnv = projectState.selectedEnv;
+    let compileCommands = null;
+    if (projectState.context.workspaceRoot && activeEnv) {
+        compileCommands = resolveCompileCommandsState(projectState.context.workspaceRoot, activeEnv);
+    }
+
+    let status = 'idle';
+    let message = 'clangd is ready.';
+    if (!projectState.context.workspaceRoot) {
+        status = 'missing-workspace';
+        message = 'Attach a firmware workspace to enable completion and hover.';
+    } else if (projectState.configError) {
+        status = 'config-error';
+        message = projectState.configError;
+    } else if (!activeEnv) {
+        status = 'missing-env';
+        message = 'Select a PlatformIO environment before starting clangd.';
+    } else if (firmwareToolchainJob) {
+        status = 'installing';
+        message = 'Installing the managed toolchains.';
+    } else if (!clangd.available) {
+        status = 'missing-clangd';
+        message = clangd.errors[0]?.error || 'clangd is not available. Install the managed toolchain.';
+    } else if (!compileCommands?.exists) {
+        status = 'missing-compiledb';
+        message = `Run Reindex to generate ${getCompileCommandsPath(projectState.context.workspaceRoot, activeEnv)}.`;
+    } else {
+        status = 'ready';
+        message = `clangd ready for ${activeEnv}`;
+    }
+
+    return {
+        projectState,
+        clangd,
+        activeEnv,
+        compileCommands,
+        status,
+        message,
+    };
+}
+
+function getFirmwareLanguageState() {
+    const context = getFirmwareLanguageContext();
+    return {
+        session: 7,
+        status: context.status,
+        message: context.message,
+        activeEnv: context.activeEnv,
+        workspaceAttached: !!context.projectState.context.workspaceRoot,
+        workspaceRoot: context.projectState.context.workspaceRoot,
+        compileCommandsPath: context.compileCommands?.path || null,
+        compileCommandsReady: !!context.compileCommands?.exists,
+        clientRunning: !!firmwareLanguageClient,
+        clangd: {
+            available: context.clangd.available,
+            source: context.clangd.source,
+            path: context.clangd.path,
+            version: context.clangd.version,
+            usingManagedRuntime: !!context.clangd.managed,
+            managedStatus: context.clangd.managedStatus,
+            error: context.clangd.available ? null : (context.clangd.errors[0]?.error || 'clangd is unavailable'),
+        },
+    };
+}
+
+async function ensureFirmwareLanguageClient() {
+    const context = getFirmwareLanguageContext();
+    if (context.status !== 'ready') {
+        disposeFirmwareLanguageClient();
+        return { ok: false, state: getFirmwareLanguageState(), context };
+    }
+
+    const clientKey = JSON.stringify({
+        clangdPath: context.clangd.path,
+        workspaceRoot: context.projectState.context.workspaceRoot,
+        activeEnv: context.activeEnv,
+        compileCommandsPath: context.compileCommands?.path || null,
+    });
+    if (firmwareLanguageClient && firmwareLanguageClientKey === clientKey) {
+        return { ok: true, client: firmwareLanguageClient, state: getFirmwareLanguageState(), context };
+    }
+
+    disposeFirmwareLanguageClient({ clearDiagnostics: false });
+
+    const workspaceRoot = context.projectState.context.workspaceRoot;
+    const compileCommandsDir = context.compileCommands?.directory || path.dirname(context.compileCommands?.path || workspaceRoot);
+    const client = new ClangdClient({
+        command: context.clangd.path,
+        args: [
+            `--compile-commands-dir=${compileCommandsDir}`,
+            '--clang-tidy=false',
+            '--header-insertion=never',
+        ],
+        cwd: workspaceRoot,
+        env: process.env,
+        rootUri: toDocumentUri(workspaceRoot),
+        workspaceName: path.basename(workspaceRoot),
+        onDiagnostics: (payload = {}) => {
+            const diagnostics = Array.isArray(payload.diagnostics) ? payload.diagnostics : [];
+            let relativePath = null;
+            if (payload.uri && payload.uri.startsWith('file://')) {
+                try {
+                    relativePath = path.relative(workspaceRoot, new URL(payload.uri).pathname);
+                } catch {}
+            }
+            emitFirmwareLanguageDiagnostics({
+                session: 7,
+                uri: payload.uri,
+                relativePath,
+                version: payload.version,
+                diagnostics,
+            });
+        },
+        onOutput: (text, stream) => {
+            emitFirmwareBuildOutput({
+                jobId: 'firmware-clangd',
+                action: 'clangd',
+                env: context.activeEnv,
+                stream,
+                text,
+            });
+        },
+        onExit: () => {
+            firmwareLanguageClient = null;
+            firmwareLanguageClientKey = null;
+            emitFirmwareLanguageState();
+        },
+    });
+
+    try {
+        await client.start();
+        firmwareLanguageClient = client;
+        firmwareLanguageClientKey = clientKey;
+        emitFirmwareLanguageState();
+        return { ok: true, client, state: getFirmwareLanguageState(), context };
+    } catch (err) {
+        disposeFirmwareLanguageClient();
+        return {
+            ok: false,
+            error: err?.message || String(err),
+            state: getFirmwareLanguageState(),
+            context,
+        };
+    }
+}
+
+async function syncFirmwareLanguageDocument(relativePath, content) {
+    const context = resolveFirmwareWorkspaceContext();
+    if (!context.workspaceRoot) {
+        return { ok: false, error: 'No attached firmware workspace.', state: getFirmwareLanguageState() };
+    }
+
+    const clientState = await ensureFirmwareLanguageClient();
+    if (!clientState.ok) {
+        return clientState;
+    }
+
+    const resolved = resolveWorkspacePath(context.workspaceRoot, relativePath);
+    await clientState.client.ensureDocument({
+        filePath: resolved.absolutePath,
+        text: content,
+        languageId: 'cpp',
+    });
+    return {
+        ok: true,
+        state: getFirmwareLanguageState(),
+    };
+}
+
 function getFirmwareWorkspaceState() {
     const context = resolveFirmwareWorkspaceContext();
     const fileEntries = listFirmwareWorkspaceEntries(context);
@@ -648,11 +1100,11 @@ function getFirmwareWorkspaceState() {
         ? `Attached workspace: ${path.basename(context.workspaceRoot)}`
         : 'Attach an existing Core checkout to start editing in Monaco.';
     const placeholderMessage = context.workspaceRoot
-        ? 'Session 6 adds a managed PlatformIO runtime on top of the Monaco workspace shell and local build flow.'
+        ? 'Session 7 adds managed clangd-backed completion and hover on top of the Monaco workspace shell and local build flow.'
         : 'Attach an existing firmware workspace to enable Monaco-backed editing.';
 
     return {
-        session: 6,
+        session: 7,
         extensionId: 'owntech-workspace',
         enabled: isFirmwareWorkspaceEnabled(),
         windowOpen: !!(firmwareWindow && !firmwareWindow.isDestroyed()),
@@ -674,12 +1126,18 @@ function getFirmwareWorkspaceState() {
 function getFirmwareToolchainStatus() {
     const managedPlatformio = resolveManagedPlatformioStatus();
     const platformio = resolveFirmwarePlatformioStatus();
+    const managedClangd = resolveManagedClangdStatus();
+    const clangd = resolveFirmwareClangdStatus();
     const status = firmwareToolchainJob
         ? 'installing'
-        : (managedPlatformio.available ? 'managed-ready' : (platformio.available ? 'local-cli-ready' : 'missing'));
+        : (
+            managedPlatformio.available && managedClangd.available
+                ? 'managed-ready'
+                : ((platformio.available || clangd.available) ? 'partially-ready' : 'missing')
+        );
     return {
-        session: 6,
-        managed: !!(managedPlatformio.available || firmwareToolchainJob),
+        session: 7,
+        managed: !!(managedPlatformio.available || managedClangd.available || firmwareToolchainJob),
         status,
         platformio: {
             status: firmwareToolchainJob
@@ -693,12 +1151,21 @@ function getFirmwareToolchainStatus() {
             managedCoreDir: getManagedPlatformioCoreDir(app.getPath('userData')),
             managedStatus: managedPlatformio.status,
             managedInstalledAt: managedPlatformio.installedAt || null,
-            installButtonEnabled: !firmwareToolchainJob && !managedPlatformio.available,
+            installButtonEnabled: !firmwareToolchainJob && (!managedPlatformio.available || !managedClangd.available),
             usingManagedRuntime: !!platformio.managed,
         },
         clangd: {
-            status: 'not-configured',
-            source: 'none',
+            status: firmwareToolchainJob
+                ? 'installing'
+                : (managedClangd.available ? 'installed' : (clangd.available ? 'available' : 'missing')),
+            source: clangd.source,
+            path: clangd.path,
+            version: clangd.version,
+            error: firmwareToolchainJob ? null : (clangd.available ? null : (managedClangd.error || clangd.errors[0]?.error || 'clangd not found')),
+            managedPath: getManagedClangdExecutable(app.getPath('userData')),
+            managedStatus: managedClangd.status,
+            managedInstalledAt: managedClangd.installedAt || null,
+            usingManagedRuntime: !!clangd.managed,
         },
     };
 }
@@ -706,6 +1173,7 @@ function getFirmwareToolchainStatus() {
 function getFirmwareBuildState() {
     const projectState = resolveFirmwareProjectState();
     const managedPlatformio = resolveManagedPlatformioStatus();
+    const managedClangd = resolveManagedClangdStatus();
     const platformio = resolveFirmwarePlatformioStatus();
     const activeJob = firmwareBuildJob;
     const supported = !!(projectState.context.workspaceRoot && projectState.envs.length && platformio.available);
@@ -728,7 +1196,7 @@ function getFirmwareBuildState() {
     }
 
     return {
-        session: 6,
+        session: 7,
         status,
         supported,
         selectedEnv: projectState.selectedEnv,
@@ -749,7 +1217,7 @@ function getFirmwareBuildState() {
             version: platformio.version,
         },
         actions: {
-            installToolchain: !firmwareToolchainJob && !managedPlatformio.available,
+            installToolchain: !firmwareToolchainJob && (!managedPlatformio.available || !managedClangd.available),
             build: supported && !activeJob,
             upload: supported && !activeJob,
             clean: supported && !activeJob,
@@ -763,8 +1231,8 @@ function getFirmwareBuildState() {
 function firmwareStubResponse(action) {
     return {
         ok: false,
-        session: 6,
-        error: `${action} is not implemented in Session 6.`,
+        session: 7,
+        error: `${action} is not implemented in Session 7.`,
     };
 }
 
@@ -803,6 +1271,7 @@ function openFirmwareWorkspaceWindow() {
     firmwareWindow.loadFile(path.join(__dirname, 'firmware', 'index.html'));
     firmwareWindow.on('closed', () => {
         cancelRunningFirmwareBuild('window-closed');
+        disposeFirmwareLanguageClient();
         firmwareWindow = null;
     });
 
@@ -1191,9 +1660,11 @@ ipcMain.handle('firmware-workspace-attach-existing', async (_event, { workspaceP
             selectedEnv,
         });
         const state = getFirmwareWorkspaceState();
+        disposeFirmwareLanguageClient();
         emitFirmwareWorkspaceState(state);
         emitFirmwareBuildState();
         emitFirmwareToolchainStatus();
+        emitFirmwareLanguageState();
         return { ok: true, state };
     } catch (err) {
         return {
@@ -1207,7 +1678,7 @@ ipcMain.handle('firmware-workspace-list-files', () => {
     const context = resolveFirmwareWorkspaceContext();
     return {
         ok: true,
-        session: 6,
+        session: 7,
         mode: context.persistedState.advancedMode ? 'advanced' : 'focused',
         files: listFirmwareWorkspaceEntries(context),
     };
@@ -1229,7 +1700,7 @@ ipcMain.handle('firmware-workspace-read-file', (_event, { relativePath } = {}) =
         emitFirmwareWorkspaceState(state);
         return {
             ok: true,
-            session: 6,
+            session: 7,
             relativePath: file.relativePath,
             content: file.content,
             state,
@@ -1255,7 +1726,7 @@ ipcMain.handle('firmware-workspace-write-file', (_event, { relativePath, content
         emitFirmwareWorkspaceState(state);
         return {
             ok: true,
-            session: 6,
+            session: 7,
             relativePath: file.relativePath,
             state,
         };
@@ -1274,17 +1745,18 @@ ipcMain.handle('firmware-toolchain-install', async () => {
     if (firmwareToolchainJob) {
         return {
             ok: false,
-            session: 6,
-            error: 'Managed PlatformIO installation is already running.',
+            session: 7,
+            error: 'Managed toolchain installation is already running.',
             state: getFirmwareToolchainStatus(),
         };
     }
 
     const existingManaged = resolveManagedPlatformioStatus();
-    if (existingManaged.available) {
+    const existingManagedClangd = resolveManagedClangdStatus();
+    if (existingManaged.available && existingManagedClangd.available) {
         return {
             ok: true,
-            session: 6,
+            session: 7,
             installed: true,
             state: getFirmwareToolchainStatus(),
         };
@@ -1293,49 +1765,84 @@ ipcMain.handle('firmware-toolchain-install', async () => {
     firmwareToolchainJob = {
         id: `firmware-toolchain-${Date.now()}`,
         startedAt: new Date().toISOString(),
+        components: [
+            ...(!existingManaged.available ? ['platformio'] : []),
+            ...(!existingManagedClangd.available ? ['clangd'] : []),
+        ],
     };
     writeManagedPlatformioRuntimeState({
-        status: 'installing',
-        lastError: null,
+        status: existingManaged.available ? 'installed' : 'installing',
+        lastError: existingManaged.available ? null : null,
+    });
+    writeManagedClangdRuntimeState({
+        status: existingManagedClangd.available ? 'installed' : 'installing',
+        lastError: existingManagedClangd.available ? null : null,
     });
     firmwarePlatformioCache = null;
+    firmwareClangdCache = null;
     emitFirmwareToolchainStatus();
     emitFirmwareBuildState();
+    emitFirmwareLanguageState();
 
     try {
-        const result = await installManagedPlatformioRuntime();
-        writeManagedPlatformioRuntimeState({
-            status: 'installed',
-            path: result.path,
-            coreDir: result.coreDir,
-            version: result.version,
-            installedAt: new Date().toISOString(),
-            lastError: null,
-        });
-        emitFirmwareRuntimeOutput(`[session-6] Managed PlatformIO runtime installed at ${result.path}\n`);
+        if (!existingManaged.available) {
+            const result = await installManagedPlatformioRuntime();
+            writeManagedPlatformioRuntimeState({
+                status: 'installed',
+                path: result.path,
+                coreDir: result.coreDir,
+                version: result.version,
+                installedAt: new Date().toISOString(),
+                lastError: null,
+            });
+            emitFirmwareRuntimeOutput(`[session-7] Managed PlatformIO runtime installed at ${result.path}\n`);
+        }
+        if (!existingManagedClangd.available) {
+            const result = await installManagedClangdRuntime();
+            writeManagedClangdRuntimeState({
+                status: 'installed',
+                path: result.path,
+                version: result.version,
+                installedAt: new Date().toISOString(),
+                lastError: null,
+            });
+            emitFirmwareRuntimeOutput(`[session-7] Managed clangd runtime installed at ${result.path}\n`);
+        }
         firmwareToolchainJob = null;
         firmwarePlatformioCache = null;
+        firmwareClangdCache = null;
         emitFirmwareToolchainStatus();
         emitFirmwareBuildState();
+        emitFirmwareLanguageState();
         return {
             ok: true,
-            session: 6,
+            session: 7,
             installed: true,
             state: getFirmwareToolchainStatus(),
         };
     } catch (err) {
-        writeManagedPlatformioRuntimeState({
-            status: 'error',
-            lastError: err?.message || String(err),
-        });
-        emitFirmwareRuntimeOutput(`[session-6] Managed PlatformIO install failed: ${err?.message || err}\n`, 'stderr');
+        if (!existingManaged.available) {
+            writeManagedPlatformioRuntimeState({
+                status: 'error',
+                lastError: err?.message || String(err),
+            });
+        }
+        if (!existingManagedClangd.available) {
+            writeManagedClangdRuntimeState({
+                status: 'error',
+                lastError: err?.message || String(err),
+            });
+        }
+        emitFirmwareRuntimeOutput(`[session-7] Managed toolchain install failed: ${err?.message || err}\n`, 'stderr');
         firmwareToolchainJob = null;
         firmwarePlatformioCache = null;
+        firmwareClangdCache = null;
         emitFirmwareToolchainStatus();
         emitFirmwareBuildState();
+        emitFirmwareLanguageState();
         return {
             ok: false,
-            session: 6,
+            session: 7,
             error: err?.message || String(err),
             state: getFirmwareToolchainStatus(),
         };
@@ -1346,7 +1853,7 @@ ipcMain.handle('firmware-build-list-envs', () => {
     const buildState = getFirmwareBuildState();
     return {
         ok: true,
-        session: 6,
+        session: 7,
         envs: buildState.envs,
         selectedEnv: buildState.selectedEnv,
         defaultEnv: buildState.defaultEnv,
@@ -1362,21 +1869,23 @@ ipcMain.handle('firmware-build-select-env', (_event, { env } = {}) => {
         return { ok: false, error: `Unknown PlatformIO environment: ${env}` };
     }
     writeFirmwareSessionState({ selectedEnv: nextEnv });
+    disposeFirmwareLanguageClient();
     const state = getFirmwareBuildState();
     emitFirmwareBuildState(state);
-    return { ok: true, session: 6, selectedEnv: nextEnv, state };
+    emitFirmwareLanguageState();
+    return { ok: true, session: 7, selectedEnv: nextEnv, state };
 });
 ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
     if (firmwareBuildJob) {
-        return { ok: false, session: 6, error: 'A PlatformIO job is already running.', state: getFirmwareBuildState() };
+        return { ok: false, session: 7, error: 'A PlatformIO job is already running.', state: getFirmwareBuildState() };
     }
 
     const projectState = resolveFirmwareProjectState();
     if (!projectState.context.workspaceRoot) {
-        return { ok: false, session: 6, error: projectState.configError || 'No attached firmware workspace.' };
+        return { ok: false, session: 7, error: projectState.configError || 'No attached firmware workspace.' };
     }
     if (projectState.configError) {
-        return { ok: false, session: 6, error: projectState.configError };
+        return { ok: false, session: 7, error: projectState.configError };
     }
 
     const platformioRuntime = resolveFirmwarePlatformioStatus({ forceRefresh: true });
@@ -1384,14 +1893,14 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
         const errorMessage = platformioRuntime.errors[0]?.error || 'No working PlatformIO runtime was detected.';
         emitFirmwareToolchainStatus();
         emitFirmwareBuildState();
-        return { ok: false, session: 6, error: errorMessage, state: getFirmwareBuildState() };
+        return { ok: false, session: 7, error: errorMessage, state: getFirmwareBuildState() };
     }
 
     let args;
     try {
         args = resolvePlatformioActionArgs(action, projectState.selectedEnv);
     } catch (err) {
-        return { ok: false, session: 6, error: err?.message || String(err) };
+        return { ok: false, session: 7, error: err?.message || String(err) };
     }
 
     const jobId = `firmware-build-${Date.now()}-${firmwareBuildSequence += 1}`;
@@ -1427,20 +1936,21 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
     child.stdout?.on('data', (chunk) => emitChunk('stdout', chunk));
     child.stderr?.on('data', (chunk) => emitChunk('stderr', chunk));
     child.on('error', (err) => {
-        emitChunk('stderr', `[session-6] Failed to start PlatformIO: ${err?.message || err}\n`);
+        emitChunk('stderr', `[session-7] Failed to start PlatformIO: ${err?.message || err}\n`);
         finalizeFirmwareBuild({
             completedAt: new Date().toISOString(),
             result: 'failed',
             exitCode: null,
             signal: null,
         });
+        emitFirmwareLanguageState();
     });
     child.on('close', (code, signal) => {
         const canceled = !!(firmwareBuildJob && firmwareBuildJob.cancelRequested);
         const result = canceled ? 'canceled' : (code === 0 ? 'succeeded' : 'failed');
         emitChunk(
             code === 0 ? 'stdout' : 'stderr',
-            `[session-6] ${String(action || 'build')} ${result} for ${projectState.selectedEnv}${code !== null ? ` (exit ${code})` : ''}${signal ? ` via ${signal}` : ''}\n`
+            `[session-7] ${String(action || 'build')} ${result} for ${projectState.selectedEnv}${code !== null ? ` (exit ${code})` : ''}${signal ? ` via ${signal}` : ''}\n`
         );
         finalizeFirmwareBuild({
             completedAt: new Date().toISOString(),
@@ -1448,6 +1958,10 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
             exitCode: code,
             signal,
         });
+        if (action === 'reindex' && result === 'succeeded') {
+            disposeFirmwareLanguageClient();
+        }
+        emitFirmwareLanguageState();
     });
 
     emitFirmwareBuildOutput({
@@ -1455,25 +1969,117 @@ ipcMain.handle('firmware-build-run', (_event, { action } = {}) => {
         action: firmwareBuildJob.action,
         env: projectState.selectedEnv,
         stream: 'stdout',
-        text: `[session-6] Running ${platformioRuntime.path} ${args.join(' ')} in ${projectState.context.workspaceRoot}\n`,
+        text: `[session-7] Running ${platformioRuntime.path} ${args.join(' ')} in ${projectState.context.workspaceRoot}\n`,
     });
     emitFirmwareBuildState();
-    return { ok: true, session: 6, jobId, state: getFirmwareBuildState() };
+    emitFirmwareLanguageState();
+    return { ok: true, session: 7, jobId, state: getFirmwareBuildState() };
 });
 ipcMain.handle('firmware-build-cancel', () => {
     if (!firmwareBuildJob) {
-        return { ok: false, session: 6, error: 'No PlatformIO job is running.' };
+        return { ok: false, session: 7, error: 'No PlatformIO job is running.' };
     }
     const canceled = cancelRunningFirmwareBuild('user-request');
     emitFirmwareBuildState();
     return {
         ok: canceled,
-        session: 6,
+        session: 7,
         canceled,
         jobId: firmwareBuildJob?.id || null,
         state: getFirmwareBuildState(),
         error: canceled ? null : 'Could not cancel the running PlatformIO job.',
     };
+});
+ipcMain.handle('firmware-language-get-state', () => getFirmwareLanguageState());
+ipcMain.handle('firmware-language-sync-document', async (_event, { relativePath, content } = {}) => {
+    if (!relativePath) {
+        return { ok: false, session: 7, error: 'Missing relativePath.', state: getFirmwareLanguageState() };
+    }
+    try {
+        const response = await syncFirmwareLanguageDocument(relativePath, content ?? '');
+        emitFirmwareLanguageState();
+        return {
+            session: 7,
+            ...response,
+        };
+    } catch (err) {
+        return { ok: false, session: 7, error: err?.message || String(err), state: getFirmwareLanguageState() };
+    }
+});
+ipcMain.handle('firmware-language-complete', async (_event, { relativePath, content, position } = {}) => {
+    if (!relativePath || !position) {
+        return { ok: false, session: 7, error: 'Missing language completion parameters.', state: getFirmwareLanguageState() };
+    }
+    const context = resolveFirmwareWorkspaceContext();
+    if (!context.workspaceRoot) {
+        return { ok: false, session: 7, error: 'No attached firmware workspace.', state: getFirmwareLanguageState() };
+    }
+    const clientState = await ensureFirmwareLanguageClient();
+    if (!clientState.ok) {
+        return { ok: false, session: 7, error: clientState.error || clientState.state.message, state: clientState.state };
+    }
+    try {
+        const resolved = resolveWorkspacePath(context.workspaceRoot, relativePath);
+        const result = await clientState.client.completion({
+            filePath: resolved.absolutePath,
+            text: content ?? '',
+            position,
+            languageId: 'cpp',
+        });
+        return { ok: true, session: 7, items: Array.isArray(result?.items) ? result.items : (Array.isArray(result) ? result : []), incomplete: !!result?.isIncomplete, state: getFirmwareLanguageState() };
+    } catch (err) {
+        return { ok: false, session: 7, error: err?.message || String(err), state: getFirmwareLanguageState() };
+    }
+});
+ipcMain.handle('firmware-language-hover', async (_event, { relativePath, content, position } = {}) => {
+    if (!relativePath || !position) {
+        return { ok: false, session: 7, error: 'Missing hover parameters.', state: getFirmwareLanguageState() };
+    }
+    const context = resolveFirmwareWorkspaceContext();
+    if (!context.workspaceRoot) {
+        return { ok: false, session: 7, error: 'No attached firmware workspace.', state: getFirmwareLanguageState() };
+    }
+    const clientState = await ensureFirmwareLanguageClient();
+    if (!clientState.ok) {
+        return { ok: false, session: 7, error: clientState.error || clientState.state.message, state: clientState.state };
+    }
+    try {
+        const resolved = resolveWorkspacePath(context.workspaceRoot, relativePath);
+        const result = await clientState.client.hover({
+            filePath: resolved.absolutePath,
+            text: content ?? '',
+            position,
+            languageId: 'cpp',
+        });
+        return { ok: true, session: 7, hover: result, state: getFirmwareLanguageState() };
+    } catch (err) {
+        return { ok: false, session: 7, error: err?.message || String(err), state: getFirmwareLanguageState() };
+    }
+});
+ipcMain.handle('firmware-language-definition', async (_event, { relativePath, content, position } = {}) => {
+    if (!relativePath || !position) {
+        return { ok: false, session: 7, error: 'Missing definition parameters.', state: getFirmwareLanguageState() };
+    }
+    const context = resolveFirmwareWorkspaceContext();
+    if (!context.workspaceRoot) {
+        return { ok: false, session: 7, error: 'No attached firmware workspace.', state: getFirmwareLanguageState() };
+    }
+    const clientState = await ensureFirmwareLanguageClient();
+    if (!clientState.ok) {
+        return { ok: false, session: 7, error: clientState.error || clientState.state.message, state: clientState.state };
+    }
+    try {
+        const resolved = resolveWorkspacePath(context.workspaceRoot, relativePath);
+        const result = await clientState.client.definition({
+            filePath: resolved.absolutePath,
+            text: content ?? '',
+            position,
+            languageId: 'cpp',
+        });
+        return { ok: true, session: 7, definition: result, state: getFirmwareLanguageState() };
+    } catch (err) {
+        return { ok: false, session: 7, error: err?.message || String(err), state: getFirmwareLanguageState() };
+    }
 });
 
 // ── Extension Manager ──────────────────────────────────────────────────────

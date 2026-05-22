@@ -190,6 +190,15 @@ const api = {
         cancel: (jobId) => ipcRenderer.invoke('firmware-build-cancel', { jobId }),
         onOutput: (cb) => on('firmware-build-output', cb),
         onStateChange: (cb) => on('firmware-build-state', cb)
+    },
+    firmwareLanguage: {
+        getState: () => ipcRenderer.invoke('firmware-language-get-state'),
+        syncDocument: (relativePath, content) => ipcRenderer.invoke('firmware-language-sync-document', { relativePath, content }),
+        provideCompletion: (payload) => ipcRenderer.invoke('firmware-language-complete', payload),
+        provideHover: (payload) => ipcRenderer.invoke('firmware-language-hover', payload),
+        provideDefinition: (payload) => ipcRenderer.invoke('firmware-language-definition', payload),
+        onStateChange: (cb) => on('firmware-language-state', cb),
+        onDiagnostics: (cb) => on('firmware-language-diagnostics', cb),
     }
 };
 

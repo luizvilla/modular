@@ -6,10 +6,12 @@ const path = require('path');
 const {
     DEFAULT_PLATFORMIO_HOME,
     DEFAULT_PLATFORMIO_VENV_PATH,
+    getCompileCommandsPath,
     parseConfigPathList,
     parseEnvList,
     parsePlatformioIni,
     readPlatformioProjectConfig,
+    resolveCompileCommandsState,
     resolvePlatformioActionArgs,
     selectPlatformioEnv,
     stripIniComment,
@@ -82,6 +84,14 @@ mode = test
         assert.deepStrictEqual(project.defaultEnvs, ['USB']);
         assert.strictEqual(project.selectedEnv, 'USB');
         assert.strictEqual(project.configPath, path.join(tempRoot, 'platformio.ini'));
+        const compileCommandsPath = getCompileCommandsPath(tempRoot, 'USB');
+        assert.strictEqual(compileCommandsPath.endsWith(path.join('.pio', 'build', 'USB', 'compile_commands.json')), true);
+        const compileStateBefore = resolveCompileCommandsState(tempRoot, 'USB');
+        assert.strictEqual(compileStateBefore.exists, false);
+        fs.mkdirSync(path.dirname(compileCommandsPath), { recursive: true });
+        fs.writeFileSync(compileCommandsPath, '[]\n', 'utf8');
+        const compileStateAfter = resolveCompileCommandsState(tempRoot, 'USB');
+        assert.strictEqual(compileStateAfter.exists, true);
         assert.deepStrictEqual(
             project.configPaths.map((entry) => path.relative(tempRoot, entry)).sort(),
             ['owntech/pio_extra.ini', 'platformio.ini', 'src/app.ini']

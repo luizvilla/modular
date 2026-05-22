@@ -154,6 +154,25 @@ function resolvePlatformioActionArgs(action, envName) {
     throw new Error(`Unsupported firmware build action: ${action}`);
 }
 
+function getCompileCommandsPath(workspaceRoot, envName) {
+    const normalizedRoot = validateFirmwareWorkspaceRoot(workspaceRoot);
+    const normalizedEnv = String(envName || '').trim();
+    if (!normalizedEnv) {
+        throw new Error('No PlatformIO environment is selected.');
+    }
+    return path.join(normalizedRoot, '.pio', 'build', normalizedEnv, 'compile_commands.json');
+}
+
+function resolveCompileCommandsState(workspaceRoot, envName) {
+    const compileCommandsPath = getCompileCommandsPath(workspaceRoot, envName);
+    const exists = fs.existsSync(compileCommandsPath) && fs.statSync(compileCommandsPath).isFile();
+    return {
+        exists,
+        path: compileCommandsPath,
+        directory: path.dirname(compileCommandsPath),
+    };
+}
+
 function readPlatformioProjectConfig(workspaceRoot) {
     const normalizedRoot = validateFirmwareWorkspaceRoot(workspaceRoot);
     const configPath = path.join(normalizedRoot, 'platformio.ini');
@@ -213,10 +232,12 @@ function readPlatformioProjectConfig(workspaceRoot) {
 module.exports = {
     DEFAULT_PLATFORMIO_HOME,
     DEFAULT_PLATFORMIO_VENV_PATH,
+    getCompileCommandsPath,
     parseConfigPathList,
     parseEnvList,
     parsePlatformioIni,
     readPlatformioProjectConfig,
+    resolveCompileCommandsState,
     resolvePlatformioActionArgs,
     selectPlatformioEnv,
     stripIniComment,
