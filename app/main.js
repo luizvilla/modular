@@ -2211,7 +2211,8 @@ function setAppMenu() {
             label: 'File',
             submenu: [
                 {
-                    label: 'New Dashboard',
+                    label: 'New Dashboard Tab',
+                    accelerator: 'CmdOrCtrl+T',
                     click: () => {
                         if (mainWindow && mainWindow.webContents) {
                             mainWindow.webContents.send('menu-new-dashboard');
@@ -2219,7 +2220,8 @@ function setAppMenu() {
                     }
                 },
                 {
-                    label: 'Load Dashboard',
+                    label: 'Open Dashboard',
+                    accelerator: 'CmdOrCtrl+O',
                     click: () => {
                         if (mainWindow && mainWindow.webContents) {
                             mainWindow.webContents.send('menu-load-dashboard');
@@ -2236,6 +2238,7 @@ function setAppMenu() {
                 { type: 'separator' },
                 {
                     label: 'Save Dashboard',
+                    accelerator: 'CmdOrCtrl+S',
                     click: () => {
                         if (mainWindow && mainWindow.webContents) {
                             mainWindow.webContents.send('menu-save-dashboard');

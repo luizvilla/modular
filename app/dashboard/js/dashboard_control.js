@@ -110,36 +110,18 @@
         });
     }
 
-    // File menu actions: load/save dashboard via Freeboard API.
+    // File menu actions: delegate to the tabs system (window.dashboardTabs).
     if (dashboardApi && dashboardApi.onMenuLoadDashboard) {
-        dashboardApi.onMenuLoadDashboard(async () => {
-            try {
-                const filePath = dashboardApi.openDashboardDialog
-                    ? await dashboardApi.openDashboardDialog()
-                    : null;
-                if (!filePath) return;
-                const text = await readTextFile(filePath);
-                const jsonObject = JSON.parse(text);
-                applyDashboardJson(jsonObject);
-            } catch (err) {
-                console.error('Menu load dashboard failed:', err);
-            }
+        dashboardApi.onMenuLoadDashboard(() => {
+            window.dashboardTabs ? window.dashboardTabs.openDialog() : applyDashboardJson({});
         });
     } else if (ipcRenderer) {
         ipcRenderer.on('menu-new-dashboard', () => {
-            resetDashboardToNew();
+            if (window.dashboardTabs) window.dashboardTabs.openNew();
+            else resetDashboardToNew();
         });
-        ipcRenderer.on('menu-load-dashboard', async () => {
-            // Use main-process dialog so file chooser is treated as a user activation.
-            try {
-                const filePath = await ipcRenderer.invoke('show-open-dashboard');
-                if (!filePath) return;
-                const text = await fs.promises.readFile(filePath, 'utf8');
-                const jsonObject = JSON.parse(text);
-                applyDashboardJson(jsonObject);
-            } catch (err) {
-                console.error('Menu load dashboard failed:', err);
-            }
+        ipcRenderer.on('menu-load-dashboard', () => {
+            if (window.dashboardTabs) window.dashboardTabs.openDialog();
         });
     }
 
@@ -216,6 +198,19 @@
             }
         }
     };
+
+    // Redirect the freeboard header "Load" button to open in a new tab.
+    if (typeof freeboard !== 'undefined' && typeof freeboard.on === 'function') {
+        freeboard.on('initialized', function () {
+            const model = typeof freeboard.getLiveModel === 'function'
+                ? freeboard.getLiveModel() : null;
+            if (model && typeof model.loadDashboardFromLocalFile === 'function') {
+                model.loadDashboardFromLocalFile = function () {
+                    if (window.dashboardTabs) window.dashboardTabs.openDialog();
+                };
+            }
+        });
+    }
 
     if (!window.__modularNewDashboardDelegated) {
         document.addEventListener('click', function (event) {

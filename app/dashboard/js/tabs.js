@@ -124,6 +124,8 @@
     const coursewareById = new Map();
     const widgetDocsByType = new Map();
     let activeTabId = dashboardTabId;
+    let currentDashboardPath = null;
+    let dashboardTabCounter = 0;
     let pendingOpenId = null;
     let pendingDocRequest = null;
     let pendingWidgetType = null;
@@ -908,7 +910,8 @@
         for (const [id, tab] of tabs.entries()) {
             tab.button.classList.toggle('active', id === tabId);
         }
-        if (tabId === dashboardTabId) {
+        const switchingToDashboard = tabId === dashboardTabId || tabs.get(tabId)?.type === 'dashboard';
+        if (switchingToDashboard) {
             console.log('[tabs] switching to dashboard view');
             document.body.classList.remove(docsModeClass);
             document.documentElement.classList.remove(docsModeClass);
@@ -1236,6 +1239,214 @@
         return screenX >= left && screenX <= right && screenY >= top && screenY <= bottom;
     }
 
+    // ── Dashboard tabs (multi-tab) ─────────────────────────────────────────────
+
+    function makeDashboardLabel(filePath) {
+        if (!filePath) return 'Dashboard';
+        return filePath.replace(/\\/g, '/').split('/').pop().replace(/\.json$/i, '');
+    }
+
+    function startTabRename(id) {
+        const tab = tabs.get(id);
+        if (!tab) return;
+        const btn = tab.button;
+        const textNode = [...btn.childNodes].find(n => n.nodeType === Node.TEXT_NODE);
+        if (!textNode) return;
+        const original = textNode.nodeValue;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = original;
+        input.className = 'tab-rename-input';
+        function commit() {
+            const label = input.value.trim() || original;
+            btn.replaceChild(document.createTextNode(label), input);
+        }
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            else if (e.key === 'Escape') { input.value = original; input.blur(); }
+        });
+        input.addEventListener('blur', commit);
+        btn.replaceChild(input, textNode);
+        setTimeout(() => input.select(), 0);
+    }
+
+    let draggedTabId = null;
+
+    function addDashboardDragHandlers(btn, id) {
+        btn.setAttribute('draggable', 'true');
+        btn.addEventListener('dragstart', (e) => {
+            draggedTabId = id;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', id);
+            setTimeout(() => btn.classList.add('tab-dragging'), 0);
+        });
+        btn.addEventListener('dragend', () => {
+            draggedTabId = null;
+            btn.classList.remove('tab-dragging');
+            tabStrip.querySelectorAll('.tab-drop-before,.tab-drop-after')
+                .forEach(el => el.classList.remove('tab-drop-before', 'tab-drop-after'));
+        });
+        btn.addEventListener('dragover', (e) => {
+            if (!draggedTabId || draggedTabId === id) return;
+            const src = tabs.get(draggedTabId);
+            const dst = tabs.get(id);
+            if (!src || !dst) return;
+            if ((src.type !== 'dashboard' && draggedTabId !== dashboardTabId) ||
+                (dst.type !== 'dashboard' && id !== dashboardTabId)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            tabStrip.querySelectorAll('.tab-drop-before,.tab-drop-after')
+                .forEach(el => el.classList.remove('tab-drop-before', 'tab-drop-after'));
+            const mid = btn.getBoundingClientRect().left + btn.offsetWidth / 2;
+            btn.classList.add(e.clientX < mid ? 'tab-drop-before' : 'tab-drop-after');
+        });
+        btn.addEventListener('dragleave', () => {
+            btn.classList.remove('tab-drop-before', 'tab-drop-after');
+        });
+        btn.addEventListener('drop', (e) => {
+            e.preventDefault();
+            btn.classList.remove('tab-drop-before', 'tab-drop-after');
+            if (!draggedTabId || draggedTabId === id) return;
+            const src = tabs.get(draggedTabId);
+            const dst = tabs.get(id);
+            if (!src || !dst) return;
+            if ((src.type !== 'dashboard' && draggedTabId !== dashboardTabId) ||
+                (dst.type !== 'dashboard' && id !== dashboardTabId)) return;
+            const srcBtn = src.button;
+            const mid = btn.getBoundingClientRect().left + btn.offsetWidth / 2;
+            if (e.clientX < mid) tabStrip.insertBefore(srcBtn, btn);
+            else btn.nextSibling ? tabStrip.insertBefore(srcBtn, btn.nextSibling) : tabStrip.appendChild(srcBtn);
+        });
+    }
+
+    async function switchToDashboardTab(id) {
+        if (activeTabId === id) return;
+        // Serialize current freeboard state into the departing dashboard tab.
+        const prevTab = tabs.get(activeTabId);
+        if (prevTab && (activeTabId === dashboardTabId || prevTab.type === 'dashboard')) {
+            prevTab.savedData = window.freeboard && typeof window.freeboard.serialize === 'function'
+                ? window.freeboard.serialize() : null;
+        }
+        // Load the arriving tab's state into freeboard.
+        const nextTab = tabs.get(id);
+        if (nextTab && (id === dashboardTabId || nextTab.type === 'dashboard')) {
+            const loadFn = (window.freeboard && typeof window.freeboard.loadDashboard === 'function')
+                ? (d) => window.freeboard.loadDashboard(d)
+                : (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function')
+                    ? (d) => window.freeboardModel.loadDashboard(d)
+                    : null;
+            if (loadFn) loadFn(nextTab.savedData || { allow_edit: true });
+            currentDashboardPath = nextTab.filePath || null;
+        }
+        setActiveTab(id);
+    }
+
+    function closeDashboardTab(id) {
+        const allDash = [...tabs.entries()].filter(([k, t]) => k === dashboardTabId || t.type === 'dashboard');
+        if (allDash.length <= 1) return;
+        const tab = tabs.get(id);
+        if (!tab) return;
+        tab.button.remove();
+        tabs.delete(id);
+        if (activeTabId === id) {
+            const remaining = [...tabs.entries()].filter(([k, t]) => k === dashboardTabId || t.type === 'dashboard');
+            switchToDashboardTab(remaining[remaining.length - 1]?.[0] || dashboardTabId);
+        }
+    }
+
+    function createDashboardTab(filePath, initialData) {
+        dashboardTabCounter += 1;
+        const id = `dashboard:${dashboardTabCounter}`;
+        const btn = document.createElement('button');
+        btn.className = 'tab';
+        btn.dataset.tabId = id;
+        btn.textContent = makeDashboardLabel(filePath);
+        const close = document.createElement('span');
+        close.className = 'tab-close';
+        close.textContent = '×';
+        close.title = 'Close tab';
+        close.addEventListener('click', (e) => { e.stopPropagation(); closeDashboardTab(id); });
+        btn.appendChild(close);
+        btn.addEventListener('click', () => {
+            if (activeTabId === id) startTabRename(id);
+            else switchToDashboardTab(id);
+        });
+        addDashboardDragHandlers(btn, id);
+        tabs.set(id, { id, type: 'dashboard', filePath: filePath || null, savedData: initialData || null, button: btn });
+        // Insert after the last dashboard tab, before doc tabs.
+        let insertAfter = addTabBtn;
+        for (const [k, t] of tabs) {
+            if ((k === dashboardTabId || t.type === 'dashboard') && t.button !== btn) insertAfter = t.button;
+        }
+        if (insertAfter && insertAfter.nextSibling) tabStrip.insertBefore(btn, insertAfter.nextSibling);
+        else tabStrip.appendChild(btn);
+        return id;
+    }
+
+    async function openNewDashboardTab() {
+        const id = createDashboardTab(null, null);
+        await switchToDashboardTab(id);
+    }
+
+    async function openDashboardFileInNewTab(filePath) {
+        try {
+            const text = filesApi
+                ? await filesApi.readText(filePath)
+                : await ipcRenderer.invoke('files-read-text', { filePath });
+            const id = createDashboardTab(filePath, JSON.parse(text));
+            await switchToDashboardTab(id);
+        } catch (e) {
+            console.error('[tabs] openDashboardFileInNewTab failed:', e?.message || e);
+        }
+    }
+
+    async function openDashboardDialog() {
+        try {
+            const filePath = dashboardApi && dashboardApi.openDashboardDialog
+                ? await dashboardApi.openDashboardDialog()
+                : ipcRenderer
+                    ? await ipcRenderer.invoke('show-open-dashboard')
+                    : null;
+            if (filePath) await openDashboardFileInNewTab(filePath);
+        } catch (e) {
+            console.error('[tabs] openDashboardDialog failed:', e?.message || e);
+        }
+    }
+
+    function saveCurrentDashboard() {
+        const model = (window.freeboard && typeof window.freeboard.getLiveModel === 'function')
+            ? window.freeboard.getLiveModel()
+            : window.freeboardModel;
+        if (model && typeof model.saveDashboard === 'function') {
+            model.saveDashboard(null, { currentTarget: { dataset: { pretty: 'true' } } });
+        }
+    }
+
+    // + button: fixed at the left of the dashboard tab group.
+    const addTabBtn = document.createElement('button');
+    addTabBtn.className = 'tab tab-add';
+    addTabBtn.title = 'New dashboard tab (Ctrl+T)';
+    addTabBtn.textContent = '+';
+    addTabBtn.setAttribute('draggable', 'false');
+    addTabBtn.addEventListener('click', () => openNewDashboardTab());
+    tabStrip.insertBefore(addTabBtn, tabStrip.firstChild);
+
+    // Expose tab API so dashboard_control.js can delegate menu actions here.
+    window.dashboardTabs = {
+        openNew: openNewDashboardTab,
+        openDialog: openDashboardDialog,
+        openFile: openDashboardFileInNewTab,
+        save: saveCurrentDashboard
+    };
+
+    // Keyboard shortcuts.
+    document.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        if (e.key === 't') { e.preventDefault(); openNewDashboardTab(); }
+        else if (e.key === 's') { e.preventDefault(); saveCurrentDashboard(); }
+        else if (e.key === 'o') { e.preventDefault(); openDashboardDialog(); }
+    });
+
     function createDocTab(kind, itemId) {
         const id = tabIdForDoc(kind, itemId);
         if (tabs.has(id)) {
@@ -1345,14 +1556,24 @@
     tabs.set(dashboardTabId, {
         id: dashboardTabId,
         type: 'dashboard',
+        filePath: null,
+        savedData: null,
         button: tabStrip.querySelector('[data-tab-id="dashboard"]')
     });
     const dashboardButton = tabs.get(dashboardTabId).button;
     if (dashboardButton) {
+        // Add close button to the initial Dashboard tab.
+        const initClose = document.createElement('span');
+        initClose.className = 'tab-close';
+        initClose.textContent = '×';
+        initClose.title = 'Close tab';
+        initClose.addEventListener('click', (e) => { e.stopPropagation(); closeDashboardTab(dashboardTabId); });
+        dashboardButton.appendChild(initClose);
         dashboardButton.addEventListener('click', () => {
-            console.log('[tabs] dashboard tab clicked');
-            setActiveTab(dashboardTabId);
+            if (activeTabId === dashboardTabId) startTabRename(dashboardTabId);
+            else switchToDashboardTab(dashboardTabId);
         });
+        addDashboardDragHandlers(dashboardButton, dashboardTabId);
         console.log('[tabs] dashboard tab wired');
     } else {
         console.warn('[tabs] dashboard tab button missing');
