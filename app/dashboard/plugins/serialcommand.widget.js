@@ -5,6 +5,7 @@
         description: "Buttons to send commands over a serial port",
         icon: "terminal",
         settings: [
+            { name: "title", display_name: "Title", type: "text" },
             {
                 name: "buttons",
                 display_name: "Buttons",
