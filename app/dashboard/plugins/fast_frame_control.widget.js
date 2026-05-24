@@ -105,6 +105,7 @@
             this.autoSaveCheck = $('<input type="checkbox">');
             this.statusBox = $('<div class="small text-muted border rounded p-2">Idle.</div>');
             this.triggerBtn = $('<button class="btn btn-primary btn-sm">Trigger + Retrieve</button>');
+            this.retrieveBtn = $('<button class="btn btn-outline-primary btn-sm">Retrieve</button>');
             this.saveBtn = $('<button class="btn btn-outline-secondary btn-sm">Save Latest CSV</button>');
 
             this.container.append(
@@ -115,7 +116,7 @@
                 this._makeRow('CSV File', this.fileInput),
                 this._makeCheckRow('Timestamped', this.timestampedCheck),
                 this._makeCheckRow('Auto-save', this.autoSaveCheck),
-                $('<div class="d-flex gap-1"></div>').append(this.triggerBtn, this.saveBtn),
+                $('<div class="d-flex gap-1"></div>').append(this.triggerBtn, this.retrieveBtn, this.saveBtn),
                 this.statusBox
             );
 
@@ -134,6 +135,7 @@
             this.autoSaveCheck.on('change', () => { this.settings.autoSave = this.autoSaveCheck.prop('checked'); });
 
             this.triggerBtn.on('click', () => this._sendTrigger());
+            this.retrieveBtn.on('click', () => this._sendRetrieve());
             this.saveBtn.on('click', () => this._saveLatestCsv());
 
             this._startPolling();
@@ -208,6 +210,15 @@
             if (retrieveDelayMs > 0) {
                 await new Promise(resolve => setTimeout(resolve, retrieveDelayMs));
             }
+            await this._writeCommand(path, retrieveCommand);
+            await this._refreshStatus();
+        }
+
+        async _sendRetrieve() {
+            const path = this._portPath();
+            const retrieveCommand = this.retrieveInput.val() || this.settings.retrieveCommand || 'r';
+            if (!path) return;
+            this.autoSaveDoneForCycle = false;
             await this._writeCommand(path, retrieveCommand);
             await this._refreshStatus();
         }
