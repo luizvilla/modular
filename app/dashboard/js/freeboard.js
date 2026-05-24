@@ -1025,6 +1025,37 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
+	this.clonePane = function(sourcePane)
+	{
+		var paneData = JSON.parse(JSON.stringify(sourcePane.serialize()));
+
+		// Collect every widget title currently on the board.
+		var usedTitles = {};
+		_.each(self.panes(), function(p) {
+			_.each(p.widgets(), function(w) {
+				var t1 = w.title();
+				if (t1) usedTitles[t1] = true;
+				var s = w.settings();
+				if (s && s.title) usedTitles[s.title] = true;
+			});
+		});
+
+		// Give each cloned widget a unique _N suffix.
+		_.each(paneData.widgets, function(widgetConfig) {
+			var base = widgetConfig.title || (widgetConfig.settings && widgetConfig.settings.title) || '';
+			var n = 2;
+			var candidate = base + '_' + n;
+			while (usedTitles[candidate]) { n++; candidate = base + '_' + n; }
+			widgetConfig.title = candidate;
+			if (widgetConfig.settings) widgetConfig.settings.title = candidate;
+			usedTitles[candidate] = true;
+		});
+
+		var newPane = new PaneModel(self, widgetPlugins);
+		newPane.deserialize(paneData);
+		self.addPane(newPane);
+	}
+
 	this.deleteWidget = function(widget)
 	{
 		ko.utils.arrayForEach(self.panes(), function(pane)
