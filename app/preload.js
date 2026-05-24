@@ -24,6 +24,7 @@ const api = {
     },
     dashboard: {
         openDashboardDialog: () => ipcRenderer.invoke('show-open-dashboard'),
+        saveDashboardDialog: (content) => ipcRenderer.invoke('show-save-dashboard', { content }),
         loadDashboardFromPath: (dashboardPath) => ipcRenderer.invoke('load-dashboard-from-path', { dashboardPath }),
         onLoadDashboardFromPath: (cb) => on('load-dashboard-from-path', cb),
         onMenuLoadDashboard: (cb) => on('menu-load-dashboard', cb),

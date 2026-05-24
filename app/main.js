@@ -1278,15 +1278,30 @@ function openFirmwareWorkspaceWindow() {
     return firmwareWindow;
 }
 
+const dashboardsDir = path.join(__dirname, '..', 'dashboards');
+fs.mkdirSync(dashboardsDir, { recursive: true });
+
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
     if (!mainWindow) return null;
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        defaultPath: path.join(dashboardsDir, 'dashboard.json'),
         properties: ['openFile'],
         filters: [{ name: 'Dashboard', extensions: ['json'] }]
     });
     if (canceled || !filePaths || filePaths.length === 0) return null;
     return filePaths[0];
+});
+
+ipcMain.handle('show-save-dashboard', async (_event, { content } = {}) => {
+    if (!mainWindow) return false;
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: path.join(dashboardsDir, 'dashboard.json'),
+        filters: [{ name: 'Dashboard', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) return false;
+    await fs.promises.writeFile(filePath, content, 'utf8');
+    return true;
 });
 
 ipcMain.handle('choose-csv-file', async () => {

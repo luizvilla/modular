@@ -923,9 +923,15 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 	this.saveDashboard = function(_thisref, _event)
 	{
-		var contentType = 'application/octet-stream';
+		var json = JSON.stringify(self.serialize(), null, '\t') + '\n';
+		var dashboardApi = window.api && window.api.dashboard ? window.api.dashboard : null;
+		if (dashboardApi && typeof dashboardApi.saveDashboardDialog === 'function') {
+			dashboardApi.saveDashboardDialog(json);
+			return;
+		}
+		// Fallback for non-Electron environments.
+		var blob = new Blob([json], {'type': 'application/octet-stream'});
 		var a = document.createElement('a');
-		var blob = new Blob([JSON.stringify(self.serialize(), null, '\t') + '\n'], {'type': contentType});
 		document.body.appendChild(a);
 		a.href = window.URL.createObjectURL(blob);
 		a.download = "dashboard.json";
