@@ -1,0 +1,23 @@
+{
+  "name": "@modular/modular-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "main": "lib/node/modular-dashboard-backend-module.js",
+  "browser": "lib/browser/modular-dashboard-frontend-module.js",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@theia/core": "1.71.1"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/modular-dashboard-frontend-module",
+      "backend": "lib/node/modular-dashboard-backend-module"
+    }
+  ]
+}
