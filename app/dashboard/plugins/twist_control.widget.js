@@ -66,15 +66,15 @@
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             if (freeboard && typeof freeboard.addStyle === 'function') {
-                // Grid layout for leg toggles (3 on top, 2 on bottom).
-                freeboard.addStyle('.twist-toggle-grid', 'display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:8px;');
-                freeboard.addStyle('.twist-toggle-item', 'min-width:140px;');
-                freeboard.addStyle('.twist-toggle-item .input-group-text', 'min-width:70px;justify-content:center;');
-                // Align on/off sliders inside the input group for consistent layout.
-                freeboard.addStyle('.twist-toggle-switch', 'display:flex;align-items:center;justify-content:center;min-width:72px;');
-                // Nudge ON/OFF text slightly inward for better visual centering in tight layouts.
-                freeboard.addStyle('.twist-toggle-switch .onoffswitch-inner .on', 'padding-left:2px;');
-                freeboard.addStyle('.twist-toggle-switch .onoffswitch-inner .off', 'padding-right:2px;');
+                // Flex-wrap row for leg toggles — items sit at natural width and wrap freely.
+                freeboard.addStyle('.twist-toggle-grid', 'display:flex;flex-wrap:wrap;gap:8px;');
+                // Bootstrap .input-group has width:100% by default which forces one item per row.
+                // width:auto lets each item shrink to content size so they can reflow horizontally.
+                // flex-wrap:nowrap prevents the label+switch inside a single item from splitting.
+                freeboard.addStyle('.twist-toggle-item', 'flex-shrink:0;width:auto!important;flex-wrap:nowrap!important;');
+                freeboard.addStyle('.twist-toggle-item .input-group-text', 'min-width:64px;justify-content:center;');
+                // Let the toggle switch size to its content (onoffswitch is 78 px wide).
+                freeboard.addStyle('.twist-toggle-switch', 'display:flex;align-items:center;justify-content:center;flex-shrink:0;');
                 // Keep header labels aligned and inputs sized consistently.
                 freeboard.addStyle('.twist-header-row .input-group-text', 'min-width:96px;justify-content:center;');
             }
@@ -100,6 +100,7 @@
             this.deviceSelect.val(this.settings.deviceType || 'TWIST');
 
             this._renderPowerControls();
+            this._renderScopeControls();
             this._renderLegControls();
             this.container.append(this.lastCmd);
         }
@@ -137,12 +138,21 @@
             if (!command) return;
             const path = this._getPortPath();
             if (!path) return;
-            try {
+            const CHUNK = 10;
+            const DELAY = 100;
+            const write = async (data) => {
                 if (this.serialApi && this.serialApi.write) {
-                    await this.serialApi.write(path, command);
+                    await this.serialApi.write(path, data);
                 } else if (this.ipc) {
-                    await this.ipc.invoke('write-serial-port', { path, data: command });
+                    await this.ipc.invoke('write-serial-port', { path, data });
                 }
+            };
+            try {
+                for (let i = 0; i < command.length; i += CHUNK) {
+                    await write(command.slice(i, i + CHUNK));
+                    await new Promise(r => setTimeout(r, DELAY));
+                }
+                await write('\r\n');
                 this.lastCmd.text(`Last command: ${command}`);
             } catch (err) {
                 console.error('Twist command failed', err);
@@ -151,7 +161,7 @@
 
         _renderPowerControls() {
             if (this.powerWrap) this.powerWrap.remove();
-            const row = $('<div class="d-flex gap-2 flex-wrap align-items-center"></div>');
+            const row = $('<div class="d-flex gap-2 flex-wrap align-items-center justify-content-start"></div>');
             const idle = $('<button class="btn btn-outline-secondary btn-sm">IDLE</button>');
             const on = $('<button class="btn btn-outline-success btn-sm">POWER ON</button>');
             const off = $('<button class="btn btn-outline-danger btn-sm">POWER OFF</button>');
@@ -175,23 +185,86 @@
             this.container.append(this.powerWrap);
         }
 
+        _renderScopeControls() {
+            if (this.scopeWrap) this.scopeWrap.remove();
+            const row = $('<div class="d-flex gap-2 flex-wrap align-items-center justify-content-start"></div>');
+            const trigger = $('<button class="btn btn-outline-warning btn-sm">Trigger</button>');
+            const acquire = $('<button class="btn btn-outline-info btn-sm">Acquire</button>');
+            const status = $('<div class="small text-muted">—</div>');
+            row.append(trigger, acquire);
+
+            trigger.on('click', () => this._send(protocol.cmdScopeTrigger()));
+
+            acquire.on('click', async () => {
+                const portPath = this._getPortPath();
+                if (!portPath) return;
+
+                const call = async (method, ipcName, ...args) => {
+                    if (this.serialApi && this.serialApi[method]) return this.serialApi[method](...args);
+                    if (this.ipc) return this.ipc.invoke(ipcName, ...args);
+                };
+
+                acquire.prop('disabled', true).text('Acquiring…');
+                status.text('Waiting for scope data…');
+                try {
+                    // Enable fast-frame tracking on this port (no-op if already enabled).
+                    await call('enableFastCapture', 'enable-fast-capture', portPath);
+
+                    // Send command — write-serial-port will set status → awaiting_record.
+                    await this._send(protocol.cmdScopeAcquire());
+
+                    // Poll until the fast-frame handler sees 'end record'.
+                    const MAX_WAIT_MS = 10000;
+                    const POLL_MS = 250;
+                    const deadline = Date.now() + MAX_WAIT_MS;
+                    let complete = false;
+                    while (Date.now() < deadline) {
+                        await new Promise(r => setTimeout(r, POLL_MS));
+                        const st = await call('getFastStatus', 'get-fast-frame-status', portPath);
+                        if (st && st.state === 'complete') { complete = true; break; }
+                        status.text(`Acquiring… (${Math.round((Date.now() - (deadline - MAX_WAIT_MS)) / 1000)}s)`);
+                    }
+
+                    if (complete) {
+                        const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
+                        await call('saveFastCsv', 'save-fast-csv', {
+                            path: portPath,
+                            filePath: 'scope.csv',
+                            separator: dsSettings.separator || ':',
+                            eol: dsSettings.eol || '\\n',
+                            addHeader: true,
+                            timestampMode: 'relative',
+                            useTimestampedFileName: true
+                        });
+                        status.text('Saved: scope CSV (timestamped)');
+                    } else {
+                        status.text('Timeout — no scope data received.');
+                    }
+                } catch (err) {
+                    console.error('Scope capture failed', err);
+                    status.text(`Error: ${err.message || err}`);
+                } finally {
+                    acquire.prop('disabled', false).text('Acquire');
+                }
+            });
+
+            this.scopeWrap = $('<div></div>').append($('<div class="fw-semibold">Scope</div>'), row, status);
+            this.container.append(this.scopeWrap);
+        }
+
         _renderLegControls() {
             if (this.legWrap) this.legWrap.remove();
             const profile = this._profile();
             const section = $('<div class="d-flex flex-column gap-2"></div>');
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
             const topActions = ['LEG', 'CAPA', 'DRIVER'];
-            const bottomActions = ['BUCK', 'BOOST', null];
+            const bottomActions = ['BUCK', 'BOOST'];
             for (let i = 1; i <= profile.legs; i += 1) {
                 const row = $('<div class="d-flex flex-column gap-2"></div>');
                 row.append(`<span class="badge bg-light text-dark">LEG${i}</span>`);
 
                 const grid = $('<div class="twist-toggle-grid"></div>');
                 const renderAction = (action) => {
-                    if (!action) {
-                        grid.append('<div></div>');
-                        return;
-                    }
                     const key = `${action}:${i}`;
                     const current = this.toggleState.get(key) || 'OFF';
                     const isOn = current === 'ON';
