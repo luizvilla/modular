@@ -61,8 +61,11 @@
             this.dsRefreshBtn = $('<button class="btn btn-outline-secondary btn-sm">Refresh</button>');
             this.deviceSelect.append('<option value="TWIST">Twist</option>');
             this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
-            this.powerState = 'IDLE';
+            this.powerState = settings.powerState || 'IDLE';
             this.toggleState = new Map();
+            if (settings._toggleState && typeof settings._toggleState === 'object') {
+                Object.entries(settings._toggleState).forEach(([k, v]) => this.toggleState.set(k, v));
+            }
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             if (freeboard && typeof freeboard.addStyle === 'function') {
@@ -168,6 +171,7 @@
             row.append(idle, on, off);
             const setPower = (mode, send) => {
                 this.powerState = mode;
+                this.settings.powerState = mode;
                 idle.toggleClass('active', mode === 'IDLE');
                 on.toggleClass('active', mode === 'ON');
                 off.toggleClass('active', mode === 'OFF');
@@ -283,6 +287,7 @@
                     checkbox.on('change', () => {
                         const state = checkbox.prop('checked') ? 'ON' : 'OFF';
                         this.toggleState.set(key, state);
+                        this._persistToggleState();
                         this._send(protocol.cmdToggle(action, i, state, this.settings.deviceType));
                     });
                     const label = $(`<label class="input-group-text" for="${inputId}">${action}</label>`);
@@ -303,8 +308,17 @@
             this.container.append(section, this.lastCmd);
         }
 
+        _persistToggleState() {
+            const obj = {};
+            this.toggleState.forEach((v, k) => { obj[k] = v; });
+            this.settings._toggleState = obj;
+        }
+
         onSettingsChanged(newSettings) {
             this.settings = newSettings;
+            // Re-apply runtime state so it survives the settings modal round-trip.
+            this.settings.powerState = this.powerState;
+            this._persistToggleState();
             this.deviceSelect.val(this.settings.deviceType || 'TWIST');
             if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
             this._renderPowerControls();
