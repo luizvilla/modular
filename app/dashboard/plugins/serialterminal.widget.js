@@ -10,6 +10,7 @@
             { name: "datasourceName", display_name: "Datasource Name", type: "option", options: getSerialDatasourceOptions, optionsRefreshMs: 1000 },
             { name: "colorize", display_name: "Colorize", type: "boolean", default_value: true },
             { name: "autoScroll", display_name: "Auto-scroll", type: "boolean", default_value: true },
+            { name: "wrapLines", display_name: "Wrap Lines", type: "boolean", default_value: false },
             { name: "refresh", display_name: "Refresh (ms)", type: "number", default_value: 500 },
             { name: "maxLines", display_name: "Max Lines", type: "number", default_value: 100 }
         ],
@@ -43,31 +44,45 @@
             this.timer = null;
             this.colors = [];
             this.lastColorCheck = 0;
+            // True when the user has manually scrolled away from the bottom; suppresses
+            // auto-scroll even when the setting is on. Cleared when they scroll back down.
+            this._userScrolled = false;
+
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
+
             const colorId = `chk_${Math.random().toString(36).slice(2)}`;
             this.colorCheck = $('<input class="form-check-input mt-0" type="checkbox">').attr('id', colorId);
             const scrollId = `chk_${Math.random().toString(36).slice(2)}`;
             this.autoScrollCheck = $('<input class="form-check-input mt-0" type="checkbox">').attr('id', scrollId);
+            const wrapId = `chk_${Math.random().toString(36).slice(2)}`;
+            this.wrapCheck = $('<input class="form-check-input mt-0" type="checkbox">').attr('id', wrapId);
+
             if (freeboard && typeof freeboard.addStyle === 'function') {
-                // Align the toggle labels/boxes when rendered side by side.
                 freeboard.addStyle('.serial-terminal-toggle .input-group-text', 'min-width:120px;justify-content:center;');
             }
+
             const colorWrapper = $('<div class="input-group input-group-sm"></div>');
-            const colorLabel = $(`<label class="input-group-text" for="${colorId}">Colorize</label>`);
-            const colorBox = $('<span class="input-group-text"></span>').append(this.colorCheck);
-            colorWrapper.append(colorLabel).append(colorBox);
+            colorWrapper.append($(`<label class="input-group-text" for="${colorId}">Colorize</label>`));
+            colorWrapper.append($('<span class="input-group-text"></span>').append(this.colorCheck));
+
             const scrollWrapper = $('<div class="input-group input-group-sm"></div>');
-            const scrollLabel = $(`<label class="input-group-text" for="${scrollId}">Auto-scroll</label>`);
-            const scrollBox = $('<span class="input-group-text"></span>').append(this.autoScrollCheck);
-            scrollWrapper.append(scrollLabel).append(scrollBox);
+            scrollWrapper.append($(`<label class="input-group-text" for="${scrollId}">Auto-scroll</label>`));
+            scrollWrapper.append($('<span class="input-group-text"></span>').append(this.autoScrollCheck));
+
+            const wrapWrapper = $('<div class="input-group input-group-sm"></div>');
+            wrapWrapper.append($(`<label class="input-group-text" for="${wrapId}">Wrap lines</label>`));
+            wrapWrapper.append($('<span class="input-group-text"></span>').append(this.wrapCheck));
+
             const toggleRow = $('<div class="d-flex flex-wrap gap-2 mb-1 serial-terminal-toggle"></div>');
-            toggleRow.append(colorWrapper, scrollWrapper);
+            toggleRow.append(colorWrapper, scrollWrapper, wrapWrapper);
+
             this.codeEl = $('<code></code>');
             this.preEl = $(
                 '<pre class="serial-terminal border border-secondary rounded bg-dark text-light p-2" ' +
                 'style="overflow:auto; flex:1; margin:0;"></pre>'
             ).append(this.codeEl);
+
             const dsRow = $('<div class="input-group input-group-sm mb-1"></div>');
             dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
             this.container.append(dsRow, toggleRow, this.preEl);
@@ -78,6 +93,7 @@
         render(containerElement) {
             $(containerElement).append(this.container);
             this._refreshDatasourceOptions();
+
             this.dsSelect.off('change.serial-terminal').on('change.serial-terminal', () => {
                 this.settings.datasourceName = this.dsSelect.val();
                 this._refreshColors(true);
@@ -87,19 +103,47 @@
             });
             this.autoScrollCheck.off('change.serial-terminal').on('change.serial-terminal', () => {
                 this.settings.autoScroll = this.autoScrollCheck.prop('checked');
+                // Re-enable immediately so the next poll scrolls to bottom.
+                if (this.settings.autoScroll) this._userScrolled = false;
             });
+            this.wrapCheck.off('change.serial-terminal').on('change.serial-terminal', () => {
+                this.settings.wrapLines = this.wrapCheck.prop('checked');
+                this._applyWrapStyle();
+            });
+
+            // Pause auto-scroll when the user scrolls away from the bottom; resume when
+            // they scroll back. This lets users read history without disabling the setting.
+            this.preEl.off('scroll.serial-terminal').on('scroll.serial-terminal', () => {
+                const el = this.preEl[0];
+                const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+                this._userScrolled = !atBottom;
+                // Keep the checkbox in sync with the inferred state.
+                if (!this._userScrolled && this.settings.autoScroll !== false) {
+                    this.autoScrollCheck.prop('checked', true);
+                }
+            });
+
             this.colorCheck.prop('checked', !!this.settings.colorize);
             this.autoScrollCheck.prop('checked', this.settings.autoScroll !== false);
+            this.wrapCheck.prop('checked', !!this.settings.wrapLines);
             this.dsSelect.val(this.settings.datasourceName);
+            this._applyWrapStyle();
             this._refreshColors(true);
             this._updateTimer();
+        }
+
+        _applyWrapStyle() {
+            if (this.settings.wrapLines) {
+                this.preEl.css({ 'white-space': 'pre-wrap', 'word-break': 'break-all' });
+            } else {
+                this.preEl.css({ 'white-space': 'pre', 'word-break': '' });
+            }
         }
 
         async _poll() {
             if ((!this.serialApi && !this.ipcRenderer) || !this.settings.datasourceName) return;
             const ds = freeboard.getDatasourceSettings(this.settings.datasourceName);
             if (!ds || !ds.portPath) return;
-            // Keep terminal output stable while the datasource is paused.
             if (ds.paused) return;
             await this._refreshColors();
             try {
@@ -115,8 +159,7 @@
                     } else {
                         this.codeEl.text(display.join("\n"));
                     }
-                    // Auto-scroll by default, but let users disable it.
-                    if (this.settings.autoScroll !== false) {
+                    if (this.settings.autoScroll !== false && !this._userScrolled) {
                         this.preEl.scrollTop(this.preEl.prop('scrollHeight'));
                     }
                 }
@@ -130,7 +173,12 @@
                 const parts = line.trim().split(separator).filter(p => p !== "");
                 return parts.map((p, idx) => {
                     const color = colors[idx] || (typeof ColorBlind10 !== "undefined" ? ColorBlind10[idx % ColorBlind10.length] : `hsl(${(idx * 60) % 360}, 70%, 50%)`);
-                    return `<span style="color:${color}">${p}</span>`;
+                    const trimmed = p.trim();
+                    // Keep numeric columns aligned when values alternate between positive and
+                    // negative: positive numbers get a leading space to match the '-' width.
+                    const isNumeric = /^-?[\d.]+(?:[eE][+-]?\d+)?$/.test(trimmed);
+                    const display = isNumeric && !trimmed.startsWith('-') ? ' ' + trimmed : trimmed;
+                    return `<span style="color:${color}">${display}</span>`;
                 }).join(" ");
             });
         }
@@ -207,6 +255,8 @@
             this.settings = newSettings;
             this.colorCheck.prop('checked', !!this.settings.colorize);
             this.autoScrollCheck.prop('checked', this.settings.autoScroll !== false);
+            this.wrapCheck.prop('checked', !!this.settings.wrapLines);
+            this._applyWrapStyle();
             this._refreshDatasourceOptions();
             this.dsSelect.val(this.settings.datasourceName);
             this._refreshColors(true);
