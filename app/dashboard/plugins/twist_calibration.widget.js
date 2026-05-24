@@ -142,12 +142,21 @@
             const cmd = protocol.cmdCalibrate(variable, gain, offset, this.settings.deviceType);
             const path = this._getPortPath();
             if (!path) return;
-            try {
+            const CHUNK = 10;
+            const DELAY = 100;
+            const write = async (data) => {
                 if (this.serialApi && this.serialApi.write) {
-                    await this.serialApi.write(path, cmd);
+                    await this.serialApi.write(path, data);
                 } else if (this.ipc) {
-                    await this.ipc.invoke('write-serial-port', { path, data: cmd });
+                    await this.ipc.invoke('write-serial-port', { path, data });
                 }
+            };
+            try {
+                for (let i = 0; i < cmd.length; i += CHUNK) {
+                    await write(cmd.slice(i, i + CHUNK));
+                    await new Promise(r => setTimeout(r, DELAY));
+                }
+                await write('\r\n');
                 this.lastCmd.text(`Last command: ${cmd}`);
             } catch (err) {
                 console.error('Twist calibration failed', err);
