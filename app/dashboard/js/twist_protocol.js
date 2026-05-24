@@ -125,6 +125,14 @@
     return `s_${legId}_z_${value}`;
   }
 
+  function cmdScopeTrigger() {
+    return 'o_a';
+  }
+
+  function cmdScopeAcquire() {
+    return 'o_r';
+  }
+
   function cmdCalibrate(variable, gain, offset, deviceType) {
     const varId = normalizeVariable(variable, deviceType);
     return `k_${varId}_g_${formatFixed(gain, 8)}_o_${formatFixed(offset, 8)}`;
@@ -140,6 +148,8 @@
     cmdPowerOff,
     cmdPowerOn,
     cmdToggle,
+    cmdScopeTrigger,
+    cmdScopeAcquire,
     cmdReference,
     cmdDuty,
     cmdPhaseShift,
