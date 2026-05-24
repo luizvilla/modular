@@ -344,6 +344,12 @@ textarea.form-control {
   padding: 8px 0 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   margin-bottom: 2px;
+  cursor: pointer;
+  transition: color 120ms;
+}
+
+.widget-group-title:hover {
+  color: #e6e6e6;
 }
 
 .widget-group:first-child .widget-group-title {

@@ -291,7 +291,7 @@
                 <!-- ko foreach: panes -->
                 <!-- ko if: widgets().length -->
                 <div class="widget-group">
-                    <div class="widget-group-title" data-bind="text: title() || '(Untitled pane)'"></div>
+                    <div class="widget-group-title" data-bind="pluginEditor: {operation: 'edit', type: 'pane'}, text: title() || '(Untitled pane)'" title="Edit pane"></div>
                     <!-- ko foreach: widgets -->
                     <div class="widget-list-item" data-bind="pluginEditor: {operation: 'edit', type: 'widget'}" title="Edit widget">
                         <span class="widget-list-name" data-bind="text: displayTitle"></span>
