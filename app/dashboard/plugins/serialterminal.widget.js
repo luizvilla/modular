@@ -47,6 +47,9 @@
             // True when the user has manually scrolled away from the bottom; suppresses
             // auto-scroll even when the setting is on. Cleared when they scroll back down.
             this._userScrolled = false;
+            // Set while we are programmatically scrolling so the scroll event handler
+            // does not mistake layout-driven scroll changes for user interaction.
+            this._scrolling = false;
 
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
@@ -114,13 +117,11 @@
             // Pause auto-scroll when the user scrolls away from the bottom; resume when
             // they scroll back. This lets users read history without disabling the setting.
             this.preEl.off('scroll.serial-terminal').on('scroll.serial-terminal', () => {
+                // Ignore scroll events we triggered ourselves (layout reflows, _scrollToBottom).
+                if (this._scrolling) return;
                 const el = this.preEl[0];
                 const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
                 this._userScrolled = !atBottom;
-                // Keep the checkbox in sync with the inferred state.
-                if (!this._userScrolled && this.settings.autoScroll !== false) {
-                    this.autoScrollCheck.prop('checked', true);
-                }
             });
 
             this.colorCheck.prop('checked', !!this.settings.colorize);
@@ -138,6 +139,16 @@
             } else {
                 this.preEl.css({ 'white-space': 'pre', 'word-break': '' });
             }
+            // Layout reflow from a wrap change fires a scroll event; clear the user-scroll
+            // flag so auto-scroll can resume after the style switch.
+            this._userScrolled = false;
+        }
+
+        _scrollToBottom() {
+            this._scrolling = true;
+            this.preEl.scrollTop(this.preEl.prop('scrollHeight'));
+            // Clear after the scroll event has fired (next microtask).
+            setTimeout(() => { this._scrolling = false; }, 0);
         }
 
         async _poll() {
@@ -160,7 +171,7 @@
                         this.codeEl.text(display.join("\n"));
                     }
                     if (this.settings.autoScroll !== false && !this._userScrolled) {
-                        this.preEl.scrollTop(this.preEl.prop('scrollHeight'));
+                        this._scrollToBottom();
                     }
                 }
             } catch (e) {
