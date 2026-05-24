@@ -1,10 +1,10 @@
-# Step 5 - ThingSet, CAN, And Extension Installation Plan
+# Step 5 - ThingSet And CAN Boundary Plan
 
 ## Summary
 - Move `ThingSet` and CAN support behind a dedicated extension boundary.
 - Relocate extension-owned runtime state out of the repo root and into managed extension storage.
-- Add the first installable extension bundle format after the local extension boundaries are proven.
-- Keep local source-loaded development supported, but do not require checked-in compiled extension output in the core repo.
+- Lazy-load optional runtime dependencies through the extension rather than assuming they are part of vanilla core.
+- Keep local source-loaded development supported.
 
 ## Why This Step Exists
 - `ThingSet` is the most deeply coupled feature family in the app:
@@ -14,19 +14,18 @@
   - CAN transport and aggregation
   - renderer datasources and widgets
   - repo-root persisted state under `thingset/`
-- This is also the feature family that most benefits from eventually living outside the vanilla repo.
-- Installation and distribution should happen only after the runtime and metadata boundaries are already stable.
+- This is the feature family that most benefits from eventually living outside the vanilla repo.
+- Completing this boundary proves that a full feature family can contribute both `main` and renderer behavior cleanly, which is the prerequisite for Step 6.
 
 ## Goals
 - Move CAN and `ThingSet` ownership behind a `thingset` extension manifest.
 - Move persisted runtime data from `thingset/` in the repo root to extension-managed storage under `userData`.
 - Lazy-load optional runtime dependencies through the extension rather than assuming they are part of vanilla core.
-- Introduce an installable extension bundle format and a local extension manager path.
-- Keep in-repo source-loaded development mode for day-to-day work inside this repository.
 
 ## Non-Goals
 - Do not solve trust or sandboxing for arbitrary third-party plugins.
-- Do not require remote download infrastructure in the first installer pass.
+- Do not introduce installable bundle format or extension manager in this step (see Step 6).
+- Do not require remote download infrastructure.
 - Do not keep generated build artifacts checked into the core repo as a permanent policy.
 
 ## Read First
@@ -60,7 +59,6 @@
 - `app/dashboard/plugins/thingset_serial.datasource.js`
 - `app/dashboard/plugins/ts_*.widget.js`
 - Storage paths currently rooted at `thingset/`
-- New extension bundle and installation-management files
 
 ## Core Versus Extension Boundary
 
@@ -70,7 +68,7 @@
 - Generic serial APIs
 - Generic activity/logging surfaces
 - Generic extension storage helpers
-- Generic enable/disable/install/uninstall controls
+- Generic enable/disable controls
 
 ### `thingset` Extension Should Own
 - CAN transport runtime
@@ -132,72 +130,32 @@
   - `thingset_measurements`
 - Keep extension-owned docs and metadata tied to the merged registry from step 2.
 
-### 5. Add A Local Extension Installation Format
-- Support two modes:
-  - source-loaded mode for in-repo development
-  - installed-bundle mode for external distribution
-- Define a bundle format that includes:
-  - `manifest.json`
-  - `main.js`
-  - renderer assets
-  - docs/examples metadata
-  - optional integrity metadata
-- Install bundles into a managed path such as:
-  - `userData/extensions/<id>/<version>/`
-
-### 6. Add A Minimal Extension Manager
-- Install a local extension bundle from disk.
-- Enable or disable an installed extension.
-- Uninstall an extension.
-- Surface installation state through `window.api.extensions`.
-- Keep the manager local-first; network distribution can come later.
-
-## Source Versus Compiled Output Policy
-- During the local refactor, the repo should hold source code, not checked-in compiled extension bundles.
-- For eventual external installation:
-  - the extension repo should hold source
-  - its release process should produce an installable built bundle
-  - the core app should load that installed bundle from managed storage
-- A checked-in `compiled` directory in the core repo should be avoided unless a short-lived bootstrap proves unavoidable.
-
-## Suggested Bundle Contents
-- `manifest.json`
-- `bundle-main.js`
-- `renderer/`
-- `docs/`
-- `examples/`
-- `checksums.json` or equivalent integrity metadata
-
 ## Test Plan
 - Update `tests/e2e/can-thingset.spec.js` for extension-owned runtime and renderer behavior.
 - Update `tests/e2e/electron-smoke.spec.js` to assert extension inventory, grouped preload domains, and clean disablement behavior.
 - Update `tests/e2e/error-cases.spec.js` for:
-  - missing bundle
   - disabled extension
   - missing optional dependency
   - malformed extension storage state
-- Add focused coverage for install and uninstall flows once the manager exists.
 
 ## Acceptance Criteria
 - Vanilla Modular can boot without the `thingset` extension.
 - When the extension is enabled, current CAN and ThingSet workflows still function.
 - Extension-owned state is stored outside the repo root.
-- The app can install and enable a local extension bundle from disk.
 - The core repo does not need checked-in compiled extension output to keep development working.
 
 ## Risks
 - Storage migration can strand stale data if repo-root and userData roots diverge silently.
 - Lazy-loading runtime modules can hide missing dependency errors until late in the flow; diagnostics must stay clear.
-- Installer logic can accidentally overreach if it is designed for arbitrary code trust instead of internal controlled extensions.
 
 ## Dependencies
 - This step depends on step 1 runtime loading, step 2 metadata merging, and the earlier proof that extension-owned `main` plus renderer contributions work.
-- The eventual two-repo split should begin only after this step is stable locally.
+- Step 6 (extension installation) should begin only after this step is stable locally.
 
 ## Commit Sequence
-1. `docs(extensions): add step 5 thingset, can, and installation plan`
+1. `docs(extensions): add step 5 thingset and CAN boundary plan`
    - Create this markdown plan.
-   - Freeze the final extraction and installer scope.
+   - Freeze the extraction scope before refactoring.
 
 2. `refactor(storage): move thingset runtime state to extension-managed userData root`
    - Add migration from the old repo-root `thingset/` location.
@@ -213,11 +171,5 @@
 5. `feat(extension-thingset): move datasources, widgets, docs, and example roots behind manifest`
    - Register all renderer-side ThingSet and CAN contributions through the extension runtime.
 
-6. `build(extensions): define installable bundle format and local disk install path`
-   - Add the first bundle schema and loader rules.
-
-7. `feat(extension-manager): add local install, enable, disable, and uninstall flows`
-   - Surface installed extension state through `window.api.extensions`.
-
-8. `test(thingset): cover storage migration, install flows, and can-thingset regressions`
+6. `test(thingset): cover storage migration and can-thingset regressions`
    - Extend focused Playwright coverage plus smoke and error-path tests.
