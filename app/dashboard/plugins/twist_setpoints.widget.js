@@ -156,9 +156,11 @@
             const profile = this._profile();
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
             if (freeboard && typeof freeboard.addStyle === 'function') {
-                freeboard.addStyle('.twist-setpoints .input-group-text', 'min-width:140px;');
-                freeboard.addStyle('.twist-setpoints .form-control', 'min-width:100px;flex:1;');
-                freeboard.addStyle('.twist-setpoints .form-select', 'min-width:100px;flex:1;');
+                // Bootstrap input-group defaults to flex-wrap:wrap; force a single line.
+                freeboard.addStyle('.twist-setpoints', 'flex-wrap:nowrap!important;');
+                freeboard.addStyle('.twist-setpoints .input-group-text', 'min-width:80px;');
+                freeboard.addStyle('.twist-setpoints .form-control', 'min-width:0;flex:1;');
+                freeboard.addStyle('.twist-setpoints .form-select', 'min-width:0;flex:1;');
             }
 
             const autoSendBtn = $('<button class="btn btn-sm">Auto Send</button>');
@@ -208,33 +210,33 @@
                 };
 
                 const refVar = variableOptions();
-                const refVal = $('<input type="number" step="0.1" class="form-control form-control-sm" placeholder="V or A">');
+                const refVal = $('<input type="number" step="0.1" class="form-control form-control-sm" placeholder="0.000">');
                 makeRow('Reference', [refVar, refVal], () => {
                     this._send(protocol.cmdReference(leg, refVar.val(), refVal.val(), this.settings.deviceType));
                 });
 
-                const dutyVal = $('<input type="number" step="0.01" min="0" max="1" class="form-control form-control-sm" placeholder="0 to 1">');
+                const dutyVal = $('<input type="number" step="0.01" min="0" max="1" class="form-control form-control-sm" placeholder="0.000">');
                 makeRow('Duty', [dutyVal], () => {
                     this._send(protocol.cmdDuty(leg, dutyVal.val(), this.settings.deviceType));
                 });
 
-                const freqVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="Hz">');
+                const freqVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="0">');
                 makeRow('Frequency', [freqVal], () => {
                     this._send(protocol.cmdFrequency(leg, freqVal.val(), this.settings.deviceType));
                 });
 
-                const phaseVal = $('<input type="number" step="1" class="form-control form-control-sm" placeholder="Degrees">');
-                makeRow('Phase Shift', [phaseVal], () => {
+                const phaseVal = $('<input type="number" step="1" class="form-control form-control-sm" placeholder="0.0">');
+                makeRow('Phase', [phaseVal], () => {
                     this._send(protocol.cmdPhaseShift(leg, phaseVal.val(), this.settings.deviceType));
                 });
 
-                const dtRiseVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="ns">');
-                makeRow('Dead Time Rising', [dtRiseVal], () => {
+                const dtRiseVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="0">');
+                makeRow('DT Rise', [dtRiseVal], () => {
                     this._send(protocol.cmdDeadTimeRising(leg, dtRiseVal.val(), this.settings.deviceType));
                 });
 
-                const dtFallVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="ns">');
-                makeRow('Dead Time Falling', [dtFallVal], () => {
+                const dtFallVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="0">');
+                makeRow('DT Fall', [dtFallVal], () => {
                     this._send(protocol.cmdDeadTimeFalling(leg, dtFallVal.val(), this.settings.deviceType));
                 });
 
