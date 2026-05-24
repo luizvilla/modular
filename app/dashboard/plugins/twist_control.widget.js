@@ -84,28 +84,31 @@
         }
 
         render(el) {
-            $(el).append(this.container);
-            const headerRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
-            headerRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect, this.dsRefreshBtn);
-            const deviceRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
-            deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
-            this.container.append(headerRow, deviceRow);
+            if (!this._built) {
+                const headerRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
+                headerRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect, this.dsRefreshBtn);
+                const deviceRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
+                deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
+                this.container.append(headerRow, deviceRow);
 
-            this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
-            this.dsRefreshBtn.on('click', () => this._refreshDatasourceOptions());
-            this.deviceSelect.on('change', () => {
-                this.settings.deviceType = this.deviceSelect.val();
+                this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
+                this.dsRefreshBtn.on('click', () => this._refreshDatasourceOptions());
+                this.deviceSelect.on('change', () => {
+                    this.settings.deviceType = this.deviceSelect.val();
+                    this._renderLegControls();
+                });
+
+                this._refreshDatasourceOptions();
+                if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
+                this.deviceSelect.val(this.settings.deviceType || 'TWIST');
+
+                this._renderPowerControls();
+                this._renderScopeControls();
                 this._renderLegControls();
-            });
-
-            this._refreshDatasourceOptions();
-            if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
-            this.deviceSelect.val(this.settings.deviceType || 'TWIST');
-
-            this._renderPowerControls();
-            this._renderScopeControls();
-            this._renderLegControls();
-            this.container.append(this.lastCmd);
+                this.container.append(this.lastCmd);
+                this._built = true;
+            }
+            $(el).append(this.container);
         }
 
         _profile() {

@@ -72,18 +72,19 @@
         }
 
         render(containerElement) {
-            $(containerElement).append(this.container);
-            const dsRow = $('<div class="input-group input-group-sm mb-1"></div>');
-            dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
-            this.container.append(dsRow, this.btnContainer);
-            this.dsSelect.on('change', () => {
-                this.settings.datasource = this.dsSelect.val();
-            });
-            this._refreshDatasourceOptions();
-            if (this.settings.datasource) {
-                this.dsSelect.val(this.settings.datasource);
+            if (!this._built) {
+                const dsRow = $('<div class="input-group input-group-sm mb-1"></div>');
+                dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
+                this.container.append(dsRow, this.btnContainer);
+                this.dsSelect.on('change', () => {
+                    this.settings.datasource = this.dsSelect.val();
+                });
+                this._refreshDatasourceOptions();
+                if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
+                this._renderButtons();
+                this._built = true;
             }
-            this._renderButtons();
+            $(containerElement).append(this.container);
         }
 
         _refreshDatasourceOptions() {

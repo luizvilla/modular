@@ -73,30 +73,33 @@
         }
 
         render(el) {
-            $(el).append(this.container);
-            const dsRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
-            dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect, this.dsRefreshBtn);
-            const deviceRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
-            deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
-            const calRow = $('<div class="input-group input-group-sm"></div>');
-            calRow.append('<span class="input-group-text">Variable</span>', this.varSelect, this.gainInput, this.offsetInput);
-            const sendBtn = $('<button class="btn btn-primary btn-sm">Send Calibration</button>');
-            const sendRow = $('<div class="d-flex gap-2 align-items-center"></div>').append(sendBtn);
+            if (!this._built) {
+                const dsRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
+                dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect, this.dsRefreshBtn);
+                const deviceRow = $('<div class="input-group input-group-sm mb-1 twist-header-row"></div>');
+                deviceRow.append('<span class="input-group-text">Device</span>', this.deviceSelect);
+                const calRow = $('<div class="input-group input-group-sm"></div>');
+                calRow.append('<span class="input-group-text">Variable</span>', this.varSelect, this.gainInput, this.offsetInput);
+                const sendBtn = $('<button class="btn btn-primary btn-sm">Send Calibration</button>');
+                const sendRow = $('<div class="d-flex gap-2 align-items-center"></div>').append(sendBtn);
 
-            this.container.append(dsRow, deviceRow, calRow, sendRow, this.lastCmd);
+                this.container.append(dsRow, deviceRow, calRow, sendRow, this.lastCmd);
 
-            this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
-            this.dsRefreshBtn.on('click', () => this._refreshDatasourceOptions());
-            this.deviceSelect.on('change', () => {
-                this.settings.deviceType = this.deviceSelect.val();
+                this.dsSelect.on('change', () => { this.settings.datasource = this.dsSelect.val(); });
+                this.dsRefreshBtn.on('click', () => this._refreshDatasourceOptions());
+                this.deviceSelect.on('change', () => {
+                    this.settings.deviceType = this.deviceSelect.val();
+                    this._refreshVariables();
+                });
+                sendBtn.on('click', () => this._sendCalibration());
+
+                this._refreshDatasourceOptions();
+                if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
+                this.deviceSelect.val(this.settings.deviceType || 'TWIST');
                 this._refreshVariables();
-            });
-            sendBtn.on('click', () => this._sendCalibration());
-
-            this._refreshDatasourceOptions();
-            if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
-            this.deviceSelect.val(this.settings.deviceType || 'TWIST');
-            this._refreshVariables();
+                this._built = true;
+            }
+            $(el).append(this.container);
         }
 
         _profile() {
