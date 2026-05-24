@@ -61,7 +61,9 @@
             this.dsRefreshBtn = $('<button class="btn btn-outline-secondary btn-sm">Refresh</button>');
             this.deviceSelect.append('<option value="TWIST">Twist</option>');
             this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
-            this.autoSend = false;
+            this.autoSend = settings._autoSend || false;
+            this._setpointValues = (settings._setpointValues && typeof settings._setpointValues === 'object')
+                ? settings._setpointValues : {};
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             if (freeboard && typeof freeboard.addStyle === 'function') {
@@ -171,7 +173,11 @@
                     .text(this.autoSend ? 'Auto: ON' : 'Auto: OFF');
             };
             syncAutoBtn();
-            autoSendBtn.on('click', () => { this.autoSend = !this.autoSend; syncAutoBtn(); });
+            autoSendBtn.on('click', () => {
+                this.autoSend = !this.autoSend;
+                this.settings._autoSend = this.autoSend;
+                syncAutoBtn();
+            });
 
             const sectionHeader = $('<div class="d-flex align-items-center justify-content-between"></div>');
             sectionHeader.append($('<span class="fw-semibold">Setpoints</span>'), autoSendBtn);
@@ -240,6 +246,32 @@
                     this._send(protocol.cmdDeadTimeFalling(leg, dtFallVal.val(), this.settings.deviceType));
                 });
 
+                // Restore previously saved values for this leg.
+                const saved = this._setpointValues[leg] || {};
+                if (saved.refVar) refVar.val(saved.refVar);
+                if (saved.refVal !== undefined && saved.refVal !== '') refVal.val(saved.refVal);
+                if (saved.dutyVal !== undefined && saved.dutyVal !== '') dutyVal.val(saved.dutyVal);
+                if (saved.freqVal !== undefined && saved.freqVal !== '') freqVal.val(saved.freqVal);
+                if (saved.phaseVal !== undefined && saved.phaseVal !== '') phaseVal.val(saved.phaseVal);
+                if (saved.dtRiseVal !== undefined && saved.dtRiseVal !== '') dtRiseVal.val(saved.dtRiseVal);
+                if (saved.dtFallVal !== undefined && saved.dtFallVal !== '') dtFallVal.val(saved.dtFallVal);
+
+                // Persist field values whenever they change.
+                const persistLeg = () => {
+                    this._setpointValues[leg] = {
+                        refVar: refVar.val(),
+                        refVal: refVal.val(),
+                        dutyVal: dutyVal.val(),
+                        freqVal: freqVal.val(),
+                        phaseVal: phaseVal.val(),
+                        dtRiseVal: dtRiseVal.val(),
+                        dtFallVal: dtFallVal.val()
+                    };
+                    this.settings._setpointValues = this._setpointValues;
+                };
+                [refVar, refVal, dutyVal, freqVal, phaseVal, dtRiseVal, dtFallVal]
+                    .forEach(inp => inp.on('change', persistLeg));
+
                 wrap.append(legSection);
             }
 
@@ -249,6 +281,9 @@
 
         onSettingsChanged(newSettings) {
             this.settings = newSettings;
+            // Re-apply runtime state so it survives the settings modal round-trip.
+            this.settings._autoSend = this.autoSend;
+            this.settings._setpointValues = this._setpointValues;
             this.deviceSelect.val(this.settings.deviceType || 'TWIST');
             if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
             this._renderSetpoints();
