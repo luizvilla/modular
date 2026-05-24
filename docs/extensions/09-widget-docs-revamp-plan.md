@@ -23,7 +23,9 @@ Every widget's `README.md` follows this skeleton, in order:
 ```markdown
 # Widget Name
 
-![Widget screenshot](widget.png)
+| | |
+|---|---|
+| ![Widget screenshot](widget.png) | ![Edit dialog](widget-edit.png) |
 
 Brief one-liner — what problem this widget solves.
 
@@ -43,21 +45,24 @@ Only present when there is a non-obvious constraint worth capturing
 
 ### Rules
 
-- The screenshot comes first, before any prose.  The reader sees what the widget looks
-  like before reading a word.
-- One image per widget (`widget.png`) showing the live, data-filled widget.  Replaces the
-  `creation.png` + `usage.png` pair that currently exists on some widgets.
+- Two screenshots appear first, side by side, before any prose.  The reader sees what
+  the widget looks like and how it is configured before reading a word.
+- **`widget.png`** — full-window capture of the app with the widget visible in its pane.
+  Shows the live, data-filled widget in context.
+- **`widget-edit.png`** — full-window capture with the Edit Widget dialog open.  Shows
+  all configurable settings in the dialog so the reader knows what they can change.
+- Both images replace the `creation.png` + `usage.png` pair that previously existed.
 - Parameter descriptions become a table with explicit **Type** and **Default** columns,
   both absent from the current format.
-- The "What it does" and "Creation / Usage" section headings are removed.  The image
-  handles "Usage"; the table handles "Creation".
+- The "What it does" and "Creation / Usage" section headings are removed.  The edit
+  screenshot handles "Creation"; the widget screenshot handles "Usage".
 - A **Notes** section is added only when there is something non-obvious to say.  Most
   widgets will not have one.
 
 ## Goals
 
 - Make every widget doc start with a screenshot.
-- Consolidate `creation.png` and `usage.png` into a single `widget.png`.
+- Consolidate `creation.png` and `usage.png` into two purpose-built screenshots: `widget.png` and `widget-edit.png`.
 - Add Type and Default columns to parameter descriptions.
 - Provide an automated script that regenerates all screenshots on demand.
 
@@ -88,7 +93,7 @@ type's pane in the loaded dashboard, and clips it.
 
 ### Script outline
 
-```
+```text
 scripts/capture-widget-screenshots.js
 ```
 
