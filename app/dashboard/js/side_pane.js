@@ -68,3 +68,30 @@
         document.addEventListener('mouseup',   onMouseUp);
     });
 }());
+
+// Side pane tab switching
+(function () {
+    var TAB_KEY = 'sidePaneActiveTab';
+    var tabs = document.querySelectorAll('#side-pane-tabs .side-tab');
+    var panels = {
+        datasources: document.getElementById('side-tab-datasources'),
+        widgets:     document.getElementById('side-tab-widgets')
+    };
+
+    function activateTab(tabId) {
+        if (!panels[tabId]) return;
+        tabs.forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.tab === tabId);
+        });
+        Object.keys(panels).forEach(function (key) {
+            panels[key].style.display = key === tabId ? '' : 'none';
+        });
+        localStorage.setItem(TAB_KEY, tabId);
+    }
+
+    tabs.forEach(function (btn) {
+        btn.addEventListener('click', function () { activateTab(btn.dataset.tab); });
+    });
+
+    activateTab(localStorage.getItem(TAB_KEY) || 'datasources');
+}());

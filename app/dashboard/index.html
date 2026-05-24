@@ -194,89 +194,114 @@
 <div id="main-area">
     <aside id="side-pane">
         <div id="side-pane-header">
-            <button id="side-pane-toggle" title="Toggle datasource pane">
+            <button id="side-pane-toggle" title="Toggle pane">
                 <i id="side-pane-chevron" class="fa-solid fa-chevron-left"></i>
             </button>
-            <span class="side-pane-title">DATASOURCES</span>
-        </div>
-        <div id="side-pane-list">
-            <div class="datasource-list-container">
-                <table class="table table-condensed sub-table" id="datasources-list" data-bind="if: datasources().length">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Last Updated</th>
-                            <th>&nbsp;</th>
-                        </tr>
-                    </thead>
-                    <tbody data-bind="foreach: datasources">
-                        <tr data-bind="css: { 'datasource-paused': isPaused, 'datasource-selected': $root.selectedDatasource() === $data }, click: $root.selectDatasource">
-                            <td>
-                                <span class="datasource-name" data-bind="text: name"></span>
-                            </td>
-                            <td data-bind="text: last_updated"></td>
-                            <td>
-                                <ul class="board-toolbar">
-                                    <li data-bind="click: updateNow"><i class="icon-refresh icon-white"></i></li>
-                                    <li data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume datasource' : 'Pause datasource' }">
-                                        <i class="fa-solid" data-bind="css: { 'fa-pause': !isPaused(), 'fa-play': isPaused() }"></i>
-                                    </li>
-                                    <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">
-                                        <i class="icon-trash icon-white"></i>
-                                    </li>
-                                </ul>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div id="side-pane-tabs">
+                <button class="side-tab active" data-tab="datasources">Datasources</button>
+                <button class="side-tab" data-tab="widgets">Widgets</button>
             </div>
-            <!-- ko if: allow_edit -->
-            <span class="text-button table-operation" data-bind="pluginEditor: {operation: 'add', type: 'datasource'}">ADD</span>
-            <!-- /ko -->
         </div>
-        <div id="side-pane-resizer" title="Drag to resize"></div>
-        <div id="side-pane-detail">
-            <!-- ko ifnot: selectedDatasource -->
-            <p class="detail-empty">Select a datasource to view its settings.</p>
-            <!-- /ko -->
-            <!-- ko with: selectedDatasource -->
-            <form class="detail-form" data-bind="submit: saveInlineSettings">
-                <div class="detail-field">
-                    <label class="detail-label">Name</label>
-                    <input class="detail-input" type="text" data-bind="value: _editableName, valueUpdate: 'input'" placeholder="Datasource name">
+        <div id="side-tab-datasources" class="side-tab-content">
+            <div id="side-pane-list">
+                <div class="datasource-list-container">
+                    <table class="table table-condensed sub-table" id="datasources-list" data-bind="if: datasources().length">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Last Updated</th>
+                                <th>&nbsp;</th>
+                            </tr>
+                        </thead>
+                        <tbody data-bind="foreach: datasources">
+                            <tr data-bind="css: { 'datasource-paused': isPaused, 'datasource-selected': $root.selectedDatasource() === $data }, click: $root.selectDatasource">
+                                <td>
+                                    <span class="datasource-name" data-bind="text: name"></span>
+                                </td>
+                                <td data-bind="text: last_updated"></td>
+                                <td>
+                                    <ul class="board-toolbar">
+                                        <li data-bind="click: updateNow"><i class="icon-refresh icon-white"></i></li>
+                                        <li data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume datasource' : 'Pause datasource' }">
+                                            <i class="fa-solid" data-bind="css: { 'fa-pause': !isPaused(), 'fa-play': isPaused() }"></i>
+                                        </li>
+                                        <li data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">
+                                            <i class="icon-trash icon-white"></i>
+                                        </li>
+                                    </ul>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="detail-field">
-                    <label class="detail-label">Type</label>
-                    <span class="detail-readonly" data-bind="text: displayType"></span>
-                </div>
-                <!-- ko foreach: _editableFields -->
-                <div class="detail-field">
-                    <label class="detail-label" data-bind="text: def.display_name || def.name, attr: { title: def.description || '' }"></label>
-                    <!-- ko if: def.type === 'boolean' -->
-                    <input type="checkbox" data-bind="checked: value">
+                <!-- ko if: allow_edit -->
+                <span class="text-button table-operation" data-bind="pluginEditor: {operation: 'add', type: 'datasource'}">ADD</span>
+                <!-- /ko -->
+            </div>
+            <div id="side-pane-resizer" title="Drag to resize"></div>
+            <div id="side-pane-detail">
+                <!-- ko ifnot: selectedDatasource -->
+                <p class="detail-empty">Select a datasource to view its settings.</p>
+                <!-- /ko -->
+                <!-- ko with: selectedDatasource -->
+                <form class="detail-form" data-bind="submit: saveInlineSettings">
+                    <div class="detail-field">
+                        <label class="detail-label">Name</label>
+                        <input class="detail-input" type="text" data-bind="value: _editableName, valueUpdate: 'input'" placeholder="Datasource name">
+                    </div>
+                    <div class="detail-field">
+                        <label class="detail-label">Type</label>
+                        <span class="detail-readonly" data-bind="text: displayType"></span>
+                    </div>
+                    <!-- ko foreach: _editableFields -->
+                    <div class="detail-field">
+                        <label class="detail-label" data-bind="text: def.display_name || def.name, attr: { title: def.description || '' }"></label>
+                        <!-- ko if: def.type === 'boolean' -->
+                        <input type="checkbox" data-bind="checked: value">
+                        <!-- /ko -->
+                        <!-- ko if: def.type === 'option' -->
+                        <select class="detail-select" data-bind="value: value, options: options, optionsText: 'display', optionsValue: 'value'"></select>
+                        <!-- /ko -->
+                        <!-- ko if: def.type !== 'boolean' && def.type !== 'option' -->
+                        <input class="detail-input" data-bind="value: value, valueUpdate: 'input', attr: { type: def.type === 'number' ? 'number' : 'text' }">
+                        <!-- /ko -->
+                    </div>
                     <!-- /ko -->
-                    <!-- ko if: def.type === 'option' -->
-                    <select class="detail-select" data-bind="value: value, options: options, optionsText: 'display', optionsValue: 'value'"></select>
-                    <!-- /ko -->
-                    <!-- ko if: def.type !== 'boolean' && def.type !== 'option' -->
-                    <input class="detail-input" data-bind="value: value, valueUpdate: 'input', attr: { type: def.type === 'number' ? 'number' : 'text' }">
+                    <div class="detail-actions">
+                        <button type="submit" class="detail-btn primary">Save</button>
+                        <button type="button" class="detail-btn" data-bind="click: buildEditableFields">Reset</button>
+                        <button type="button" class="detail-btn" data-bind="click: updateNow" title="Refresh now">Refresh</button>
+                        <button type="button" class="detail-btn" data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume' : 'Pause' }">
+                            <!-- ko if: isPaused() -->Resume<!-- /ko --><!-- ko ifnot: isPaused() -->Pause<!-- /ko -->
+                        </button>
+                        <button type="button" class="detail-btn danger" data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">Delete</button>
+                    </div>
+                    <div class="detail-status">
+                        Last updated: <span data-bind="text: last_updated"></span>
+                    </div>
+                </form>
+                <!-- /ko -->
+            </div>
+        </div>
+        <div id="side-tab-widgets" class="side-tab-content" style="display:none">
+            <div id="widget-pane-list">
+                <!-- ko ifnot: panes().length -->
+                <p class="widget-list-empty">No panes yet. Add a pane to the dashboard first.</p>
+                <!-- /ko -->
+                <!-- ko foreach: panes -->
+                <!-- ko if: widgets().length -->
+                <div class="widget-group">
+                    <div class="widget-group-title" data-bind="text: title() || '(Untitled pane)'"></div>
+                    <!-- ko foreach: widgets -->
+                    <div class="widget-list-item" data-bind="pluginEditor: {operation: 'edit', type: 'widget'}" title="Edit widget">
+                        <span class="widget-list-name" data-bind="text: displayTitle"></span>
+                        <span class="widget-list-type" data-bind="text: type"></span>
+                    </div>
                     <!-- /ko -->
                 </div>
                 <!-- /ko -->
-                <div class="detail-actions">
-                    <button type="submit" class="detail-btn primary">Save</button>
-                    <button type="button" class="detail-btn" data-bind="click: buildEditableFields">Reset</button>
-                    <button type="button" class="detail-btn" data-bind="click: updateNow" title="Refresh now">Refresh</button>
-                    <button type="button" class="detail-btn" data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume' : 'Pause' }">
-                        <!-- ko if: isPaused() -->Resume<!-- /ko --><!-- ko ifnot: isPaused() -->Pause<!-- /ko -->
-                    </button>
-                    <button type="button" class="detail-btn danger" data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">Delete</button>
-                </div>
-                <div class="detail-status">
-                    Last updated: <span data-bind="text: last_updated"></span>
-                </div>
-            </form>
-            <!-- /ko -->
+                <!-- /ko -->
+            </div>
         </div>
     </aside>
     <div id="board-content">
