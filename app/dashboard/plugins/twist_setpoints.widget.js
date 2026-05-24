@@ -61,6 +61,7 @@
             this.dsRefreshBtn = $('<button class="btn btn-outline-secondary btn-sm">Refresh</button>');
             this.deviceSelect.append('<option value="TWIST">Twist</option>');
             this.deviceSelect.append('<option value="OWNVERTER">Ownverter</option>');
+            this.autoSend = false;
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             if (freeboard && typeof freeboard.addStyle === 'function') {
@@ -125,12 +126,25 @@
             if (!command) return;
             const path = this._getPortPath();
             if (!path) return;
-            try {
+            // Mirror Shield_Class.py sendMessage(): 10-byte chunks + 100 ms delay each,
+            // then \r\n sent separately. The Zephyr console ring buffer is small (~16 B);
+            // sending the full frame in one write overflows it and drops the \n, leaving
+            // console_read_line() blocked until the next command's \n arrives.
+            const CHUNK = 10;
+            const DELAY = 100;
+            const write = async (data) => {
                 if (this.serialApi && this.serialApi.write) {
-                    await this.serialApi.write(path, command);
+                    await this.serialApi.write(path, data);
                 } else if (this.ipc) {
-                    await this.ipc.invoke('write-serial-port', { path, data: command });
+                    await this.ipc.invoke('write-serial-port', { path, data });
                 }
+            };
+            try {
+                for (let i = 0; i < command.length; i += CHUNK) {
+                    await write(command.slice(i, i + CHUNK));
+                    await new Promise(r => setTimeout(r, DELAY));
+                }
+                await write('\r\n');
                 this.lastCmd.text(`Last command: ${command}`);
             } catch (err) {
                 console.error('Twist setpoint failed', err);
@@ -141,74 +155,94 @@
             if (this.setpointWrap) this.setpointWrap.remove();
             const profile = this._profile();
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
-            // Keep label/input widths aligned across all setpoint rows.
             if (freeboard && typeof freeboard.addStyle === 'function') {
                 freeboard.addStyle('.twist-setpoints .input-group-text', 'min-width:140px;');
-                freeboard.addStyle('.twist-setpoints .form-control', 'min-width:140px;');
-                freeboard.addStyle('.twist-setpoints .form-select', 'min-width:140px;');
+                freeboard.addStyle('.twist-setpoints .form-control', 'min-width:100px;flex:1;');
+                freeboard.addStyle('.twist-setpoints .form-select', 'min-width:100px;flex:1;');
             }
-            const legOptions = () => {
-                const sel = $('<select class="form-select form-select-sm"></select>');
-                for (let i = 1; i <= profile.legs; i += 1) {
-                    sel.append(`<option value="${i}">LEG${i}</option>`);
-                }
-                return sel;
+
+            const autoSendBtn = $('<button class="btn btn-sm">Auto Send</button>');
+            const syncAutoBtn = () => {
+                autoSendBtn
+                    .toggleClass('btn-outline-secondary', !this.autoSend)
+                    .toggleClass('btn-success', this.autoSend)
+                    .text(this.autoSend ? 'Auto: ON' : 'Auto: OFF');
             };
-            const variableOptions = () => {
-                const sel = $('<select class="form-select form-select-sm"></select>');
-                profile.variables.forEach(v => sel.append(`<option value="${v}">${v}</option>`));
-                return sel;
-            };
+            syncAutoBtn();
+            autoSendBtn.on('click', () => { this.autoSend = !this.autoSend; syncAutoBtn(); });
 
-            const makeRow = (label, inputs, onSend) => {
-                const row = $('<div class="input-group input-group-sm twist-setpoints"></div>');
-                row.append(`<span class="input-group-text">${label}</span>`);
-                inputs.forEach(inp => row.append(inp));
-                const btn = $('<button class="btn btn-primary btn-sm">Send</button>');
-                btn.on('click', onSend);
-                row.append(btn);
-                wrap.append(row);
-            };
+            const sectionHeader = $('<div class="d-flex align-items-center justify-content-between"></div>');
+            sectionHeader.append($('<span class="fw-semibold">Setpoints</span>'), autoSendBtn);
 
-            const refLeg = legOptions();
-            const refVar = variableOptions();
-            const refVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Value">');
-            makeRow('Reference', [refLeg, refVar, refVal], () => {
-                this._send(protocol.cmdReference(refLeg.val(), refVar.val(), refVal.val(), this.settings.deviceType));
-            });
+            for (let legNum = 1; legNum <= profile.legs; legNum += 1) {
+                const leg = legNum;
+                const legSection = $('<div class="d-flex flex-column gap-1"></div>');
+                legSection.append(`<span class="badge bg-light text-dark">LEG${leg}</span>`);
 
-            const dutyLeg = legOptions();
-            const dutyVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Duty">');
-            makeRow('Duty', [dutyLeg, dutyVal], () => {
-                this._send(protocol.cmdDuty(dutyLeg.val(), dutyVal.val(), this.settings.deviceType));
-            });
+                const makeRow = (label, inputs, onSend) => {
+                    let debounceTimer = null;
+                    const row = $('<div class="input-group input-group-sm twist-setpoints"></div>');
+                    row.append(`<span class="input-group-text">${label}</span>`);
+                    inputs.forEach(inp => {
+                        row.append(inp);
+                        if (inp.is('input[type=number]')) {
+                            inp.on('change', () => {
+                                if (!this.autoSend) return;
+                                // Debounce: wait until the user stops clicking before sending.
+                                // 300 ms > 200 ms chunk-send time, preventing interleaved writes.
+                                clearTimeout(debounceTimer);
+                                debounceTimer = setTimeout(() => onSend(), 300);
+                            });
+                        }
+                    });
+                    const btn = $('<button class="btn btn-primary btn-sm">Send</button>');
+                    btn.on('click', onSend);
+                    row.append(btn);
+                    legSection.append(row);
+                };
 
-            const freqLeg = legOptions();
-            const freqVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Hz">');
-            makeRow('Frequency', [freqLeg, freqVal], () => {
-                this._send(protocol.cmdFrequency(freqLeg.val(), freqVal.val(), this.settings.deviceType));
-            });
+                const variableOptions = () => {
+                    const sel = $('<select class="form-select form-select-sm"></select>');
+                    profile.variables.forEach(v => sel.append(`<option value="${v}">${v}</option>`));
+                    return sel;
+                };
 
-            const phaseLeg = legOptions();
-            const phaseVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Phase">');
-            makeRow('Phase Shift', [phaseLeg, phaseVal], () => {
-                this._send(protocol.cmdPhaseShift(phaseLeg.val(), phaseVal.val(), this.settings.deviceType));
-            });
+                const refVar = variableOptions();
+                const refVal = $('<input type="number" step="0.1" class="form-control form-control-sm" placeholder="V or A">');
+                makeRow('Reference', [refVar, refVal], () => {
+                    this._send(protocol.cmdReference(leg, refVar.val(), refVal.val(), this.settings.deviceType));
+                });
 
-            const dtRiseLeg = legOptions();
-            const dtRiseVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Ticks">');
-            makeRow('Dead Time Rising', [dtRiseLeg, dtRiseVal], () => {
-                this._send(protocol.cmdDeadTimeRising(dtRiseLeg.val(), dtRiseVal.val(), this.settings.deviceType));
-            });
+                const dutyVal = $('<input type="number" step="0.01" min="0" max="1" class="form-control form-control-sm" placeholder="0 to 1">');
+                makeRow('Duty', [dutyVal], () => {
+                    this._send(protocol.cmdDuty(leg, dutyVal.val(), this.settings.deviceType));
+                });
 
-            const dtFallLeg = legOptions();
-            const dtFallVal = $('<input type="number" step="any" class="form-control form-control-sm" placeholder="Ticks">');
-            makeRow('Dead Time Falling', [dtFallLeg, dtFallVal], () => {
-                this._send(protocol.cmdDeadTimeFalling(dtFallLeg.val(), dtFallVal.val(), this.settings.deviceType));
-            });
+                const freqVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="Hz">');
+                makeRow('Frequency', [freqVal], () => {
+                    this._send(protocol.cmdFrequency(leg, freqVal.val(), this.settings.deviceType));
+                });
 
-            this.setpointWrap = wrap;
-            this.container.append($('<div class="fw-semibold">Setpoints</div>'), wrap);
+                const phaseVal = $('<input type="number" step="1" class="form-control form-control-sm" placeholder="Degrees">');
+                makeRow('Phase Shift', [phaseVal], () => {
+                    this._send(protocol.cmdPhaseShift(leg, phaseVal.val(), this.settings.deviceType));
+                });
+
+                const dtRiseVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="ns">');
+                makeRow('Dead Time Rising', [dtRiseVal], () => {
+                    this._send(protocol.cmdDeadTimeRising(leg, dtRiseVal.val(), this.settings.deviceType));
+                });
+
+                const dtFallVal = $('<input type="number" step="1" min="0" class="form-control form-control-sm" placeholder="ns">');
+                makeRow('Dead Time Falling', [dtFallVal], () => {
+                    this._send(protocol.cmdDeadTimeFalling(leg, dtFallVal.val(), this.settings.deviceType));
+                });
+
+                wrap.append(legSection);
+            }
+
+            this.setpointWrap = $('<div class="d-flex flex-column gap-1"></div>').append(sectionHeader, wrap);
+            this.container.append(this.setpointWrap);
         }
 
         onSettingsChanged(newSettings) {
@@ -224,6 +258,6 @@
             }
         }
 
-        getHeight() { return 6; }
+        getHeight() { return 10; }
     }
 })();
