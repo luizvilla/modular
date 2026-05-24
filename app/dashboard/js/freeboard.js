@@ -96,7 +96,23 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 		var plugin = t ? datasourcePlugins[t] : null;
 		var defs   = (plugin && Array.isArray(plugin.settings)) ? plugin.settings : [];
 
+		// Clear any live-refresh timers from the previous field set.
+		if (self._inlinePaneTimers) {
+			self._inlinePaneTimers.forEach(function(id) { clearInterval(id); });
+		}
+		self._inlinePaneTimers = [];
+
 		self._editableName(self.name() || '');
+
+		function mapOptions(raw) {
+			return (Array.isArray(raw) ? raw : []).map(function(o) {
+				if (typeof o === 'string') return { display: o, value: o };
+				return {
+					display: o.name || String(o.value !== undefined ? o.value : o),
+					value:   o.value !== undefined ? o.value : (o.name || o)
+				};
+			});
+		}
 
 		self._editableFields(
 			defs
@@ -104,15 +120,16 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 				.map(function(def) {
 					var cur = s[def.name] !== undefined ? s[def.name]
 					        : (def.default_value !== undefined ? def.default_value : '');
-					var opts = [];
-					if (def.type === 'option' && Array.isArray(def.options)) {
-						opts = def.options.map(function(o) {
-							if (typeof o === 'string') return { display: o, value: o };
-							return {
-								display: o.name || String(o.value !== undefined ? o.value : o),
-								value:   o.value !== undefined ? o.value : (o.name || o)
-							};
-						});
+					var opts = ko.observableArray([]);
+					if (def.type === 'option') {
+						var provider = def.options;
+						var resolve  = _.isFunction(provider) ? provider : function() { return provider; };
+						opts(mapOptions(resolve()));
+						if (_.isFunction(provider) && def.optionsRefreshMs) {
+							var refreshMs = Math.max(parseInt(def.optionsRefreshMs, 10) || 1000, 250);
+							var timerId = setInterval(function() { opts(mapOptions(resolve())); }, refreshMs);
+							self._inlinePaneTimers.push(timerId);
+						}
 					}
 					return { def: def, value: ko.observable(cur), options: opts };
 				})
@@ -400,6 +417,13 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.datasourceData = {};
 
 	this.selectedDatasource = ko.observable(null);
+
+	this.selectedDatasource.subscribe(function(oldDs) {
+		if (oldDs && oldDs._inlinePaneTimers) {
+			oldDs._inlinePaneTimers.forEach(function(id) { clearInterval(id); });
+			oldDs._inlinePaneTimers = [];
+		}
+	}, null, 'beforeChange');
 
 	this.selectedDatasource.subscribe(function(ds) {
 		if (ds) ds.buildEditableFields();
@@ -897,16 +921,11 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		self.saveDashboard(null, { currentTarget: { dataset: { pretty: "true" } } });
 	}
 
-	this.saveDashboard = function(_thisref, event)
+	this.saveDashboard = function(_thisref, _event)
 	{
-		var pretty = $(event.currentTarget).data('pretty');
 		var contentType = 'application/octet-stream';
 		var a = document.createElement('a');
-		if(pretty){
-			var blob = new Blob([JSON.stringify(self.serialize(), null, '\t')], {'type': contentType});
-		}else{
-			var blob = new Blob([JSON.stringify(self.serialize())], {'type': contentType});
-		}
+		var blob = new Blob([JSON.stringify(self.serialize(), null, '\t') + '\n'], {'type': contentType});
 		document.body.appendChild(a);
 		a.href = window.URL.createObjectURL(blob);
 		a.download = "dashboard.json";
