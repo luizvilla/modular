@@ -1056,6 +1056,12 @@ body.pane-resize-active .pane-resize-handle {
 .sub-section-height-9 { height: 540px; }
 .sub-section-height-10 { height: 600px; }
 
+/* When a pane contains only one widget, let it fill the full pane body
+ * so the widget stretches when the user resizes the pane vertically. */
+.gridster section > .sub-section:only-child {
+  height: 100% !important;
+}
+
 /* Keep tools aligned inside the reserved header space */
 .sub-section-tools {
   top: 4px;
