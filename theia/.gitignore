@@ -1,0 +1,4 @@
+# Build output and generated files
+applications/electron/lib/
+applications/electron/src-gen/
+plugins/*/lib/

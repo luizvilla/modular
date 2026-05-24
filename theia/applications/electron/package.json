@@ -1,0 +1,42 @@
+{
+  "name": "@modular/theia-electron-app",
+  "private": true,
+  "version": "0.0.0",
+  "main": "src-gen/backend/electron-main.js",
+  "scripts": {
+    "build": "NODE_OPTIONS=--require=./scripts/node-compat.js theia build --mode development",
+    "rebuild": "electron-rebuild",
+    "start": "unset ELECTRON_RUN_AS_NODE && electron ."
+  },
+  "dependencies": {
+    "@modular/modular-dashboard": "file:../../plugins/modular-dashboard",
+    "@theia/core": "1.71.1",
+    "@theia/editor": "1.71.1",
+    "@theia/electron": "1.71.1",
+    "@theia/filesystem": "1.71.1",
+    "@theia/messages": "1.71.1",
+    "@theia/monaco": "1.71.1",
+    "@theia/preferences": "1.71.1",
+    "@theia/process": "1.71.1",
+    "@theia/terminal": "1.71.1",
+    "@theia/workspace": "1.71.1"
+  },
+  "devDependencies": {
+    "@theia/cli": "1.71.1",
+    "@electron/rebuild": "^3.7.1",
+    "electron": "39.8.7"
+  },
+  "theia": {
+    "target": "electron",
+    "frontend": {
+      "config": {
+        "applicationName": "Modular"
+      }
+    },
+    "backend": {
+      "config": {
+        "startupTimeout": -1
+      }
+    }
+  }
+}
