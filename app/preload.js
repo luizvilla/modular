@@ -88,6 +88,7 @@ const api = {
         getTerminalBuffer: (path) => ipcRenderer.invoke('get-terminal-buffer', { path }),
         getFastDataset: (path) => ipcRenderer.invoke('get-fast-dataset', { path }),
         getFastStatus: (path) => ipcRenderer.invoke('get-fast-frame-status', { path }),
+        enableFastCapture: (path) => ipcRenderer.invoke('enable-fast-capture', { path }),
         getHeaders: (path, type) => ipcRenderer.invoke('get-serial-headers', { path, type }),
         setHeaders: (path, headers, type) => ipcRenderer.invoke('set-serial-headers', { path, headers, type }),
         getColors: (path, type) => ipcRenderer.invoke('get-serial-colors', { path, type }),

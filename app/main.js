@@ -2613,7 +2613,7 @@ function handleFastLine(portPath, line) {
                 const hdrs = st.header.split(',').map(h => h.trim()).filter(Boolean);
                 headerBuffers.set(dsKey(portPath, 'fast_frame_datasource'), hdrs);
             } else if (st.idx === null) {
-                const num = parseInt(line.substring(1).trim());
+                const num = parseInt(line.replace(/^#+\s*/, '').trim());
                 st.idx = isNaN(num) ? null : num;
             }
         } else if (line.trim()) {
@@ -3046,6 +3046,16 @@ ipcMain.handle("get-serial-buffer", (event, { path }) => {
 
 ipcMain.handle('get-fast-dataset', (event, { path }) => {
     return fastBuffers.get(path) || null;
+});
+
+// Allow a regular serialport_datasource port to participate in fast-frame capture.
+// Initialises fastStatus so that write-serial-port tracks the next trigger and
+// handleFastLine (which already runs on every port) can complete the cycle.
+ipcMain.handle('enable-fast-capture', (_event, { path }) => {
+    if (!fastStatus.has(path)) {
+        setFastStatus(path, { state: 'idle', message: 'Scope capture ready', completedAt: null, datasetPoints: 0 });
+    }
+    return true;
 });
 
 ipcMain.handle('get-fast-frame-status', (_event, { path }) => {
