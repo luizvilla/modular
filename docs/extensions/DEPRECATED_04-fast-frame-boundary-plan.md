@@ -1,5 +1,7 @@
 # Step 4 - Fast Frame Boundary Plan
 
+> **DEPRECATED** — Fast Frame has been reclassified as a permanent core feature and will not be moved behind an extension boundary. This plan is kept for historical reference only. Do not implement.
+
 ## Summary
 - Extract fast-frame acquisition, CSV-backed plotting helpers, and related renderer/runtime behavior behind a dedicated extension boundary.
 - Keep the serial core generic while preserving the current fast-frame user contract.
