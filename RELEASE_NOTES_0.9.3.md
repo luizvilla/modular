@@ -72,14 +72,6 @@ Each gauge opens a dedicated integrated editor for source, zone, and alarm confi
 
 ---
 
-## Controls Category
-
-All Controls widgets — including the legacy channel manager widgets — are now visible in the widget picker. Previously some were hidden.
-
-The Fast Frame Control widget no longer opens a settings dialog when the wrench is clicked, since its inline UI already provides the same controls (datasource, arm/retrieve commands, delays, file path, auto-save).
-
----
-
 ## Other Fixes
 
 - Plots category order is now: Time Plot → XY Plot → Fast Frame Widget.
