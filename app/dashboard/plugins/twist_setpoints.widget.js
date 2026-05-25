@@ -166,6 +166,7 @@
                 freeboard.addStyle('.twist-setpoints .input-group-text', 'min-width:80px;');
                 freeboard.addStyle('.twist-setpoints .form-control', 'min-width:0;flex:1;');
                 freeboard.addStyle('.twist-setpoints .form-select', 'min-width:0;flex:1;');
+                freeboard.addStyle('.twist-ref-var', 'flex:0 0 68px!important;');
             }
 
             const autoSendBtn = $('<button class="btn btn-sm">Auto Send</button>');
@@ -213,7 +214,7 @@
                 };
 
                 const variableOptions = () => {
-                    const sel = $('<select class="form-select form-select-sm"></select>');
+                    const sel = $('<select class="form-select form-select-sm twist-ref-var"></select>');
                     profile.variables.forEach(v => sel.append(`<option value="${v}">${v}</option>`));
                     return sel;
                 };
