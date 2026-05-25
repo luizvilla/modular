@@ -789,14 +789,12 @@
         if (!tab || !tab.docId) return;
         const item = getDocItem(tab.kind, tab.docId);
         if (!item) return;
-        setStatus('Loading dashboard in main window...');
-        const res = dashboardApi && dashboardApi.loadDashboardFromPath
-            ? await dashboardApi.loadDashboardFromPath(item.dashboardPath)
-            : await ipcRenderer.invoke('load-dashboard-from-path', { dashboardPath: item.dashboardPath });
-        if (res && res.ok) {
-            setStatus('Dashboard loaded.');
-        } else {
-            setStatus(`Failed to load dashboard: ${res?.error || 'unknown error'}`);
+        setStatus('Opening dashboard in new tab...');
+        try {
+            await openDashboardFileInNewTab(item.dashboardPath);
+            setStatus('Dashboard opened.');
+        } catch (e) {
+            setStatus(`Failed to open dashboard: ${e?.message || 'unknown error'}`);
         }
     }
 
