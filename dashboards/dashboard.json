@@ -1,0 +1,74 @@
+{
+	"version": 1,
+	"allow_edit": true,
+	"plugins": [],
+	"panes": [
+		{
+			"width": 1,
+			"row": {
+				"3": 1,
+				"7": 1
+			},
+			"col": {
+				"3": 1,
+				"7": 1
+			},
+			"col_width": 2,
+			"widgets": []
+		},
+		{
+			"width": 1,
+			"row": {
+				"3": 5,
+				"7": 5
+			},
+			"col": {
+				"3": 1,
+				"7": 1
+			},
+			"col_width": 2,
+			"widgets": []
+		},
+		{
+			"width": 1,
+			"row": {
+				"3": 9,
+				"7": 9
+			},
+			"col": {
+				"3": 1,
+				"7": 1
+			},
+			"col_width": 2,
+			"widgets": []
+		},
+		{
+			"width": 1,
+			"row": {
+				"3": 13,
+				"7": 13
+			},
+			"col": {
+				"3": 1,
+				"7": 1
+			},
+			"col_width": 2,
+			"widgets": []
+		},
+		{
+			"width": 1,
+			"row": {
+				"3": 17,
+				"7": 17
+			},
+			"col": {
+				"3": 1,
+				"7": 1
+			},
+			"col_width": 2,
+			"widgets": []
+		}
+	],
+	"datasources": [],
+	"columns": 10
+}
