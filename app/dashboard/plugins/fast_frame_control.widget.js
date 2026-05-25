@@ -85,8 +85,9 @@
             this.autoSaveDoneForCycle = false;
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
             if (freeboard && typeof freeboard.addStyle === 'function') {
-                freeboard.addStyle('.fast-frame-control .input-group-text', 'min-width:140px;justify-content:center;');
-                freeboard.addStyle('.fast-frame-control .form-control, .fast-frame-control .form-select', 'min-width:140px;');
+                freeboard.addStyle('.fast-frame-control', 'flex-wrap:nowrap!important;');
+                freeboard.addStyle('.fast-frame-control .input-group-text', 'min-width:82px;justify-content:center;');
+                freeboard.addStyle('.fast-frame-control .form-control, .fast-frame-control .form-select', 'min-width:0;flex:1;');
             }
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
