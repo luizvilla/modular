@@ -1439,10 +1439,33 @@
         save: saveCurrentDashboard
     };
 
+    // Returns dashboard tab IDs in left-to-right DOM order (respects drag reordering).
+    function getDashboardTabsInOrder() {
+        const ids = [];
+        for (const child of tabStrip.children) {
+            for (const [id, t] of tabs) {
+                if (t.button === child && (id === dashboardTabId || t.type === 'dashboard')) {
+                    ids.push(id);
+                    break;
+                }
+            }
+        }
+        return ids;
+    }
+
     // Keyboard shortcuts.
     document.addEventListener('keydown', (e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
-        if (e.key === 't') { e.preventDefault(); openNewDashboardTab(); }
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const order = getDashboardTabsInOrder();
+            if (order.length < 2) return;
+            const idx = order.indexOf(activeTabId);
+            const next = e.shiftKey
+                ? order[(idx - 1 + order.length) % order.length]
+                : order[(idx + 1) % order.length];
+            switchToDashboardTab(next);
+        } else if (e.key === 't') { e.preventDefault(); openNewDashboardTab(); }
         else if (e.key === 's') { e.preventDefault(); saveCurrentDashboard(); }
         else if (e.key === 'o') { e.preventDefault(); openDashboardDialog(); }
     });
