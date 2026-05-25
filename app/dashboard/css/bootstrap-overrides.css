@@ -498,6 +498,39 @@ textarea.form-control {
   margin-top: 2px;
 }
 
+/* Channel map table (side pane + modal) */
+.channel-map-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.channel-map-table tr + tr td {
+  padding-top: 3px;
+}
+
+.channel-map-default-cell {
+  font-size: 11px;
+  color: #6b7a96;
+  white-space: nowrap;
+  padding-right: 8px;
+  vertical-align: middle;
+  width: 80px;
+}
+
+.channel-map-value-cell {
+  width: 100%;
+}
+
+.channel-map-value-cell .channel-map-input,
+.channel-map-value-cell .detail-input {
+  width: 100%;
+}
+
+/* Modal version uses table-row-value class */
+.channel-map-table .table-row-value {
+  width: 100%;
+}
+
 #side-pane-list .title {
   margin: 0 0 10px;
   font-size: 11px;
@@ -1453,6 +1486,10 @@ html.theme-light .detail-select {
 
 html.theme-light .detail-readonly {
     color: #555;
+}
+
+html.theme-light .channel-map-default-cell {
+    color: #999;
 }
 
 html.theme-light .detail-btn {

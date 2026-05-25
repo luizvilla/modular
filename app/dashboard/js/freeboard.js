@@ -1305,6 +1305,15 @@ function FreeboardUI()
 				}
 			}).data("gridster");
 
+			// Allow panes to be dropped at any vertical position.
+			// By default gridster floats the placeholder to the topmost empty row
+			// (can_go_player_up) and compacts all widgets upward after every drop
+			// (add_to_gridmap). Both behaviours prevent free vertical placement.
+			grid.can_go_player_up = function() { return false; };
+			grid.add_to_gridmap = function(grid_data, value) {
+				grid.update_widget_position(grid_data, value || grid_data.el);
+			};
+
 			processResize(false)
 
 			grid.disable();
@@ -2730,6 +2739,55 @@ PluginEditor = function(jsEditor, valueEditor)
 								$(valueCell).siblings('.form-label').append(inputAdder);
 							}
 						}
+						else if(settingDef.type === "channel_map")
+						{
+							var cmCurrent = currentSettingsValues[settingDef.name];
+							if(!Array.isArray(cmCurrent)) cmCurrent = [];
+							var cmArr = cmCurrent.slice();
+							newSettings.settings[settingDef.name] = cmArr;
+							var cmMinCount = settingDef.channelCount || 8;
+							var cmTable = $('<table class="table table-condensed sub-table channel-map-table"></table>');
+							var cmBody = $('<tbody></tbody>').appendTo(cmTable);
+
+							function buildModalChannelRows(count)
+							{
+								var total = Math.max(count, cmArr.length);
+								cmBody.empty();
+								for(var ci = 0; ci < total; ci++)
+								{
+									(function(idx)
+									{
+										var alpha = String.fromCharCode(65 + (idx % 26));
+										var sfx = idx >= 26 ? ' ' + (Math.floor(idx / 26) + 1) : '';
+										var defaultLabel = 'Channel ' + alpha + sfx;
+										var cmRow = $('<tr></tr>');
+										cmRow.append($('<td class="channel-map-default-cell"></td>').text(defaultLabel));
+										var cmInp = $('<input type="text" class="table-row-value">').val(cmArr[idx] || '').attr('placeholder', defaultLabel);
+										cmInp.on('input', function()
+										{
+											cmArr[idx] = $(this).val();
+										});
+										cmRow.append($('<td></td>').append(cmInp));
+										cmBody.append(cmRow);
+									})(ci);
+								}
+							}
+
+							buildModalChannelRows(cmMinCount);
+							valueCell.append(cmTable);
+
+							if(window.ModularPlotEditorShared && currentTypeName && currentSettingsValues.portPath)
+							{
+								window.ModularPlotEditorShared.fetchDatasourceChannelCount(currentSettingsValues.portPath, currentTypeName).then(function(actualCount)
+								{
+									var needed = Math.max(cmMinCount, actualCount, cmArr.length);
+									if(needed > cmBody.find('tr').length)
+									{
+										buildModalChannelRows(needed);
+									}
+								}).catch(function() {});
+							}
+						}
 						else
 						{
 							var input = $('<input type="text">').appendTo(valueCell).change(function()
@@ -2751,6 +2809,8 @@ PluginEditor = function(jsEditor, valueEditor)
 									currentSettingsValues.title = newSettings.settings[settingDef.name];
 								}
 							});
+
+							if(settingDef.placeholder) input.attr('placeholder', settingDef.placeholder);
 
 							if(settingDef.name in currentSettingsValues)
 							{
@@ -4352,6 +4412,70 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 		}
 	}
 
+	ko.bindingHandlers.channelMapEditor = {
+		init: function(element, valueAccessor)
+		{
+			var params = ko.unwrap(valueAccessor());
+			var valueObs = params.value;
+			var minCount = params.count || 8;
+			var $el = $(element);
+			var table = null;
+
+			function buildTable(count)
+			{
+				var current = valueObs() || [];
+				count = Math.max(count, current.length);
+				$el.empty();
+				table = $('<table class="channel-map-table"></table>');
+				for(var i = 0; i < count; i++)
+				{
+					(function(idx)
+					{
+						var alpha = String.fromCharCode(65 + (idx % 26));
+						var sfx = idx >= 26 ? ' ' + (Math.floor(idx / 26) + 1) : '';
+						var defaultLabel = 'Channel ' + alpha + sfx;
+						var row = $('<tr></tr>');
+						row.append($('<td class="channel-map-default-cell"></td>').text(defaultLabel));
+						var inp = $('<input type="text" class="detail-input channel-map-input">').val(current[idx] || '').attr('placeholder', defaultLabel);
+						inp.on('input', function()
+						{
+							var vals = [];
+							table.find('.channel-map-input').each(function() { vals.push($(this).val()); });
+							valueObs(vals);
+						});
+						inp.on('blur', function()
+						{
+							$el.closest('form').trigger('submit');
+						});
+						row.append($('<td class="channel-map-value-cell"></td>').append(inp));
+						table.append(row);
+					})(i);
+				}
+				$el.append(table);
+			}
+
+			buildTable(minCount);
+			$(element).data('channelMapState', { buildTable: buildTable, valueObs: valueObs, minCount: minCount });
+		},
+		update: function(element, valueAccessor)
+		{
+			var params = ko.unwrap(valueAccessor());
+			ko.unwrap(params.lastUpdated); // Subscribe to last_updated so this re-fires on Refresh
+			var dsName = params.dsName || null;
+			var dsType = params.dsType || null;
+			var state  = $(element).data('channelMapState');
+			if(!state || !dsName || !dsType || !window.ModularPlotEditorShared) return;
+			window.ModularPlotEditorShared.fetchDatasourceChannelCount(dsName, dsType).then(function(actualCount)
+			{
+				var needed = Math.max(state.minCount, actualCount, (state.valueObs() || []).length);
+				if(needed > $(element).find('.channel-map-input').length)
+				{
+					state.buildTable(needed);
+				}
+			}).catch(function() {});
+		}
+	};
+
 	ko.virtualElements.allowedBindings.datasourceTypeSettings = true;
 	ko.bindingHandlers.datasourceTypeSettings = {
 		update: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext)
@@ -4680,6 +4804,12 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 				if(!count)
 				{
 					count = await fetchDatasourceChannelCount(dsName, dsType);
+				}
+				else if(dsType === "serialport_datasource")
+				{
+					// Extend to cover actual channels not yet named by the user
+					var actualCount = await fetchDatasourceChannelCount(dsName, dsType);
+					if(actualCount > count) count = actualCount;
 				}
 				for(var i = 0; i < count; i++)
 				{

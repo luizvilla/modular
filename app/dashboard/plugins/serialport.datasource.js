@@ -99,7 +99,30 @@
 		const eol = unescape(currentSettings.eol || "\\n");
 		const sep = currentSettings.separator || ":";
 
-		async function openPort() {
+		async function pushDataHeaders() {
+                        if (!currentSettings.portPath) return;
+                        const raw = currentSettings.dataHeaders;
+                        const full = Array.isArray(raw) ? raw.map(s => (s || '').trim()) : [];
+                        // Strip trailing empty entries so the widget channel count stays accurate
+                        let last = full.length - 1;
+                        while (last >= 0 && full[last] === '') last--;
+                        const headers = full.slice(0, last + 1);
+                        try {
+                                if (serialApi && serialApi.setHeaders) {
+                                        await serialApi.setHeaders(currentSettings.portPath, headers, 'serialport_datasource');
+                                } else if (ipcRenderer) {
+                                        await ipcRenderer.invoke('set-serial-headers', {
+                                                path: currentSettings.portPath,
+                                                headers,
+                                                type: 'serialport_datasource'
+                                        });
+                                }
+                        } catch(e) {
+                                console.error('Failed to set data headers:', e);
+                        }
+                }
+
+	async function openPort() {
                         if (isPaused()) return;
 			try {
                                 await openSerialPort({
@@ -112,6 +135,7 @@
 			} catch (e) {
 				console.error("Open serial failed:", e.message);
 			}
+                        await pushDataHeaders();
 		}
 
                 async function syncPortState(portOptions) {
@@ -211,6 +235,7 @@
                        updateTimer();
                        openPort();
                        syncPortState(cachedPortOptions);
+                       pushDataHeaders();
                };
 
 		stopTimer();
@@ -254,6 +279,12 @@ freeboard.loadDatasourcePlugin({
                                 display_name: "End of Line",
                                 type: "text",
                                 default_value: "\\r\\n"
+                        },
+                        {
+                                name: "dataHeaders",
+                                display_name: "Data Headers",
+                                type: "channel_map",
+                                channelCount: 8
                         },
                         {
                                 name: "refresh",

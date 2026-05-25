@@ -262,8 +262,11 @@
                         <!-- ko if: def.type === 'option' -->
                         <select class="detail-select" data-bind="value: value, options: options, optionsText: 'display', optionsValue: 'value'"></select>
                         <!-- /ko -->
-                        <!-- ko if: def.type !== 'boolean' && def.type !== 'option' -->
-                        <input class="detail-input" data-bind="value: value, valueUpdate: 'input', attr: { type: def.type === 'number' ? 'number' : 'text' }">
+                        <!-- ko if: def.type === 'channel_map' -->
+                        <div data-bind="channelMapEditor: { value: value, count: def.channelCount || 8, dsName: $parent.name(), dsType: $parent.type(), lastUpdated: $parent.last_updated }"></div>
+                        <!-- /ko -->
+                        <!-- ko if: def.type !== 'boolean' && def.type !== 'option' && def.type !== 'channel_map' -->
+                        <input class="detail-input" data-bind="value: value, valueUpdate: 'input', attr: { type: def.type === 'number' ? 'number' : 'text', placeholder: def.placeholder || '' }">
                         <!-- /ko -->
                     </div>
                     <!-- /ko -->
