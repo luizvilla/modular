@@ -43,6 +43,8 @@
             this.timer = null;
             this.colors = [];
             this.lastColorCheck = 0;
+            this.headers = [];
+            this.lastHeaderCheck = 0;
             this._paused = false;
 
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
@@ -56,6 +58,20 @@
 
             if (freeboard && typeof freeboard.addStyle === 'function') {
                 freeboard.addStyle('.serial-terminal-toggle .input-group-text', 'min-width:120px;justify-content:center;');
+                freeboard.addStyle('.serial-terminal-header-pre', [
+                    'overflow:hidden',
+                    'margin:0',
+                    'padding:2px 8px',
+                    'font-size:inherit',
+                    'border:1px solid #6c757d',
+                    'border-bottom:none',
+                    'border-radius:4px 4px 0 0',
+                    'background:#212529',
+                    'white-space:pre',
+                    'line-height:inherit',
+                    'opacity:0.55'
+                ].join(';'));
+                freeboard.addStyle('.serial-terminal-with-header', 'border-radius:0 0 4px 4px !important;border-top:none !important;');
             }
 
             const colorWrapper = $('<div class="input-group input-group-sm"></div>');
@@ -69,6 +85,9 @@
             const toggleRow = $('<div class="d-flex flex-wrap gap-2 mb-1 serial-terminal-toggle align-items-center"></div>');
             toggleRow.append(colorWrapper, wrapWrapper, this.pauseBtn);
 
+            this.headerCode = $('<code></code>');
+            this.headerPre = $('<pre class="serial-terminal-header-pre text-light"></pre>').append(this.headerCode);
+
             this.codeEl = $('<code></code>');
             this.preEl = $(
                 '<pre class="serial-terminal border border-secondary rounded bg-dark text-light p-2" ' +
@@ -77,7 +96,7 @@
 
             const dsRow = $('<div class="input-group input-group-sm mb-1"></div>');
             dsRow.append('<span class="input-group-text">Datasource</span>', this.dsSelect);
-            this.container.append(dsRow, toggleRow, this.preEl);
+            this.container.append(dsRow, toggleRow, this.headerPre, this.preEl);
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
         }
@@ -108,7 +127,13 @@
             this._applyWrapStyle();
             this._syncPauseBtn();
             this._refreshColors(true);
+            this._refreshHeaders(true);
             this._updateTimer();
+
+            // Sync horizontal scroll so header stays aligned with terminal content
+            this.preEl.off('scroll.header').on('scroll.header', () => {
+                this.headerPre[0].scrollLeft = this.preEl[0].scrollLeft;
+            });
         }
 
         _syncPauseBtn() {
@@ -133,6 +158,7 @@
             if (!ds || !ds.portPath) return;
             if (ds.paused) return;
             await this._refreshColors();
+            await this._refreshHeaders();
             try {
                 const lines = this.serialApi && this.serialApi.getTerminalBuffer
                     ? await this.serialApi.getTerminalBuffer(ds.portPath)
@@ -140,12 +166,14 @@
                 if (Array.isArray(lines)) {
                     const max = parseInt(this.settings.maxLines) || 100;
                     const display = lines.slice(-max);
+                    const separator = ds.separator || ":";
                     if (this.settings.colorize !== false) {
-                        const formatted = this._formatLines(display, ds.separator || ":", this.colors);
+                        const formatted = this._formatLines(display, separator, this.colors);
                         this.codeEl.html(formatted.join("<br/>"));
                     } else {
                         this.codeEl.text(display.join("\n"));
                     }
+                    if (display.length) this._buildHeader(display[display.length - 1], separator);
                     this.preEl.scrollTop(this.preEl.prop('scrollHeight'));
                 }
             } catch (e) {
@@ -192,6 +220,70 @@
                 this.colors = ds.headers.map(h => h.color || null);
             } else {
                 this.colors = [];
+            }
+        }
+
+        async _refreshHeaders(force = false) {
+            const now = Date.now();
+            if (!force && now - this.lastHeaderCheck < 1000) return;
+            this.lastHeaderCheck = now;
+            if ((!this.serialApi && !this.ipcRenderer) || !this.settings.datasourceName) {
+                this.headers = [];
+                return;
+            }
+            const ds = freeboard.getDatasourceSettings(this.settings.datasourceName) || {};
+            const path = ds.portPath || this.settings.datasourceName;
+            const type = this._getDatasourceType(this.settings.datasourceName);
+            try {
+                const fetched = this.serialApi && this.serialApi.getHeaders
+                    ? await this.serialApi.getHeaders(path, type)
+                    : await this.ipcRenderer.invoke('get-serial-headers', { path, type });
+                this.headers = Array.isArray(fetched) ? fetched : [];
+            } catch (e) {
+                this.headers = [];
+            }
+        }
+
+        _buildHeader(sampleLine, separator) {
+            const parts = sampleLine.trim().split(separator).filter(p => p !== '');
+            const colCount = Math.max(this.headers.length, parts.length);
+            if (!colCount) { this.headerCode.empty(); return; }
+
+            const spans = [];
+            for (let i = 0; i < colCount; i++) {
+                const alpha = String.fromCharCode(65 + (i % 26));
+                const sfx = i >= 26 ? ' ' + (Math.floor(i / 26) + 1) : '';
+                const defaultLabel = 'Channel ' + alpha + sfx;
+                const label = (this.headers[i] || '').trim() || defaultLabel;
+
+                // Mirror the display-width logic from _formatLines so columns line up
+                let fieldWidth = label.length;
+                if (i < parts.length) {
+                    const trimmed = parts[i].trim();
+                    const isNumeric = /^-?[\d.]+(?:[eE][+-]?\d+)?$/.test(trimmed);
+                    const display = isNumeric && !trimmed.startsWith('-') ? ' ' + trimmed : trimmed;
+                    fieldWidth = Math.max(fieldWidth, display.length);
+                }
+
+                const color = this.colors[i] || (typeof ColorBlind10 !== 'undefined'
+                    ? ColorBlind10[i % ColorBlind10.length]
+                    : `hsl(${(i * 60) % 360}, 70%, 50%)`);
+
+                const padded = label.length > fieldWidth
+                    ? label.slice(0, fieldWidth)
+                    : label.padEnd(fieldWidth);
+
+                spans.push(`<span style="color:${color}">${padded}</span>`);
+            }
+
+            // Show header pre only when there is content, and round terminal top accordingly
+            if (spans.length) {
+                this.headerCode.html(spans.join(' '));
+                this.headerPre.show();
+                this.preEl.addClass('serial-terminal-with-header');
+            } else {
+                this.headerPre.hide();
+                this.preEl.removeClass('serial-terminal-with-header');
             }
         }
 
@@ -244,6 +336,7 @@
             this._refreshDatasourceOptions();
             this.dsSelect.val(this.settings.datasourceName);
             this._refreshColors(true);
+            this._refreshHeaders(true);
             this._updateTimer();
         }
 
