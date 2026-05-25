@@ -1,0 +1,8 @@
+{
+  "title": "Wheel Example",
+  "markdown": "README_wheel.md",
+  "dashboard": "dashboard_wheel.json",
+  "binary": "wheel.mcuboot.bin",
+  "figuresDir": "Images",
+  "order": 50
+}

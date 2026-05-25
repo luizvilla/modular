@@ -1,0 +1,8 @@
+{
+  "title": "IxV Tracer",
+  "markdown": "README_iv_tracer.md",
+  "dashboard": "dashboard_iv_tracer.json",
+  "binary": "iv_tracer.mcuboot.bin",
+  "figuresDir": "Image",
+  "order": 40
+}

@@ -1,0 +1,8 @@
+{
+  "title": "DC-DC converter",
+  "markdown": "README_DC_DC.md",
+  "dashboard": "dashboard_DC_DC.json",
+  "binary": "DC_DC.mcuboot.bin",
+  "figuresDir": "Image",
+  "order": 30
+}

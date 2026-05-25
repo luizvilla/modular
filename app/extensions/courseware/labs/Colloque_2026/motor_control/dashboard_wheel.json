@@ -1,0 +1,189 @@
+{
+	"version": 1,
+	"allow_edit": true,
+	"plugins": [],
+	"panes": [
+		{
+			"width": 1,
+			"row": {
+				"1": 9,
+				"3": 5,
+				"7": 1
+			},
+			"col": {
+				"1": 1,
+				"3": 3,
+				"7": 1
+			},
+			"col_width": 1,
+			"row_height": 12,
+			"widgets": [
+				{
+					"type": "serial_command_buttons",
+					"settings": {
+						"buttons": [
+							{
+								"label": "idle",
+								"command": "i"
+							},
+							{
+								"label": "power",
+								"command": "p"
+							},
+							{
+								"label": "IQ+",
+								"command": "u"
+							},
+							{
+								"label": "IQ-",
+								"command": "d"
+							},
+							{
+								"label": "OFFSET",
+								"command": "o"
+							}
+						],
+						"layout": "vertical",
+						"datasource": "ownverter"
+					}
+				}
+			]
+		},
+		{
+			"width": 1,
+			"row": {
+				"1": 17,
+				"3": 20,
+				"7": 16
+			},
+			"col": {
+				"1": 1,
+				"3": 1,
+				"7": 1,
+				"9": 4
+			},
+			"col_width": 2,
+			"row_height": 19,
+			"widgets": [
+				{
+					"type": "fast_frame_plot",
+					"settings": {
+						"title": "Fast Frame Plot",
+						"xLabel": "",
+						"yLabel": "",
+						"xMin": "",
+						"xMax": "",
+						"yMin": "-10",
+						"yMax": "10",
+						"showLegend": false,
+						"csvSourceMode": "latest",
+						"csvDirectory": "/home/luiz-villa/code/modular",
+						"csvPath": "",
+						"timeColumn": "time_ms",
+						"xVariable": "time_ms",
+						"yVariable": "hall_angle",
+						"seriesDefs": [
+							{
+								"variable": "V12_value",
+								"label": "v12",
+								"color": "#4e79a7",
+								"visible": true
+							},
+							{
+								"variable": "hall_angle",
+								"label": "v12",
+								"color": "#834ea6",
+								"visible": true
+							}
+						]
+					}
+				}
+			]
+		},
+		{
+			"width": 1,
+			"row": {
+				"1": 5,
+				"3": 5,
+				"7": 1
+			},
+			"col": {
+				"1": 1,
+				"3": 1,
+				"7": 2,
+				"8": 1
+			},
+			"col_width": 2,
+			"row_height": 15,
+			"widgets": [
+				{
+					"type": "serial_terminal",
+					"settings": {
+						"title": "OWT terminal",
+						"datasourceName": "ownverter",
+						"colorize": true,
+						"wrapLines": false,
+						"refresh": 100,
+						"maxLines": 100
+					}
+				}
+			]
+		},
+		{
+			"width": 1,
+			"row": {
+				"1": 1,
+				"7": 16,
+				"8": 1
+			},
+			"col": {
+				"1": 1,
+				"7": 3,
+				"8": 1
+			},
+			"col_width": 1,
+			"row_height": 19,
+			"widgets": [
+				{
+					"type": "fast_frame_control",
+					"settings": {
+						"title": "Fast Frame Control",
+						"datasource": "ownverter FF",
+						"armCommand": "q",
+						"retrieveCommand": "r",
+						"retrieveDelayMs": 100,
+						"filePath": "fast_frame.csv",
+						"timestampedFileName": true,
+						"autoSave": true,
+						"pollMs": 250
+					}
+				}
+			]
+		}
+	],
+	"datasources": [
+		{
+			"name": "ownverter",
+			"type": "serialport_datasource",
+			"settings": {
+				"portPath": "/dev/ttyACM1",
+				"baudRate": 115200,
+				"separator": ":",
+				"eol": "\\r\\n",
+				"refresh": 100
+			}
+		},
+		{
+			"name": "ownverter FF",
+			"type": "fast_frame_datasource",
+			"settings": {
+				"portPath": "/dev/ttyACM1",
+				"baudRate": 115200,
+				"separator": ":",
+				"eol": "\\r\\n",
+				"refresh": 100
+			}
+		}
+	],
+	"columns": 10
+}
