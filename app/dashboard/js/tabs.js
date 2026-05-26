@@ -726,7 +726,7 @@
                 : await fs.promises.readFile(item.docPath, 'utf8');
             const baseDir = paths && paths.dirname ? paths.dirname(item.docPath) : path.dirname(item.docPath);
             await renderMarkdownInto(docContent, markdown, baseDir);
-            setStatus('Ready.');
+            setStatus('');
         } catch (err) {
             docContent.innerHTML = `<p>Failed to load documentation: ${escapeHtml(err?.message || String(err))}</p>`;
             setStatus('Failed to load documentation.');
@@ -753,7 +753,7 @@
                 : await fs.promises.readFile(doc.docPath, 'utf8');
             const baseDir = paths && paths.dirname ? paths.dirname(doc.docPath) : path.dirname(doc.docPath);
             await renderMarkdownInto(docContent, markdown, baseDir);
-            setStatus('Ready.');
+            setStatus('');
         } catch (err) {
             docContent.innerHTML = `<p>Failed to load documentation: ${escapeHtml(err?.message || String(err))}</p>`;
             setStatus('Failed to load documentation.');

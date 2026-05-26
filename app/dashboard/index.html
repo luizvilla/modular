@@ -155,40 +155,48 @@
 </header>
 <!-- Documentation panel for example/courseware tabs (hidden until activated). -->
 <div id="doc-panel" class="doc-panel" hidden>
-    <div class="doc-header">
-        <div class="doc-title-block">
-            <h1 id="doc-title">Document</h1>
-            <p id="doc-subtitle" class="subtitle">Docs</p>
-        </div>
-        <div class="doc-picker">
-            <label for="doc-example-select">Document</label>
-            <select id="doc-example-select"></select>
-        </div>
-        <div class="doc-actions">
-            <div class="doc-action-buttons">
-                <button id="doc-load-dashboard-btn" class="btn primary">Load document dashboard</button>
-                <button id="doc-upload-firmware-btn" class="btn">Upload document to target</button>
+    <div class="doc-shell">
+        <aside class="doc-sidebar">
+            <div class="doc-header">
+                <div class="doc-title-block">
+                    <h1 id="doc-title">Document</h1>
+                    <p id="doc-subtitle" class="subtitle">Docs</p>
+                </div>
+                <div class="doc-picker">
+                    <label for="doc-example-select">Document</label>
+                    <select id="doc-example-select"></select>
+                </div>
+                <div class="doc-actions">
+                    <div class="doc-action-buttons">
+                        <button id="doc-load-dashboard-btn" class="btn primary">Load document dashboard</button>
+                        <button id="doc-upload-firmware-btn" class="btn">Upload document to target</button>
+                    </div>
+                    <section class="progress-panel">
+                        <div class="progress-header">
+                            <span id="doc-upload-spinner" class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
+                            <strong id="doc-upload-title" class="text-truncate">Upload progress</strong>
+                            <small id="doc-upload-state" class="text-muted">idle</small>
+                        </div>
+                        <div id="doc-upload-label" class="small text-muted text-truncate">No upload running</div>
+                        <div class="progress" style="height:14px;">
+                            <div id="doc-upload-progress-bar" class="progress-bar" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                    </section>
+                </div>
+                <div class="doc-port-row">
+                    <label for="doc-port-select">Target port</label>
+                    <div class="doc-port-controls">
+                        <select id="doc-port-select"></select>
+                        <button id="doc-refresh-ports-btn" class="btn ghost">Refresh</button>
+                    </div>
+                </div>
+                <div id="doc-status" class="status-bar"></div>
             </div>
-            <section class="progress-panel">
-                <div class="progress-header">
-                    <span id="doc-upload-spinner" class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    <strong id="doc-upload-title" class="text-truncate">Upload progress</strong>
-                    <small id="doc-upload-state" class="text-muted">idle</small>
-                </div>
-                <div id="doc-upload-label" class="small text-muted text-truncate">No upload running</div>
-                <div class="progress" style="height:14px;">
-                    <div id="doc-upload-progress-bar" class="progress-bar" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                </div>
-            </section>
+        </aside>
+        <div class="doc-main">
+            <article id="doc-content" class="doc-content"></article>
         </div>
-        <div class="doc-port-row">
-            <label for="doc-port-select">Target port</label>
-            <select id="doc-port-select"></select>
-            <button id="doc-refresh-ports-btn" class="btn ghost">Refresh</button>
-        </div>
-        <div id="doc-status" class="status-bar">Ready.</div>
     </div>
-    <article id="doc-content" class="doc-content"></article>
 </div>
 
 <div id="main-area">

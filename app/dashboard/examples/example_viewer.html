@@ -22,45 +22,51 @@
     <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
 <body>
-    <header class="app-header">
-        <div class="title-block">
-            <h1 id="example-title">Document</h1>
-            <p id="example-subtitle" class="subtitle">TWIST</p>
-        </div>
-        <!-- Document selector populated from examples/courseware content. -->
-        <div class="example-picker">
-            <label for="example-select">Document</label>
-            <select id="example-select"></select>
-        </div>
-        <div class="actions">
-            <div class="action-buttons">
-                <button id="load-dashboard-btn" class="btn primary">Load document dashboard</button>
-                <button id="upload-firmware-btn" class="btn">Upload document to target</button>
-            </div>
-            <!-- Progress panel mirrors the Activity Center DFU progress rendering. -->
-            <section class="progress-panel">
-                <div class="progress-header">
-                    <span id="upload-spinner" class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    <strong id="upload-title" class="text-truncate">Upload progress</strong>
-                    <small id="upload-state" class="text-muted">idle</small>
+    <div class="docs-shell">
+        <aside class="docs-sidebar">
+            <header class="app-header">
+                <div class="title-block">
+                    <h1 id="example-title">Document</h1>
+                    <p id="example-subtitle" class="subtitle">TWIST</p>
                 </div>
-                <div id="upload-label" class="small text-muted text-truncate">No upload running</div>
-                <div class="progress" style="height:14px;">
-                    <div id="upload-progress-bar" class="progress-bar" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                <!-- Document selector populated from examples/courseware content. -->
+                <div class="example-picker">
+                    <label for="example-select">Document</label>
+                    <select id="example-select"></select>
                 </div>
-            </section>
-        </div>
-        <div class="port-row">
-            <label for="port-select">Target port</label>
-            <select id="port-select"></select>
-            <button id="refresh-ports-btn" class="btn ghost">Refresh</button>
-        </div>
-        <div id="status-bar" class="status-bar">Ready.</div>
-    </header>
+                <div class="actions">
+                    <div class="action-buttons">
+                        <button id="load-dashboard-btn" class="btn primary">Load document dashboard</button>
+                        <button id="upload-firmware-btn" class="btn">Upload document to target</button>
+                    </div>
+                    <!-- Progress panel mirrors the Activity Center DFU progress rendering. -->
+                    <section class="progress-panel">
+                        <div class="progress-header">
+                            <span id="upload-spinner" class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
+                            <strong id="upload-title" class="text-truncate">Upload progress</strong>
+                            <small id="upload-state" class="text-muted">idle</small>
+                        </div>
+                        <div id="upload-label" class="small text-muted text-truncate">No upload running</div>
+                        <div class="progress" style="height:14px;">
+                            <div id="upload-progress-bar" class="progress-bar" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                    </section>
+                </div>
+                <div class="port-row">
+                    <label for="port-select">Target port</label>
+                    <div class="port-controls">
+                        <select id="port-select"></select>
+                        <button id="refresh-ports-btn" class="btn ghost">Refresh</button>
+                    </div>
+                </div>
+                <div id="status-bar" class="status-bar"></div>
+            </header>
+        </aside>
 
-    <main>
-        <article id="doc-content" class="doc-content"></article>
-    </main>
+        <main class="docs-main">
+            <article id="doc-content" class="doc-content"></article>
+        </main>
+    </div>
 
     <script src="example_viewer.js"></script>
 </body>

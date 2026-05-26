@@ -6,6 +6,17 @@
     --tabs-muted: #9aa4b2;
     --tabs-primary: #0d6efd;
     --tabbar-height: 44px;
+    --doc-shell-bg: #12161f;
+    --doc-sidebar-bg: #171c26;
+    --doc-sidebar-border: #2c3444;
+    --doc-paper-bg: #fcfbf7;
+    --doc-paper-border: #d6dee8;
+    --doc-paper-text: #1b2533;
+    --doc-paper-muted: #5b6472;
+    --doc-code-bg: #edf2f7;
+    --doc-link: #1f5fd6;
+    --doc-pre-bg: #202734;
+    --doc-pre-border: #313c4f;
 }
 
 .app-tabs {
@@ -112,34 +123,51 @@ html.docs-mode #main-area {
     left: 0;
     right: 0;
     bottom: var(--tabbar-height);
-    overflow-y: auto;
+    overflow: hidden;
     z-index: 800;
-    padding: 16px 20px 20px;
-    background: #0f1115;
+    padding: 0;
+    background: var(--doc-shell-bg);
     color: var(--tabs-text);
 }
 
-/* Widget docs mode hides example-specific controls. */
-.doc-panel[data-doc-mode="widget"] .doc-picker,
-.doc-panel[data-doc-mode="widget"] .doc-actions,
-.doc-panel[data-doc-mode="widget"] .doc-port-row,
-.doc-panel[data-doc-mode="widget"] .progress-panel {
-    display: none;
+.doc-shell {
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+    height: 100%;
 }
-/* Widget docs mode hides the header block so only the README content shows. */
-.doc-panel[data-doc-mode="widget"] .doc-header {
+
+.doc-sidebar {
+    overflow-y: auto;
+    padding: 24px 20px 28px;
+    background: var(--doc-sidebar-bg);
+    border-right: 1px solid var(--doc-sidebar-border);
+}
+
+.doc-main {
+    overflow-y: auto;
+    padding: 24px 28px 40px;
+    background: linear-gradient(180deg, #cfd7e3 0%, #dee5ee 100%);
+}
+
+/* Widget docs should dedicate the full width to the rendered content. */
+.doc-panel[data-doc-mode="widget"] .doc-shell {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.doc-panel[data-doc-mode="widget"] .doc-sidebar {
     display: none;
 }
 
 .doc-header {
     display: grid;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 16px;
+    align-content: start;
 }
 
 .doc-title-block h1 {
     margin: 0;
-    font-size: 20px;
+    font-size: 24px;
+    line-height: 1.15;
 }
 
 .subtitle {
@@ -149,15 +177,15 @@ html.docs-mode #main-area {
 }
 
 .doc-picker {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    display: grid;
+    gap: 8px;
 }
 
 .doc-picker label {
     font-size: 12px;
     color: var(--tabs-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .doc-picker select {
@@ -166,7 +194,7 @@ html.docs-mode #main-area {
     color: var(--tabs-text);
     padding: 8px 36px 8px 12px;
     border-radius: 6px;
-    min-width: 320px;
+    width: 100%;
     min-height: 40px;
     line-height: 1.3;
     font-size: 16px;
@@ -174,18 +202,13 @@ html.docs-mode #main-area {
 
 .doc-actions {
     display: grid;
-    gap: 12px;
-    justify-items: start;
-    align-items: start;
+    gap: 14px;
 }
 
 .doc-action-buttons {
-    display: flex;
+    display: grid;
     gap: 10px;
-    flex-wrap: nowrap;
-    align-items: center;
-    width: max-content;
-    max-width: 100%;
+    width: 100%;
 }
 
 .btn {
@@ -198,6 +221,11 @@ html.docs-mode #main-area {
     font-size: 15px;
     line-height: 1.2;
     min-height: 40px;
+}
+
+.doc-action-buttons .btn,
+.doc-port-controls .btn {
+    width: 100%;
 }
 
 .btn.primary {
@@ -216,15 +244,22 @@ html.docs-mode #main-area {
 }
 
 .doc-port-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: nowrap;
+    display: grid;
+    gap: 8px;
 }
 
 .doc-port-row label {
     font-size: 12px;
     color: var(--tabs-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.doc-port-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
 }
 
 .doc-port-row select {
@@ -233,7 +268,7 @@ html.docs-mode #main-area {
     color: var(--tabs-text);
     padding: 8px 36px 8px 12px;
     border-radius: 6px;
-    min-width: 220px;
+    width: 100%;
     min-height: 40px;
     line-height: 1.3;
     font-size: 16px;
@@ -242,14 +277,24 @@ html.docs-mode #main-area {
 .status-bar {
     font-size: 12px;
     color: var(--tabs-muted);
+    line-height: 1.4;
+}
+
+.status-bar:empty {
+    display: none;
 }
 
 .doc-content {
-    background: #0f121b;
-    border: 1px solid #2a3240;
-    border-radius: 10px;
-    padding: 20px 24px;
-    line-height: 1.6;
+    width: min(100%, 980px);
+    margin: 0 auto;
+    background: var(--doc-paper-bg);
+    color: var(--doc-paper-text);
+    border: 1px solid var(--doc-paper-border);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(15, 17, 21, 0.16);
+    padding: 32px 40px;
+    line-height: 1.75;
+    font-size: 17px;
     user-select: text;
 }
 
@@ -265,6 +310,7 @@ html.docs-mode #main-area {
 .doc-content h6 {
     margin: 24px 0 16px;
     line-height: 1.25;
+    color: #0f1724;
 }
 
 .doc-content p,
@@ -277,7 +323,7 @@ html.docs-mode #main-area {
 }
 
 .doc-content a {
-    color: #8ab4ff;
+    color: var(--doc-link);
     text-decoration: none;
 }
 
@@ -288,20 +334,22 @@ html.docs-mode #main-area {
 .doc-content img {
     max-width: 100%;
     border-radius: 8px;
-    border: 1px solid #2a3240;
+    border: 1px solid #d5dde7;
 }
 
 .doc-content code {
-    background: #222836;
+    background: var(--doc-code-bg);
+    color: #233041;
     padding: 2px 6px;
     border-radius: 4px;
 }
 
 .doc-content pre {
-    background: #111623;
-    border: 1px solid #2a3240;
+    background: var(--doc-pre-bg);
+    color: #f3f6fb;
+    border: 1px solid var(--doc-pre-border);
     border-radius: 8px;
-    padding: 12px;
+    padding: 14px 16px;
     overflow: auto;
 }
 
@@ -312,9 +360,9 @@ html.docs-mode #main-area {
 }
 
 .doc-content blockquote {
-    border-left: 4px solid #394052;
+    border-left: 4px solid #98a7b9;
     padding: 0 0 0 16px;
-    color: var(--tabs-muted);
+    color: var(--doc-paper-muted);
 }
 
 .doc-content table,
@@ -327,24 +375,52 @@ html.docs-mode #main-area {
 
 .doc-content th,
 .doc-content td {
-    border: 1px solid #2a3240;
+    border: 1px solid #d5dde7;
     padding: 8px 12px;
     text-align: left;
     vertical-align: top;
 }
 
 .doc-content th {
-    background: #151923;
+    background: #eef3f8;
 }
 
 .doc-content hr {
     border: 0;
-    border-top: 1px solid #2a3240;
+    border-top: 1px solid #d5dde7;
     margin: 24px 0;
 }
 
 .doc-content mjx-container {
     margin: 0.15em 0;
+}
+
+.doc-content .admonition {
+    border-left: 4px solid #8ea3ba;
+    background: #f1f5f9;
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 10px;
+}
+
+.doc-content .admonition.warning {
+    border-left-color: #d5961b;
+    background: #fff8e6;
+}
+
+.doc-content .admonition.tip {
+    border-left-color: #2f9e5f;
+    background: #effaf3;
+}
+
+.doc-content .admonition.note {
+    border-left-color: #2f6fd8;
+    background: #eef4ff;
+}
+
+.doc-content .admonition-title {
+    font-weight: 600;
+    margin-bottom: 6px;
 }
 
 /* Progress bar styles aligned with Activity Center */
@@ -356,8 +432,7 @@ html.docs-mode #main-area {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    min-width: 260px;
-    width: min(100%, 420px);
+    width: 100%;
     height: fit-content;
 }
 
@@ -438,17 +513,26 @@ html.docs-mode #main-area {
 }
 
 @media (max-width: 720px) {
-    .doc-action-buttons {
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
+    .doc-shell {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    .doc-port-row {
-        flex-wrap: wrap;
+    .doc-sidebar {
+        border-right: none;
+        border-bottom: 1px solid var(--doc-sidebar-border);
+        padding: 18px 16px;
     }
 
-    .progress-panel {
-        width: 100%;
+    .doc-main {
+        padding: 16px;
+    }
+
+    .doc-port-controls {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .doc-content {
+        padding: 24px 20px;
+        font-size: 16px;
     }
 }
