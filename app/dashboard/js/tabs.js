@@ -473,9 +473,7 @@
         if (window.marked && typeof window.marked.parse === 'function') {
             const html = window.marked.parse(cleaned, {
                 gfm: true,
-                breaks: false,
-                mangle: false,
-                headerIds: false
+                breaks: false
             });
             return normalizeRenderedMarkdown(html, baseDir);
         }
@@ -1451,18 +1449,42 @@
         return ids;
     }
 
+    // Returns ALL tab IDs in left-to-right DOM order (dashboard + doc tabs).
+    function getAllTabsInOrder() {
+        const ids = [];
+        for (const child of tabStrip.children) {
+            for (const [id, t] of tabs) {
+                if (t.button === child) {
+                    ids.push(id);
+                    break;
+                }
+            }
+        }
+        return ids;
+    }
+
+    async function switchToTab(id) {
+        const t = tabs.get(id);
+        if (!t) return;
+        if (id === dashboardTabId || t.type === 'dashboard') {
+            await switchToDashboardTab(id);
+        } else {
+            setActiveTab(id);
+        }
+    }
+
     // Keyboard shortcuts.
     document.addEventListener('keydown', (e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
         if (e.key === 'Tab') {
             e.preventDefault();
-            const order = getDashboardTabsInOrder();
+            const order = getAllTabsInOrder();
             if (order.length < 2) return;
             const idx = order.indexOf(activeTabId);
             const next = e.shiftKey
                 ? order[(idx - 1 + order.length) % order.length]
                 : order[(idx + 1) % order.length];
-            switchToDashboardTab(next);
+            switchToTab(next);
         } else if (e.key === 't') { e.preventDefault(); openNewDashboardTab(); }
         else if (e.key === 's') { e.preventDefault(); saveCurrentDashboard(); }
         else if (e.key === 'o') { e.preventDefault(); openDashboardDialog(); }

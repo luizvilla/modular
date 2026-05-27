@@ -1114,6 +1114,22 @@ var freeboard = (function()
             resizeTimer = setTimeout(resizeEnd, 500);
         });
 
+		$(document).on('keydown.freeboard-undo', function(e)
+		{
+			var activeElement = document.activeElement;
+			var tag = activeElement && activeElement.tagName;
+			if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+			if(activeElement && activeElement.isContentEditable) return;
+			if((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && String(e.key || '').toLowerCase() === 'z')
+			{
+				if(theFreeboardModel.isEditing())
+				{
+					e.preventDefault();
+					freeboardUI.undoLastDrag();
+				}
+			}
+		});
+
 	});
 
 	// PUBLIC FUNCTIONS

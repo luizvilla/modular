@@ -16945,11 +16945,17 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 		if(!$overlapped_widgets.length)
 		{
 			var pp = this.can_go_player_up(this.player_grid_data);
+			// Use the collision-detected row (colliders_data[0].row) as the
+			// canonical placement row rather than the `row` argument passed by
+			// on_start/stop_overlapping_row callbacks.  Those callbacks fire once
+			// for every faux-grid row a tall widget spans, so without this
+			// correction the placeholder drifts down to player.row + size_y - 1.
+			var placement_row = (cell && cell.row) ? cell.row : to_row;
 			if(pp !== false)
 			{
-				to_row = pp;
+				placement_row = pp;
 			}
-			this.set_placeholder(to_col, to_row);
+			this.set_placeholder(to_col, placement_row);
 		}
 
 		return {

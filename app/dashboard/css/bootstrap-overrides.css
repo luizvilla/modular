@@ -1203,8 +1203,12 @@ body.pane-resize-active .pane-resize-handle {
 .sub-section-height-10 { height: 600px; }
 
 /* When a pane contains only one widget, let it fill the full pane body
- * so the widget stretches when the user resizes the pane vertically. */
-.gridster section > .sub-section:only-child {
+ * so the widget stretches when the user resizes the pane vertically.
+ * Suppressed during any drag (widget-dragging = widget sort, pane-dragging
+ * = gridster pane move) so mid-drag height recalculations don't blow up
+ * pane or grid layout. */
+body:not(.widget-dragging):not(.pane-dragging) .gridster section > .sub-section:only-child {
+  box-sizing: border-box; /* padding-top:30px must not add to the 100% */
   height: 100% !important;
 }
 
@@ -1339,10 +1343,53 @@ body.pane-resize-active .pane-resize-handle {
   z-index: 3;
 }
 
+/* ── Dashboard lock button ───────────────────────────────────────────────── */
+#dashboard-lock-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e6e6e6;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-left: auto;
+    margin-right: 6px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+#dashboard-lock-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+#dashboard-lock-btn.is-locked {
+    border-color: #B88F51;
+    color: #B88F51;
+}
+
+html.theme-light #dashboard-lock-btn {
+    border-color: rgba(0, 0, 0, 0.15);
+    color: #333;
+}
+
+html.theme-light #dashboard-lock-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.3);
+}
+
+html.theme-light #dashboard-lock-btn.is-locked {
+    border-color: #B88F51;
+    color: #B88F51;
+}
+
 /* ── Theme toggle button ─────────────────────────────────────────────────── */
 #theme-toggle {
     display: none;
-    margin-left: auto;
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.15);
     color: #e6e6e6;

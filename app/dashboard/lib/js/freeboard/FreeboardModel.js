@@ -7,6 +7,8 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.version = 0;
 	this.isEditing = ko.observable(false);
 	this.allow_edit = ko.observable(false);
+	this.isLocked = ko.observable(false);
+	this.lockConfig = { passwordEnabled: false, password: '' };
 	this.allow_edit.subscribe(function(newValue)
 	{
 		if(newValue)
@@ -161,7 +163,10 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 			plugins     : self.plugins(),
 			panes       : panes,
 			datasources : datasources,
-			columns     : freeboardUI.getUserColumns()
+			columns     : freeboardUI.getUserColumns(),
+			lock        : self.isLocked()
+				? { passwordEnabled: self.lockConfig.passwordEnabled, password: self.lockConfig.password || undefined }
+				: undefined
 		};
 	}
 
@@ -237,6 +242,7 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 
 	this.clearDashboard = function()
 	{
+		freeboardUI.clearDragHistory();
 		freeboardUI.removeAllPanes();
 
 		_.each(self.datasources(), function(datasource)

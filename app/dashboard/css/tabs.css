@@ -351,12 +351,17 @@ html.docs-mode #main-area {
     border-radius: 8px;
     padding: 14px 16px;
     overflow: auto;
+    white-space: pre;       /* override global pre-wrap — code must never wrap */
+    word-break: normal;
+    word-wrap: normal;
 }
 
 .doc-content pre code {
     background: transparent;
+    color: inherit;
     padding: 0;
     border-radius: 0;
+    white-space: inherit;
 }
 
 .doc-content blockquote {

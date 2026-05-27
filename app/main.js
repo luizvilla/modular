@@ -1278,7 +1278,7 @@ function openFirmwareWorkspaceWindow() {
     return firmwareWindow;
 }
 
-const dashboardsDir = path.join(__dirname, '..', 'dashboards');
+const dashboardsDir = path.join(app.getPath('userData'), 'dashboards');
 fs.mkdirSync(dashboardsDir, { recursive: true });
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.

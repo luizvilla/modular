@@ -11,6 +11,7 @@ function FreeboardUI()
 	var loadingIndicator = $('<div class="wrapperloading"><div class="loading up" ></div><div class="loading down"></div></div>');
 	var grid;
 	var activePaneResize = null;
+	var dragHistory = [];
 
 	function processResize(layoutWidgets)
 	{
@@ -176,6 +177,67 @@ function FreeboardUI()
 		$(".responsive-column-width").css("width", grid.cols * PANE_WIDTH + (grid.cols * PANE_MARGIN * 2));
 	}
 
+	function saveDragSnapshot()
+	{
+		if(!grid || !grid.$el)
+		{
+			return;
+		}
+
+		var displayCols = grid.cols;
+		var snapshot = [];
+		grid.$el.find('> li').each(function()
+		{
+			var paneModel = ko.dataFor(this);
+			if(paneModel)
+			{
+				var panePosition = getPositionForScreenSize(paneModel);
+				var row = Number($(this).attr("data-row"));
+				var col = Number($(this).attr("data-col"));
+				snapshot.push({
+					paneModel  : paneModel,
+					displayCols: displayCols,
+					row        : _.isFinite(row) ? row : panePosition.row,
+					col        : _.isFinite(col) ? col : panePosition.col
+				});
+			}
+		});
+
+		if(snapshot.length)
+		{
+			dragHistory.push(snapshot);
+			if(dragHistory.length > 20) dragHistory.shift();
+		}
+	}
+
+	function undoLastDrag()
+	{
+		if(!grid || !dragHistory.length) return;
+		var snapshot = dragHistory.pop();
+		_.each(snapshot, function(saved)
+		{
+			if(!_.isObject(saved.paneModel.row))
+			{
+				saved.paneModel.row = {};
+			}
+			if(!_.isObject(saved.paneModel.col))
+			{
+				saved.paneModel.col = {};
+			}
+
+			saved.paneModel.row[saved.displayCols] = saved.row;
+			saved.paneModel.col[saved.displayCols] = saved.col;
+			saved.paneModel.row[grid.cols] = saved.row;
+			saved.paneModel.col[grid.cols] = saved.col;
+		});
+		processResize(true);
+	}
+
+	function clearDragHistory()
+	{
+		dragHistory = [];
+	}
+
 	function getUserColumns()
 	{
 		return userColumns;
@@ -194,7 +256,12 @@ function FreeboardUI()
 				widget_margins        : [PANE_MARGIN, PANE_MARGIN],
 				widget_base_dimensions: [PANE_WIDTH, 10],
 				draggable             : {
-					handle: '.pane-drag-handle, .pane-drag-handle *'
+					handle: '.pane-drag-handle, .pane-drag-handle *',
+					start : function() {
+						saveDragSnapshot();
+						document.body.classList.add('pane-dragging');
+					},
+					stop  : function() { document.body.classList.remove('pane-dragging'); }
 				},
 				resize: {
 					enabled : false,
@@ -557,6 +624,14 @@ function FreeboardUI()
 		setUserColumns : function(numCols)
 		{
 			setUserColumns(numCols);
+		},
+		undoLastDrag : function()
+		{
+			undoLastDrag();
+		},
+		clearDragHistory : function()
+		{
+			clearDragHistory();
 		}
 	}
 }

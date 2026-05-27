@@ -430,14 +430,13 @@ body {
 }
 
 .modal {
-	position: absolute;
+	position: relative;
 	background-color: #2a2a2a;
-	top: 120px;
+	margin-top: 120px;
 	width: 900px;
-	margin: auto;
-	right: 0px;
-	left: 0px;
-	margin-bottom: 25px;
+	margin-left: auto;
+	margin-right: auto;
+	margin-bottom: 70px;
 }
 
 .modal.small {
@@ -2085,8 +2084,7 @@ h2.title {
 
 	.modal {
 		width: 100%;
-		top: 0px;
-		left: 0px;
+		margin-top: 0px;
 	}
 
 	.datasource-list-container {

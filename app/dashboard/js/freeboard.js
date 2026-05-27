@@ -409,6 +409,8 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.version = 0;
 	this.isEditing = ko.observable(false);
 	this.allow_edit = ko.observable(false);
+	this.isLocked = ko.observable(false);
+	this.lockConfig = { passwordEnabled: false, password: '' };
 
 	this.header_image = ko.observable();
 	this.plugins = ko.observableArray();
@@ -576,7 +578,10 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 			plugins     : self.plugins(),
 			panes       : panes,
 			datasources : datasources,
-			columns     : freeboardUI.getUserColumns()
+			columns     : freeboardUI.getUserColumns(),
+			lock        : self.isLocked()
+				? { passwordEnabled: self.lockConfig.passwordEnabled, password: self.lockConfig.password || undefined }
+				: undefined
 		};
 	}
 
@@ -703,6 +708,15 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 				self.setEditing(true);
 			}
 
+			if(object.lock)
+			{
+				self.lockConfig = {
+					passwordEnabled: !!object.lock.passwordEnabled,
+					password       : object.lock.password || ''
+				};
+				self.applyLock();
+			}
+
 			if(_.isFunction(finishedCallback))
 			{
 				finishedCallback();
@@ -755,6 +769,9 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 	this.clearDashboard = function()
 	{
 		// Full reset before loading a new dashboard to avoid leftover state.
+		self.isLocked(false);
+		self.lockConfig = { passwordEnabled: false, password: '' };
+		freeboardUI.clearDragHistory();
 		freeboardUI.beginBulkRemove();
 		freeboardUI.removeAllPanes();
 
@@ -1067,10 +1084,31 @@ function FreeboardModel(datasourcePlugins, widgetPlugins, freeboardUI)
 		freeboard.emit("config_updated", self.getCurrentConfig());
 	}
 
+	this.applyLock = function()
+	{
+		self.isLocked(true);
+		self.setEditing(false, false);
+	}
+
+	this.applyUnlock = function()
+	{
+		self.isLocked(false);
+		if(self.allow_edit())
+		{
+			self.setEditing(true);
+		}
+	}
+
 	this.setEditing = function(editing, animate)
 	{
 		// Don't allow editing if it's not allowed
 		if(!self.allow_edit() && editing)
+		{
+			return;
+		}
+
+		// Don't allow re-entering editing mode while the dashboard is locked
+		if(self.isLocked() && editing)
 		{
 			return;
 		}
@@ -1114,6 +1152,7 @@ function FreeboardUI()
 	var grid;
 	var activePaneResize = null;
 	var suppressRemove = false;
+	var dragHistory = [];
 
 	function processResize(layoutWidgets)
 	{
@@ -1279,6 +1318,67 @@ function FreeboardUI()
 		$(".responsive-column-width").css("width", grid.cols * PANE_WIDTH + (grid.cols * PANE_MARGIN * 2));
 	}
 
+	function saveDragSnapshot()
+	{
+		if(!grid || !grid.$el)
+		{
+			return;
+		}
+
+		var displayCols = grid.cols;
+		var snapshot = [];
+		grid.$el.find('> li').each(function()
+		{
+			var paneModel = ko.dataFor(this);
+			if(paneModel)
+			{
+				var panePosition = getPositionForScreenSize(paneModel);
+				var row = Number($(this).attr("data-row"));
+				var col = Number($(this).attr("data-col"));
+				snapshot.push({
+					paneModel  : paneModel,
+					displayCols: displayCols,
+					row        : _.isFinite(row) ? row : panePosition.row,
+					col        : _.isFinite(col) ? col : panePosition.col
+				});
+			}
+		});
+
+		if(snapshot.length)
+		{
+			dragHistory.push(snapshot);
+			if(dragHistory.length > 20) dragHistory.shift();
+		}
+	}
+
+	function undoLastDrag()
+	{
+		if(!grid || !dragHistory.length) return;
+		var snapshot = dragHistory.pop();
+		_.each(snapshot, function(saved)
+		{
+			if(!_.isObject(saved.paneModel.row))
+			{
+				saved.paneModel.row = {};
+			}
+			if(!_.isObject(saved.paneModel.col))
+			{
+				saved.paneModel.col = {};
+			}
+
+			saved.paneModel.row[saved.displayCols] = saved.row;
+			saved.paneModel.col[saved.displayCols] = saved.col;
+			saved.paneModel.row[grid.cols] = saved.row;
+			saved.paneModel.col[grid.cols] = saved.col;
+		});
+		processResize(true);
+	}
+
+	function clearDragHistory()
+	{
+		dragHistory = [];
+	}
+
 	function getUserColumns()
 	{
 		return userColumns;
@@ -1297,7 +1397,12 @@ function FreeboardUI()
 				widget_margins        : [PANE_MARGIN, PANE_MARGIN],
 				widget_base_dimensions: [PANE_WIDTH, 10],
 				draggable             : {
-					handle: '.pane-drag-handle, .pane-drag-handle *'
+					handle: '.pane-drag-handle, .pane-drag-handle *',
+					start : function() {
+						saveDragSnapshot();
+						document.body.classList.add('pane-dragging');
+					},
+					stop  : function() { document.body.classList.remove('pane-dragging'); }
 				},
 				resize: {
 					enabled : false,
@@ -1738,6 +1843,14 @@ function FreeboardUI()
 		setUserColumns : function(numCols)
 		{
 			setUserColumns(numCols);
+		},
+		undoLastDrag : function()
+		{
+			undoLastDrag();
+		},
+		clearDragHistory : function()
+		{
+			clearDragHistory();
 		}
 	}
 }
@@ -4510,12 +4623,16 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 				scroll          : false,
 				disabled        : !theFreeboardModel.isEditing(),
 				start: function(event, ui) {
+					document.body.classList.add('widget-dragging');
 					ui.placeholder.height(ui.item.outerHeight());
 					var w = ui.item.data('ko-widget');
 					var p = ui.item.data('ko-pane');
 					ddLog('start | widget=' + (w ? w.type() : 'NULL') +
 						' pane="' + (p ? p.title() : 'NULL') + '"' +
 						' ko-widget set=' + !!w + ' ko-pane set=' + !!p);
+				},
+				stop: function() {
+					document.body.classList.remove('widget-dragging');
 				},
 				receive: function(event, ui) {
 					var widget     = ui.item.data('ko-widget');
@@ -4894,6 +5011,95 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 		return results == null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
 	}
 
+	function showLockSetupDialog()
+	{
+		var uid = 'lock-pwd-' + Date.now();
+		var content = $('<div></div>');
+
+		// Row 1 — Password protection YES/NO
+		var row1 = $('<div class="form-row"></div>').appendTo(content);
+		$('<div class="form-label"><label class="control-label">Password protection</label></div>').appendTo(row1);
+		var val1 = $('<div class="form-value"></div>').appendTo(row1);
+		var onOffSwitch = $('<div class="onoffswitch"><label class="onoffswitch-label" for="' + uid + '"><div class="onoffswitch-inner"><span class="on">YES</span><span class="off">NO</span></div><div class="onoffswitch-switch"></div></label></div>').appendTo(val1);
+		var pwdEnabledCheck = $('<input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="' + uid + '">').prependTo(onOffSwitch);
+
+		// Row 2 — Password field (disabled when NO)
+		var row2 = $('<div class="form-row" style="margin-top:8px;"></div>').appendTo(content);
+		$('<div class="form-label"><label class="control-label">Password</label></div>').appendTo(row2);
+		var val2 = $('<div class="form-value"></div>').appendTo(row2);
+		var pwdInput = $('<input type="password" placeholder="Enter password" autocomplete="new-password" disabled style="opacity:0.4;" />').appendTo(val2);
+
+		pwdEnabledCheck.on('change', function()
+		{
+			if(this.checked)
+			{
+				pwdInput.prop('disabled', false).css('opacity', '1').focus();
+			}
+			else
+			{
+				pwdInput.prop('disabled', true).css('opacity', '0.4').val('');
+			}
+		});
+
+		new DialogBox(content, 'LOCK SETUP', 'LOCK', 'CANCEL', function()
+		{
+			var passwordEnabled = pwdEnabledCheck.is(':checked');
+			var password = passwordEnabled ? pwdInput.val() : '';
+			theFreeboardModel.lockConfig = { passwordEnabled: passwordEnabled, password: password };
+			theFreeboardModel.applyLock();
+			updateLockButton();
+		});
+	}
+
+	function showUnlockDialog()
+	{
+		if(!theFreeboardModel.lockConfig.passwordEnabled)
+		{
+			theFreeboardModel.applyUnlock();
+			updateLockButton();
+			return;
+		}
+
+		var content = $('<div></div>');
+		var row = $('<div class="form-row"></div>').appendTo(content);
+		$('<div class="form-label"><label class="control-label">Password</label></div>').appendTo(row);
+		var val = $('<div class="form-value"></div>').appendTo(row);
+		var pwdInput = $('<input type="password" placeholder="Enter password" autocomplete="current-password" />').appendTo(val);
+		var errorMsg = $('<p style="color:#e57373;margin-top:8px;display:none;">Incorrect password</p>').appendTo(val);
+
+		new DialogBox(content, 'UNLOCK DASHBOARD', 'UNLOCK', 'CANCEL', function()
+		{
+			if(pwdInput.val() === theFreeboardModel.lockConfig.password)
+			{
+				theFreeboardModel.applyUnlock();
+				updateLockButton();
+			}
+			else
+			{
+				errorMsg.show();
+				pwdInput.val('').focus();
+				return true; // keep dialog open
+			}
+		});
+
+		setTimeout(function(){ pwdInput.focus(); }, 150);
+	}
+
+	function updateLockButton()
+	{
+		var btn = $('#dashboard-lock-btn');
+		if(theFreeboardModel.isLocked())
+		{
+			btn.attr('title', 'Unlock dashboard').addClass('is-locked');
+			btn.find('i').removeClass('fa-lock-open').addClass('fa-lock');
+		}
+		else
+		{
+			btn.attr('title', 'Lock dashboard').removeClass('is-locked');
+			btn.find('i').removeClass('fa-lock').addClass('fa-lock-open');
+		}
+	}
+
 	$(function()
 	{ //DOM Ready
 		// Show the loading indicator when we first load
@@ -4910,6 +5116,46 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(resizeEnd, 500);
         });
+
+		$(document).on('keydown.freeboard-undo', function(e)
+		{
+			var activeElement = document.activeElement;
+			var tag = activeElement && activeElement.tagName;
+			if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+			if(activeElement && activeElement.isContentEditable) return;
+			if((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && String(e.key || '').toLowerCase() === 'z')
+			{
+				if(theFreeboardModel.isEditing())
+				{
+					e.preventDefault();
+					freeboardUI.undoLastDrag();
+				}
+			}
+		});
+
+		$('#dashboard-lock-btn').on('click', function()
+		{
+			if(!theFreeboardModel.allow_edit()) return;
+			if(theFreeboardModel.isLocked())
+			{
+				showUnlockDialog();
+			}
+			else
+			{
+				showLockSetupDialog();
+			}
+		});
+
+		theFreeboardModel.isLocked.subscribe(function()
+		{
+			updateLockButton();
+		});
+
+		theFreeboardModel.allow_edit.subscribe(function(allowEdit)
+		{
+			var btn = $('#dashboard-lock-btn');
+			btn.prop('disabled', !allowEdit).css('opacity', allowEdit ? '' : '0.3').css('cursor', allowEdit ? '' : 'not-allowed');
+		});
 
 	});
 
