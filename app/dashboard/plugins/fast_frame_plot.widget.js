@@ -57,8 +57,13 @@
             this.chartShell = $('<div class="d-flex flex-column gap-2"></div>');
             this.chartHost = $('<div class="fast-frame-plot-host" style="min-height:0;overflow:hidden;"></div>');
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
-            this.emptyState = $('<div class="small text-muted border rounded p-3">Use the Fast Frame Channel Manager to add channels to this plot.</div>');
+            this.emptyState = $('<div class="small text-muted border rounded p-3">Add channels with the ↓ button below.</div>');
             this.chartShell.append(this.chartHost, this.resizeHandle);
+            this._editorOpen = false;
+            this._ed = null;
+            this.channelToggleBtn = null;
+            this.channelPanel = null;
+            this._buildChannelEditor();
         }
 
         render(el) {
@@ -66,7 +71,7 @@
             this.subSectionElement = el?.closest?.('.sub-section') || null;
             this.sectionElement = this.subSectionElement?.parentElement || null;
             $(el).append(this.container);
-            this.container.empty().append(this.status, this.chartShell, this.readoutHost);
+            this.container.empty().append(this.status, this.chartShell, this.readoutHost, this.channelToggleBtn, this.channelPanel);
             this._applyPlotHeight();
             this._bindHeightDrag();
             this._bindResize();
@@ -113,6 +118,7 @@
                 this.lastFileSignature = loaded.signature;
                 this.availableColumns = this.dataset ? this.dataset.headers.filter(header => header !== 'k_acquire') : [];
                 this.lastRenderedSignature = '';
+                if (this._editorOpen) this._refreshEditorColumns();
             }
             const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns);
             if (!this.dataset) {
@@ -125,7 +131,8 @@
                 this._renderPlaceholder();
                 return;
             }
-            const invalid = defs.filter(def => !this.availableColumns.includes(def.variable));
+            // Math channels with missing operands return [] from computeMathChannel — not a hard error.
+            const invalid = defs.filter(def => def.type !== 'math' && !this.availableColumns.includes(def.variable));
             if (invalid.length) {
                 this.status.text(`Missing columns: ${invalid.map(def => def.variable).join(', ')}`);
                 this._renderPlaceholder();
@@ -152,7 +159,10 @@
             const series = [{ label: this.settings.xLabel || this.settings.timeColumn || 'Sample' }];
 
             defs.forEach((def) => {
-                data.push(this.dataset.columns[def.variable] || []);
+                const yData = def.type === 'math'
+                    ? shared.computeMathChannel(def, this.dataset.columns)
+                    : (this.dataset.columns[def.variable] || []);
+                data.push(yData);
                 series.push({
                     label: def.label,
                     stroke: def.color,
@@ -288,6 +298,8 @@
             const shell = this.container?.[0];
             const status = this.status?.[0];
             const readout = this.readoutHost?.[0];
+            const toggle = this.channelToggleBtn?.[0];
+            const panel = this._editorOpen ? this.channelPanel?.[0] : null;
             if (!subSection || !shell) return 0;
             const shellStyles = window.getComputedStyle(shell);
             const shellPaddingTop = parseFloat(shellStyles.paddingTop) || 0;
@@ -295,16 +307,19 @@
             const shellGap = parseFloat(shellStyles.rowGap || shellStyles.gap) || 0;
             const statusH = status ? status.offsetHeight : 0;
             const readoutH = readout ? readout.offsetHeight : 0;
+            const toggleH = toggle ? toggle.offsetHeight : 0;
+            const panelH = panel ? panel.offsetHeight : 0;
             // Use container.clientHeight when available — it accounts for the .widget
             // padding (5px top + 5px bottom) that subSection.clientHeight does not.
             // Fall back to subSection minus the hardcoded widget padding (10px).
             const containerH = shell.clientHeight;
             const baseH = containerH > 0 ? containerH : subSection.clientHeight - 10;
-            // 3 flex items (status, chartShell, readout) → always 2 gaps between them.
+            // Fixed flex items: status, chartShell, readout, toggle (+panel when open).
+            const numGaps = 3 + (this._editorOpen ? 1 : 0);
             const available = baseH
                 - shellPaddingTop - shellPaddingBottom
-                - statusH - readoutH
-                - shellGap * 2;
+                - statusH - readoutH - toggleH - panelH
+                - shellGap * numGaps;
             return Math.max(160, available);
         }
 
@@ -350,6 +365,174 @@
             });
         }
 
+        // ── Inline channel editor ────────────────────────────────────────────────
+
+        _buildChannelEditor() {
+            const ed = {};
+            ed.type = $('<select class="form-select form-select-sm"></select>')
+                .append('<option value="regular">Regular</option>')
+                .append('<option value="math">Math</option>');
+            ed.variable = $('<select class="form-select form-select-sm"></select>');
+            ed.mathA    = $('<select class="form-select form-select-sm"></select>');
+            ed.mathOp   = $('<select class="form-select form-select-sm" style="max-width:56px"></select>')
+                .append('<option value="+">+</option>').append('<option value="-">−</option>')
+                .append('<option value="*">×</option>').append('<option value="/">/</option>');
+            ed.mathB    = $('<select class="form-select form-select-sm"></select>');
+            ed.mathK    = $('<input type="number" class="form-control form-control-sm" placeholder="k" step="any">');
+            ed.label    = $('<input type="text" class="form-control form-control-sm" placeholder="Label (optional)">');
+            ed.color    = $('<input type="color" class="form-control form-control-sm" value="#f28e2b" style="max-width:52px">');
+            ed.visible  = $('<input type="checkbox" class="form-check-input" checked>');
+            ed.list     = $('<div class="d-flex flex-column gap-1 mt-1"></div>');
+            this._ed = ed;
+
+            if (freeboard?.addStyle) {
+                freeboard.addStyle('.ff-ed-lbl', 'min-width:68px;font-size:11px;justify-content:center;');
+            }
+            const mkRow = (lbl, ...ctrls) =>
+                $('<div class="input-group input-group-sm"></div>')
+                .append(`<span class="input-group-text ff-ed-lbl">${lbl}</span>`, ...ctrls);
+
+            ed.varRow  = mkRow('Channel', ed.variable);
+            ed.mathRow = $('<div class="d-flex gap-1"></div>').append(
+                mkRow('A', ed.mathA), ed.mathOp, mkRow('B', ed.mathB)
+            );
+            ed.mathKRow = mkRow('k', ed.mathK);
+
+            ed.type.on('change', () => {
+                const math = ed.type.val() === 'math';
+                ed.varRow.toggle(!math);
+                ed.mathRow.toggle(math);
+                ed.mathKRow.hide();
+            });
+            ed.mathB.on('change', () => ed.mathKRow.toggle(ed.mathB.val() === '__const__'));
+
+            const addBtn = $('<button class="btn btn-primary btn-sm w-100">Add channel</button>')
+                .on('click', () => this._addChannel());
+
+            this.channelPanel = $('<div class="d-flex flex-column gap-1 border rounded p-2" style="display:none"></div>').append(
+                mkRow('Type', ed.type),
+                ed.varRow,
+                ed.mathRow,
+                ed.mathKRow,
+                mkRow('Label', ed.label),
+                $('<div class="d-flex gap-1"></div>').append(
+                    mkRow('Color', ed.color),
+                    $('<div class="input-group input-group-sm"></div>').append(
+                        '<label class="input-group-text ff-ed-lbl">Visible</label>',
+                        $('<span class="input-group-text"></span>').append(ed.visible)
+                    )
+                ),
+                addBtn,
+                ed.list
+            );
+
+            this.channelToggleBtn = $('<button class="btn btn-outline-secondary btn-sm w-100">▼ Channels</button>')
+                .on('click', () => this._toggleChannelEditor());
+
+            ed.varRow.show(); ed.mathRow.hide(); ed.mathKRow.hide();
+        }
+
+        _toggleChannelEditor() {
+            this._editorOpen = !this._editorOpen;
+            this.channelPanel.toggle(this._editorOpen);
+            this.channelToggleBtn.text(this._editorOpen ? '▲ Channels' : '▼ Channels');
+            if (this._editorOpen) {
+                this._refreshEditorColumns();
+                this._renderChannelList();
+            }
+            this._applyPlotHeight();
+            this._requestResize();
+        }
+
+        _refreshEditorColumns() {
+            if (!this._ed) return;
+            const cols = this.availableColumns || [];
+            const fill = (sel) => {
+                const prev = sel.val();
+                sel.empty();
+                cols.forEach(c => sel.append(`<option value="${c}">${c}</option>`));
+                if (prev && sel.find(`option[value="${prev}"]`).length) sel.val(prev);
+            };
+            fill(this._ed.variable);
+            fill(this._ed.mathA);
+            const prevB = this._ed.mathB.val();
+            this._ed.mathB.empty();
+            cols.forEach(c => this._ed.mathB.append(`<option value="${c}">${c}</option>`));
+            this._ed.mathB.append('<option value="__const__">— constant k —</option>');
+            if (prevB && this._ed.mathB.find(`option[value="${prevB}"]`).length) this._ed.mathB.val(prevB);
+            this._ed.mathKRow.toggle(this._ed.mathB.val() === '__const__');
+        }
+
+        _renderChannelList() {
+            if (!this._ed) return;
+            this._ed.list.empty();
+            const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns || []);
+            if (!defs.length) {
+                this._ed.list.append('<div class="small text-muted">No channels yet.</div>');
+                return;
+            }
+            defs.forEach((def, i) => {
+                const subtitle = def.type === 'math'
+                    ? `${def.operandA} ${def.operator} ${def.operandB}`
+                    : def.variable;
+                const row = $('<div class="d-flex align-items-center gap-1 border rounded px-2 py-1"></div>');
+                row.append(
+                    $(`<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${_.escape(def.color)};flex-shrink:0"></span>`),
+                    $(`<span class="small flex-fill text-truncate">${_.escape(def.label)} <span class="text-muted">(${_.escape(subtitle)})</span></span>`),
+                    $('<button class="btn btn-outline-danger btn-sm" style="padding:1px 6px;font-size:11px">✕</button>')
+                        .on('click', () => this._removeChannel(i))
+                );
+                this._ed.list.append(row);
+            });
+        }
+
+        _addChannel() {
+            const ed = this._ed;
+            if (!ed) return;
+            const currentDefs = Array.isArray(this.settings.seriesDefs) ? [...this.settings.seriesDefs] : [];
+            const color = ed.color.val() || shared.DEFAULT_COLORS[currentDefs.length % shared.DEFAULT_COLORS.length];
+            const visible = ed.visible.prop('checked');
+            const label = ed.label.val().trim();
+            let newDef;
+            if (ed.type.val() === 'math') {
+                const operandA = ed.mathA.val();
+                const operator = ed.mathOp.val();
+                const bIsConst = ed.mathB.val() === '__const__';
+                const operandB = bIsConst ? String(parseFloat(ed.mathK.val()) || 0) : ed.mathB.val();
+                if (!operandA || !operator || !operandB) return;
+                newDef = { type: 'math', operandA, operator, operandB,
+                    label: label || `${operandA} ${operator} ${operandB}`, color, visible };
+            } else {
+                const variable = ed.variable.val();
+                if (!variable) return;
+                newDef = { variable, label: label || variable, color, visible };
+            }
+            currentDefs.push(newDef);
+            this._updateSeriesDefs(currentDefs);
+            ed.label.val('');
+        }
+
+        _removeChannel(index) {
+            const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns || []);
+            defs.splice(index, 1);
+            this._updateSeriesDefs(defs);
+        }
+
+        _updateSeriesDefs(defs) {
+            this.settings = { ...this.settings, seriesDefs: defs };
+            this.lastRenderedSignature = '';
+            this._renderChannelList();
+            const model = freeboard.getLiveModel?.();
+            if (!model) return;
+            model.panes?.().forEach(pane => pane.widgets?.().forEach(w => {
+                if (w.widgetInstance === this) {
+                    w.settings({ ...(w.settings() || {}), seriesDefs: defs });
+                }
+            }));
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+
         onSettingsChanged(newSettings) {
             this.settings = { ...newSettings };
             this.lastFileSignature = '';
@@ -358,6 +541,7 @@
             this._scheduleHelperSpawn();
             this._startPolling();
             this._requestResize();
+            if (this._editorOpen) this._renderChannelList();
         }
 
         onSizeChanged() {

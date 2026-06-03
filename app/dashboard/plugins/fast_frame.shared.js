@@ -229,6 +229,26 @@
         widget.widgetInstance?.onSettingsChanged(updated);
     }
 
+    function computeMathChannel(def, columns) {
+        const aCol = columns[def.operandA];
+        if (!aCol || !aCol.length) return [];
+        const bIsConst = def.operandB !== '' && Number.isFinite(Number(def.operandB));
+        const bConst = bIsConst ? Number(def.operandB) : null;
+        const bCol = bIsConst ? null : columns[def.operandB];
+        return aCol.map((a, i) => {
+            if (a === null || !Number.isFinite(a)) return null;
+            const b = bIsConst ? bConst : (bCol ? bCol[i] : null);
+            if (b === null || !Number.isFinite(b)) return null;
+            switch (def.operator) {
+                case '+': return a + b;
+                case '-': return a - b;
+                case '*': return a * b;
+                case '/': return b !== 0 ? a / b : null;
+            }
+            return null;
+        });
+    }
+
     function normalizeSeriesDefs(settings, columns) {
         const available = Array.isArray(columns) ? columns : [];
         const defs = Array.isArray(settings?.seriesDefs) ? settings.seriesDefs.slice() : [];
@@ -241,13 +261,31 @@
             });
         }
         return defs
-            .filter(def => def && def.variable && available.includes(def.variable))
-            .map((def, index) => ({
-                variable: def.variable,
-                label: def.label || def.variable,
-                color: def.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
-                visible: def.visible !== false
-            }));
+            .filter(def => {
+                if (!def) return false;
+                if (def.type === 'math') return def.operandA && def.operator && def.operandB !== undefined && def.operandB !== '';
+                return def.variable && available.includes(def.variable);
+            })
+            .map((def, index) => {
+                if (def.type === 'math') {
+                    return {
+                        type: 'math',
+                        variable: `__math__:${def.operandA}:${def.operator}:${def.operandB}`,
+                        label: def.label || `${def.operandA} ${def.operator} ${def.operandB}`,
+                        color: def.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+                        visible: def.visible !== false,
+                        operandA: def.operandA,
+                        operator: def.operator,
+                        operandB: String(def.operandB)
+                    };
+                }
+                return {
+                    variable: def.variable,
+                    label: def.label || def.variable,
+                    color: def.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+                    visible: def.visible !== false
+                };
+            });
     }
 
     const DEFAULT_COLORS = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc949'];
@@ -271,6 +309,7 @@
         listWidgetsByType,
         findWidgetByTitle,
         updateWidgetSettings,
+        computeMathChannel,
         normalizeSeriesDefs
     };
 }());
