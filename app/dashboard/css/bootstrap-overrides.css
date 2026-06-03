@@ -191,6 +191,16 @@ textarea.form-control {
   width: 40px;
 }
 
+/* Board content: fills remaining flex space and scrolls horizontally when the
+   grid is wider than the viewport (fixed-layout dashboards on narrow monitors).
+   min-width:0 is required on flex children to allow inner overflow scrolling. */
+#board-content {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 #side-pane.collapsed #side-pane-tabs,
 #side-pane.collapsed #side-tab-datasources,
 #side-pane.collapsed #side-tab-widgets {

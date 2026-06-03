@@ -1175,7 +1175,10 @@ function FreeboardUI()
 			}
 		}
 
-		updateGridWidth(Math.min(maxDisplayableColumns, userColumns));
+		// Always use the saved column count so pane positions are preserved when the
+		// viewport is narrower than the dashboard was designed for.  The board-content
+		// container handles horizontal overflow via CSS overflow-x:auto.
+		updateGridWidth(userColumns);
 
 		repositionGrid(repositionFunction);
 		updateGridColumnControls();
@@ -1284,15 +1287,12 @@ function FreeboardUI()
 			newCols = MIN_COLUMNS;
 		}
 
-		var max_columns = getMaxDisplayableColumnCount();
-		if(newCols > max_columns)
-		{
-			newCols = max_columns;
-		}
-
-		// +newCols to account for scaling on zoomed browsers
+		// No viewport cap: the grid always renders at the saved column count.
+		// The board-content container scrolls horizontally when the grid is wider
+		// than the window (see overflow-x:auto in bootstrap-overrides.css).
+		// +newCols accounts for sub-pixel scaling on zoomed browsers.
 		var new_width = (COLUMN_WIDTH * newCols) + newCols;
-		$(".responsive-column-width").css("max-width", new_width);
+		$(".responsive-column-width").css("min-width", new_width);
 
 		if(newCols === grid.cols)
 		{
@@ -1309,7 +1309,13 @@ function FreeboardUI()
 		var rootElement = grid.$el;
 
 		rootElement.find("> li").unbind().removeData();
-		$(".responsive-column-width").css("width", "");
+		// Pin the container to the saved column width BEFORE Gridster calls
+		// generate_grid_and_stylesheet(), which derives grid.cols from the container's
+		// rendered width.  Without this, a narrow viewport would shrink the container
+		// (after clearing 'width') and cause Gridster to recalculate fewer columns,
+		// repositioning every pane to approximate positions.
+		var fixedWidth = userColumns * COLUMN_WIDTH;
+		$(".responsive-column-width").css("width", fixedWidth);
 		grid.generate_grid_and_stylesheet();
 
 		rootElement.find("> li").each(repositionFunction);
