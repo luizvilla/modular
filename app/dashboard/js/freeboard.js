@@ -1385,6 +1385,27 @@ function FreeboardUI()
 		dragHistory = [];
 	}
 
+	function syncAllPanePositionsFromDOM()
+	{
+		// After every drag Gridster has the authoritative final positions in the
+		// DOM.  attrchange may have stored intermediate displaced values in the
+		// model (e.g. when a bystander pane is moved aside then returns to the
+		// same row — MutationObserver does not fire for a same-value write).
+		// Read each pane's final data-row/data-col and write it to the model so
+		// any future processResize(true) call renders the correct layout.
+		if(!grid || !grid.$el) { return; }
+		grid.$el.find('> li').each(function()
+		{
+			var paneModel = ko.dataFor(this);
+			var row = Number($(this).attr("data-row"));
+			var col = Number($(this).attr("data-col"));
+			if(paneModel && _.isFinite(row) && _.isFinite(col))
+			{
+				updatePositionForScreenSize(paneModel, row, col);
+			}
+		});
+	}
+
 	function getUserColumns()
 	{
 		return userColumns;
@@ -1408,7 +1429,17 @@ function FreeboardUI()
 						saveDragSnapshot();
 						document.body.classList.add('pane-dragging');
 					},
-					stop  : function() { document.body.classList.remove('pane-dragging'); }
+					stop  : function()
+					{
+						document.body.classList.remove('pane-dragging');
+						// Reconcile every pane model with the final DOM position that
+						// Gridster settled on.  attrchange tracks live attribute changes
+						// but misses bystander panes that return to their original row
+						// (MutationObserver does not fire for same-value writes), leaving
+						// stale intermediate values in the model that cause panes to jump
+						// the next time processResize(true) is called (e.g. on resize).
+						syncAllPanePositionsFromDOM();
+					}
 				},
 				resize: {
 					enabled : false,
