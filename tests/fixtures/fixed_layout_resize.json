@@ -1,0 +1,72 @@
+{
+  "version": "0.9",
+  "allow_javascript": false,
+  "plugins": [],
+  "panes": [
+    {
+      "title": "Left Pane",
+      "width": 1,
+      "row": { "15": 1 },
+      "col": { "15": 1 },
+      "col_width": 2,
+      "row_height": 10,
+      "widgets": [
+        {
+          "type": "text_widget",
+          "settings": {
+            "title": "Left",
+            "size": "regular",
+            "value": "L",
+            "sparkline": false,
+            "animate": false,
+            "units": ""
+          }
+        }
+      ]
+    },
+    {
+      "title": "Centre Pane",
+      "width": 1,
+      "row": { "15": 1 },
+      "col": { "15": 7 },
+      "col_width": 2,
+      "row_height": 10,
+      "widgets": [
+        {
+          "type": "text_widget",
+          "settings": {
+            "title": "Centre",
+            "size": "regular",
+            "value": "C",
+            "sparkline": false,
+            "animate": false,
+            "units": ""
+          }
+        }
+      ]
+    },
+    {
+      "title": "Right Pane",
+      "width": 1,
+      "row": { "15": 1 },
+      "col": { "15": 13 },
+      "col_width": 2,
+      "row_height": 10,
+      "widgets": [
+        {
+          "type": "text_widget",
+          "settings": {
+            "title": "Right",
+            "size": "regular",
+            "value": "R",
+            "sparkline": false,
+            "animate": false,
+            "units": ""
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [],
+  "columns": 15
+}
