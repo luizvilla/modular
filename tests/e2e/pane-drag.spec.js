@@ -106,3 +106,67 @@ test('pane drag undo restores the previous pane positions', async () => {
 
   await app.close();
 });
+
+/**
+ * Regression: bystander panes (those not being dragged) must have their
+ * paneModel.row/col kept in sync with the DOM after every drag.
+ *
+ * The bug: when a bystander pane is moved aside during drag and returns to
+ * its original row at drag-end, MutationObserver does not fire (same-value
+ * write), so the model retains a stale intermediate row value.  The next
+ * processResize(true) call (e.g. window resize) then repositions those panes
+ * to the stale model value — panes "fly away".
+ *
+ * The fix: draggable.stop calls syncAllPanePositionsFromDOM() which writes
+ * every pane's final DOM position back to the model unconditionally.
+ */
+test('pane drag — bystander pane models stay in sync with DOM after drag', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  await loadDashboard(page, fixturePath('pane_drag_3pane.json'));
+
+  await page.evaluate(() => window.freeboard.setEditing(true));
+  await page.waitForTimeout(400);
+
+  const panes = page.locator('.gridster .gs_w');
+  await expect(panes).toHaveCount(3, { timeout: 10_000 });
+
+  // Drag pane A (col 1) onto pane B (col 2); pane C must react to make room.
+  const handleA = panes.nth(0).locator('.pane-drag-handle');
+  const handleB = panes.nth(1).locator('.pane-drag-handle');
+  await handleA.dragTo(handleB);
+
+  // Allow Gridster's drop animation and syncAllPanePositionsFromDOM to settle.
+  await page.waitForTimeout(600);
+
+  // For each DOM pane element, compare its data-row/data-col attributes with
+  // the paneModel's stored row/col at the current column key.
+  // window.freeboard.serialize().columns gives the key used by
+  // updatePositionForScreenSize (== freeboardUI.getUserColumns() == grid.cols).
+  const mismatches = await page.evaluate(() => {
+    const colKey = String(window.freeboard.serialize().columns);
+    const liElements = Array.from(document.querySelectorAll('.gridster > ul > li'));
+    const results = [];
+
+    liElements.forEach(function(li) {
+      const model = window.ko.dataFor(li);   // Knockout model bound to this element
+      if (!model) return;
+      const domRow = Number(li.getAttribute('data-row'));
+      const domCol = Number(li.getAttribute('data-col'));
+      const modelRow = model.row[colKey];
+      const modelCol = model.col[colKey];
+      if (modelRow !== domRow || modelCol !== domCol) {
+        results.push({
+          title: model.title ? model.title() : '?',
+          domRow, domCol, modelRow, modelCol,
+        });
+      }
+    });
+
+    return results;
+  });
+
+  expect(mismatches).toHaveLength(0);
+
+  await app.close();
+});
