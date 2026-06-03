@@ -197,10 +197,12 @@
             const row = $('<div class="d-flex gap-2 flex-wrap align-items-center justify-content-start"></div>');
             const trigger = $('<button class="btn btn-outline-warning btn-sm">Trigger</button>');
             const acquire = $('<button class="btn btn-outline-info btn-sm">Acquire</button>');
+            const ripple = $('<button class="btn btn-outline-secondary btn-sm">Ripple Acq.</button>');
             const status = $('<div class="small text-muted">—</div>');
-            row.append(trigger, acquire);
+            row.append(trigger, acquire, ripple);
 
             trigger.on('click', () => this._send(protocol.cmdScopeTrigger()));
+            ripple.on('click', () => this._send(protocol.cmdRippleAcquire()));
 
             acquire.on('click', async () => {
                 const portPath = this._getPortPath();

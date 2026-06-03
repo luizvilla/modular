@@ -133,6 +133,10 @@
     return 'o_r';
   }
 
+  function cmdRippleAcquire() {
+    return 'o_p';
+  }
+
   function cmdCalibrate(variable, gain, offset, deviceType) {
     const varId = normalizeVariable(variable, deviceType);
     return `k_${varId}_g_${formatFixed(gain, 8)}_o_${formatFixed(offset, 8)}`;
@@ -150,6 +154,7 @@
     cmdToggle,
     cmdScopeTrigger,
     cmdScopeAcquire,
+    cmdRippleAcquire,
     cmdReference,
     cmdDuty,
     cmdPhaseShift,
