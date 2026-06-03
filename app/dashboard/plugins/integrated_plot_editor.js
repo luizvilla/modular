@@ -394,13 +394,26 @@
         const rawDefs = Array.isArray(settings && settings.seriesDefs) ? settings.seriesDefs : [];
         if (rawDefs.length) {
             return rawDefs
-                .filter((def) => def && def.variable)
-                .map((def, index) => ({
-                    variable: def.variable,
-                    label: def.label || def.variable,
-                    color: def.color || sharedFast.DEFAULT_COLORS[index % sharedFast.DEFAULT_COLORS.length],
-                    visible: def.visible !== false
-                }));
+                .filter((def) => def && (def.variable || (def.type === 'math' && def.operandA && def.operator && def.operandB !== undefined && def.operandB !== '')))
+                .map((def, index) => {
+                    if (def.type === 'math') {
+                        return {
+                            type: 'math',
+                            operandA: def.operandA,
+                            operator: def.operator,
+                            operandB: String(def.operandB),
+                            label: def.label || `${def.operandA} ${def.operator} ${def.operandB}`,
+                            color: def.color || sharedFast.DEFAULT_COLORS[index % sharedFast.DEFAULT_COLORS.length],
+                            visible: def.visible !== false
+                        };
+                    }
+                    return {
+                        variable: def.variable,
+                        label: def.label || def.variable,
+                        color: def.color || sharedFast.DEFAULT_COLORS[index % sharedFast.DEFAULT_COLORS.length],
+                        visible: def.visible !== false
+                    };
+                });
         }
         if (settings && settings.yVariable) {
             return [{
@@ -463,7 +476,20 @@
         left.append(sourceSection);
 
         const channelsSection = createSection('Channels');
+        const typeField = createSelectRow('Type', [
+            { value: 'regular', label: 'Regular' },
+            { value: 'math', label: 'Math' }
+        ], 'regular');
         const yVariableField = createSelectRow('Y Variable', [], settings.yVariable || '', 'Select Y variable');
+        // Math channel controls
+        const mathAField = createSelectRow('A', [], '', 'Select A');
+        const mathOpField = createSelectRow('Op', [
+            { value: '+', label: '+' }, { value: '-', label: '−' },
+            { value: '*', label: '×' }, { value: '/', label: '/' }
+        ], '+');
+        mathOpField.row.find('.input-group-text').css('min-width', '0');
+        const mathBField = createSelectRow('B', [], '', 'Select B');
+        const mathKField = createInputRow('k', 'number', '', 'constant value');
         const labelField = createInputRow('Label', 'text', '', 'Optional label');
         const colorField = createInputRow('Color', 'color', sharedFast.DEFAULT_COLORS[0]);
         const visibleField = createCheckboxRow('Visible', true);
@@ -474,7 +500,12 @@
         const channelList = $('<div class="d-flex flex-column gap-2"></div>');
         channelActions.append(applySourceButton, addChannelButton, resetChannelsButton);
         channelsSection.append(
+            typeField.row,
             yVariableField.row,
+            mathAField.row,
+            mathOpField.row,
+            mathBField.row,
+            mathKField.row,
             labelField.row,
             colorField.row,
             visibleField.row,
@@ -482,6 +513,18 @@
             channelList
         );
         left.append(channelsSection);
+
+        function syncChannelTypeUi() {
+            const isMath = typeField.select.val() === 'math';
+            yVariableField.row.toggle(!isMath);
+            mathAField.row.toggle(isMath);
+            mathOpField.row.toggle(isMath);
+            mathBField.row.toggle(isMath);
+            mathKField.row.toggle(isMath && mathBField.select.val() === '__const__');
+        }
+        typeField.select.on('change', syncChannelTypeUi);
+        mathBField.select.on('change', () => mathKField.row.toggle(mathBField.select.val() === '__const__'));
+        syncChannelTypeUi();
 
         const displaySection = createSection('Display');
         const titleField = createInputRow('Title', 'text', settings.title || 'Fast Frame Plot');
@@ -513,7 +556,12 @@
             channelList.empty();
             state.seriesDefs.forEach((def, index) => {
                 const row = $('<div class="border rounded p-2 d-flex justify-content-between align-items-center gap-2"></div>');
-                const summary = `${def.label || def.variable} (${def.variable})${def.visible === false ? ' [hidden]' : ''}`;
+                let summary;
+                if (def.type === 'math') {
+                    summary = `${def.label} (${def.operandA} ${def.operator} ${def.operandB})${def.visible === false ? ' [hidden]' : ''}`;
+                } else {
+                    summary = `${def.label || def.variable} (${def.variable})${def.visible === false ? ' [hidden]' : ''}`;
+                }
                 row.append($('<div class="small"></div>').text(summary));
                 row.append($('<button type="button" class="btn btn-sm btn-outline-danger">Remove</button>').on('click', () => {
                     state.seriesDefs.splice(index, 1);
@@ -563,6 +611,14 @@
                 preferredY !== undefined ? preferredY : (yVariableField.select.val() || settings.yVariable || ''),
                 'Select Y variable'
             );
+            populateFastFrameColumnSelect(mathAField.select, state.availableColumns, mathAField.select.val() || '', 'Select A');
+            // mathB: columns + constant option
+            const prevB = mathBField.select.val();
+            mathBField.select.empty().append('<option value="">Select B</option>');
+            state.availableColumns.forEach((col) => mathBField.select.append($('<option></option>').attr('value', col).text(col)));
+            mathBField.select.append('<option value="__const__">— constant k —</option>');
+            if (prevB && mathBField.select.find(`option[value="${prevB}"]`).length) mathBField.select.val(prevB);
+            mathKField.row.toggle(typeField.select.val() === 'math' && mathBField.select.val() === '__const__');
         }
 
         sourceModeField.select.on('change', () => {
@@ -585,14 +641,24 @@
         });
 
         addChannelButton.on('click', () => {
-            const variable = yVariableField.select.val();
-            if (!variable) return;
-            state.seriesDefs.push({
-                variable,
-                label: labelField.input.val() || variable,
-                color: colorField.input.val() || sharedFast.DEFAULT_COLORS[state.seriesDefs.length % sharedFast.DEFAULT_COLORS.length],
-                visible: visibleField.input.prop('checked')
-            });
+            const isMath = typeField.select.val() === 'math';
+            const color = colorField.input.val() || sharedFast.DEFAULT_COLORS[state.seriesDefs.length % sharedFast.DEFAULT_COLORS.length];
+            const visible = visibleField.input.prop('checked');
+            const label = labelField.input.val().trim();
+            if (isMath) {
+                const operandA = mathAField.select.val();
+                const operator = mathOpField.select.val();
+                const bIsConst = mathBField.select.val() === '__const__';
+                const operandB = bIsConst ? String(parseFloat(mathKField.input.val()) || 0) : mathBField.select.val();
+                if (!operandA || !operator || !operandB) return;
+                state.seriesDefs.push({ type: 'math', operandA, operator, operandB,
+                    label: label || `${operandA} ${operator} ${operandB}`, color, visible });
+            } else {
+                const variable = yVariableField.select.val();
+                if (!variable) return;
+                state.seriesDefs.push({ variable, label: label || variable, color, visible });
+            }
+            labelField.input.val('');
             renderSeriesList();
         });
 
