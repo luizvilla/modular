@@ -409,7 +409,7 @@
             const addBtn = $('<button class="btn btn-primary btn-sm w-100">Add channel</button>')
                 .on('click', () => this._addChannel());
 
-            this.channelPanel = $('<div class="d-flex flex-column gap-1 border rounded p-2" style="display:none"></div>').append(
+            this.channelPanel = $('<div class="d-flex flex-column gap-1 border rounded p-2" style="display:none;overflow-y:auto;max-height:300px"></div>').append(
                 mkRow('Type', ed.type),
                 ed.varRow,
                 ed.mathRow,
