@@ -4450,7 +4450,7 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 						return;
 					}
 
-					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge')) {
+					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge' || instanceType === 'state_machine')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
 					}

@@ -8,6 +8,7 @@
   "rendererScripts": [
     { "path": "js/twist_protocol.js", "order": 5 },
     { "path": "plugins/twist_control.widget.js", "order": 170 },
+    { "path": "plugins/state_machine.widget.js", "order": 175 },
     { "path": "plugins/twist_setpoints.widget.js", "order": 180 },
     { "path": "plugins/twist_calibration.widget.js", "order": 190 }
   ],

@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "panes": [
+    {
+      "width": 1,
+      "row": { "3": 1 },
+      "col": { "3": 1 },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "state_machine",
+          "settings": {
+            "title": "Test State Machine",
+            "datasource": "",
+            "deviceType": "TWIST",
+            "initialState": "",
+            "states": [],
+            "transitions": []
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [],
+  "columns": 3
+}

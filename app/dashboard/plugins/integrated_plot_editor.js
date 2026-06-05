@@ -946,6 +946,10 @@
     window.ModularIntegratedPlotEditor = {
         open(widgetModel, type, providedShared) {
             const shared = getShared(providedShared);
+            if (type === 'state_machine') {
+                if (window.ModularStateMachineEditor) window.ModularStateMachineEditor.open(widgetModel);
+                return true;
+            }
             if (!shared || !widgetModel) return false;
             if (type === 'time_plot_uplot') {
                 return openOwntechPlotEditor(widgetModel, shared);
