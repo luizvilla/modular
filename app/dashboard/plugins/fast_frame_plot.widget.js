@@ -51,7 +51,7 @@
             this.hostElement = null;
             this.subSectionElement = null;
             this.sectionElement = null;
-            this.container = $('<div class="fast-frame-plot h-100 d-flex flex-column gap-2 p-2"></div>');
+            this.container = $('<div class="fast-frame-plot h-100 d-flex flex-column gap-2 p-2" style="overflow-y:auto"></div>');
             this.status = $('<div class="small text-muted border rounded p-2 mb-2">Configure a CSV source, time column, and one or more plotted channels.</div>');
             this.readoutHost = $('<div class="uplot-readout-grid"></div>');
             this.chartShell = $('<div class="d-flex flex-column gap-2"></div>');
@@ -409,7 +409,7 @@
             const addBtn = $('<button class="btn btn-primary btn-sm w-100">Add channel</button>')
                 .on('click', () => this._addChannel());
 
-            this.channelPanel = $('<div class="d-flex flex-column gap-1 border rounded p-2" style="display:none;overflow-y:auto;max-height:300px"></div>').append(
+            this.channelPanel = $('<div class="d-flex flex-column gap-1 border rounded p-2" style="display:none"></div>').append(
                 mkRow('Type', ed.type),
                 ed.varRow,
                 ed.mathRow,
