@@ -1,15 +1,6 @@
 (function () {
     const protocol = window.twistProtocol || null;
 
-    if (freeboard?.addStyle) {
-        freeboard.addStyle('.sm-editor-modal', 'display:flex;flex-direction:column;width:900px;height:580px;max-width:98vw;');
-        freeboard.addStyle('.sm-editor-modal .sm-top-row', 'display:flex;gap:8px;flex:1;min-height:0;overflow:hidden;');
-        freeboard.addStyle('.sm-editor-modal .sm-canvas-wrap', 'flex:1;min-width:0;position:relative;overflow:hidden;background:#111;border:1px solid #444;border-radius:4px;');
-        freeboard.addStyle('.sm-editor-modal .sm-canvas', 'width:100%;height:100%;display:block;');
-        freeboard.addStyle('.sm-editor-modal .sm-sidebar', 'width:260px;flex-shrink:0;display:flex;flex-column:column;gap:6px;overflow:hidden;');
-        freeboard.addStyle('.sm-editor-modal .sm-tab-content', 'flex:1;min-height:0;overflow:auto;border:1px solid #444;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:4px;');
-        freeboard.addStyle('.sm-editor-modal .sm-params-panel', 'height:200px;overflow-y:auto;flex-shrink:0;border-top:1px solid #444;padding-top:6px;');
-    }
 
     class StateMachineEditor {
         constructor(widgetModel) {
@@ -35,17 +26,31 @@
         // ── layout ────────────────────────────────────────────────────────────
 
         _buildLayout() {
-            const wrap = $('<div class="sm-editor-modal"></div>');
+            // The modal is hardcoded to 640px wide. All layout uses inline styles so there
+            // is no dependency on addStyle ordering or CSS specificity.
+            const wrap = $('<div class="sm-editor-modal"></div>').css({
+                display: 'flex', flexDirection: 'column', height: '560px'
+            });
 
-            // Top row: canvas + sidebar
-            const topRow = $('<div class="sm-top-row"></div>');
+            // Top row: canvas (flex:1) + sidebar (200px fixed)
+            const topRow = $('<div></div>').css({
+                display: 'flex', gap: '8px', flex: '1', minHeight: '0'
+            });
 
             // SVG canvas
-            const canvasWrap = $('<div class="sm-canvas-wrap"></div>');
-            const hint = $('<div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-size:11px;color:#555;pointer-events:none">Drag to reposition &bull; Click to select &bull; Shift+click two states to add transition</div>');
+            const canvasWrap = $('<div></div>').css({
+                flex: '1', minWidth: '0', position: 'relative', overflow: 'hidden',
+                background: '#111', border: '1px solid #444', borderRadius: '4px'
+            });
+            const hint = $('<div></div>').css({
+                position: 'absolute', top: '4px', left: '0', right: '0',
+                textAlign: 'center', fontSize: '11px', color: '#555', pointerEvents: 'none'
+            }).html('Drag to reposition &bull; Click to select &bull; Shift+click two states to add transition');
             canvasWrap.append(hint);
             const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svgEl.setAttribute('class', 'sm-canvas');
+            svgEl.style.width = '100%';
+            svgEl.style.height = '100%';
+            svgEl.style.display = 'block';
             this._svg = svgEl;
             const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
             defs.innerHTML = `
@@ -58,28 +63,37 @@
             svgEl.appendChild(defs);
             canvasWrap.append(svgEl);
 
-            // Sidebar
-            const sidebar = $('<div class="sm-sidebar d-flex flex-column gap-1"></div>');
+            // Sidebar (200px, flex column)
+            const sidebar = $('<div></div>').css({
+                width: '200px', flexShrink: '0', display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden'
+            });
 
             this._statesTabBtn = $('<button class="btn btn-sm btn-primary">States</button>');
             this._transTabBtn = $('<button class="btn btn-sm btn-outline-secondary">Transitions</button>');
             const tabBar = $('<div class="d-flex gap-1"></div>').append(this._statesTabBtn, this._transTabBtn);
 
             const addStateBtn = $('<button class="btn btn-sm btn-outline-success w-100">+ Add State</button>');
-            this._statesList = $('<div class="d-flex flex-column gap-1"></div>');
-            this._statesPanel = $('<div class="d-flex flex-column gap-1 h-100"></div>').append(addStateBtn, this._statesList);
+            this._statesList = $('<div class="d-flex flex-column gap-1" style="overflow-y:auto"></div>');
+            this._statesPanel = $('<div class="d-flex flex-column gap-1"></div>').css({ flex: '1', minHeight: '0' }).append(addStateBtn, this._statesList);
 
             const addTransBtn = $('<button class="btn btn-sm btn-outline-success w-100">+ Add Transition</button>');
-            this._transList = $('<div class="d-flex flex-column gap-1"></div>');
-            this._transPanel = $('<div class="d-flex flex-column gap-1 h-100" style="display:none"></div>').append(addTransBtn, this._transList);
+            this._transList = $('<div class="d-flex flex-column gap-1" style="overflow-y:auto"></div>');
+            this._transPanel = $('<div class="d-flex flex-column gap-1" style="display:none"></div>').css({ flex: '1', minHeight: '0' }).append(addTransBtn, this._transList);
 
-            const tabContent = $('<div class="sm-tab-content"></div>').append(this._statesPanel, this._transPanel);
+            const tabContent = $('<div></div>').css({
+                flex: '1', minHeight: '0', overflowY: 'auto',
+                border: '1px solid #444', borderRadius: '4px', padding: '6px',
+                display: 'flex', flexDirection: 'column', gap: '4px'
+            }).append(this._statesPanel, this._transPanel);
             sidebar.append(tabBar, tabContent);
 
             topRow.append(canvasWrap, sidebar);
 
-            // Bottom: params panel
-            this._paramsPanel = $('<div class="sm-params-panel"></div>');
+            // Bottom: params panel (fixed height)
+            this._paramsPanel = $('<div></div>').css({
+                height: '185px', overflowY: 'auto', flexShrink: '0',
+                borderTop: '1px solid #444', paddingTop: '6px', marginTop: '4px'
+            });
             this._showNoSelection();
 
             wrap.append(topRow, this._paramsPanel);
