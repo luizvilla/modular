@@ -260,3 +260,173 @@ test('editor: transition form opens via Add Transition button', async () => {
     await activeModal(page).locator('#dialog-cancel').click();
     await app.close();
 });
+
+// ── Session 3: execution engine ───────────────────────────────────────────────
+
+const EXEC_SETTINGS = {
+    title: 'Test',
+    datasource: '',
+    deviceType: 'TWIST',
+    initialState: 's0',
+    states: [
+        { id: 's0', name: 'IDLE', x: 100, y: 80, powerMode: 'IDLE', legs: [] },
+        { id: 's1', name: 'RUN',  x: 250, y: 80, powerMode: 'ON',   legs: [] }
+    ],
+    transitions: [
+        { id: 't0', from: 's0', to: 's1', variable: 'V1', mathOp: 'x', mathK: 1, mathB: 0, operator: '>', threshold: 10 }
+    ]
+};
+
+async function loadExecSettings(page) {
+    await page.evaluate((s) => {
+        window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance.onSettingsChanged(s);
+    }, EXEC_SETTINGS);
+}
+
+test('execution: Run button starts machine and shows current state name', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await loadExecSettings(page);
+
+    const runBtn = page.locator('.state-machine-widget button', { hasText: 'Run' });
+    await expect(runBtn).toBeEnabled();
+    await runBtn.click();
+    await page.waitForTimeout(300);
+
+    await expect(page.locator('.state-machine-widget', { hasText: 'State: IDLE' })).toBeVisible();
+    await expect(page.locator('.state-machine-widget button', { hasText: 'Stop' })).toBeVisible();
+    await expect(runBtn).toBeHidden();
+
+    await page.locator('.state-machine-widget button', { hasText: 'Stop' }).click();
+    await app.close();
+});
+
+test('execution: Stop button stops machine and restores Run button', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await loadExecSettings(page);
+
+    await page.locator('.state-machine-widget button', { hasText: 'Run' }).click();
+    await page.waitForTimeout(200);
+    await page.locator('.state-machine-widget button', { hasText: 'Stop' }).click();
+    await page.waitForTimeout(200);
+
+    const running = await page.evaluate(() => {
+        return window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance._running;
+    });
+    expect(running).toBe(false);
+    await expect(page.locator('.state-machine-widget button', { hasText: 'Run' })).toBeVisible();
+
+    await app.close();
+});
+
+test('execution: _tick fires transition when variable meets condition', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await loadExecSettings(page);
+
+    // Start machine (enters s0), mock _readVariable to return 15 (> threshold 10)
+    await page.evaluate(() => {
+        const inst = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+        inst._readVariable = async () => 15;
+        inst._start();
+    });
+
+    // Wait for one tick interval to fire
+    await page.waitForTimeout(350);
+
+    const currentState = await page.evaluate(() => {
+        return window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance._currentState;
+    });
+    expect(currentState).toBe('s1');
+
+    await page.evaluate(() => {
+        window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance._stop();
+    });
+    await app.close();
+});
+
+test('execution: _tick does not fire when variable does not meet condition', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await loadExecSettings(page);
+
+    // Mock _readVariable to return 5 (< threshold 10)
+    await page.evaluate(() => {
+        const inst = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+        inst._readVariable = async () => 5;
+        inst._start();
+    });
+
+    await page.waitForTimeout(350);
+
+    const currentState = await page.evaluate(() => {
+        return window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance._currentState;
+    });
+    expect(currentState).toBe('s0');
+
+    await page.evaluate(() => {
+        window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance._stop();
+    });
+    await app.close();
+});
+
+test('execution: _enterState sends the correct power command', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await loadExecSettings(page);
+
+    const sent = await page.evaluate(() => {
+        const inst = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+        const cmds = [];
+        inst._send = async (cmd) => { if (cmd) cmds.push(cmd); };
+        inst._enterState('s0');
+        return cmds;
+    });
+
+    // protocol.cmdIdle() returns 'd_i'
+    expect(sent).toContain('d_i');
+
+    await app.close();
+});
+
+test('execution: _applyMath transforms values correctly', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    const results = await page.evaluate(() => {
+        const inst = window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance;
+        return {
+            x:    inst._applyMath(5, { mathOp: 'x',     mathK: 2, mathB: 3 }),
+            negX: inst._applyMath(5, { mathOp: '-x',    mathK: 1, mathB: 0 }),
+            kx:   inst._applyMath(5, { mathOp: 'k*x',   mathK: 2, mathB: 0 }),
+            xb:   inst._applyMath(5, { mathOp: 'x+b',   mathK: 1, mathB: 3 }),
+            kxb:  inst._applyMath(5, { mathOp: 'k*x+b', mathK: 2, mathB: 3 })
+        };
+    });
+
+    expect(results.x).toBe(5);
+    expect(results.negX).toBe(-5);
+    expect(results.kx).toBe(10);
+    expect(results.xb).toBe(8);
+    expect(results.kxb).toBe(13);
+
+    await app.close();
+});

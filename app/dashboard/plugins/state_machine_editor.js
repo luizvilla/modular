@@ -48,6 +48,7 @@
             }).html('Drag to reposition &bull; Click to select &bull; Shift+click two states to add transition');
             canvasWrap.append(hint);
             const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svgEl.setAttribute('class', 'sm-canvas');
             svgEl.style.width = '100%';
             svgEl.style.height = '100%';
             svgEl.style.display = 'block';
@@ -64,7 +65,7 @@
             canvasWrap.append(svgEl);
 
             // Sidebar (200px, flex column)
-            const sidebar = $('<div></div>').css({
+            const sidebar = $('<div class="sm-sidebar"></div>').css({
                 width: '200px', flexShrink: '0', display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden'
             });
 
@@ -90,7 +91,7 @@
             topRow.append(canvasWrap, sidebar);
 
             // Bottom: params panel (fixed height)
-            this._paramsPanel = $('<div></div>').css({
+            this._paramsPanel = $('<div class="sm-params-panel"></div>').css({
                 height: '185px', overflowY: 'auto', flexShrink: '0',
                 borderTop: '1px solid #444', paddingTop: '6px', marginTop: '4px'
             });
