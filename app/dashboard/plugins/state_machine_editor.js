@@ -26,8 +26,9 @@
         // ── layout ────────────────────────────────────────────────────────────
 
         _buildLayout() {
-            // The modal is hardcoded to 640px wide. All layout uses inline styles so there
-            // is no dependency on addStyle ordering or CSS specificity.
+            // Widen the modal for this editor only; other dialogs stay at 640px.
+            freeboard.addStyle('#modal_overlay .modal:has(.sm-editor-modal)', 'width:820px;');
+
             const wrap = $('<div class="sm-editor-modal"></div>').css({
                 display: 'flex', flexDirection: 'column', height: '560px'
             });
@@ -88,7 +89,7 @@
             }).append(this._statesPanel, this._transPanel);
             sidebar.append(tabBar, tabContent);
 
-            topRow.append(canvasWrap, sidebar);
+            topRow.append(sidebar, canvasWrap);
 
             // Bottom: params panel (fixed height)
             this._paramsPanel = $('<div class="sm-params-panel"></div>').css({
