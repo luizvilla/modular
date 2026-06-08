@@ -50,6 +50,7 @@
             this._running = false;
             this._ticker = null;
             this._currentState = null;
+            this._powerState = null;  // 0=IDLE, 1=ON, 2=OFF — tracked locally
 
             this.container = $('<div class="state-machine-widget h-100 d-flex flex-column gap-2 p-2 overflow-auto"></div>');
             this._runBtn = $('<button class="btn btn-sm btn-outline-success">&#9654; Run</button>');
@@ -136,7 +137,8 @@
                 path.setAttribute('marker-end', 'url(#sm-arrow)');
                 svg.appendChild(path);
 
-                if (t.variable) {
+                const c0 = (t.conditions && t.conditions.length > 0) ? t.conditions[0] : t;
+                if (c0.variable) {
                     const lx = 0.25 * sx + 0.5 * cpx + 0.25 * ex;
                     const ly = 0.25 * sy + 0.5 * cpy + 0.25 * ey - 6;
                     const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -144,7 +146,8 @@
                     lbl.setAttribute('text-anchor', 'middle');
                     lbl.setAttribute('fill', '#666');
                     lbl.setAttribute('font-size', '9');
-                    lbl.textContent = `${t.variable} ${t.operator || '>'} ${t.threshold ?? 0}`;
+                    const extra = (t.conditions && t.conditions.length > 1) ? ` +${t.conditions.length - 1}` : '';
+                    lbl.textContent = `${c0.variable} ${c0.operator || '>'} ${c0.threshold ?? 0}${extra}`;
                     svg.appendChild(lbl);
                 }
             });
@@ -220,14 +223,25 @@
             if (!this._running) return;
             const transitions = (this.settings.transitions || []).filter(t => t.from === this._currentState);
             for (const t of transitions) {
-                const raw = await this._readVariable(t.variable);
-                if (raw === null) continue;
-                const val = this._applyMath(raw, t);
-                if (this._compare(val, t.operator, t.threshold)) {
-                    this._enterState(t.to);
-                    break;
-                }
+                if (await this._evaluateTransition(t)) { this._enterState(t.to); break; }
             }
+        }
+
+        async _evaluateTransition(t) {
+            // Support both new format (conditions[]) and old format (top-level variable/operator/threshold)
+            const conditions = (t.conditions && t.conditions.length > 0) ? t.conditions : [{
+                variable: t.variable, mathOp: t.mathOp, mathK: t.mathK, mathB: t.mathB,
+                operator: t.operator, threshold: t.threshold
+            }];
+            let result = null;
+            for (const cond of conditions) {
+                const raw = await this._readVariable(cond.variable);
+                if (raw === null) return false;
+                const val = this._applyMath(raw, cond);
+                const matches = this._compare(val, cond.operator, cond.threshold);
+                result = result === null ? matches : (cond.join === 'OR' ? result || matches : result && matches);
+            }
+            return result ?? false;
         }
 
         _enterState(id) {
@@ -240,9 +254,9 @@
             if (!protocol) return;
             const deviceType = this.settings.deviceType || 'TWIST';
 
-            if (state.powerMode === 'IDLE') this._send(protocol.cmdIdle());
-            else if (state.powerMode === 'ON') this._send(protocol.cmdPowerOn());
-            else if (state.powerMode === 'OFF') this._send(protocol.cmdPowerOff());
+            if (state.powerMode === 'IDLE') { this._powerState = 0; this._send(protocol.cmdIdle()); }
+            else if (state.powerMode === 'ON') { this._powerState = 1; this._send(protocol.cmdPowerOn()); }
+            else if (state.powerMode === 'OFF') { this._powerState = 2; this._send(protocol.cmdPowerOff()); }
 
             (state.legs || []).forEach(leg => {
                 const n = leg.leg;
@@ -262,6 +276,7 @@
         }
 
         async _readVariable(varName) {
+            if (varName === '__state__') return this._powerState ?? null;
             try {
                 const shared = freeboard.getPlotEditorShared?.();
                 if (!shared) return null;
@@ -270,8 +285,11 @@
                 if (!path) return null;
                 const arr = await shared.invoke('get-serial-buffer', { path });
                 if (!Array.isArray(arr)) return null;
-                const vars = protocol?.getProfile(this.settings.deviceType || 'TWIST')?.variables || [];
-                const idx = vars.indexOf(varName);
+                const profVars = protocol?.getProfile(this.settings.deviceType || 'TWIST')?.variables || [];
+                const headers = Array.isArray(dsSettings.dataHeaders) ? dsSettings.dataHeaders : [];
+                // Build display names: user header if set, otherwise protocol variable name
+                const displayVars = profVars.map((pv, i) => headers[i] || pv);
+                const idx = displayVars.indexOf(varName);
                 if (idx < 0) return null;
                 const v = Number(arr[idx]);
                 return Number.isFinite(v) ? v : null;

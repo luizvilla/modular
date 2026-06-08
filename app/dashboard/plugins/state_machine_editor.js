@@ -277,14 +277,15 @@
             path.setAttribute('marker-end', `url(#${isSel ? 'sm-arrow-sel' : 'sm-arrow'})`);
             g.appendChild(path);
 
-            if (t.variable) {
+            const label = this._conditionLabel(t);
+            if (label) {
                 const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 txt.setAttribute('x', lx); txt.setAttribute('y', ly);
                 txt.setAttribute('text-anchor', 'middle');
                 txt.setAttribute('fill', isSel ? '#6ea8fe' : '#888');
                 txt.setAttribute('font-size', '10');
                 txt.setAttribute('pointer-events', 'none');
-                txt.textContent = `${t.variable} ${t.operator || '>'} ${t.threshold ?? 0}`;
+                txt.textContent = label;
                 g.appendChild(txt);
             }
 
@@ -365,7 +366,7 @@
                 const from = this._stateName(t.from), to = this._stateName(t.to);
                 const lbl = $('<div class="small flex-fill"></div>').html(
                     `<strong>${this._esc(from)}</strong> &#x2192; <strong>${this._esc(to)}</strong><br>`
-                    + `<span class="text-muted">${this._esc(t.variable || '?')} ${t.operator || '>'} ${t.threshold ?? 0}</span>`
+                    + `<span class="text-muted">${this._esc(this._conditionLabel(t) || '—')}</span>`
                 );
                 const delBtn = $('<button class="btn btn-outline-danger btn-sm py-0 px-1 align-self-start" style="font-size:10px;min-width:22px">&#x2715;</button>');
                 delBtn.on('click', () => {
@@ -390,7 +391,7 @@
             const to   = this._states.find(s => s.id === t.to);
             this._paramsPanel.empty();
             const header = $('<div class="fw-semibold mb-2 px-2 pt-2"></div>').text(
-                `${from?.name || t.from} → ${to?.name || t.to}:  ${t.variable || '?'} ${t.operator || '>'} ${t.threshold ?? 0}`
+                `${from?.name || t.from} → ${to?.name || t.to}:  ${this._conditionLabel(t) || '—'}`
             );
             const delBtn = $('<button class="btn btn-sm btn-outline-danger ms-2">Delete Transition</button>');
             delBtn.on('click', () => {
@@ -549,64 +550,103 @@
                 this._paramsPanel.append('<div class="small text-muted p-2">Add at least two states first.</div>');
                 return;
             }
-            const profile = protocol?.getProfile(this._deviceType) || { variables: [] };
-            const varOpts = (profile.variables || []).map(v => `<option value="${v}">${v}</option>`).join('');
 
-            const form = $('<div class="p-2 d-flex flex-wrap gap-2 align-items-end"></div>');
-            const makeRow = (label, el) => $('<div class="input-group input-group-sm" style="max-width:240px"></div>').append(
-                $('<span class="input-group-text" style="min-width:70px"></span>').text(label), el
-            );
+            const varList = this._varOptions();
+            const varOptsHtml = varList.map(v => `<option value="${this._esc(v)}">${this._esc(this._varDisplay(v))}</option>`).join('');
+            const mathOptsHtml = ['x', '-x', 'k*x', 'x+b', 'k*x+b'].map(op => `<option value="${op}">${op}</option>`).join('');
+            const cmpOptsHtml  = ['>', '<', '>=', '<=', '==', '!='].map(op => `<option value="${op}">${op}</option>`).join('');
+
+            const form = $('<div class="p-2 d-flex flex-column gap-1" style="overflow-y:auto"></div>');
+            form.append('<div class="fw-semibold mb-1">Add Transition</div>');
 
             const fromSel = $(`<select class="form-select form-select-sm">${stateOpts}</select>`);
             if (fromId) fromSel.val(fromId);
             const toSel = $(`<select class="form-select form-select-sm">${stateOpts}</select>`);
             if (toId) toSel.val(toId);
-            const varSel = $(`<select class="form-select form-select-sm">${varOpts || '<option value="">—</option>'}</select>`);
-            const mathSel = $('<select class="form-select form-select-sm"></select>');
-            ['x', '-x', 'k*x', 'x+b', 'k*x+b'].forEach(op => mathSel.append(`<option value="${op}">${op}</option>`));
-            const kInput = $('<input type="number" class="form-control form-control-sm" value="1" step="0.1" style="max-width:80px">');
-            const bInput = $('<input type="number" class="form-control form-control-sm" value="0" step="0.1" style="max-width:80px">');
-            const kRow = makeRow('k', kInput).hide();
-            const bRow = makeRow('b', bInput).hide();
-            mathSel.on('change', () => {
-                const op = mathSel.val();
-                kRow.toggle(op === 'k*x' || op === 'k*x+b');
-                bRow.toggle(op === 'x+b' || op === 'k*x+b');
-            });
-            const opSel = $('<select class="form-select form-select-sm"></select>');
-            ['>', '<', '>=', '<=', '==', '!='].forEach(op => opSel.append(`<option value="${op}">${op}</option>`));
-            const thrInput = $('<input type="number" class="form-control form-control-sm" value="0" step="0.1">');
+            form.append(
+                $('<div class="d-flex gap-1 flex-wrap mb-1"></div>').append(
+                    $('<div class="input-group input-group-sm flex-grow-1" style="min-width:160px"></div>').append('<span class="input-group-text">From</span>', fromSel),
+                    $('<div class="input-group input-group-sm flex-grow-1" style="min-width:160px"></div>').append('<span class="input-group-text">To</span>', toSel)
+                )
+            );
 
-            const addBtn = $('<button class="btn btn-sm btn-primary">Add</button>');
+            // Conditions list — each entry: { joinSel, varSel, mathSel, kInput, bInput, opSel, thrInput, row }
+            const condList = [];
+            const condContainer = $('<div class="d-flex flex-column gap-1 mb-1"></div>');
+
+            const addCondRow = (initJoin) => {
+                const row = $('<div class="d-flex flex-wrap gap-1 align-items-center"></div>');
+                let joinSel = null;
+                if (condList.length > 0) {
+                    joinSel = $('<select class="form-select form-select-sm" style="max-width:60px"><option value="AND">AND</option><option value="OR">OR</option></select>');
+                    joinSel.val(initJoin || 'AND');
+                    row.append(joinSel);
+                }
+                const varSel   = $(`<select class="form-select form-select-sm" style="max-width:130px">${varOptsHtml}</select>`);
+                const mathSel  = $(`<select class="form-select form-select-sm" style="max-width:72px">${mathOptsHtml}</select>`);
+                const kWrap = $('<div class="input-group input-group-sm" style="max-width:78px;display:none"></div>')
+                    .append('<span class="input-group-text px-1">k</span>', $('<input type="number" class="form-control" value="1" step="0.1">'));
+                const bWrap = $('<div class="input-group input-group-sm" style="max-width:78px;display:none"></div>')
+                    .append('<span class="input-group-text px-1">b</span>', $('<input type="number" class="form-control" value="0" step="0.1">'));
+                const kInput = kWrap.find('input'), bInput = bWrap.find('input');
+                mathSel.on('change', () => {
+                    const op = mathSel.val();
+                    kWrap.toggle(op === 'k*x' || op === 'k*x+b');
+                    bWrap.toggle(op === 'x+b' || op === 'k*x+b');
+                });
+                const opSel    = $(`<select class="form-select form-select-sm" style="max-width:56px">${cmpOptsHtml}</select>`);
+                const thrInput = $('<input type="number" class="form-control form-control-sm" value="0" step="0.1" style="max-width:78px">');
+                const removeBtn = $('<button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:11px">&#x2715;</button>');
+
+                const condObj = { joinSel, varSel, mathSel, kInput, bInput, opSel, thrInput, row };
+                condList.push(condObj);
+
+                removeBtn.on('click', () => {
+                    const i = condList.indexOf(condObj);
+                    if (i < 0) return;
+                    condList.splice(i, 1);
+                    row.remove();
+                });
+
+                row.append(varSel, mathSel, kWrap, bWrap, opSel, thrInput, removeBtn);
+                condContainer.append(row);
+            };
+
+            addCondRow(null);  // first condition (no join)
+            form.append(condContainer);
+
+            // + AND / + OR buttons
+            form.append(
+                $('<div class="d-flex gap-1 mb-1"></div>').append(
+                    $('<button class="btn btn-outline-secondary btn-sm" style="font-size:11px">+ AND</button>').on('click', () => addCondRow('AND')),
+                    $('<button class="btn btn-outline-secondary btn-sm" style="font-size:11px">+ OR</button>').on('click', () => addCondRow('OR'))
+                )
+            );
+
+            const addBtn    = $('<button class="btn btn-sm btn-primary">Add</button>');
             const cancelBtn = $('<button class="btn btn-sm btn-outline-secondary">Cancel</button>');
 
             addBtn.on('click', () => {
-                const op = mathSel.val();
-                this._transitions.push({
-                    id: 't' + Date.now(),
-                    from: fromSel.val(),
-                    to: toSel.val(),
-                    variable: varSel.val(),
-                    mathOp: op,
-                    mathK: parseFloat(kInput.val()) || 1,
-                    mathB: parseFloat(bInput.val()) || 0,
-                    operator: opSel.val(),
-                    threshold: parseFloat(thrInput.val()) || 0
+                const conditionsData = condList.map((c, i) => {
+                    const op = c.mathSel.val();
+                    const item = {
+                        variable: c.varSel.val(), mathOp: op,
+                        mathK: parseFloat(c.kInput.val()) || 1,
+                        mathB: parseFloat(c.bInput.val()) || 0,
+                        operator: c.opSel.val(),
+                        threshold: parseFloat(c.thrInput.val()) || 0
+                    };
+                    if (i > 0 && c.joinSel) item.join = c.joinSel.val();
+                    return item;
                 });
-                // Switch to transitions tab
+                this._transitions.push({ id: 't' + Date.now(), from: fromSel.val(), to: toSel.val(), conditions: conditionsData });
                 this._transTabBtn.trigger('click');
                 this._renderAll();
                 this._showNoSelection();
             });
             cancelBtn.on('click', () => { this._pendingFrom = null; this._renderAll(); this._showNoSelection(); });
 
-            form.append(
-                makeRow('From', fromSel), makeRow('To', toSel),
-                makeRow('Variable', varSel), makeRow('Math', mathSel),
-                kRow, bRow,
-                makeRow('Condition', opSel), makeRow('Threshold', thrInput),
-                $('<div class="d-flex gap-2"></div>').append(addBtn, cancelBtn)
-            );
+            form.append($('<div class="d-flex gap-2"></div>').append(addBtn, cancelBtn));
             this._paramsPanel.append(form);
         }
 
@@ -628,6 +668,24 @@
 
         _stateName(id) { return this._states.find(s => s.id === id)?.name || id || '?'; }
         _esc(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+        // Returns array of variable names available for conditions (datasource headers + __state__)
+        _varOptions() {
+            const profVars = protocol?.getProfile(this._deviceType)?.variables || [];
+            const dsName = this._model.settings()?.datasource;
+            const dsSettings = freeboard.getDatasourceSettings?.(dsName) || {};
+            const headers = Array.isArray(dsSettings.dataHeaders) ? dsSettings.dataHeaders : [];
+            return [...profVars.map((pv, i) => headers[i] || pv), '__state__'];
+        }
+        _varDisplay(v) { return v === '__state__' ? 'State (IDLE=0  ON=1  OFF=2)' : v; }
+
+        // Returns a short label for a transition (from first condition, backwards-compat with old format)
+        _conditionLabel(t) {
+            const c = (t.conditions && t.conditions.length > 0) ? t.conditions[0] : t;
+            if (!c?.variable) return '';
+            const extra = (t.conditions && t.conditions.length > 1) ? ` +${t.conditions.length - 1}` : '';
+            return `${c.variable} ${c.operator || '>'} ${c.threshold ?? 0}${extra}`;
+        }
     }
 
     window.ModularStateMachineEditor = {
