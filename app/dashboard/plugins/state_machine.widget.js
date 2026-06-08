@@ -119,15 +119,34 @@
                 const from = states.find(s => s.id === t.from);
                 const to = states.find(s => s.id === t.to);
                 if (!from || !to) return;
+
+                const dx = to.x - from.x, dy = to.y - from.y;
+                const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                const cpx = (from.x + to.x) / 2 - (dy / len) * 25;
+                const cpy = (from.y + to.y) / 2 + (dx / len) * 25;
+                const sx = from.x + (dx / len) * 28, sy = from.y + (dy / len) * 28;
+                const ex = to.x - (dx / len) * 28, ey = to.y - (dy / len) * 28;
+                const d = `M ${sx} ${sy} Q ${cpx} ${cpy} ${ex} ${ey}`;
+
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                const mx = (from.x + to.x) / 2;
-                const my = (from.y + to.y) / 2 - 30;
-                path.setAttribute('d', `M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`);
+                path.setAttribute('d', d);
                 path.setAttribute('stroke', '#888');
                 path.setAttribute('stroke-width', '1.5');
                 path.setAttribute('fill', 'none');
                 path.setAttribute('marker-end', 'url(#sm-arrow)');
                 svg.appendChild(path);
+
+                if (t.variable) {
+                    const lx = 0.25 * sx + 0.5 * cpx + 0.25 * ex;
+                    const ly = 0.25 * sy + 0.5 * cpy + 0.25 * ey - 6;
+                    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    lbl.setAttribute('x', lx); lbl.setAttribute('y', ly);
+                    lbl.setAttribute('text-anchor', 'middle');
+                    lbl.setAttribute('fill', '#666');
+                    lbl.setAttribute('font-size', '9');
+                    lbl.textContent = `${t.variable} ${t.operator || '>'} ${t.threshold ?? 0}`;
+                    svg.appendChild(lbl);
+                }
             });
 
             states.forEach(s => {

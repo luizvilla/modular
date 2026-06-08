@@ -430,3 +430,143 @@ test('execution: _applyMath transforms values correctly', async () => {
 
     await app.close();
 });
+
+// ── Session 4: polish + full suite ────────────────────────────────────────────
+
+// Helper: update both the freeboard model observable and the widget instance
+async function openEditorWithSettings(page, settings) {
+    await page.evaluate((s) => {
+        const wm = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+        wm.settings(s);
+        wm.widgetInstance?.onSettingsChanged(s);
+    }, settings);
+    await openEditorDirectly(page);
+}
+
+const SETTINGS_WITH_TRANSITION = {
+    title: 'Test',
+    datasource: '',
+    deviceType: 'TWIST',
+    initialState: 's0',
+    states: [
+        { id: 's0', name: 'IDLE', x: 100, y: 80, powerMode: 'IDLE', legs: [] },
+        { id: 's1', name: 'RUN',  x: 260, y: 80, powerMode: 'ON',   legs: [] }
+    ],
+    transitions: [
+        { id: 't0', from: 's0', to: 's1', variable: 'V1', mathOp: 'x', mathK: 1, mathB: 0, operator: '>', threshold: 10 }
+    ]
+};
+
+test('pane SVG: transition labels are rendered on arrows', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await page.evaluate((s) => {
+        window.freeboard.getLiveModel().panes()[0].widgets()[0].widgetInstance.onSettingsChanged(s);
+    }, SETTINGS_WITH_TRANSITION);
+
+    // There should be a text element with the transition label
+    const labelText = await page.locator('.sm-pane-svg text', { hasText: 'V1 > 10' }).first();
+    await expect(labelText).toBeVisible();
+
+    await app.close();
+});
+
+test('editor: clicking a transition arrow selects it and shows Delete button', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await openEditorWithSettings(page, SETTINGS_WITH_TRANSITION);
+
+    // Click the transition group in the SVG
+    const transitionGroup = page.locator('.sm-canvas g[data-tid]').first();
+    await expect(transitionGroup).toBeVisible();
+    await transitionGroup.click();
+    await page.waitForTimeout(200);
+
+    // Params panel should show the delete button for the transition
+    await expect(page.locator('.sm-params-panel .btn-outline-danger', { hasText: 'Delete Transition' })).toBeVisible();
+
+    await activeModal(page).locator('#dialog-cancel').click();
+    await app.close();
+});
+
+test('editor: deleting a transition via click-select removes it from list', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    await openEditorWithSettings(page, SETTINGS_WITH_TRANSITION);
+
+    await expect(page.locator('.sm-canvas g[data-tid]')).toHaveCount(1);
+
+    // Select the transition and delete it
+    await page.locator('.sm-canvas g[data-tid]').first().click();
+    await page.waitForTimeout(100);
+    await page.locator('.sm-params-panel .btn-outline-danger', { hasText: 'Delete Transition' }).click();
+    await page.waitForTimeout(200);
+
+    await expect(page.locator('.sm-canvas g[data-tid]')).toHaveCount(0);
+
+    await activeModal(page).locator('#dialog-cancel').click();
+    await app.close();
+});
+
+test('editor: drag from circle edge to another state opens transition form', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    // Open editor with two states at known SVG positions (100,80) and (260,80)
+    await openEditorWithSettings(page, { ...SETTINGS_WITH_TRANSITION, transitions: [] });
+
+    const svgBox = await page.locator('.sm-canvas').boundingBox();
+
+    // Drag from the outer ring of s0 (x=100+25=125) toward s1 (x=260)
+    const startX = svgBox.x + 125, startY = svgBox.y + 80;
+    const endX   = svgBox.x + 260, endY   = svgBox.y + 80;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(endX, endY, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    // Transition form should appear in params panel (has From/To selects and an Add button)
+    await expect(page.locator('.sm-params-panel .btn-primary', { hasText: 'Add' })).toBeVisible();
+
+    await activeModal(page).locator('#dialog-cancel').click();
+    await app.close();
+});
+
+test('editor: round-trip — save and reopen preserves all states and transitions', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('state_machine_dashboard.json'));
+    await page.waitForSelector('.state-machine-widget', { timeout: 15_000 });
+
+    // Open editor with pre-set data, immediately save
+    await openEditorWithSettings(page, SETTINGS_WITH_TRANSITION);
+    await activeModal(page).locator('#dialog-ok').click();
+    await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
+
+    // Verify model has the data
+    const after = await page.evaluate(() => window.freeboard.getLiveModel().panes()[0].widgets()[0].settings());
+    expect(after.states.length).toBe(2);
+    expect(after.transitions.length).toBe(1);
+    expect(after.transitions[0].variable).toBe('V1');
+
+    // Reopen and verify the editor loads the same data
+    await openEditorDirectly(page);
+    await expect(page.locator('.sm-canvas g[data-id]')).toHaveCount(2);
+    await expect(page.locator('.sm-canvas g[data-tid]')).toHaveCount(1);
+
+    await activeModal(page).locator('#dialog-cancel').click();
+    await app.close();
+});

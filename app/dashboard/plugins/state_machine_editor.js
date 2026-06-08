@@ -11,8 +11,10 @@
             this._transitions = JSON.parse(JSON.stringify(Array.isArray(s.transitions) ? s.transitions : []));
             this._initialState = s.initialState || (this._states[0]?.id ?? '');
             this._selected = null;
+            this._selectedTransition = null;
             this._pendingFrom = null;
             this._drag = null;
+            this._connector = null;
             this._legControls = {};
             this._nameInput = null;
             this._powerSelect = null;
@@ -127,16 +129,34 @@
 
         _setupSvgEvents(svg) {
             svg.addEventListener('mousedown', (e) => {
-                const g = e.target.closest('g[data-id]');
-                if (!g) return;
-                const id = g.dataset.id;
-                const state = this._states.find(s => s.id === id);
-                if (!state) return;
-                this._drag = { id, startX: e.clientX, startY: e.clientY, origX: state.x, origY: state.y, hasMoved: false };
-                e.preventDefault();
+                const stateG = e.target.closest('g[data-id]');
+                const transG = e.target.closest('g[data-tid]');
+
+                if (stateG) {
+                    const id = stateG.dataset.id;
+                    const state = this._states.find(s => s.id === id);
+                    if (!state) return;
+                    const rect = svg.getBoundingClientRect();
+                    const dist = Math.hypot(e.clientX - rect.left - state.x, e.clientY - rect.top - state.y);
+                    if (dist >= 20) {
+                        this._connector = { fromId: id, curX: e.clientX - rect.left, curY: e.clientY - rect.top };
+                    } else {
+                        this._drag = { id, startX: e.clientX, startY: e.clientY, origX: state.x, origY: state.y, hasMoved: false };
+                    }
+                    e.preventDefault();
+                } else if (transG) {
+                    this._selectTransition(transG.dataset.tid);
+                }
             });
 
             svg.addEventListener('mousemove', (e) => {
+                if (this._connector) {
+                    const rect = svg.getBoundingClientRect();
+                    this._connector.curX = e.clientX - rect.left;
+                    this._connector.curY = e.clientY - rect.top;
+                    this._renderAll();
+                    return;
+                }
                 if (!this._drag) return;
                 const dx = e.clientX - this._drag.startX;
                 const dy = e.clientY - this._drag.startY;
@@ -150,13 +170,26 @@
             });
 
             svg.addEventListener('mouseup', (e) => {
+                if (this._connector) {
+                    const rect = svg.getBoundingClientRect();
+                    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+                    const fromId = this._connector.fromId;
+                    this._connector = null;
+                    const target = this._states.find(s => Math.hypot(mx - s.x, my - s.y) < 35 && s.id !== fromId);
+                    if (target) this._showTransitionForm(fromId, target.id);
+                    else this._renderAll();
+                    return;
+                }
                 const wasDrag = this._drag?.hasMoved;
                 const dragId = this._drag?.id;
                 this._drag = null;
                 if (!wasDrag && dragId) this._handleStateClick(dragId, e.shiftKey);
             });
 
-            svg.addEventListener('mouseleave', () => { this._drag = null; });
+            svg.addEventListener('mouseleave', () => {
+                if (this._connector) { this._connector = null; this._renderAll(); }
+                this._drag = null;
+            });
         }
 
         _handleStateClick(id, isShift) {
@@ -182,10 +215,21 @@
         // ── SVG rendering ─────────────────────────────────────────────────────
 
         _renderAll() {
-            // Remove all children after defs
             while (this._svg.children.length > 1) this._svg.removeChild(this._svg.lastChild);
             this._transitions.forEach(t => this._renderTransitionSvg(t));
             this._states.forEach(s => this._renderStateSvg(s));
+            if (this._connector) {
+                const src = this._states.find(s => s.id === this._connector.fromId);
+                if (src) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', src.x); line.setAttribute('y1', src.y);
+                    line.setAttribute('x2', this._connector.curX); line.setAttribute('y2', this._connector.curY);
+                    line.setAttribute('stroke', '#6ea8fe'); line.setAttribute('stroke-width', '1.5');
+                    line.setAttribute('stroke-dasharray', '5,3');
+                    line.setAttribute('marker-end', 'url(#sm-arrow-sel)');
+                    this._svg.appendChild(line);
+                }
+            }
             this._renderStatesList();
             this._renderTransitionsList();
         }
@@ -194,42 +238,57 @@
             const from = this._states.find(s => s.id === t.from);
             const to = this._states.find(s => s.id === t.to);
             if (!from || !to) return;
+            const isSel = t.id === this._selectedTransition;
 
-            let d;
+            let d, lx, ly;
             if (from.id === to.id) {
                 const x = from.x, y = from.y - 28;
                 d = `M ${x - 15} ${y} C ${x - 50} ${y - 60} ${x + 50} ${y - 60} ${x + 15} ${y}`;
+                lx = x; ly = y - 52;
             } else {
                 const dx = to.x - from.x, dy = to.y - from.y;
                 const len = Math.sqrt(dx * dx + dy * dy) || 1;
-                const mx = (from.x + to.x) / 2 - (dy / len) * 35;
-                const my = (from.y + to.y) / 2 + (dx / len) * 35;
+                const cpx = (from.x + to.x) / 2 - (dy / len) * 35;
+                const cpy = (from.y + to.y) / 2 + (dx / len) * 35;
                 const sx = from.x + (dx / len) * 28, sy = from.y + (dy / len) * 28;
                 const ex = to.x - (dx / len) * 28, ey = to.y - (dy / len) * 28;
-                d = `M ${sx} ${sy} Q ${mx} ${my} ${ex} ${ey}`;
+                d = `M ${sx} ${sy} Q ${cpx} ${cpy} ${ex} ${ey}`;
+                lx = 0.25 * sx + 0.5 * cpx + 0.25 * ex;
+                ly = 0.25 * sy + 0.5 * cpy + 0.25 * ey - 8;
             }
+
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('data-tid', t.id);
+            g.style.cursor = 'pointer';
+
+            // Wide transparent hit area
+            const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            hitPath.setAttribute('d', d);
+            hitPath.setAttribute('stroke', 'transparent');
+            hitPath.setAttribute('stroke-width', '12');
+            hitPath.setAttribute('fill', 'none');
+            g.appendChild(hitPath);
 
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             path.setAttribute('d', d);
-            path.setAttribute('stroke', '#888');
-            path.setAttribute('stroke-width', '1.5');
+            path.setAttribute('stroke', isSel ? '#6ea8fe' : '#888');
+            path.setAttribute('stroke-width', isSel ? '2' : '1.5');
             path.setAttribute('fill', 'none');
-            path.setAttribute('marker-end', 'url(#sm-arrow)');
-            this._svg.appendChild(path);
+            path.setAttribute('marker-end', `url(#${isSel ? 'sm-arrow-sel' : 'sm-arrow'})`);
+            g.appendChild(path);
 
             if (t.variable) {
-                const label = `${t.variable} ${t.operator || '>'} ${t.threshold ?? 0}`;
-                const pts = d.match(/[\d.]+/g) || [];
-                const lx = parseFloat(pts[0] || 0) + (parseFloat(pts[pts.length - 2] || 0) - parseFloat(pts[0] || 0)) / 2;
-                const ly = parseFloat(pts[1] || 0) + (parseFloat(pts[pts.length - 1] || 0) - parseFloat(pts[1] || 0)) / 2 - 8;
                 const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 txt.setAttribute('x', lx); txt.setAttribute('y', ly);
                 txt.setAttribute('text-anchor', 'middle');
-                txt.setAttribute('fill', '#888');
+                txt.setAttribute('fill', isSel ? '#6ea8fe' : '#888');
                 txt.setAttribute('font-size', '10');
-                txt.textContent = label;
-                this._svg.appendChild(txt);
+                txt.setAttribute('pointer-events', 'none');
+                txt.textContent = `${t.variable} ${t.operator || '>'} ${t.threshold ?? 0}`;
+                g.appendChild(txt);
             }
+
+            this._svg.appendChild(g);
         }
 
         _renderStateSvg(s) {
@@ -320,9 +379,33 @@
 
         // ── state selection / params panel ────────────────────────────────────
 
+        _selectTransition(id) {
+            if (this._selected) this._readParamsPanel();
+            this._selected = null;
+            this._selectedTransition = id;
+            this._renderAll();
+            const t = this._transitions.find(tr => tr.id === id);
+            if (!t) { this._showNoSelection(); return; }
+            const from = this._states.find(s => s.id === t.from);
+            const to   = this._states.find(s => s.id === t.to);
+            this._paramsPanel.empty();
+            const header = $('<div class="fw-semibold mb-2 px-2 pt-2"></div>').text(
+                `${from?.name || t.from} → ${to?.name || t.to}:  ${t.variable || '?'} ${t.operator || '>'} ${t.threshold ?? 0}`
+            );
+            const delBtn = $('<button class="btn btn-sm btn-outline-danger ms-2">Delete Transition</button>');
+            delBtn.on('click', () => {
+                this._transitions = this._transitions.filter(tr => tr.id !== id);
+                this._selectedTransition = null;
+                this._renderAll();
+                this._showNoSelection();
+            });
+            this._paramsPanel.append($('<div class="d-flex align-items-center gap-2 px-2"></div>').append(header, delBtn));
+        }
+
         _selectState(id) {
             if (this._selected) this._readParamsPanel();
             this._selected = id;
+            this._selectedTransition = null;
             this._renderAll();
             const state = this._states.find(s => s.id === id);
             if (state) this._showStateParams(state);
