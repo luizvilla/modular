@@ -535,7 +535,11 @@
 
         // ── import / export ──────────────────────────────────────────────────
 
-        _exportMachine() {
+        _ipc() {
+            return window.require?.('electron')?.ipcRenderer ?? null;
+        }
+
+        async _exportMachine() {
             const data = {
                 version: 1,
                 deviceType: this._deviceType,
@@ -544,6 +548,12 @@
                 transitions: this._transitions
             };
             const json = JSON.stringify(data, null, 2);
+            const ipc = this._ipc();
+            if (ipc) {
+                await ipc.invoke('show-save-machine', { content: json });
+                return;
+            }
+            // Fallback: browser Blob download
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -555,7 +565,14 @@
             URL.revokeObjectURL(url);
         }
 
-        _importMachine() {
+        async _importMachine() {
+            const ipc = this._ipc();
+            if (ipc) {
+                const content = await ipc.invoke('show-open-machine');
+                if (content) this._loadMachineJson(content);
+                return;
+            }
+            // Fallback: browser file input
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.json,application/json';
@@ -563,25 +580,27 @@
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (ev) => {
-                    try {
-                        const data = JSON.parse(ev.target.result);
-                        if (!Array.isArray(data.states)) throw new Error('Missing states array');
-                        this._states = data.states;
-                        this._transitions = Array.isArray(data.transitions) ? data.transitions : [];
-                        this._initialState = data.initialState || (this._states[0]?.id ?? '');
-                        this._selected = null;
-                        this._selectedTransition = null;
-                        this._pendingFrom = null;
-                        this._renderAll();
-                        this._showNoSelection();
-                    } catch (err) {
-                        alert('Could not load machine: ' + err.message);
-                    }
-                };
+                reader.onload = (ev) => this._loadMachineJson(ev.target.result);
                 reader.readAsText(file);
             };
             input.click();
+        }
+
+        _loadMachineJson(jsonText) {
+            try {
+                const data = JSON.parse(jsonText);
+                if (!Array.isArray(data.states)) throw new Error('Missing states array');
+                this._states = data.states;
+                this._transitions = Array.isArray(data.transitions) ? data.transitions : [];
+                this._initialState = data.initialState || (this._states[0]?.id ?? '');
+                this._selected = null;
+                this._selectedTransition = null;
+                this._pendingFrom = null;
+                this._renderAll();
+                this._showNoSelection();
+            } catch (err) {
+                alert('Could not load machine: ' + err.message);
+            }
         }
 
         // ── transition form ───────────────────────────────────────────────────

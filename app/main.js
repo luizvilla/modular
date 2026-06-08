@@ -94,9 +94,15 @@ function cloneExtensionBootstrap() {
         widgetDocsRoots: extensionRuntime.bootstrap.widgetDocsRoots.map((entry) => ({ ...entry })),
         exampleRoots: extensionRuntime.bootstrap.exampleRoots.map((entry) => ({ ...entry })),
         coursewareRoots: extensionRuntime.bootstrap.coursewareRoots.map((entry) => ({ ...entry })),
+        tutorialRoots: extensionRuntime.bootstrap.tutorialRoots.map((entry) => ({ ...entry })),
         dashboardRoots: extensionRuntime.bootstrap.dashboardRoots.map((entry) => ({ ...entry })),
         widgetDocs: extensionRuntime.bootstrap.widgetDocs.map((entry) => ({ ...entry })),
         courseware: extensionRuntime.bootstrap.courseware.map((entry) => ({ ...entry })),
+        tutorials: extensionRuntime.bootstrap.tutorials.map((entry) => ({
+            ...entry,
+            menuSegments: Array.isArray(entry.menuSegments) ? entry.menuSegments.slice() : [],
+            steps: Array.isArray(entry.steps) ? entry.steps.map((step) => ({ ...step })) : [],
+        })),
         datasources: extensionRuntime.bootstrap.datasources.map((entry) => ({ ...entry })),
     };
 }
@@ -120,6 +126,7 @@ let exampleDockMoveTimer = null;
 let exampleDockLastOverlap = false;
 let exampleDockingInProgress = false;
 let pendingWidgetDocType = null; // Track widget doc tab requests before renderer init.
+let pendingTutorialRequest = null; // Track tutorial tab requests before renderer init.
 
 function buildTimestampStamp(date = new Date()) {
     const pad = (value) => String(value).padStart(2, '0');
@@ -1280,6 +1287,8 @@ function openFirmwareWorkspaceWindow() {
 
 const dashboardsDir = path.join(app.getPath('userData'), 'dashboards');
 fs.mkdirSync(dashboardsDir, { recursive: true });
+const machinesDir = path.join(app.getPath('userData'), 'machines');
+fs.mkdirSync(machinesDir, { recursive: true });
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -1302,6 +1311,28 @@ ipcMain.handle('show-save-dashboard', async (_event, { content } = {}) => {
     if (canceled || !filePath) return false;
     await fs.promises.writeFile(filePath, content, 'utf8');
     return true;
+});
+
+ipcMain.handle('show-save-machine', async (_event, { content } = {}) => {
+    if (!mainWindow) return false;
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: path.join(machinesDir, 'machine.json'),
+        filters: [{ name: 'State Machine', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) return false;
+    await fs.promises.writeFile(filePath, content, 'utf8');
+    return true;
+});
+
+ipcMain.handle('show-open-machine', async () => {
+    if (!mainWindow) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        defaultPath: machinesDir,
+        properties: ['openFile'],
+        filters: [{ name: 'State Machine', extensions: ['json'] }]
+    });
+    if (canceled || !filePaths || filePaths.length === 0) return null;
+    return fs.promises.readFile(filePaths[0], 'utf8');
 });
 
 ipcMain.handle('choose-csv-file', async () => {
@@ -1542,6 +1573,78 @@ function buildCoursewareMenuItems() {
     } catch (err) {
         console.warn(`Failed to build Courseware menu:`, err?.message || err);
         return [{ label: 'No courseware found', enabled: false }];
+    }
+}
+
+function buildTutorialTree(entries) {
+    const root = { groups: new Map(), tutorials: [] };
+    for (const entry of entries) {
+        const segments = Array.isArray(entry.menuSegments) ? entry.menuSegments.filter(Boolean) : [];
+        const parents = segments.length > 1 ? segments.slice(0, -1) : [];
+        let node = root;
+        for (const segment of parents) {
+            if (!node.groups.has(segment)) node.groups.set(segment, { groups: new Map(), tutorials: [] });
+            node = node.groups.get(segment);
+        }
+        node.tutorials.push(entry);
+    }
+
+    const toMenu = (node) => {
+        const items = [];
+        const groupLabels = Array.from(node.groups.keys()).sort((a, b) => a.localeCompare(b));
+        for (const label of groupLabels) {
+            items.push({
+                label,
+                submenu: toMenu(node.groups.get(label)),
+            });
+        }
+        node.tutorials
+            .slice()
+            .sort((left, right) => {
+                if (left.order !== right.order) return left.order - right.order;
+                return left.title.localeCompare(right.title);
+            })
+            .forEach((entry) => {
+                items.push({
+                    label: entry.title,
+                    click: () => openTutorial(entry.id),
+                });
+            });
+        return items;
+    };
+
+    return toMenu(root);
+}
+
+function buildTutorialsMenuItems() {
+    try {
+        const entries = Array.isArray(extensionRuntime.bootstrap.tutorials)
+            ? extensionRuntime.bootstrap.tutorials.slice()
+            : [];
+        if (!entries.length) return [{ label: 'No tutorials found', enabled: false }];
+
+        const grouped = new Map();
+        for (const entry of entries) {
+            if (!entry || !entry.id || !entry.extensionId) continue;
+            if (!grouped.has(entry.extensionId)) grouped.set(entry.extensionId, []);
+            grouped.get(entry.extensionId).push(entry);
+        }
+
+        const extensionIds = Array.from(grouped.keys());
+        if (extensionIds.length === 1) {
+            return buildTutorialTree(grouped.get(extensionIds[0]));
+        }
+
+        const sections = [];
+        for (const extensionId of extensionIds) {
+            if (sections.length) sections.push({ type: 'separator' });
+            sections.push({ label: getExtensionDisplayName(extensionId), enabled: false });
+            sections.push(...buildTutorialTree(grouped.get(extensionId)));
+        }
+        return sections.length ? sections : [{ label: 'No tutorials found', enabled: false }];
+    } catch (err) {
+        console.warn(`Failed to build Tutorials menu:`, err?.message || err);
+        return [{ label: 'No tutorials found', enabled: false }];
     }
 }
 
@@ -2206,6 +2309,7 @@ function setAppMenu() {
     const widgetExtensionsMenu = buildWidgetExtensionsMenuItems();
     const owntechExamplesMenu = buildExamplesMenuItems('owntech-examples');
     const coursewareMenu = buildCoursewareMenuItems();
+    const tutorialsMenu = buildTutorialsMenuItems();
     const template = [
         {
             label: 'File',
@@ -2289,6 +2393,12 @@ function setAppMenu() {
         }
     ];
 
+    if (isExtensionEnabled('tutorials')) {
+        template.push({
+            label: 'Tutorials',
+            submenu: tutorialsMenu
+        });
+    }
     if (isExtensionEnabled('owntech-examples')) {
         template.push({
             label: 'OwnTech Examples',
@@ -2754,6 +2864,30 @@ function openCoursewareTab(coursewareId) {
     openDocTab('courseware', coursewareId);
 }
 
+function normalizeTutorialRequest(payload) {
+    if (typeof payload === 'string') {
+        payload = { id: payload };
+    }
+    if (!payload || typeof payload !== 'object') return null;
+    const id = String(payload.id || '').trim();
+    if (!id) return null;
+    return { id };
+}
+
+function emitTutorialOpen(targetWindow, payload) {
+    if (!targetWindow || !targetWindow.webContents || !payload) return;
+    targetWindow.webContents.send('open-tutorial', payload);
+}
+
+function openTutorial(payloadOrId) {
+    const payload = normalizeTutorialRequest(payloadOrId);
+    if (!payload) return;
+    pendingTutorialRequest = payload;
+    if (mainWindow && mainWindow.webContents) {
+        emitTutorialOpen(mainWindow, payload);
+    }
+}
+
 ipcMain.on('open-doc-tab', (_event, payload) => {
     openDocTab(payload);
 });
@@ -2773,6 +2907,23 @@ ipcMain.handle('get-pending-example-tab', () => {
     const id = pendingDocTabRequest.id;
     pendingDocTabRequest = null;
     return id;
+});
+
+ipcMain.on('open-tutorial', (_event, payload) => {
+    openTutorial(payload);
+});
+
+ipcMain.handle('get-pending-tutorial', () => {
+    const pending = pendingTutorialRequest ? { ...pendingTutorialRequest } : null;
+    pendingTutorialRequest = null;
+    return pending;
+});
+
+ipcMain.on('tutorials-ready', () => {
+    if (!pendingTutorialRequest) return;
+    const pending = pendingTutorialRequest;
+    pendingTutorialRequest = null;
+    emitTutorialOpen(mainWindow, pending);
 });
 
 // Standalone docs window for offline markdown docs and lab actions.
