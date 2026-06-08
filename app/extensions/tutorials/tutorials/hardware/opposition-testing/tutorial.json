@@ -6,7 +6,7 @@
     {
       "id": "intro",
       "title": "Opposition Testing",
-      "markdown": "This tutorial will guide you through running an opposition test on the OwnTech TWIST board.\n\nOpposition testing lets two legs work against each other to measure losses at different duty cycles — without needing a real load.\n\nStart by opening **Courseware → Hackathons → Opposition Testing** from the top menu.",
+      "markdown": "This tutorial will guide you through activating one leg of the OwnTech TWIST board and setting a fixed duty cycle.\n\nTo begin, open the **Courseware** menu in the top menu bar, then go to **Hackathons → Opposition Testing**.\n\n> **Tip:** Maximize the application window so all panels are fully visible.",
       "completion": {
         "kind": "manual"
       }
@@ -41,7 +41,7 @@
     {
       "id": "enable-leg1",
       "title": "Enable LEG1",
-      "markdown": "Under **LEG1** in the leg toggle grid, enable the **LEG** switch.\n\nThis activates leg 1 of the converter.",
+      "markdown": "In the **Action Buttons** pane, find the **Leg toggles** section.\n\nUnder the **LEG1** row, enable the **LEG** switch.\n\n> **Tip:** If you cannot see the LEG1 row, maximize the window — the Action Buttons pane may be scrolled out of view.",
       "focusKey": "twist.leg1Toggle",
       "completion": {
         "kind": "manual"
@@ -50,7 +50,7 @@
     {
       "id": "enable-driver1",
       "title": "Enable DRIVER1",
-      "markdown": "Under **LEG1**, enable the **DRIVER** switch to start the gate driver for leg 1.",
+      "markdown": "Still under the **LEG1** row in the Leg toggles section, enable the **DRIVER** switch to start the gate driver for leg 1.",
       "focusKey": "twist.driver1Toggle",
       "completion": {
         "kind": "manual"
@@ -59,7 +59,7 @@
     {
       "id": "send-duty-cycle",
       "title": "Set duty cycle to 0.5",
-      "markdown": "In the **Setpoints** pane under **LEG1**, find the **Duty** row:\n\n1. Type **0.5** in the duty input field.\n2. Click **Send**.\n\nThe converter will run at 50% duty cycle.",
+      "markdown": "In the **Setpoint Buttons** pane under **LEG1**, find the **Duty** row:\n\n1. Type **0.5** in the duty input field.\n2. Click **Send**.\n\nThe converter will run at 50% duty cycle.",
       "focusKey": "twist.leg1DutyRow",
       "completion": {
         "kind": "manual"
@@ -68,7 +68,7 @@
     {
       "id": "complete",
       "title": "Tutorial complete",
-      "markdown": "The opposition test is now running.\n\nMonitor the measurements in the gauge panels and scope plot. You can adjust the duty cycle or toggle other legs in the same way.\n\nClose this tutorial when you are done.",
+      "markdown": "You have successfully activated one leg of the TWIST board!\n\n- LEG1 is enabled with its gate driver running.\n- The duty cycle is set to 0.5 (50%).\n\nYou can now adjust setpoints or enable the second leg in the same way. Close this tutorial when you are done.",
       "completion": {
         "kind": "manual"
       }

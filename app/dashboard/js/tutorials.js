@@ -34,19 +34,18 @@
         'twist.leg1DutyRow': () => resolveTwistDutyRow('LEG1')
     };
 
-    function resolveLeg1Badge() {
-        return Array.from(document.querySelectorAll('.badge.bg-light')).find((b) => b.textContent.trim() === 'LEG1') || null;
-    }
-
     function resolveTwistToggle(legLabel, actionLabel) {
-        const badge = resolveLeg1Badge();
-        if (!badge) return null;
-        const grid = badge.parentElement && badge.parentElement.querySelector('.twist-toggle-grid');
-        if (!grid) return null;
-        return Array.from(grid.querySelectorAll('.twist-toggle-item')).find((item) => {
-            const label = item.querySelector('.input-group-text');
-            return label && label.textContent.trim() === actionLabel;
-        }) || null;
+        const badges = Array.from(document.querySelectorAll('.badge.bg-light')).filter((b) => b.textContent.trim() === legLabel);
+        for (const badge of badges) {
+            const grid = badge.parentElement && badge.parentElement.querySelector('.twist-toggle-grid');
+            if (!grid) continue;
+            const found = Array.from(grid.querySelectorAll('.twist-toggle-item')).find((item) => {
+                const label = item.querySelector('.input-group-text');
+                return label && label.textContent.trim() === actionLabel;
+            });
+            if (found) return found;
+        }
+        return null;
     }
 
     function resolveTwistDutyRow(legLabel) {
