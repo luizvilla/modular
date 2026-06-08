@@ -363,13 +363,16 @@
             }
             this._transitions.forEach(t => {
                 const row = $('<div class="d-flex align-items-start gap-1 border rounded px-1 py-1"></div>');
+                row.toggleClass('border-primary', t.id === this._selectedTransition);
                 const from = this._stateName(t.from), to = this._stateName(t.to);
-                const lbl = $('<div class="small flex-fill"></div>').html(
+                const lbl = $('<div class="small flex-fill" style="cursor:pointer"></div>').html(
                     `<strong>${this._esc(from)}</strong> &#x2192; <strong>${this._esc(to)}</strong><br>`
                     + `<span class="text-muted">${this._esc(this._conditionLabel(t) || '—')}</span>`
                 );
+                lbl.on('click', () => this._selectTransition(t.id));
                 const delBtn = $('<button class="btn btn-outline-danger btn-sm py-0 px-1 align-self-start" style="font-size:10px;min-width:22px">&#x2715;</button>');
                 delBtn.on('click', () => {
+                    if (this._selectedTransition === t.id) { this._selectedTransition = null; this._showNoSelection(); }
                     this._transitions = this._transitions.filter(tr => tr.id !== t.id);
                     this._renderAll();
                 });
@@ -387,20 +390,7 @@
             this._renderAll();
             const t = this._transitions.find(tr => tr.id === id);
             if (!t) { this._showNoSelection(); return; }
-            const from = this._states.find(s => s.id === t.from);
-            const to   = this._states.find(s => s.id === t.to);
-            this._paramsPanel.empty();
-            const header = $('<div class="fw-semibold mb-2 px-2 pt-2"></div>').text(
-                `${from?.name || t.from} → ${to?.name || t.to}:  ${this._conditionLabel(t) || '—'}`
-            );
-            const delBtn = $('<button class="btn btn-sm btn-outline-danger ms-2">Delete Transition</button>');
-            delBtn.on('click', () => {
-                this._transitions = this._transitions.filter(tr => tr.id !== id);
-                this._selectedTransition = null;
-                this._renderAll();
-                this._showNoSelection();
-            });
-            this._paramsPanel.append($('<div class="d-flex align-items-center gap-2 px-2"></div>').append(header, delBtn));
+            this._showTransitionForm(t.from, t.to, t);
         }
 
         _selectState(id) {
@@ -543,7 +533,8 @@
 
         // ── transition form ───────────────────────────────────────────────────
 
-        _showTransitionForm(fromId, toId) {
+        // existingTransition: pass when editing an existing transition (null = add new)
+        _showTransitionForm(fromId, toId, existingTransition = null) {
             this._paramsPanel.empty();
             const stateOpts = this._states.map(s => `<option value="${s.id}">${this._esc(s.name || s.id)}</option>`).join('');
             if (!stateOpts) {
@@ -551,18 +542,19 @@
                 return;
             }
 
+            const isEdit = existingTransition !== null;
             const varList = this._varOptions();
             const varOptsHtml = varList.map(v => `<option value="${this._esc(v)}">${this._esc(this._varDisplay(v))}</option>`).join('');
             const mathOptsHtml = ['x', '-x', 'k*x', 'x+b', 'k*x+b'].map(op => `<option value="${op}">${op}</option>`).join('');
             const cmpOptsHtml  = ['>', '<', '>=', '<=', '==', '!='].map(op => `<option value="${op}">${op}</option>`).join('');
 
             const form = $('<div class="p-2 d-flex flex-column gap-1" style="overflow-y:auto"></div>');
-            form.append('<div class="fw-semibold mb-1">Add Transition</div>');
+            form.append(`<div class="fw-semibold mb-1">${isEdit ? 'Edit Transition' : 'Add Transition'}</div>`);
 
             const fromSel = $(`<select class="form-select form-select-sm">${stateOpts}</select>`);
-            if (fromId) fromSel.val(fromId);
+            fromSel.val(isEdit ? existingTransition.from : (fromId || ''));
             const toSel = $(`<select class="form-select form-select-sm">${stateOpts}</select>`);
-            if (toId) toSel.val(toId);
+            toSel.val(isEdit ? existingTransition.to : (toId || ''));
             form.append(
                 $('<div class="d-flex gap-1 flex-wrap mb-1"></div>').append(
                     $('<div class="input-group input-group-sm flex-grow-1" style="min-width:160px"></div>').append('<span class="input-group-text">From</span>', fromSel),
@@ -612,7 +604,28 @@
                 condContainer.append(row);
             };
 
-            addCondRow(null);  // first condition (no join)
+            // Populate rows: pre-fill if editing, otherwise one empty row
+            if (isEdit) {
+                const existing = (existingTransition.conditions?.length > 0)
+                    ? existingTransition.conditions
+                    : [{ variable: existingTransition.variable, mathOp: existingTransition.mathOp || 'x',
+                         mathK: existingTransition.mathK ?? 1, mathB: existingTransition.mathB ?? 0,
+                         operator: existingTransition.operator || '>', threshold: existingTransition.threshold ?? 0 }];
+                existing.forEach((cond, i) => {
+                    addCondRow(i === 0 ? null : (cond.join || 'AND'));
+                    const c = condList[condList.length - 1];
+                    if (c.joinSel && cond.join) c.joinSel.val(cond.join);
+                    c.varSel.val(cond.variable || '');
+                    c.mathSel.val(cond.mathOp || 'x').trigger('change');
+                    c.kInput.val(cond.mathK ?? 1);
+                    c.bInput.val(cond.mathB ?? 0);
+                    c.opSel.val(cond.operator || '>');
+                    c.thrInput.val(cond.threshold ?? 0);
+                });
+            } else {
+                addCondRow(null);
+            }
+
             form.append(condContainer);
 
             // + AND / + OR buttons
@@ -623,31 +636,57 @@
                 )
             );
 
-            const addBtn    = $('<button class="btn btn-sm btn-primary">Add</button>');
             const cancelBtn = $('<button class="btn btn-sm btn-outline-secondary">Cancel</button>');
-
-            addBtn.on('click', () => {
-                const conditionsData = condList.map((c, i) => {
-                    const op = c.mathSel.val();
-                    const item = {
-                        variable: c.varSel.val(), mathOp: op,
-                        mathK: parseFloat(c.kInput.val()) || 1,
-                        mathB: parseFloat(c.bInput.val()) || 0,
-                        operator: c.opSel.val(),
-                        threshold: parseFloat(c.thrInput.val()) || 0
-                    };
-                    if (i > 0 && c.joinSel) item.join = c.joinSel.val();
-                    return item;
-                });
-                this._transitions.push({ id: 't' + Date.now(), from: fromSel.val(), to: toSel.val(), conditions: conditionsData });
-                this._transTabBtn.trigger('click');
-                this._renderAll();
-                this._showNoSelection();
-            });
             cancelBtn.on('click', () => { this._pendingFrom = null; this._renderAll(); this._showNoSelection(); });
 
-            form.append($('<div class="d-flex gap-2"></div>').append(addBtn, cancelBtn));
+            if (isEdit) {
+                const updateBtn = $('<button class="btn btn-sm btn-primary">Update</button>');
+                const deleteBtn = $('<button class="btn btn-sm btn-outline-danger">Delete</button>');
+                updateBtn.on('click', () => {
+                    const idx = this._transitions.findIndex(tr => tr.id === existingTransition.id);
+                    if (idx >= 0) {
+                        this._transitions[idx] = {
+                            id: existingTransition.id, from: fromSel.val(), to: toSel.val(),
+                            conditions: this._collectConditions(condList)
+                        };
+                    }
+                    this._renderAll();
+                    this._selectTransition(existingTransition.id);
+                });
+                deleteBtn.on('click', () => {
+                    this._transitions = this._transitions.filter(tr => tr.id !== existingTransition.id);
+                    this._selectedTransition = null;
+                    this._renderAll();
+                    this._showNoSelection();
+                });
+                form.append($('<div class="d-flex gap-2"></div>').append(updateBtn, deleteBtn, cancelBtn));
+            } else {
+                const addBtn = $('<button class="btn btn-sm btn-primary">Add</button>');
+                addBtn.on('click', () => {
+                    this._transitions.push({ id: 't' + Date.now(), from: fromSel.val(), to: toSel.val(), conditions: this._collectConditions(condList) });
+                    this._transTabBtn.trigger('click');
+                    this._renderAll();
+                    this._showNoSelection();
+                });
+                form.append($('<div class="d-flex gap-2"></div>').append(addBtn, cancelBtn));
+            }
+
             this._paramsPanel.append(form);
+        }
+
+        _collectConditions(condList) {
+            return condList.map((c, i) => {
+                const op = c.mathSel.val();
+                const item = {
+                    variable: c.varSel.val(), mathOp: op,
+                    mathK: parseFloat(c.kInput.val()) || 1,
+                    mathB: parseFloat(c.bInput.val()) || 0,
+                    operator: c.opSel.val(),
+                    threshold: parseFloat(c.thrInput.val()) || 0
+                };
+                if (i > 0 && c.joinSel) item.join = c.joinSel.val();
+                return item;
+            });
         }
 
         // ── save ──────────────────────────────────────────────────────────────
