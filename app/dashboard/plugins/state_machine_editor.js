@@ -117,7 +117,7 @@
             });
 
             addStateBtn.on('click', () => this._addState());
-            addTransBtn.on('click', () => this._showTransitionForm(null, null));
+            addTransBtn.on('click', () => this._showTransitionForm(null, null).catch(() => {}));
 
             this._setupSvgEvents(svgEl);
             this._renderAll();
@@ -176,7 +176,7 @@
                     const fromId = this._connector.fromId;
                     this._connector = null;
                     const target = this._states.find(s => Math.hypot(mx - s.x, my - s.y) < 35 && s.id !== fromId);
-                    if (target) this._showTransitionForm(fromId, target.id);
+                    if (target) this._showTransitionForm(fromId, target.id).catch(() => {});
                     else this._renderAll();
                     return;
                 }
@@ -204,7 +204,7 @@
                 } else if (this._pendingFrom !== id) {
                     const from = this._pendingFrom;
                     this._pendingFrom = null;
-                    this._showTransitionForm(from, id);
+                    this._showTransitionForm(from, id).catch(() => {});
                 } else {
                     this._pendingFrom = null;
                     this._renderAll();
@@ -390,7 +390,7 @@
             this._renderAll();
             const t = this._transitions.find(tr => tr.id === id);
             if (!t) { this._showNoSelection(); return; }
-            this._showTransitionForm(t.from, t.to, t);
+            this._showTransitionForm(t.from, t.to, t).catch(() => {});
         }
 
         _selectState(id) {
@@ -534,7 +534,7 @@
         // ── transition form ───────────────────────────────────────────────────
 
         // existingTransition: pass when editing an existing transition (null = add new)
-        _showTransitionForm(fromId, toId, existingTransition = null) {
+        async _showTransitionForm(fromId, toId, existingTransition = null) {
             this._paramsPanel.empty();
             const stateOpts = this._states.map(s => `<option value="${s.id}">${this._esc(s.name || s.id)}</option>`).join('');
             if (!stateOpts) {
@@ -542,9 +542,17 @@
                 return;
             }
 
+            // Fetch channel list from the datasource (same mechanism as the integrated plot editor)
+            const shared = freeboard.getPlotEditorShared?.();
+            const dsName = this._model.settings()?.datasource;
+            let varOptions = (shared && dsName)
+                ? (await shared.fetchDatasourceVariableOptions(dsName, '').catch(() => []))
+                : [];
+            // Append locally-tracked power state as a special option
+            varOptions = [...varOptions, { value: '__state__', label: 'State (IDLE=0  ON=1  OFF=2)' }];
+            const varOptsHtml = varOptions.map(o => `<option value="${this._esc(o.value)}">${this._esc(o.label)}</option>`).join('');
+
             const isEdit = existingTransition !== null;
-            const varList = this._varOptions();
-            const varOptsHtml = varList.map(v => `<option value="${this._esc(v)}">${this._esc(this._varDisplay(v))}</option>`).join('');
             const mathOptsHtml = ['x', '-x', 'k*x', 'x+b', 'k*x+b'].map(op => `<option value="${op}">${op}</option>`).join('');
             const cmpOptsHtml  = ['>', '<', '>=', '<=', '==', '!='].map(op => `<option value="${op}">${op}</option>`).join('');
 
@@ -678,7 +686,9 @@
             return condList.map((c, i) => {
                 const op = c.mathSel.val();
                 const item = {
-                    variable: c.varSel.val(), mathOp: op,
+                    variable: c.varSel.val(),
+                    variableLabel: c.varSel.find(':selected').text(),
+                    mathOp: op,
                     mathK: parseFloat(c.kInput.val()) || 1,
                     mathB: parseFloat(c.bInput.val()) || 0,
                     operator: c.opSel.val(),
@@ -708,22 +718,13 @@
         _stateName(id) { return this._states.find(s => s.id === id)?.name || id || '?'; }
         _esc(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-        // Returns array of variable names available for conditions (datasource headers + __state__)
-        _varOptions() {
-            const profVars = protocol?.getProfile(this._deviceType)?.variables || [];
-            const dsName = this._model.settings()?.datasource;
-            const dsSettings = freeboard.getDatasourceSettings?.(dsName) || {};
-            const headers = Array.isArray(dsSettings.dataHeaders) ? dsSettings.dataHeaders : [];
-            return [...profVars.map((pv, i) => headers[i] || pv), '__state__'];
-        }
-        _varDisplay(v) { return v === '__state__' ? 'State (IDLE=0  ON=1  OFF=2)' : v; }
-
         // Returns a short label for a transition (from first condition, backwards-compat with old format)
         _conditionLabel(t) {
             const c = (t.conditions && t.conditions.length > 0) ? t.conditions[0] : t;
             if (!c?.variable) return '';
+            const name = c.variableLabel || c.variable;
             const extra = (t.conditions && t.conditions.length > 1) ? ` +${t.conditions.length - 1}` : '';
-            return `${c.variable} ${c.operator || '>'} ${c.threshold ?? 0}${extra}`;
+            return `${name} ${c.operator || '>'} ${c.threshold ?? 0}${extra}`;
         }
     }
 

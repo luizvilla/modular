@@ -146,8 +146,9 @@
                     lbl.setAttribute('text-anchor', 'middle');
                     lbl.setAttribute('fill', '#666');
                     lbl.setAttribute('font-size', '9');
+                    const name = c0.variableLabel || c0.variable;
                     const extra = (t.conditions && t.conditions.length > 1) ? ` +${t.conditions.length - 1}` : '';
-                    lbl.textContent = `${c0.variable} ${c0.operator || '>'} ${c0.threshold ?? 0}${extra}`;
+                    lbl.textContent = `${name} ${c0.operator || '>'} ${c0.threshold ?? 0}${extra}`;
                     svg.appendChild(lbl);
                 }
             });
@@ -285,12 +286,16 @@
                 if (!path) return null;
                 const arr = await shared.invoke('get-serial-buffer', { path });
                 if (!Array.isArray(arr)) return null;
-                const profVars = protocol?.getProfile(this.settings.deviceType || 'TWIST')?.variables || [];
-                const headers = Array.isArray(dsSettings.dataHeaders) ? dsSettings.dataHeaders : [];
-                // Build display names: user header if set, otherwise protocol variable name
-                const displayVars = profVars.map((pv, i) => headers[i] || pv);
-                const idx = displayVars.indexOf(varName);
-                if (idx < 0) return null;
+                // New format: variable is a numeric index string ("0", "1", ...)
+                // Legacy format: variable is a protocol name ("V1", "V2", ...)
+                let idx;
+                if (/^\d+$/.test(String(varName))) {
+                    idx = Number(varName);
+                } else {
+                    const profVars = protocol?.getProfile(this.settings.deviceType || 'TWIST')?.variables || [];
+                    idx = profVars.indexOf(varName);
+                }
+                if (idx < 0 || idx >= arr.length) return null;
                 const v = Number(arr[idx]);
                 return Number.isFinite(v) ? v : null;
             } catch {
