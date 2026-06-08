@@ -66,6 +66,10 @@
             if (settings._toggleState && typeof settings._toggleState === 'object') {
                 Object.entries(settings._toggleState).forEach(([k, v]) => this.toggleState.set(k, v));
             }
+            this._legCheckboxes = new Map();
+            this._setPower = null;
+            this._smHandler = (e) => this._applySmState(e.detail);
+            window.addEventListener('sm:state-entered', this._smHandler);
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             if (freeboard && typeof freeboard.addStyle === 'function') {
@@ -188,6 +192,7 @@
             on.on('click', () => setPower('ON', true));
             off.on('click', () => setPower('OFF', true));
             setPower(this.powerState || 'IDLE', false);
+            this._setPower = setPower;
             this.powerWrap = $('<div></div>').append($('<div class="fw-semibold">Power</div>'), row);
             this.container.append(this.powerWrap);
         }
@@ -261,8 +266,24 @@
             this.container.append(this.scopeWrap);
         }
 
+        _applySmState(detail) {
+            if (this._setPower && detail.powerMode) this._setPower(detail.powerMode, false);
+            (detail.legs || []).forEach(legData => {
+                const n = legData.leg;
+                Object.entries(legData.toggles || {}).forEach(([action, state]) => {
+                    const cb = this._legCheckboxes.get(`${action}:${n}`);
+                    if (!cb) return;
+                    const isOn = state === 'ON';
+                    cb.prop('checked', isOn);
+                    this.toggleState.set(`${action}:${n}`, state);
+                });
+            });
+            this._persistToggleState();
+        }
+
         _renderLegControls() {
             if (this.legWrap) this.legWrap.remove();
+            this._legCheckboxes.clear();
             const profile = this._profile();
             const section = $('<div class="d-flex flex-column gap-2"></div>');
             const wrap = $('<div class="d-flex flex-column gap-2"></div>');
@@ -289,6 +310,7 @@
                          </label>`
                     );
                     const switchWrap = $('<div class="onoffswitch"></div>').append(checkbox, onOffLabel);
+                    this._legCheckboxes.set(key, checkbox);
                     checkbox.on('change', () => {
                         const state = checkbox.prop('checked') ? 'ON' : 'OFF';
                         this.toggleState.set(key, state);
@@ -331,6 +353,7 @@
         }
 
         onDispose() {
+            window.removeEventListener('sm:state-entered', this._smHandler);
             if (this._configHandler && freeboard.off) {
                 freeboard.off('config_updated', this._configHandler);
             }

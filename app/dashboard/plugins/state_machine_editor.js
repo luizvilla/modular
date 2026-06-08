@@ -32,7 +32,7 @@
             freeboard.addStyle('#modal_overlay .modal:has(.sm-editor-modal)', 'width:820px;');
 
             const wrap = $('<div class="sm-editor-modal"></div>').css({
-                display: 'flex', flexDirection: 'column', height: '560px'
+                display: 'flex', flexDirection: 'column', height: '660px'
             });
 
             // Top row: canvas (flex:1) + sidebar (200px fixed)
@@ -67,54 +67,33 @@
             svgEl.appendChild(defs);
             canvasWrap.append(svgEl);
 
-            // Sidebar (200px, flex column)
+            // Sidebar (200px, flex column) — both sections always visible, no tabs
             const sidebar = $('<div class="sm-sidebar"></div>').css({
-                width: '200px', flexShrink: '0', display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden'
+                width: '200px', flexShrink: '0', display: 'flex', flexDirection: 'column', gap: '4px',
+                overflow: 'hidden', border: '1px solid #444', borderRadius: '4px', padding: '6px'
             });
 
-            this._statesTabBtn = $('<button class="btn btn-sm btn-primary">States</button>');
-            this._transTabBtn = $('<button class="btn btn-sm btn-outline-secondary">Transitions</button>');
-            const tabBar = $('<div class="d-flex gap-1"></div>').append(this._statesTabBtn, this._transTabBtn);
-
             const addStateBtn = $('<button class="btn btn-sm btn-outline-success w-100">+ Add State</button>');
-            this._statesList = $('<div class="d-flex flex-column gap-1" style="overflow-y:auto"></div>');
+            this._statesList = $('<div class="d-flex flex-column gap-1" style="overflow-y:auto;flex:1;min-height:0"></div>');
             this._statesPanel = $('<div class="d-flex flex-column gap-1"></div>').css({ flex: '1', minHeight: '0' }).append(addStateBtn, this._statesList);
 
             const addTransBtn = $('<button class="btn btn-sm btn-outline-success w-100">+ Add Transition</button>');
-            this._transList = $('<div class="d-flex flex-column gap-1" style="overflow-y:auto"></div>');
-            this._transPanel = $('<div class="d-flex flex-column gap-1" style="display:none"></div>').css({ flex: '1', minHeight: '0' }).append(addTransBtn, this._transList);
+            this._transList = $('<div class="d-flex flex-column gap-1" style="overflow-y:auto;flex:1;min-height:0"></div>');
+            this._transPanel = $('<div class="d-flex flex-column gap-1"></div>').css({ flex: '1', minHeight: '0' }).append(addTransBtn, this._transList);
 
-            const tabContent = $('<div></div>').css({
-                flex: '1', minHeight: '0', overflowY: 'auto',
-                border: '1px solid #444', borderRadius: '4px', padding: '6px',
-                display: 'flex', flexDirection: 'column', gap: '4px'
-            }).append(this._statesPanel, this._transPanel);
-            sidebar.append(tabBar, tabContent);
+            const divider = $('<div></div>').css({ borderTop: '1px solid #444', margin: '2px 0', flexShrink: '0' });
+            sidebar.append(this._statesPanel, divider, this._transPanel);
 
             topRow.append(sidebar, canvasWrap);
 
             // Bottom: params panel (fixed height)
             this._paramsPanel = $('<div class="sm-params-panel"></div>').css({
-                height: '185px', overflowY: 'auto', flexShrink: '0',
+                height: '265px', overflowY: 'auto', flexShrink: '0',
                 borderTop: '1px solid #444', paddingTop: '6px', marginTop: '4px'
             });
             this._showNoSelection();
 
             wrap.append(topRow, this._paramsPanel);
-
-            // Wire tabs
-            this._statesTabBtn.on('click', () => {
-                this._statesPanel.show();
-                this._transPanel.hide();
-                this._statesTabBtn.removeClass('btn-outline-secondary').addClass('btn-primary');
-                this._transTabBtn.removeClass('btn-primary').addClass('btn-outline-secondary');
-            });
-            this._transTabBtn.on('click', () => {
-                this._transPanel.css('display', 'flex');
-                this._statesPanel.hide();
-                this._transTabBtn.removeClass('btn-outline-secondary').addClass('btn-primary');
-                this._statesTabBtn.removeClass('btn-primary').addClass('btn-outline-secondary');
-            });
 
             addStateBtn.on('click', () => this._addState());
             addTransBtn.on('click', () => this._showTransitionForm(null, null).catch(() => {}));
@@ -424,7 +403,7 @@
                     state.legs.push({
                         leg: i,
                         toggles: { LEG: 'OFF', CAPA: 'OFF', DRIVER: 'OFF', BUCK: 'OFF', BOOST: 'OFF' },
-                        setpoints: { duty: 0, phase_shift: 0, frequency: 200000, dead_time_rising: 200, dead_time_falling: 200 }
+                        setpoints: { reference_var: protocol?.getProfile(this._deviceType)?.variables[0] || 'V1', reference_val: 0, duty: 0, phase_shift: 0, frequency: 200000, dead_time_rising: 200, dead_time_falling: 200 }
                     });
                 }
             }
@@ -444,25 +423,40 @@
             ));
             this._paramsPanel.append(header);
 
-            // Per-leg controls
+            // Per-leg controls — all legs side by side, equal width
             this._legControls = {};
-            const legRow = $('<div class="d-flex gap-2 flex-wrap px-2 pb-1"></div>');
+            const legRow = $('<div class="d-flex gap-2 px-2 pb-1"></div>');
             for (let i = 1; i <= numLegs; i++) {
                 const legData = state.legs.find(l => l.leg === i);
-                const legBox = $(`<div class="border rounded p-1 d-flex flex-column gap-1 sm-leg-box" data-leg="${i}" style="min-width:200px;font-size:12px"></div>`);
-                legBox.append($(`<div class="fw-semibold">Leg ${i}</div>`));
+                const legBox = $(`<div class="border rounded p-1 d-flex flex-column gap-1 sm-leg-box" data-leg="${i}" style="flex:1;min-width:0;font-size:12px"></div>`);
+                legBox.append($(`<div class="fw-semibold" style="font-size:11px">Leg ${i}</div>`));
 
                 const ctrl = { toggles: {}, setpoints: {} };
 
-                // Toggles
-                const toggleRow = $('<div class="d-flex gap-2 flex-wrap"></div>');
+                // Toggles — tight single row; wraps to 2 lines only if truly needed (e.g. very narrow)
+                const toggleRow = $('<div class="d-flex gap-1 flex-wrap"></div>');
                 ['LEG', 'CAPA', 'DRIVER', 'BUCK', 'BOOST'].forEach(action => {
-                    const cb = $('<input type="checkbox" class="form-check-input mt-0">').prop('checked', legData.toggles[action] === 'ON');
-                    const lbl = $(`<label class="form-check-label small">${action}</label>`);
-                    toggleRow.append($('<div class="form-check form-check-inline mb-0"></div>').append(cb, lbl));
+                    const cb = $('<input type="checkbox" class="form-check-input mt-0" style="width:12px;height:12px">').prop('checked', legData.toggles[action] === 'ON');
+                    const lbl = $(`<label style="font-size:11px;cursor:pointer">${action}</label>`);
+                    cb.on('change', () => {});
+                    lbl.on('click', () => cb.prop('checked', !cb.prop('checked')));
+                    toggleRow.append($('<div class="d-flex align-items-center gap-1"></div>').append(cb, lbl));
                     ctrl.toggles[action] = cb;
                 });
                 legBox.append(toggleRow);
+
+                // Reference (variable selector + value)
+                const refVars = protocol?.getProfile(this._deviceType)?.variables || ['V1', 'V2', 'VH', 'I1', 'I2', 'IH'];
+                const refVarSel = $(`<select class="form-select form-select-sm" style="max-width:70px;font-size:11px"></select>`);
+                refVars.forEach(v => refVarSel.append(`<option value="${v}">${v}</option>`));
+                refVarSel.val(legData.setpoints.reference_var || refVars[0]);
+                const refValInput = $('<input type="number" class="form-control form-control-sm" step="0.01">').val(legData.setpoints.reference_val ?? 0);
+                legBox.append($('<div class="input-group input-group-sm"></div>').append(
+                    $('<span class="input-group-text" style="width:72px;font-size:11px;flex-shrink:0">Ref</span>'),
+                    refVarSel, refValInput
+                ));
+                ctrl.setpoints.reference_var = refVarSel;
+                ctrl.setpoints.reference_val = refValInput;
 
                 // Setpoints
                 const spDefs = [
@@ -472,7 +466,7 @@
                 spDefs.forEach(([label, key, def]) => {
                     const input = $('<input type="number" class="form-control form-control-sm">').val(legData.setpoints[key] ?? def);
                     legBox.append($('<div class="input-group input-group-sm"></div>').append(
-                        $('<span class="input-group-text" style="min-width:76px;font-size:11px"></span>').text(label),
+                        $('<span class="input-group-text" style="width:72px;font-size:11px;flex-shrink:0"></span>').text(label),
                         input
                     ));
                     ctrl.setpoints[key] = input;
@@ -495,6 +489,7 @@
                 if (!ctrl) return;
                 Object.keys(ctrl.toggles).forEach(a => { leg.toggles[a] = ctrl.toggles[a].prop('checked') ? 'ON' : 'OFF'; });
                 Object.keys(ctrl.setpoints).forEach(k => {
+                    if (k === 'reference_var') { leg.setpoints[k] = ctrl.setpoints[k].val(); return; }
                     const v = parseFloat(ctrl.setpoints[k].val());
                     if (Number.isFinite(v)) leg.setpoints[k] = v;
                 });
@@ -513,7 +508,7 @@
                 legs.push({
                     leg: i,
                     toggles: { LEG: 'OFF', CAPA: 'OFF', DRIVER: 'OFF', BUCK: 'OFF', BOOST: 'OFF' },
-                    setpoints: { duty: 0, phase_shift: 0, frequency: 200000, dead_time_rising: 200, dead_time_falling: 200 }
+                    setpoints: { reference_var: protocol?.getProfile(this._deviceType)?.variables[0] || 'V1', reference_val: 0, duty: 0, phase_shift: 0, frequency: 200000, dead_time_rising: 200, dead_time_falling: 200 }
                 });
             }
             this._states.push({ id, name: `State ${idx + 1}`, x: 80 + (idx % 5) * 130, y: 80 + Math.floor(idx / 5) * 110, powerMode: null, legs });
@@ -557,36 +552,31 @@
             const cmpOptsHtml  = ['>', '<', '>=', '<=', '==', '!='].map(op => `<option value="${op}">${op}</option>`).join('');
 
             const form = $('<div class="p-2 d-flex flex-column gap-1" style="overflow-y:auto"></div>');
-            form.append(`<div class="fw-semibold mb-1">${isEdit ? 'Edit Transition' : 'Add Transition'}</div>`);
 
-            const fromSel = $(`<select class="form-select form-select-sm">${stateOpts}</select>`);
+            const fromSel = $(`<select class="form-select form-select-sm" style="max-width:120px">${stateOpts}</select>`);
             fromSel.val(isEdit ? existingTransition.from : (fromId || ''));
-            const toSel = $(`<select class="form-select form-select-sm">${stateOpts}</select>`);
+            const toSel = $(`<select class="form-select form-select-sm" style="max-width:120px">${stateOpts}</select>`);
             toSel.val(isEdit ? existingTransition.to : (toId || ''));
-            form.append(
-                $('<div class="d-flex gap-1 flex-wrap mb-1"></div>').append(
-                    $('<div class="input-group input-group-sm flex-grow-1" style="min-width:160px"></div>').append('<span class="input-group-text">From</span>', fromSel),
-                    $('<div class="input-group input-group-sm flex-grow-1" style="min-width:160px"></div>').append('<span class="input-group-text">To</span>', toSel)
-                )
-            );
 
             // Conditions list — each entry: { joinSel, varSel, mathSel, kInput, bInput, opSel, thrInput, row }
             const condList = [];
             const condContainer = $('<div class="d-flex flex-column gap-1 mb-1"></div>');
 
             const addCondRow = (initJoin) => {
-                const row = $('<div class="d-flex flex-wrap gap-1 align-items-center"></div>');
+                const row = $('<div class="d-flex gap-1 align-items-center"></div>');
                 let joinSel = null;
                 if (condList.length > 0) {
-                    joinSel = $('<select class="form-select form-select-sm" style="max-width:60px"><option value="AND">AND</option><option value="OR">OR</option></select>');
+                    joinSel = $('<select class="form-select form-select-sm" style="width:62px;flex-shrink:0"><option value="AND">AND</option><option value="OR">OR</option></select>');
                     joinSel.val(initJoin || 'AND');
                     row.append(joinSel);
+                } else {
+                    row.append($('<div style="width:62px;flex-shrink:0"></div>'));
                 }
-                const varSel   = $(`<select class="form-select form-select-sm" style="max-width:130px">${varOptsHtml}</select>`);
-                const mathSel  = $(`<select class="form-select form-select-sm" style="max-width:72px">${mathOptsHtml}</select>`);
-                const kWrap = $('<div class="input-group input-group-sm" style="max-width:78px;display:none"></div>')
+                const varSel   = $(`<select class="form-select form-select-sm" style="flex:1;min-width:80px">${varOptsHtml}</select>`);
+                const mathSel  = $(`<select class="form-select form-select-sm" style="width:72px;flex-shrink:0">${mathOptsHtml}</select>`);
+                const kWrap = $('<div class="input-group input-group-sm" style="width:78px;flex-shrink:0;display:none"></div>')
                     .append('<span class="input-group-text px-1">k</span>', $('<input type="number" class="form-control" value="1" step="0.1">'));
-                const bWrap = $('<div class="input-group input-group-sm" style="max-width:78px;display:none"></div>')
+                const bWrap = $('<div class="input-group input-group-sm" style="width:78px;flex-shrink:0;display:none"></div>')
                     .append('<span class="input-group-text px-1">b</span>', $('<input type="number" class="form-control" value="0" step="0.1">'));
                 const kInput = kWrap.find('input'), bInput = bWrap.find('input');
                 mathSel.on('change', () => {
@@ -594,8 +584,8 @@
                     kWrap.toggle(op === 'k*x' || op === 'k*x+b');
                     bWrap.toggle(op === 'x+b' || op === 'k*x+b');
                 });
-                const opSel    = $(`<select class="form-select form-select-sm" style="max-width:56px">${cmpOptsHtml}</select>`);
-                const thrInput = $('<input type="number" class="form-control form-control-sm" value="0" step="0.1" style="max-width:78px">');
+                const opSel    = $(`<select class="form-select form-select-sm" style="width:56px;flex-shrink:0">${cmpOptsHtml}</select>`);
+                const thrInput = $('<input type="number" class="form-control form-control-sm" value="0" step="0.1" style="width:78px;flex-shrink:0">');
                 const removeBtn = $('<button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:11px">&#x2715;</button>');
 
                 const condObj = { joinSel, varSel, mathSel, kInput, bInput, opSel, thrInput, row };
@@ -634,23 +624,38 @@
                 addCondRow(null);
             }
 
-            form.append(condContainer);
-
-            // + AND / + OR buttons
-            form.append(
-                $('<div class="d-flex gap-1 mb-1"></div>').append(
-                    $('<button class="btn btn-outline-secondary btn-sm" style="font-size:11px">+ AND</button>').on('click', () => addCondRow('AND')),
-                    $('<button class="btn btn-outline-secondary btn-sm" style="font-size:11px">+ OR</button>').on('click', () => addCondRow('OR'))
-                )
-            );
-
+            // Apply button — defined before topRow so handler can reference condList
+            const applyBtn = $('<button class="btn btn-sm btn-primary ms-auto">Apply</button>');
             const cancelBtn = $('<button class="btn btn-sm btn-outline-secondary">Cancel</button>');
             cancelBtn.on('click', () => { this._pendingFrom = null; this._renderAll(); this._showNoSelection(); });
 
+            // Top row: From / To / Apply — all inline
+            form.append(
+                $('<div class="d-flex gap-1 align-items-center mb-1"></div>').append(
+                    $('<div class="input-group input-group-sm" style="width:auto"></div>').append('<span class="input-group-text">From</span>', fromSel),
+                    $('<div class="input-group input-group-sm" style="width:auto"></div>').append('<span class="input-group-text">To</span>', toSel),
+                    applyBtn
+                )
+            );
+
+            form.append(condContainer);
+
+            // Bottom row: + Add Condition | [Delete] [Cancel]
+            const addCondBtn = $('<button class="btn btn-outline-secondary btn-sm" style="font-size:11px">+ Add Condition</button>');
+            addCondBtn.on('click', () => addCondRow('AND'));
+            const bottomRow = $('<div class="d-flex gap-1 align-items-center mt-1"></div>').append(addCondBtn);
+
             if (isEdit) {
-                const updateBtn = $('<button class="btn btn-sm btn-primary">Update</button>');
-                const deleteBtn = $('<button class="btn btn-sm btn-outline-danger">Delete</button>');
-                updateBtn.on('click', () => {
+                const deleteBtn = $('<button class="btn btn-sm btn-outline-danger ms-auto">Delete</button>');
+                deleteBtn.on('click', () => {
+                    this._transitions = this._transitions.filter(tr => tr.id !== existingTransition.id);
+                    this._selectedTransition = null;
+                    this._renderAll();
+                    this._showNoSelection();
+                });
+                bottomRow.append(deleteBtn, cancelBtn);
+
+                applyBtn.on('click', () => {
                     const idx = this._transitions.findIndex(tr => tr.id === existingTransition.id);
                     if (idx >= 0) {
                         this._transitions[idx] = {
@@ -661,24 +666,16 @@
                     this._renderAll();
                     this._selectTransition(existingTransition.id);
                 });
-                deleteBtn.on('click', () => {
-                    this._transitions = this._transitions.filter(tr => tr.id !== existingTransition.id);
-                    this._selectedTransition = null;
-                    this._renderAll();
-                    this._showNoSelection();
-                });
-                form.append($('<div class="d-flex gap-2"></div>').append(updateBtn, deleteBtn, cancelBtn));
             } else {
-                const addBtn = $('<button class="btn btn-sm btn-primary">Add</button>');
-                addBtn.on('click', () => {
+                bottomRow.append(cancelBtn);
+                applyBtn.on('click', () => {
                     this._transitions.push({ id: 't' + Date.now(), from: fromSel.val(), to: toSel.val(), conditions: this._collectConditions(condList) });
-                    this._transTabBtn.trigger('click');
                     this._renderAll();
                     this._showNoSelection();
                 });
-                form.append($('<div class="d-flex gap-2"></div>').append(addBtn, cancelBtn));
             }
 
+            form.append(bottomRow);
             this._paramsPanel.append(form);
         }
 

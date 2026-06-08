@@ -49,6 +49,7 @@
             this.ipc = !this.serialApi && window.require ? window.require('electron')?.ipcRenderer : null;
             this._running = false;
             this._ticker = null;
+            this._ticking = false;
             this._currentState = null;
             this._powerState = null;  // 0=IDLE, 1=ON, 2=OFF — tracked locally
 
@@ -208,23 +209,32 @@
         _start() {
             if (!this.settings.initialState) return;
             this._running = true;
-            this._enterState(this.settings.initialState);
+            this._ticking = false;
+            this._currentState = this.settings.initialState;
+            this._statusEl.text(`State: ${this._stateName(this._currentState)}`);
+            this._renderSvg();
             this._ticker = setInterval(() => this._tick(), 200);
             this._updateButtons();
         }
 
         _stop() {
             this._running = false;
+            this._ticking = false;
             if (this._ticker) { clearInterval(this._ticker); this._ticker = null; }
             this._renderSvg();
             this._updateButtons();
         }
 
         async _tick() {
-            if (!this._running) return;
-            const transitions = (this.settings.transitions || []).filter(t => t.from === this._currentState);
-            for (const t of transitions) {
-                if (await this._evaluateTransition(t)) { this._enterState(t.to); break; }
+            if (!this._running || this._ticking) return;
+            this._ticking = true;
+            try {
+                const transitions = (this.settings.transitions || []).filter(t => t.from === this._currentState);
+                for (const t of transitions) {
+                    if (await this._evaluateTransition(t)) { await this._enterState(t.to); break; }
+                }
+            } finally {
+                this._ticking = false;
             }
         }
 
@@ -245,35 +255,47 @@
             return result ?? false;
         }
 
-        _enterState(id) {
+        async _enterState(id) {
             const state = (this.settings.states || []).find(s => s.id === id);
             if (!state) return;
             this._currentState = id;
             this._statusEl.text(`State: ${this._stateName(id)}`);
             this._renderSvg();
 
+            // Notify action/setpoint widgets immediately so their UI reflects the new state
+            window.dispatchEvent(new CustomEvent('sm:state-entered', {
+                detail: {
+                    powerMode: state.powerMode,
+                    legs: state.legs || [],
+                    datasource: this.settings.datasource,
+                    deviceType: this.settings.deviceType || 'TWIST'
+                }
+            }));
+
             if (!protocol) return;
             const deviceType = this.settings.deviceType || 'TWIST';
 
-            if (state.powerMode === 'IDLE') { this._powerState = 0; this._send(protocol.cmdIdle()); }
-            else if (state.powerMode === 'ON') { this._powerState = 1; this._send(protocol.cmdPowerOn()); }
-            else if (state.powerMode === 'OFF') { this._powerState = 2; this._send(protocol.cmdPowerOff()); }
+            if (state.powerMode === 'IDLE') { this._powerState = 0; await this._send(protocol.cmdIdle()); }
+            else if (state.powerMode === 'ON') { this._powerState = 1; await this._send(protocol.cmdPowerOn()); }
+            else if (state.powerMode === 'OFF') { this._powerState = 2; await this._send(protocol.cmdPowerOff()); }
 
-            (state.legs || []).forEach(leg => {
+            for (const leg of (state.legs || [])) {
                 const n = leg.leg;
                 const t = leg.toggles || {};
-                ['LEG', 'CAPA', 'DRIVER', 'BUCK', 'BOOST'].forEach(action => {
+                for (const action of ['LEG', 'CAPA', 'DRIVER', 'BUCK', 'BOOST']) {
                     if (t[action] !== undefined) {
-                        this._send(protocol.cmdToggle(action, n, t[action], deviceType));
+                        await this._send(protocol.cmdToggle(action, n, t[action], deviceType));
                     }
-                });
+                }
                 const sp = leg.setpoints || {};
-                if (sp.duty !== undefined) this._send(protocol.cmdDuty(n, sp.duty, deviceType));
-                if (sp.phase_shift !== undefined) this._send(protocol.cmdPhaseShift(n, sp.phase_shift, deviceType));
-                if (sp.frequency !== undefined) this._send(protocol.cmdFrequency(n, sp.frequency, deviceType));
-                if (sp.dead_time_rising !== undefined) this._send(protocol.cmdDeadTimeRising(n, sp.dead_time_rising, deviceType));
-                if (sp.dead_time_falling !== undefined) this._send(protocol.cmdDeadTimeFalling(n, sp.dead_time_falling, deviceType));
-            });
+                if (sp.reference_var !== undefined && sp.reference_val !== undefined)
+                    await this._send(protocol.cmdReference(n, sp.reference_var, sp.reference_val, deviceType));
+                if (sp.duty !== undefined) await this._send(protocol.cmdDuty(n, sp.duty, deviceType));
+                if (sp.phase_shift !== undefined) await this._send(protocol.cmdPhaseShift(n, sp.phase_shift, deviceType));
+                if (sp.frequency !== undefined) await this._send(protocol.cmdFrequency(n, sp.frequency, deviceType));
+                if (sp.dead_time_rising !== undefined) await this._send(protocol.cmdDeadTimeRising(n, sp.dead_time_rising, deviceType));
+                if (sp.dead_time_falling !== undefined) await this._send(protocol.cmdDeadTimeFalling(n, sp.dead_time_falling, deviceType));
+            }
         }
 
         async _readVariable(varName) {

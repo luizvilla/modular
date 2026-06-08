@@ -64,6 +64,9 @@
             this.autoSend = settings._autoSend || false;
             this._setpointValues = (settings._setpointValues && typeof settings._setpointValues === 'object')
                 ? settings._setpointValues : {};
+            this._legInputs = {};
+            this._smHandler = (e) => this._applySmState(e.detail);
+            window.addEventListener('sm:state-entered', this._smHandler);
             this._configHandler = () => this._refreshDatasourceOptions();
             freeboard.on && freeboard.on('config_updated', this._configHandler);
             if (freeboard && typeof freeboard.addStyle === 'function') {
@@ -250,6 +253,9 @@
                     this._send(protocol.cmdDeadTimeFalling(leg, dtFallVal.val(), this.settings.deviceType));
                 });
 
+                // Expose inputs so sm:state-entered can mirror values without sending
+                this._legInputs[leg] = { refVar, refVal, dutyVal, freqVal, phaseVal, dtRiseVal, dtFallVal };
+
                 // Restore previously saved values for this leg.
                 const saved = this._setpointValues[leg] || {};
                 if (saved.refVar) refVar.val(saved.refVar);
@@ -283,6 +289,21 @@
             this.container.append(this.setpointWrap);
         }
 
+        _applySmState(detail) {
+            (detail.legs || []).forEach(legData => {
+                const inputs = this._legInputs[legData.leg];
+                if (!inputs) return;
+                const sp = legData.setpoints || {};
+                if (sp.reference_var !== undefined) inputs.refVar.val(sp.reference_var);
+                if (sp.reference_val !== undefined) inputs.refVal.val(sp.reference_val);
+                if (sp.duty !== undefined) inputs.dutyVal.val(sp.duty);
+                if (sp.frequency !== undefined) inputs.freqVal.val(sp.frequency);
+                if (sp.phase_shift !== undefined) inputs.phaseVal.val(sp.phase_shift);
+                if (sp.dead_time_rising !== undefined) inputs.dtRiseVal.val(sp.dead_time_rising);
+                if (sp.dead_time_falling !== undefined) inputs.dtFallVal.val(sp.dead_time_falling);
+            });
+        }
+
         onSettingsChanged(newSettings) {
             this.settings = newSettings;
             // Re-apply runtime state so it survives the settings modal round-trip.
@@ -294,6 +315,7 @@
         }
 
         onDispose() {
+            window.removeEventListener('sm:state-entered', this._smHandler);
             if (this._configHandler && freeboard.off) {
                 freeboard.off('config_updated', this._configHandler);
             }
