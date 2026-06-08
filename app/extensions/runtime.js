@@ -1059,6 +1059,7 @@ function loadTutorials(tutorialRoots, logger) {
                     id,
                     title,
                     order,
+                    overlayMode: parsed.overlayMode === true,
                     extensionId: root.extensionId,
                     rootPath: root.path,
                     dirPath: tutorialDir,

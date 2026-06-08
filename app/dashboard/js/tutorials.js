@@ -25,8 +25,44 @@
         },
         'modal.datasourcePicker.signalGenerator': () => document.querySelector('#modal_overlay .datasource-tile[data-type="signal_generator_datasource"]'),
         'modal.widgetPicker.timePlot': () => document.querySelector('#modal_overlay .widget-tile[data-type="time_plot_uplot"]'),
-        'modal.timePlotEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor')
+        'modal.timePlotEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
+        'doc.uploadFirmware': () => document.querySelector('#doc-upload-firmware-btn'),
+        'doc.loadDashboard': () => document.querySelector('#doc-load-dashboard-btn'),
+        'twist.powerOn': () => Array.from(document.querySelectorAll('.btn-outline-success')).find((b) => b.textContent.trim() === 'POWER ON') || null,
+        'twist.leg1Toggle': () => resolveTwistToggle('LEG1', 'LEG'),
+        'twist.driver1Toggle': () => resolveTwistToggle('LEG1', 'DRIVER'),
+        'twist.leg1DutyRow': () => resolveTwistDutyRow('LEG1')
     };
+
+    function resolveLeg1Badge() {
+        return Array.from(document.querySelectorAll('.badge.bg-light')).find((b) => b.textContent.trim() === 'LEG1') || null;
+    }
+
+    function resolveTwistToggle(legLabel, actionLabel) {
+        const badge = resolveLeg1Badge();
+        if (!badge) return null;
+        const grid = badge.parentElement && badge.parentElement.querySelector('.twist-toggle-grid');
+        if (!grid) return null;
+        return Array.from(grid.querySelectorAll('.twist-toggle-item')).find((item) => {
+            const label = item.querySelector('.input-group-text');
+            return label && label.textContent.trim() === actionLabel;
+        }) || null;
+    }
+
+    function resolveTwistDutyRow(legLabel) {
+        const badges = Array.from(document.querySelectorAll('.badge.bg-light'));
+        for (const badge of badges) {
+            if (badge.textContent.trim() !== legLabel) continue;
+            const section = badge.parentElement;
+            if (!section) continue;
+            const found = Array.from(section.querySelectorAll('.twist-setpoints')).find((row) => {
+                const label = row.querySelector('.input-group-text');
+                return label && label.textContent.trim() === 'Duty';
+            });
+            if (found) return found;
+        }
+        return null;
+    }
 
     const state = {
         tutorialsById: new Map(),
@@ -345,7 +381,9 @@
             renderSession();
             return;
         }
-        ensureEditingEnabled();
+        if (!isOverlaySession(session)) {
+            ensureEditingEnabled();
+        }
         const step = currentStep(session);
         if (step && step.autoAdvance && session.isVisible &&
                 isStepComplete(session, step) &&
@@ -356,14 +394,29 @@
         renderSession();
     }
 
+    function isOverlaySession(session) {
+        return !!(session && !session.dismissed && session.tutorial && session.tutorial.overlayMode);
+    }
+
     function syncActiveSession() {
         const active = getActiveTabSnapshot();
+
+        let overlaySession = null;
         state.sessionsByTabId.forEach((session) => {
-            session.isVisible = !!active && active.id === session.tabId;
+            if (isOverlaySession(session)) overlaySession = session;
         });
-        state.activeSessionTabId = active && state.sessionsByTabId.has(active.id) ? active.id : null;
-        if (state.activeSessionTabId) {
-            ensureEditingEnabled();
+
+        state.sessionsByTabId.forEach((session) => {
+            session.isVisible = isOverlaySession(session) || (!!active && active.id === session.tabId);
+        });
+
+        if (overlaySession) {
+            state.activeSessionTabId = overlaySession.tabId;
+        } else {
+            state.activeSessionTabId = active && state.sessionsByTabId.has(active.id) ? active.id : null;
+            if (state.activeSessionTabId) {
+                ensureEditingEnabled();
+            }
         }
         renderSession();
     }
@@ -608,7 +661,9 @@
             return active && active.id === tabId;
         }, 10000);
 
-        ensureEditingEnabled();
+        if (!tutorial.overlayMode) {
+            ensureEditingEnabled();
+        }
 
         const session = {
             tabId,
