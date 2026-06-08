@@ -82,7 +82,14 @@
             this._transPanel = $('<div class="d-flex flex-column gap-1"></div>').css({ flex: '1', minHeight: '0' }).append(addTransBtn, this._transList);
 
             const divider = $('<div></div>').css({ borderTop: '1px solid #444', margin: '2px 0', flexShrink: '0' });
-            sidebar.append(this._statesPanel, divider, this._transPanel);
+            const divider2 = $('<div></div>').css({ borderTop: '1px solid #444', margin: '2px 0', flexShrink: '0' });
+            const exportBtn = $('<button class="btn btn-sm btn-outline-secondary w-100" style="font-size:11px">&#8659; Export machine.json</button>');
+            const importBtn = $('<button class="btn btn-sm btn-outline-secondary w-100" style="font-size:11px">&#8657; Import machine.json</button>');
+            exportBtn.on('click', () => this._exportMachine());
+            importBtn.on('click', () => this._importMachine());
+            const ioRow = $('<div class="d-flex flex-column gap-1" style="flex-shrink:0"></div>').append(exportBtn, importBtn);
+
+            sidebar.append(this._statesPanel, divider, this._transPanel, divider2, ioRow);
 
             topRow.append(sidebar, canvasWrap);
 
@@ -524,6 +531,57 @@
             if (this._initialState === id) this._initialState = this._states[0]?.id ?? '';
             if (this._pendingFrom === id) this._pendingFrom = null;
             this._renderAll();
+        }
+
+        // ── import / export ──────────────────────────────────────────────────
+
+        _exportMachine() {
+            const data = {
+                version: 1,
+                deviceType: this._deviceType,
+                initialState: this._initialState,
+                states: this._states,
+                transitions: this._transitions
+            };
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'machine.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        _importMachine() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const data = JSON.parse(ev.target.result);
+                        if (!Array.isArray(data.states)) throw new Error('Missing states array');
+                        this._states = data.states;
+                        this._transitions = Array.isArray(data.transitions) ? data.transitions : [];
+                        this._initialState = data.initialState || (this._states[0]?.id ?? '');
+                        this._selected = null;
+                        this._selectedTransition = null;
+                        this._pendingFrom = null;
+                        this._renderAll();
+                        this._showNoSelection();
+                    } catch (err) {
+                        alert('Could not load machine: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
         }
 
         // ── transition form ───────────────────────────────────────────────────
