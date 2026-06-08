@@ -1,0 +1,73 @@
+{
+  "title": "Dashboard Basics",
+  "order": 10,
+  "steps": [
+    {
+      "id": "panes-and-widgets",
+      "title": "Panes and widgets",
+      "markdown": "A dashboard is built from **panes** and **widgets**.\n\n- A pane is a resizable container on the board.\n- A widget lives inside a pane and shows or controls data.\n- You can add several widgets to the same pane later.\n\nIn this tour, you will create one pane and place a time plot widget inside it.",
+      "illustration": "panes-widgets.svg",
+      "completion": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "datasource-flow",
+      "title": "From datasource to widget",
+      "markdown": "A **datasource** produces values. A **widget** consumes those values.\n\nFor this v1 tutorial, the datasource is a hardware-free **Signal Generator**. The widget is a **Time Plot Widget** that will display one generated signal.",
+      "illustration": "datasource-flow.svg",
+      "completion": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "create-pane",
+      "title": "Create a pane",
+      "markdown": "Click **Add pane** in the header to create your first workspace area.",
+      "focusKey": "header.addPane",
+      "completion": {
+        "kind": "pane_count_at_least",
+        "count": 1
+      }
+    },
+    {
+      "id": "create-datasource",
+      "title": "Create a Signal Generator datasource",
+      "markdown": "Open **Datasources**, click **ADD**, choose **Signal Generator**, give it any name, set **Refresh Every (ms)** to **100**, and click **ADD**.",
+      "focusKey": "side.addDatasource",
+      "autoAdvance": true,
+      "completion": {
+        "kind": "datasource_type_exists",
+        "datasourceType": "signal_generator_datasource"
+      }
+    },
+    {
+      "id": "add-time-plot-widget",
+      "title": "Add a time plot widget",
+      "markdown": "On your pane, click **Add widget**. If the widget picker is open, choose **Time Plot Widget**.",
+      "focusKey": "modal.widgetPicker.timePlot",
+      "autoAdvance": true,
+      "completion": {
+        "kind": "widget_type_exists",
+        "widgetType": "time_plot_uplot"
+      }
+    },
+    {
+      "id": "configure-time-plot",
+      "title": "Bind one signal to the plot",
+      "markdown": "In the plot editor:\n\n1. Set **Source** to your Signal Generator datasource.\n2. Leave **Variable** on **Signal**.\n3. Click **Add channel**.\n4. Set **Y Min** to **-2** and **Y Max** to **2**.\n5. Click **Save**.\n\nThe step completes once the plot has at least one bound series from the Signal Generator.",
+      "focusKey": "modal.timePlotEditor",
+      "completion": {
+        "kind": "time_plot_series_bound"
+      }
+    },
+    {
+      "id": "complete",
+      "title": "Tutorial complete",
+      "markdown": "You now have the basic dashboard flow:\n\n- create a pane\n- create a datasource\n- add a widget\n- bind data into that widget\n\nKeep this tutorial tab open and experiment freely. Launching the tutorial again will open a fresh tab.",
+      "completion": {
+        "kind": "manual"
+      }
+    }
+  ]
+}

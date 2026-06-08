@@ -17,11 +17,12 @@ function runDefaultRuntimeAssertions() {
     });
 
     const extensionIds = runtime.inventory.map((entry) => entry.id);
-    ['core', 'courseware', 'owntech', 'owntech-workspace', 'thingset'].forEach((id) => {
+    ['core', 'courseware', 'tutorials', 'owntech', 'owntech-workspace', 'thingset'].forEach((id) => {
         assert.strictEqual(extensionIds.includes(id), true, `${id} should be present in inventory`);
     });
     assert.strictEqual(runtime.isEnabled('core'), true);
     assert.strictEqual(runtime.isEnabled('courseware'), true);
+    assert.strictEqual(runtime.isEnabled('tutorials'), true);
     assert.strictEqual(runtime.isEnabled('owntech'), true);
     assert.strictEqual(runtime.isEnabled('owntech-workspace'), true);
     assert.strictEqual(runtime.isEnabled('thingset'), true);
@@ -51,6 +52,12 @@ function runDefaultRuntimeAssertions() {
     const spDs = runtime.bootstrap.datasources.find((e) => e.type === 'serialport_datasource');
     assert.strictEqual(spDs.icon, 'plug');
     assert.strictEqual(spDs.extensionId, 'core');
+    assert.strictEqual(Array.isArray(runtime.bootstrap.tutorials), true);
+    const basicsTutorial = runtime.bootstrap.tutorials.find((entry) => entry.id === 'core/dashboard-basics');
+    assert.ok(basicsTutorial, 'dashboard basics tutorial should be loaded');
+    assert.deepStrictEqual(basicsTutorial.menuSegments, ['Core', 'Dashboard Basics']);
+    assert.strictEqual(basicsTutorial.steps.length, 7);
+    assert.strictEqual(basicsTutorial.steps.some((step) => step.focusKey === 'modal.timePlotEditor'), true);
 }
 
 function runDisabledRuntimeAssertions() {
@@ -60,6 +67,7 @@ function runDisabledRuntimeAssertions() {
             ...process.env,
             MODULAR_EXTENSION_CORE: '0',
             MODULAR_EXTENSION_COURSEWARE: '0',
+            MODULAR_EXTENSION_TUTORIALS: '0',
             MODULAR_EXTENSION_OWNTECH: '0',
             ENABLE_THINGSET: '0',
         },
@@ -67,6 +75,7 @@ function runDisabledRuntimeAssertions() {
 
     assert.strictEqual(runtime.isEnabled('core'), true);
     assert.strictEqual(runtime.isEnabled('courseware'), false);
+    assert.strictEqual(runtime.isEnabled('tutorials'), false);
     assert.strictEqual(runtime.isEnabled('owntech'), false);
     assert.strictEqual(runtime.isEnabled('owntech-workspace'), false);
     assert.strictEqual(runtime.isEnabled('thingset'), false);
@@ -85,6 +94,8 @@ function runDisabledRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'thingset_serial_datasource'), false);
     assert.strictEqual(runtime.bootstrap.exampleRoots.length, 0);
     assert.strictEqual(runtime.bootstrap.coursewareRoots.length, 0);
+    assert.strictEqual(runtime.bootstrap.tutorialRoots.length, 0);
+    assert.strictEqual(runtime.bootstrap.tutorials.length, 0);
 }
 
 function runInvalidManifestAssertions() {
@@ -114,6 +125,39 @@ function runInvalidManifestAssertions() {
         assert.strictEqual(warnings.some((message) => message.includes('Skipping invalid manifest')), true);
     } finally {
         fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+}
+
+function runInvalidTutorialAssertions() {
+    const tempAppRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-app-'));
+    const warnings = [];
+
+    try {
+        fs.cpSync(appRoot, tempAppRoot, { recursive: true });
+        const badTutorialDir = path.join(tempAppRoot, 'extensions', 'tutorials', 'tutorials', 'core', 'broken');
+        fs.mkdirSync(badTutorialDir, { recursive: true });
+        fs.writeFileSync(path.join(badTutorialDir, 'tutorial.json'), JSON.stringify({
+            title: '',
+            order: 99,
+            steps: []
+        }), 'utf8');
+
+        const runtime = buildExtensionRuntime({
+            appRoot: tempAppRoot,
+            env: {
+                ...process.env,
+                ENABLE_THINGSET: '1',
+            },
+            logger: {
+                warn: (...args) => warnings.push(args.join(' ')),
+            },
+        });
+
+        assert.ok(runtime.bootstrap.tutorials.some((entry) => entry.id === 'core/dashboard-basics'));
+        assert.strictEqual(runtime.bootstrap.tutorials.some((entry) => entry.id === 'core/broken'), false);
+        assert.strictEqual(warnings.some((message) => message.includes('Invalid tutorial entry')), true);
+    } finally {
+        fs.rmSync(tempAppRoot, { recursive: true, force: true });
     }
 }
 
@@ -304,7 +348,7 @@ function runEnvVarWinsOverPersistedState() {
         );
         const runtime = buildExtensionRuntime({
             appRoot,
-            env: { ...process.env, MODULAR_EXTENSION_OWNTECH: '0' },
+            env: { ...process.env, MODULAR_EXTENSION_OWNTECH: '0', MODULAR_EXTENSION_TUTORIALS: '0' },
             installedRoot: tempRoot,
         });
 
@@ -339,6 +383,7 @@ function runCoreAlwaysEnabled() {
 runDefaultRuntimeAssertions();
 runDisabledRuntimeAssertions();
 runInvalidManifestAssertions();
+runInvalidTutorialAssertions();
 runInstalledBundleDiscovery();
 runInstalledBundleStateOverride();
 runInstalledBundleIntegrityFailure();

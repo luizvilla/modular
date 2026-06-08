@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Panes and widgets</title>
+  <desc id="desc">A simple dashboard layout showing panes containing widgets.</desc>
+  <rect width="640" height="360" fill="#101720"/>
+  <rect x="32" y="28" width="576" height="304" rx="20" fill="#182230" stroke="#3b4f66" stroke-width="2"/>
+  <rect x="68" y="72" width="230" height="220" rx="16" fill="#223145" stroke="#5c7692" stroke-width="2"/>
+  <rect x="342" y="72" width="230" height="104" rx="16" fill="#223145" stroke="#5c7692" stroke-width="2"/>
+  <rect x="342" y="188" width="230" height="104" rx="16" fill="#223145" stroke="#5c7692" stroke-width="2"/>
+  <rect x="90" y="108" width="186" height="48" rx="10" fill="#4e9f3d"/>
+  <rect x="90" y="170" width="186" height="92" rx="10" fill="#3c6eaa"/>
+  <rect x="364" y="108" width="186" height="48" rx="10" fill="#c98520"/>
+  <rect x="364" y="224" width="186" height="48" rx="10" fill="#7d57c2"/>
+  <text x="183" y="98" fill="#dce9f8" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">Pane</text>
+  <text x="457" y="98" fill="#dce9f8" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">Pane</text>
+  <text x="183" y="138" fill="#ffffff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">Widget</text>
+  <text x="183" y="220" fill="#ffffff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">Widget</text>
+  <text x="457" y="138" fill="#ffffff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">Widget</text>
+  <text x="457" y="254" fill="#ffffff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">Widget</text>
+</svg>

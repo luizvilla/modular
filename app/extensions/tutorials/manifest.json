@@ -1,0 +1,20 @@
+{
+  "id": "tutorials",
+  "apiVersion": 1,
+  "version": "0.9.3",
+  "displayName": "Tutorials",
+  "enabledByDefault": true,
+  "mainEntry": "main.js",
+  "rendererScripts": [
+    { "path": "js/tutorials.js", "order": 25 }
+  ],
+  "capabilities": [
+    "tutorials",
+    "docs"
+  ],
+  "tutorialRoots": [
+    {
+      "path": "extensions/tutorials/tutorials"
+    }
+  ]
+}

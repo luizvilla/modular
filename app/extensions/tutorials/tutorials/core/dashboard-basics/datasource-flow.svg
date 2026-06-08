@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Datasource to widget flow</title>
+  <desc id="desc">A datasource sends signals into widgets through a dashboard pane.</desc>
+  <rect width="640" height="360" fill="#11161c"/>
+  <rect x="48" y="116" width="150" height="128" rx="18" fill="#224b68" stroke="#6aa7d6" stroke-width="2"/>
+  <rect x="250" y="86" width="148" height="188" rx="18" fill="#243244" stroke="#7d93ab" stroke-width="2"/>
+  <rect x="450" y="116" width="142" height="128" rx="18" fill="#2f4f31" stroke="#90d79b" stroke-width="2"/>
+  <path d="M198 180h52" fill="none" stroke="#f0c95e" stroke-width="10" stroke-linecap="round"/>
+  <path d="M398 180h52" fill="none" stroke="#f0c95e" stroke-width="10" stroke-linecap="round"/>
+  <polygon points="240,166 268,180 240,194" fill="#f0c95e"/>
+  <polygon points="440,166 468,180 440,194" fill="#f0c95e"/>
+  <path d="M88 196c10-34 26-52 42-52s32 18 42 52" fill="none" stroke="#d9efff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M482 194c18-44 38-66 58-66 16 0 30 14 42 42 4 10 8 18 10 24" fill="none" stroke="#e9fff0" stroke-width="8" stroke-linecap="round"/>
+  <text x="123" y="104" fill="#d9efff" font-family="Arial, sans-serif" font-size="22" text-anchor="middle">Datasource</text>
+  <text x="324" y="72" fill="#dce9f8" font-family="Arial, sans-serif" font-size="22" text-anchor="middle">Pane</text>
+  <text x="521" y="104" fill="#e9fff0" font-family="Arial, sans-serif" font-size="22" text-anchor="middle">Widget</text>
+  <text x="123" y="270" fill="#d9efff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">Signal Generator</text>
+  <text x="324" y="180" fill="#dce9f8" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">Data lives on</text>
+  <text x="324" y="206" fill="#dce9f8" font-family="Arial, sans-serif" font-size="20" text-anchor="middle">the dashboard</text>
+  <text x="521" y="270" fill="#e9fff0" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">Time Plot Widget</text>
+</svg>

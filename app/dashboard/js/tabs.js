@@ -136,6 +136,7 @@
     let headerObserver = null;
     let lastHeaderSnapshot = null;
     let lastHeaderState = null;
+    const activeTabListeners = new Set();
     // Preserve allow_edit so the dashboard header can be restored after docs tabs.
     let lastAllowEdit = null;
     // Toggle a body class to hide dashboard UI without leaving inline styles behind.
@@ -196,6 +197,37 @@
         progressLabel.textContent = 'Upload complete';
         if (progressSpinner) progressSpinner.classList.add('d-none');
         setProgress(100);
+    }
+
+    function getTabLabel(tab) {
+        if (!tab || !tab.button) return '';
+        const textNode = [...tab.button.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+        return textNode ? String(textNode.nodeValue || '').trim() : '';
+    }
+
+    function snapshotTab(tab) {
+        if (!tab) return null;
+        return {
+            id: tab.id,
+            type: tab.type,
+            kind: tab.kind || null,
+            docId: tab.docId || null,
+            widgetType: tab.widgetType || null,
+            filePath: tab.filePath || null,
+            label: getTabLabel(tab),
+            meta: tab.meta && typeof tab.meta === 'object' ? { ...tab.meta } : null,
+        };
+    }
+
+    function emitActiveTabChange() {
+        const snapshot = snapshotTab(tabs.get(activeTabId));
+        activeTabListeners.forEach((listener) => {
+            try {
+                listener(snapshot);
+            } catch (err) {
+                console.warn('[tabs] active tab listener failed:', err?.message || err);
+            }
+        });
     }
 
     function getActiveDocTab() {
@@ -1137,6 +1169,7 @@
                 console.log('[tabs] gridster items:', gridItems.length);
                 console.log('[tabs] panes count:', paneCount);
             } catch {}
+            emitActiveTabChange();
             return;
         }
         // Leaving dashboard: remember the header state to avoid flicker on return.
@@ -1176,6 +1209,7 @@
             setDocMode('widget');
             loadWidgetDoc(tab.widgetType);
         }
+        emitActiveTabChange();
     }
 
     function closeTab(tabId) {
@@ -1350,13 +1384,13 @@
         }
     }
 
-    function createDashboardTab(filePath, initialData) {
+    function createDashboardTab(filePath, initialData, options = {}) {
         dashboardTabCounter += 1;
         const id = `dashboard:${dashboardTabCounter}`;
         const btn = document.createElement('button');
         btn.className = 'tab';
         btn.dataset.tabId = id;
-        btn.textContent = makeDashboardLabel(filePath);
+        btn.textContent = options.label || makeDashboardLabel(filePath);
         const close = document.createElement('span');
         close.className = 'tab-close';
         close.textContent = '×';
@@ -1368,7 +1402,14 @@
             else switchToDashboardTab(id);
         });
         addDashboardDragHandlers(btn, id);
-        tabs.set(id, { id, type: 'dashboard', filePath: filePath || null, savedData: initialData || null, button: btn });
+        tabs.set(id, {
+            id,
+            type: 'dashboard',
+            filePath: filePath || null,
+            savedData: initialData || null,
+            meta: options.meta && typeof options.meta === 'object' ? { ...options.meta } : null,
+            button: btn
+        });
         // Insert after the last dashboard tab, before doc tabs.
         let insertAfter = addTabBtn;
         for (const [k, t] of tabs) {
@@ -1379,9 +1420,18 @@
         return id;
     }
 
-    async function openNewDashboardTab() {
-        const id = createDashboardTab(null, null);
+    async function openNewDashboardTab(options = {}) {
+        const normalized = options && typeof options === 'object' ? options : {};
+        const id = createDashboardTab(
+            null,
+            normalized.initialData || null,
+            {
+                label: normalized.label || null,
+                meta: normalized.meta || null,
+            }
+        );
         await switchToDashboardTab(id);
+        return id;
     }
 
     async function openDashboardFileInNewTab(filePath) {
@@ -1391,9 +1441,11 @@
                 : await ipcRenderer.invoke('files-read-text', { filePath });
             const id = createDashboardTab(filePath, JSON.parse(text));
             await switchToDashboardTab(id);
+            return id;
         } catch (e) {
             console.error('[tabs] openDashboardFileInNewTab failed:', e?.message || e);
         }
+        return null;
     }
 
     async function openDashboardDialog() {
@@ -1432,7 +1484,13 @@
         openNew: openNewDashboardTab,
         openDialog: openDashboardDialog,
         openFile: openDashboardFileInNewTab,
-        save: saveCurrentDashboard
+        save: saveCurrentDashboard,
+        getActive: () => snapshotTab(tabs.get(activeTabId)),
+        onActiveChange(listener) {
+            if (typeof listener !== 'function') return () => {};
+            activeTabListeners.add(listener);
+            return () => activeTabListeners.delete(listener);
+        }
     };
 
     // Returns dashboard tab IDs in left-to-right DOM order (respects drag reordering).

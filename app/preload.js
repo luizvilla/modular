@@ -67,6 +67,11 @@ const api = {
         getPendingDoc: () => ipcRenderer.invoke('get-pending-widget-doc'),
         notifyReady: () => ipcRenderer.send('widget-docs-ready')
     },
+    tutorials: {
+        onOpen: (cb) => on('open-tutorial', cb),
+        getPendingOpen: () => ipcRenderer.invoke('get-pending-tutorial'),
+        notifyReady: () => ipcRenderer.send('tutorials-ready')
+    },
     flash: {
         chooseFirmwareFile: () => ipcRenderer.invoke('choose-firmware-file'),
         startFlash: (payload) => ipcRenderer.invoke('start-flash', payload),

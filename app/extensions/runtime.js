@@ -216,6 +216,20 @@ function normalizeCoursewareRoots(manifest, appRoot) {
     });
 }
 
+function normalizeTutorialRoots(manifest, appRoot) {
+    if (!Array.isArray(manifest.tutorialRoots)) return [];
+    return manifest.tutorialRoots.map((entry, index) => {
+        const relPath = typeof entry === 'string'
+            ? entry
+            : ensureObject(entry, `tutorialRoots[${index}]`).path;
+        const absolutePath = ensureAppFile(appRoot, relPath, `tutorialRoots[${index}]`);
+        return {
+            extensionId: manifest.id,
+            path: absolutePath,
+        };
+    });
+}
+
 function normalizeDashboardRoots(manifest, appRoot) {
     if (!Array.isArray(manifest.dashboardRoots)) return [];
     return manifest.dashboardRoots.map((entry, index) => {
@@ -292,6 +306,7 @@ function normalizeManifestRecord(manifestPath, options) {
         widgetDocsRoots: normalizeWidgetDocsRoots(manifest, appRoot),
         exampleRoots: normalizeExampleRoots(manifest, appRoot),
         coursewareRoots: normalizeCoursewareRoots(manifest, appRoot),
+        tutorialRoots: normalizeTutorialRoots(manifest, appRoot),
         dashboardRoots: normalizeDashboardRoots(manifest, appRoot),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
         requiresExtensions: normalizeRequiredExtensions(manifest.requiresExtensions),
@@ -305,9 +320,10 @@ function sortExtensions(records) {
     const rank = new Map([
         ['core', 0],
         ['courseware', 1],
-        ['owntech', 2],
-        ['owntech-workspace', 3],
-        ['thingset', 4],
+        ['tutorials', 2],
+        ['owntech', 3],
+        ['owntech-workspace', 4],
+        ['thingset', 5],
     ]);
     return records.slice().sort((left, right) => {
         const leftRank = rank.has(left.id) ? rank.get(left.id) : 100;
@@ -343,11 +359,13 @@ function createContributionRegistry() {
     const widgetDocsKeys = new Set();
     const exampleRootKeys = new Set();
     const coursewareRootKeys = new Set();
+    const tutorialRootKeys = new Set();
     const dashboardRootKeys = new Set();
     const rendererScripts = [];
     const widgetDocsRoots = [];
     const exampleRoots = [];
     const coursewareRoots = [];
+    const tutorialRoots = [];
     const dashboardRoots = [];
     const flags = {};
 
@@ -391,6 +409,15 @@ function createContributionRegistry() {
         }
     }
 
+    function addTutorialRoots(list) {
+        for (const entry of list || []) {
+            const key = entry.path;
+            if (tutorialRootKeys.has(key)) continue;
+            tutorialRootKeys.add(key);
+            tutorialRoots.push({ ...entry });
+        }
+    }
+
     function addDashboardRoots(list) {
         for (const entry of list || []) {
             const key = entry.path;
@@ -411,6 +438,7 @@ function createContributionRegistry() {
         addWidgetDocsRoots(extension.widgetDocsRoots);
         addExampleRoots(extension.exampleRoots);
         addCoursewareRoots(extension.coursewareRoots);
+        addTutorialRoots(extension.tutorialRoots);
         addDashboardRoots(extension.dashboardRoots);
         addFlags(extension.preloadFlags);
     }
@@ -431,6 +459,7 @@ function createContributionRegistry() {
         addWidgetDocsRoots(contribution.widgetDocsRoots);
         addExampleRoots(contribution.exampleRoots);
         addCoursewareRoots(contribution.coursewareRoots);
+        addTutorialRoots(contribution.tutorialRoots);
         addDashboardRoots(contribution.dashboardRoots);
         addFlags(contribution.flags);
     }
@@ -446,6 +475,7 @@ function createContributionRegistry() {
             widgetDocsRoots: widgetDocsRoots.map((entry) => ({ ...entry })),
             exampleRoots: exampleRoots.map((entry) => ({ ...entry })),
             coursewareRoots: coursewareRoots.map((entry) => ({ ...entry })),
+            tutorialRoots: tutorialRoots.map((entry) => ({ ...entry })),
             dashboardRoots: dashboardRoots.map((entry) => ({ ...entry })),
         };
     }
@@ -581,6 +611,19 @@ function normalizeInstalledCoursewareRoots(manifest, bundleDir) {
     });
 }
 
+function normalizeInstalledTutorialRoots(manifest, bundleDir) {
+    if (!Array.isArray(manifest.tutorialRoots)) return [];
+    return manifest.tutorialRoots.map((entry, index) => {
+        const relPath = typeof entry === 'string'
+            ? entry
+            : ensureObject(entry, `tutorialRoots[${index}]`).path;
+        return {
+            extensionId: manifest.id,
+            path: ensureRelativeFile(bundleDir, relPath, `tutorialRoots[${index}]`),
+        };
+    });
+}
+
 function normalizeInstalledDashboardRoots(manifest, bundleDir) {
     if (!Array.isArray(manifest.dashboardRoots)) return [];
     return manifest.dashboardRoots.map((entry, index) => {
@@ -638,6 +681,7 @@ function normalizeInstalledBundleRecord(manifestPath, options) {
         widgetDocsRoots: normalizeInstalledWidgetDocsRoots(manifest, bundleDir),
         exampleRoots: normalizeInstalledExampleRoots(manifest, bundleDir),
         coursewareRoots: normalizeInstalledCoursewareRoots(manifest, bundleDir),
+        tutorialRoots: normalizeInstalledTutorialRoots(manifest, bundleDir),
         dashboardRoots: normalizeInstalledDashboardRoots(manifest, bundleDir),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
         requiresExtensions: normalizeRequiredExtensions(manifest.requiresExtensions),
@@ -745,7 +789,11 @@ function humanizePathSegment(segment) {
     return String(segment || '')
         .replace(/[_-]+/g, ' ')
         .replace(/\s+/g, ' ')
-        .trim();
+        .trim()
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
 }
 
 function resolveCoursewareEntryPath(labDir, relativePath, label, kind) {
@@ -767,6 +815,93 @@ function resolveCoursewareEntryPath(labDir, relativePath, label, kind) {
         throw new Error(`${label} must be a file: ${absolutePath}`);
     }
     return absolutePath;
+}
+
+function resolveTutorialEntryPath(tutorialDir, relativePath, label, kind) {
+    if (typeof relativePath !== 'string' || !relativePath.trim()) {
+        throw new Error(`${label} must be a non-empty string`);
+    }
+    const absolutePath = path.resolve(tutorialDir, relativePath);
+    if (!isPathInside(tutorialDir, absolutePath)) {
+        throw new Error(`${label} must stay inside ${tutorialDir}`);
+    }
+    if (!fs.existsSync(absolutePath)) {
+        throw new Error(`${label} does not exist: ${absolutePath}`);
+    }
+    const stat = fs.statSync(absolutePath);
+    if (kind === 'file' && !stat.isFile()) {
+        throw new Error(`${label} must be a file: ${absolutePath}`);
+    }
+    if (kind === 'directory' && !stat.isDirectory()) {
+        throw new Error(`${label} must be a directory: ${absolutePath}`);
+    }
+    return absolutePath;
+}
+
+function normalizeTutorialCompletion(step, index) {
+    const completion = ensureObject(step.completion, `steps[${index}].completion`);
+    const kind = typeof completion.kind === 'string' ? completion.kind.trim() : '';
+    if (!kind) {
+        throw new Error(`steps[${index}].completion.kind must be a non-empty string`);
+    }
+    if (kind === 'manual' || kind === 'time_plot_series_bound') {
+        return { kind };
+    }
+    if (kind === 'pane_count_at_least') {
+        const count = Math.max(1, Math.floor(Number(completion.count)));
+        if (!Number.isFinite(count)) {
+            throw new Error(`steps[${index}].completion.count must be a positive number`);
+        }
+        return { kind, count };
+    }
+    if (kind === 'datasource_type_exists') {
+        const datasourceType = typeof completion.datasourceType === 'string'
+            ? completion.datasourceType.trim()
+            : '';
+        if (!datasourceType) {
+            throw new Error(`steps[${index}].completion.datasourceType must be a non-empty string`);
+        }
+        return { kind, datasourceType };
+    }
+    if (kind === 'widget_type_exists') {
+        const widgetType = typeof completion.widgetType === 'string'
+            ? completion.widgetType.trim()
+            : '';
+        if (!widgetType) {
+            throw new Error(`steps[${index}].completion.widgetType must be a non-empty string`);
+        }
+        return { kind, widgetType };
+    }
+    throw new Error(`steps[${index}].completion.kind "${kind}" is not supported`);
+}
+
+function normalizeTutorialStep(step, index, tutorialDir) {
+    const source = ensureObject(step, `steps[${index}]`);
+    const id = typeof source.id === 'string' ? source.id.trim() : '';
+    const title = typeof source.title === 'string' ? source.title.trim() : '';
+    const markdown = typeof source.markdown === 'string' ? source.markdown.trim() : '';
+    if (!id) {
+        throw new Error(`steps[${index}].id must be a non-empty string`);
+    }
+    if (!title) {
+        throw new Error(`steps[${index}].title must be a non-empty string`);
+    }
+    if (!markdown) {
+        throw new Error(`steps[${index}].markdown must be a non-empty string`);
+    }
+    return {
+        id,
+        title,
+        markdown,
+        illustrationPath: source.illustration
+            ? resolveTutorialEntryPath(tutorialDir, source.illustration, `steps[${index}].illustration`, 'file')
+            : null,
+        focusKey: typeof source.focusKey === 'string' && source.focusKey.trim()
+            ? source.focusKey.trim()
+            : null,
+        autoAdvance: source.autoAdvance === true,
+        completion: normalizeTutorialCompletion(source, index),
+    };
 }
 
 function loadCourseware(coursewareRoots, logger) {
@@ -841,6 +976,98 @@ function loadCourseware(coursewareRoots, logger) {
                 });
             } catch (err) {
                 logger.warn(`[extensions] Invalid courseware entry ${manifestPath}: ${err?.message || err}`);
+            }
+        }
+    }
+
+    return result.sort((left, right) => {
+        if (left.extensionId !== right.extensionId) return left.extensionId.localeCompare(right.extensionId);
+        const leftMenu = left.menuSegments.join('/');
+        const rightMenu = right.menuSegments.join('/');
+        if (leftMenu !== rightMenu) return leftMenu.localeCompare(rightMenu);
+        if (left.order !== right.order) return left.order - right.order;
+        return left.title.localeCompare(right.title);
+    });
+}
+
+function loadTutorials(tutorialRoots, logger) {
+    const seen = new Set();
+    const result = [];
+
+    function collectManifests(baseDir) {
+        const manifests = [];
+        if (!baseDir || !fs.existsSync(baseDir)) return manifests;
+        const walk = (currentDir) => {
+            let entries = [];
+            try {
+                entries = fs.readdirSync(currentDir, { withFileTypes: true });
+            } catch (err) {
+                logger.warn(`[extensions] Could not read tutorial directory ${currentDir}: ${err?.message || err}`);
+                return;
+            }
+            for (const entry of entries) {
+                const full = path.join(currentDir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(full);
+                } else if (entry.isFile() && entry.name === 'tutorial.json') {
+                    manifests.push(full);
+                }
+            }
+        };
+        walk(baseDir);
+        return manifests;
+    }
+
+    for (const root of tutorialRoots || []) {
+        if (!root || !root.path) continue;
+        const manifests = collectManifests(root.path).sort((left, right) => left.localeCompare(right));
+        for (const manifestPath of manifests) {
+            const tutorialDir = path.dirname(manifestPath);
+            try {
+                const raw = fs.readFileSync(manifestPath, 'utf8');
+                const parsed = ensureObject(JSON.parse(raw), manifestPath);
+                const relativeDir = path.relative(root.path, tutorialDir);
+                const rawSegments = relativeDir.split(path.sep).filter(Boolean);
+                const menuSegments = rawSegments.length ? rawSegments.slice() : [path.basename(tutorialDir)];
+                const id = menuSegments.join('/');
+                if (seen.has(id)) {
+                    logger.warn(`[extensions] Duplicate tutorial id "${id}" in ${manifestPath} — skipped`);
+                    continue;
+                }
+                const title = typeof parsed.title === 'string' && parsed.title.trim()
+                    ? parsed.title.trim()
+                    : null;
+                if (!title) {
+                    throw new Error('title must be a non-empty string');
+                }
+                const steps = Array.isArray(parsed.steps) ? parsed.steps : null;
+                if (!steps || !steps.length) {
+                    throw new Error('steps must be a non-empty array');
+                }
+                const order = Number.isFinite(Number(parsed.order)) ? Number(parsed.order) : 999;
+                const normalizedSteps = steps.map((step, index) => normalizeTutorialStep(step, index, tutorialDir));
+                const stepIds = new Set();
+                normalizedSteps.forEach((step, index) => {
+                    if (stepIds.has(step.id)) {
+                        throw new Error(`steps[${index}].id "${step.id}" is duplicated`);
+                    }
+                    stepIds.add(step.id);
+                });
+
+                seen.add(id);
+                result.push({
+                    id,
+                    title,
+                    order,
+                    extensionId: root.extensionId,
+                    rootPath: root.path,
+                    dirPath: tutorialDir,
+                    manifestPath,
+                    menuSegments: menuSegments.map(humanizePathSegment),
+                    steps: normalizedSteps,
+                });
+            } catch (err) {
+                logger.warn(`[extensions] Invalid tutorial entry ${manifestPath}: ${err?.message || err}`);
             }
         }
     }
@@ -930,6 +1157,7 @@ function buildExtensionRuntime(options = {}) {
     const bootstrap = registry.buildBootstrap(inventory);
     bootstrap.widgetDocs = loadWidgetDocs(bootstrap.widgetDocsRoots, logger);
     bootstrap.courseware = loadCourseware(bootstrap.coursewareRoots, logger);
+    bootstrap.tutorials = loadTutorials(bootstrap.tutorialRoots, logger);
     bootstrap.datasources = mergeDatasources(sortedRecords);
 
     return {
