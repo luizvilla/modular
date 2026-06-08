@@ -1,0 +1,8 @@
+{
+  "title": "Opposition Testing",
+  "markdown": "README_opp_testing.md",
+  "dashboard": "dashboard_opp_testing.json",
+  "binary": "opp_testing.mcuboot.bin",
+  "figuresDir": "Image",
+  "order": 30
+}
