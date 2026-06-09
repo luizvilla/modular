@@ -426,6 +426,13 @@
         return [];
     }
 
+    function parseFftSignalColumns(settings) {
+        return String(settings && settings.signalColumns || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+    }
+
     function updateFastFrameSourceButtonLabel(button, mode) {
         if (!button) return;
         button.text(mode === 'latest' ? 'Choose Fallback CSV / Directory Anchor' : 'Choose CSV File');
@@ -550,6 +557,19 @@
         function displayCsvLabel(filePath) {
             if (!filePath) return 'No file selected.';
             return sharedFast.displayPath ? sharedFast.displayPath(filePath) : filePath;
+        }
+
+        function populateOptionalTimeColumnSelect(columns, currentValue) {
+            const values = Array.isArray(columns) ? columns : [];
+            timeColumnField.select.empty().append($('<option value=""></option>').text('Sample index × TS'));
+            values.forEach((column) => {
+                timeColumnField.select.append($('<option></option>').attr('value', column).text(column));
+            });
+            if (currentValue && values.includes(currentValue)) {
+                timeColumnField.select.val(currentValue);
+            } else {
+                timeColumnField.select.val('');
+            }
         }
 
         function renderSeriesList() {
@@ -698,6 +718,204 @@
                 seriesDefs: state.seriesDefs.slice()
             });
             delete updated.helperWidgets;
+            shared.commitWidgetSettings(widgetModel, updated);
+        });
+        return true;
+    }
+
+    function openFftSpectrumPlotEditor(widgetModel, shared) {
+        const sharedFast = shared.getFastFrameShared ? shared.getFastFrameShared() : window.FastFrameShared;
+        if (!sharedFast) return false;
+
+        const settings = widgetModel.settings() || {};
+        const widgetInstance = widgetModel.widgetInstance || null;
+        const state = {
+            selectedCsvPath: settings.csvPath || '',
+            availableFiles: Array.isArray(widgetInstance && widgetInstance.availableFiles) ? widgetInstance.availableFiles.slice() : [],
+            availableColumns: Array.isArray(widgetInstance && widgetInstance.availableColumns) ? widgetInstance.availableColumns.slice() : [],
+            signalColumns: parseFftSignalColumns(settings)
+        };
+
+        const form = $('<div class="row g-3 integrated-plot-editor"></div>');
+        const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
+        form.append(left, right);
+
+        const sourceSection = createSection('Source');
+        const sourceModeField = createSelectRow('CSV Source', [
+            { value: 'latest', label: 'Latest CSV in directory' },
+            { value: 'fixed', label: 'Fixed CSV file' }
+        ], sharedFast.getCsvSourceMode(settings));
+        const chooseCsvButton = $('<button type="button" class="btn btn-sm btn-outline-secondary w-100"></button>');
+        const csvName = $('<div class="small text-muted border rounded p-2"></div>');
+        const timeColumnField = createSelectRow('Time Column', [], settings.timeColumn || '', 'Sample index × TS');
+        sourceSection.append(sourceModeField.row, chooseCsvButton, csvName, timeColumnField.row);
+        left.append(sourceSection);
+
+        const signalsSection = createSection('Signals');
+        const signalColumnField = createSelectRow('Signal', [], '', 'Select signal column');
+        const signalActions = $('<div class="d-flex gap-2 flex-wrap"></div>');
+        const applySourceButton = $('<button type="button" class="btn btn-sm btn-outline-secondary">Apply source</button>');
+        const addSignalButton = $('<button type="button" class="btn btn-sm btn-primary">Add signal</button>');
+        const resetSignalsButton = $('<button type="button" class="btn btn-sm btn-outline-danger">Reset signals</button>');
+        const signalList = $('<div class="d-flex flex-column gap-2"></div>');
+        signalActions.append(applySourceButton, addSignalButton, resetSignalsButton);
+        signalsSection.append(signalColumnField.row, signalActions, signalList);
+        left.append(signalsSection);
+
+        const displaySection = createSection('Display');
+        const titleField = createInputRow('Title', 'text', settings.title || 'FFT Spectrum');
+        const samplingPeriodField = createInputRow('Sampling Period (us)', 'number', settings.samplingPeriodUs || 100);
+        const fundamentalField = createInputRow('Fundamental Frequency (Hz)', 'number', settings.fundamentalFreqHz || 50);
+        const maxFreqField = createInputRow('Max Frequency (Hz)', 'number', settings.maxFreqHz || 1000);
+        const maxHarmonicField = createInputRow('Max Harmonic', 'number', settings.maxHarmonic || 11);
+        const showTimeField = createCheckboxRow('Show Time Domain', settings.showTimeDomain !== false);
+        const showSpectrumField = createCheckboxRow('Show Spectrum', settings.showSpectrum !== false);
+        const showBarsField = createCheckboxRow('Show Harmonic Bars', settings.showHarmonicBars !== false);
+        const logScaleField = createCheckboxRow('Log Scale Spectrum', settings.logScaleSpectrum !== false);
+        displaySection.append(
+            titleField.row,
+            samplingPeriodField.row,
+            fundamentalField.row,
+            maxFreqField.row,
+            maxHarmonicField.row,
+            showTimeField.row,
+            showSpectrumField.row,
+            showBarsField.row,
+            logScaleField.row
+        );
+        right.append(displaySection);
+
+        function displayCsvLabel(filePath) {
+            if (!filePath) return 'No file selected.';
+            return sharedFast.displayPath ? sharedFast.displayPath(filePath) : filePath;
+        }
+
+        function renderSignalList() {
+            signalList.empty();
+            state.signalColumns.forEach((column, index) => {
+                const label = state.availableColumns.includes(column) ? column : `${column} (missing)`;
+                const row = $('<div class="border rounded p-2 d-flex justify-content-between align-items-center gap-2"></div>');
+                row.append($('<div class="small"></div>').text(label));
+                row.append($('<button type="button" class="btn btn-sm btn-outline-danger">Remove</button>').on('click', () => {
+                    state.signalColumns.splice(index, 1);
+                    renderSignalList();
+                }));
+                signalList.append(row);
+            });
+            if (!state.signalColumns.length) {
+                signalList.append('<div class="small text-muted">No signals configured. The widget will auto-pick numeric columns.</div>');
+            }
+        }
+
+        function populateOptionalTimeColumnSelect(columns, currentValue) {
+            const values = Array.isArray(columns) ? columns : [];
+            timeColumnField.select.empty().append($('<option value=""></option>').text('Sample index × TS'));
+            values.forEach((column) => {
+                timeColumnField.select.append($('<option></option>').attr('value', column).text(column));
+            });
+            if (currentValue && values.includes(currentValue)) {
+                timeColumnField.select.val(currentValue);
+            } else {
+                timeColumnField.select.val('');
+            }
+        }
+
+        async function refreshColumns(preferredTimeColumn, preferredSignalColumn) {
+            const currentMode = sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings);
+            updateFastFrameSourceButtonLabel(chooseCsvButton, currentMode);
+            csvName.text(displayCsvLabel(state.selectedCsvPath || settings.csvPath || ''));
+
+            const csvPath = state.selectedCsvPath || settings.csvPath || '';
+            const csvDirectory = csvPath
+                ? ((sharedFast.pathApi && sharedFast.pathApi.dirname) ? sharedFast.pathApi.dirname(csvPath) : sharedFast.defaultCsvDirectory())
+                : (settings.csvDirectory || sharedFast.defaultCsvDirectory());
+            state.availableFiles = csvDirectory ? await sharedFast.listCsvFiles(csvDirectory) : [];
+            const source = sharedFast.resolveCsvSource({
+                csvSourceMode: currentMode,
+                csvDirectory,
+                csvPath
+            }, state.availableFiles);
+
+            if (source.filePath) {
+                const loaded = await sharedFast.loadCsvDataset(source.filePath, '');
+                state.availableColumns = loaded.dataset ? loaded.dataset.headers.filter((header) => header !== 'k_acquire') : [];
+            } else if (Array.isArray(widgetInstance && widgetInstance.availableColumns) && widgetInstance.availableColumns.length) {
+                state.availableColumns = widgetInstance.availableColumns.slice();
+            } else {
+                state.availableColumns = [];
+            }
+
+            populateOptionalTimeColumnSelect(
+                state.availableColumns,
+                preferredTimeColumn !== undefined ? preferredTimeColumn : (timeColumnField.select.val() || settings.timeColumn || '')
+            );
+            populateFastFrameColumnSelect(
+                signalColumnField.select,
+                state.availableColumns,
+                preferredSignalColumn !== undefined ? preferredSignalColumn : signalColumnField.select.val(),
+                'Select signal column'
+            );
+            renderSignalList();
+        }
+
+        sourceModeField.select.on('change', () => {
+            refreshColumns(timeColumnField.select.val(), signalColumnField.select.val()).catch(() => {});
+        });
+
+        chooseCsvButton.on('click', async () => {
+            const chooser = sharedFast.fileApi && sharedFast.fileApi.chooseCsvFile;
+            if (!chooser) return;
+            const chosen = await chooser();
+            if (!chosen) return;
+            state.selectedCsvPath = chosen;
+            csvName.text(displayCsvLabel(chosen));
+            await refreshColumns(timeColumnField.select.val(), signalColumnField.select.val());
+        });
+
+        applySourceButton.on('click', () => {
+            refreshColumns(timeColumnField.select.val(), signalColumnField.select.val()).catch(() => {});
+        });
+
+        addSignalButton.on('click', () => {
+            const variable = signalColumnField.select.val();
+            if (!variable || state.signalColumns.includes(variable)) return;
+            state.signalColumns.push(variable);
+            renderSignalList();
+        });
+
+        resetSignalsButton.on('click', () => {
+            state.signalColumns = [];
+            renderSignalList();
+        });
+
+        updateFastFrameSourceButtonLabel(chooseCsvButton, sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings));
+        csvName.text(displayCsvLabel(state.selectedCsvPath || settings.csvPath || ''));
+        renderSignalList();
+        refreshColumns(settings.timeColumn || '', state.signalColumns[0] || '').catch(() => {});
+
+        new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
+            const csvPath = state.selectedCsvPath || settings.csvPath || '';
+            const csvSourceMode = sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings);
+            const csvDirectory = csvPath
+                ? ((sharedFast.pathApi && sharedFast.pathApi.dirname) ? sharedFast.pathApi.dirname(csvPath) : sharedFast.defaultCsvDirectory())
+                : (settings.csvDirectory || sharedFast.defaultCsvDirectory());
+            const updated = _.extend({}, settings, {
+                title: titleField.input.val() || settings.title || 'FFT Spectrum',
+                csvSourceMode,
+                csvDirectory,
+                csvPath,
+                timeColumn: timeColumnField.select.val() || '',
+                signalColumns: state.signalColumns.join(','),
+                samplingPeriodUs: samplingPeriodField.input.val() || '100',
+                fundamentalFreqHz: fundamentalField.input.val() || '50',
+                maxFreqHz: maxFreqField.input.val() || '1000',
+                maxHarmonic: maxHarmonicField.input.val() || '11',
+                showTimeDomain: showTimeField.input.prop('checked'),
+                showSpectrum: showSpectrumField.input.prop('checked'),
+                showHarmonicBars: showBarsField.input.prop('checked'),
+                logScaleSpectrum: logScaleField.input.prop('checked')
+            });
             shared.commitWidgetSettings(widgetModel, updated);
         });
         return true;
@@ -959,6 +1177,9 @@
             }
             if (type === 'fast_frame_plot') {
                 return openFastFramePlotEditor(widgetModel, shared);
+            }
+            if (type === 'fft_spectrum_plot') {
+                return openFftSpectrumPlotEditor(widgetModel, shared);
             }
             if (type === 'vertical_gauge') {
                 return openVerticalGaugeEditor(widgetModel, shared, type);
