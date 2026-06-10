@@ -16,17 +16,39 @@
         currentZoom = clamp(value);
         webFrame.setZoomFactor(currentZoom);
         localStorage.setItem('dashboard_zoom', currentZoom.toString());
-        // Zoom percentage display intentionally removed from UI.
+        document.dispatchEvent(new CustomEvent('dashboard-zoom-changed', { detail: { factor: currentZoom } }));
     }
 
     function changeZoom(delta) {
         applyZoom(currentZoom + delta);
     }
 
+    window.dashboardZoom = {
+        zoomIn:     () => changeZoom(STEP),
+        zoomOut:    () => changeZoom(-STEP),
+        reset:      () => applyZoom(1.0),
+        getCurrent: () => currentZoom,
+    };
+
     window.addEventListener('DOMContentLoaded', () => {
         applyZoom(currentZoom);
 
-        // Zoom buttons intentionally removed from the main window.
+        const zoomInBtn  = document.getElementById('zoom-in-btn');
+        const zoomOutBtn = document.getElementById('zoom-out-btn');
+        const zoomLabel  = document.getElementById('zoom-level-label');
+
+        if (zoomInBtn)  zoomInBtn.addEventListener('click',  () => changeZoom(STEP));
+        if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => changeZoom(-STEP));
+        if (zoomLabel)  zoomLabel.addEventListener('dblclick', () => applyZoom(1.0));
+
+        function updateZoomUI() {
+            if (zoomLabel)  zoomLabel.textContent = Math.round(currentZoom * 100) + '%';
+            if (zoomInBtn)  zoomInBtn.disabled  = currentZoom >= MAX_ZOOM;
+            if (zoomOutBtn) zoomOutBtn.disabled = currentZoom <= MIN_ZOOM;
+        }
+
+        document.addEventListener('dashboard-zoom-changed', updateZoomUI);
+        updateZoomUI();
     });
 
     window.addEventListener('keydown', (evt) => {
