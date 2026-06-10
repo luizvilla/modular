@@ -369,18 +369,20 @@
 
         _buildChannelEditor() {
             const ed = {};
+            const currentCount = Array.isArray(this.settings?.seriesDefs) ? this.settings.seriesDefs.length : 0;
+            const initColor = shared.DEFAULT_COLORS[currentCount % shared.DEFAULT_COLORS.length];
             ed.type = $('<select class="form-select form-select-sm"></select>')
                 .append('<option value="regular">Regular</option>')
                 .append('<option value="math">Math</option>');
-            ed.variable = $('<select class="form-select form-select-sm"></select>');
-            ed.mathA    = $('<select class="form-select form-select-sm"></select>');
+            ed.variable = $('<select class="form-select form-select-sm" style="min-width:0;flex:1 1 0"></select>');
+            ed.mathA    = $('<select class="form-select form-select-sm" style="min-width:0;flex:1 1 0"></select>');
             ed.mathOp   = $('<select class="form-select form-select-sm" style="max-width:56px"></select>')
                 .append('<option value="+">+</option>').append('<option value="-">−</option>')
                 .append('<option value="*">×</option>').append('<option value="/">/</option>');
-            ed.mathB    = $('<select class="form-select form-select-sm"></select>');
+            ed.mathB    = $('<select class="form-select form-select-sm" style="min-width:0;flex:1 1 0"></select>');
             ed.mathK    = $('<input type="number" class="form-control form-control-sm" placeholder="k" step="any">');
             ed.label    = $('<input type="text" class="form-control form-control-sm" placeholder="Label (optional)">');
-            ed.color    = $('<input type="color" class="form-control form-control-sm" value="#f28e2b" style="max-width:52px">');
+            ed.color    = $(`<input type="color" class="form-control form-control-sm" value="${initColor}" style="max-width:52px">`);
             ed.visible  = $('<input type="checkbox" class="form-check-input" checked>');
             ed.list     = $('<div class="d-flex flex-column gap-1 mt-1"></div>');
             this._ed = ed;
@@ -389,7 +391,7 @@
                 freeboard.addStyle('.ff-ed-lbl', 'min-width:68px;font-size:11px;justify-content:center;');
             }
             const mkRow = (lbl, ...ctrls) =>
-                $('<div class="input-group input-group-sm"></div>')
+                $('<div class="input-group input-group-sm" style="flex-wrap:nowrap"></div>')
                 .append(`<span class="input-group-text ff-ed-lbl">${lbl}</span>`, ...ctrls);
 
             ed.varRow  = mkRow('Channel', ed.variable);
@@ -510,6 +512,7 @@
             currentDefs.push(newDef);
             this._updateSeriesDefs(currentDefs);
             ed.label.val('');
+            ed.color.val(shared.DEFAULT_COLORS[currentDefs.length % shared.DEFAULT_COLORS.length]);
         }
 
         _removeChannel(index) {
