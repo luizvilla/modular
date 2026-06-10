@@ -1,0 +1,75 @@
+{
+  "title": "XY Signal Generator",
+  "order": 20,
+  "steps": [
+    {
+      "id": "intro",
+      "title": "What is an XY plot?",
+      "markdown": "An **XY Plot** traces one signal against another in real time — X on the horizontal axis, Y on the vertical axis.\n\nUnlike a time plot, there is no shared time axis. The trace shows the *relationship* between two quantities directly.\n\nIn this tutorial you will drive both axes with **Signal Generator** datasources to produce a Lissajous-like closed curve.",
+      "completion": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "create-pane",
+      "title": "Create a pane",
+      "markdown": "Click **Add pane** in the header to create your workspace area.",
+      "focusKey": "header.addPane",
+      "completion": {
+        "kind": "pane_count_at_least",
+        "count": 1
+      }
+    },
+    {
+      "id": "create-first-datasource",
+      "title": "Create the X-axis datasource",
+      "markdown": "Open **Datasources**, click **ADD**, choose **Signal Generator**.\n\nGive it the name **Signal X** and set **Refresh Every (ms)** to **100**. Leave the waveform as **Sine**. Click **ADD**.",
+      "focusKey": "side.addDatasource",
+      "autoAdvance": true,
+      "completion": {
+        "kind": "datasource_type_exists",
+        "datasourceType": "signal_generator_datasource"
+      }
+    },
+    {
+      "id": "create-second-datasource",
+      "title": "Create the Y-axis datasource",
+      "markdown": "Add a **second** Signal Generator.\n\nName it **Signal Y**, set **Refresh Every (ms)** to **100**, and change the **Phase** to **90** degrees so the two signals are offset — this produces a circular trace. Click **ADD**.",
+      "focusKey": "side.addDatasource",
+      "autoAdvance": true,
+      "completion": {
+        "kind": "datasource_type_exists",
+        "datasourceType": "signal_generator_datasource",
+        "count": 2
+      }
+    },
+    {
+      "id": "add-xy-plot-widget",
+      "title": "Add the XY Plot widget",
+      "markdown": "On your pane, click **Add widget**. In the widget picker, choose **XY Plot Widget** and click **OK**.\n\nThe XY plot editor will open next so you can bind the sources.",
+      "focusKey": "modal.widgetPicker.xyPlot",
+      "autoAdvance": true,
+      "completion": {
+        "kind": "widget_type_exists",
+        "widgetType": "xy_plot_uplot"
+      }
+    },
+    {
+      "id": "configure-xy-sources",
+      "title": "Bind X and Y sources",
+      "markdown": "In the **XY Plot editor**:\n\n1. Under **X Source**, set **Datasource** to **Signal X**.\n2. Under **Y Source**, set **Datasource** to **Signal Y**.\n3. Click **Save**.\n\nThe step completes once both sources are bound to Signal Generator datasources.",
+      "focusKey": "modal.xyPlotEditor",
+      "completion": {
+        "kind": "xy_plot_sources_bound"
+      }
+    },
+    {
+      "id": "complete",
+      "title": "Tutorial complete",
+      "markdown": "Your XY plot is live.\n\n- **Signal X** drives the horizontal axis.\n- **Signal Y** (90° offset) drives the vertical axis.\n- The closed circular trace is a simple Lissajous figure.\n\nTry changing the waveforms, frequencies, or phase in the Datasources panel to explore different trace shapes.",
+      "completion": {
+        "kind": "manual"
+      }
+    }
+  ]
+}

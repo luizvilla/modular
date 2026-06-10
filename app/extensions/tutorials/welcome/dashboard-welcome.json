@@ -10,6 +10,11 @@
       "tutorialId": "core/dashboard-basics",
       "label": "Dashboard Basics",
       "description": "Learn panes, datasources, widgets, and a first time plot."
+    },
+    {
+      "tutorialId": "core/xy-signal-generator",
+      "label": "XY Signal Generator",
+      "description": "Trace two signal generators against each other in a live XY plot."
     }
   ]
 }

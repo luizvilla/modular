@@ -26,7 +26,11 @@
         },
         'modal.datasourcePicker.signalGenerator': () => document.querySelector('#modal_overlay .datasource-tile[data-type="signal_generator_datasource"]'),
         'modal.widgetPicker.timePlot': () => document.querySelector('#modal_overlay .widget-tile[data-type="time_plot_uplot"]'),
+        'modal.widgetPicker.xyPlot': () => document.querySelector('#modal_overlay .widget-tile[data-type="xy_plot_uplot"]'),
+        'modal.widgetPicker.xySourceManager': () => document.querySelector('#modal_overlay .widget-tile[data-type="xy_plot_source_manager"]'),
         'modal.timePlotEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
+        'modal.xyPlotEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
+        'widget.xySourceManager.apply': () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Apply to XY Plot') || null,
         'doc.uploadFirmware': () => document.querySelector('#doc-upload-firmware-btn'),
         'doc.loadDashboard': () => document.querySelector('#doc-load-dashboard-btn'),
         'twist.powerOn': () => Array.from(document.querySelectorAll('.btn-outline-success')).find((b) => b.textContent.trim() === 'POWER ON') || null,
@@ -266,11 +270,38 @@
         }
 
         if (completion.kind === 'datasource_type_exists') {
-            return snapshot.datasources.some((datasource) => readValue(datasource.type) === completion.datasourceType);
+            const required = completion.count || 1;
+            const found = snapshot.datasources.filter((datasource) => readValue(datasource.type) === completion.datasourceType).length;
+            return found >= required;
         }
 
         if (completion.kind === 'widget_type_exists') {
             return snapshot.widgets.some((widget) => readValue(widget.type) === completion.widgetType);
+        }
+
+        if (completion.kind === 'xy_plot_sources_bound') {
+            const sgNames = new Set(
+                snapshot.datasources
+                    .filter((datasource) => readValue(datasource.type) === 'signal_generator_datasource')
+                    .map((datasource) => String(readValue(datasource.name) || '').trim())
+                    .filter(Boolean)
+            );
+            return snapshot.widgets.some((widget) => {
+                if (readValue(widget.type) !== 'xy_plot_uplot') return false;
+                const settings = typeof widget.settings === 'function' ? widget.settings() : (widget.settings || {});
+                const xRaw = typeof settings.xSourceDef === 'function' ? settings.xSourceDef() : settings.xSourceDef;
+                const yRaw = typeof settings.ySourceDef === 'function' ? settings.ySourceDef() : settings.ySourceDef;
+                let xDef = xRaw;
+                let yDef = yRaw;
+                try {
+                    if (typeof xRaw === 'string' && xRaw.trim().startsWith('{')) xDef = JSON.parse(xRaw);
+                    if (typeof yRaw === 'string' && yRaw.trim().startsWith('{')) yDef = JSON.parse(yRaw);
+                } catch {}
+                if (!xDef || typeof xDef !== 'object' || !yDef || typeof yDef !== 'object') return false;
+                const xDs = String(xDef.ds || '').trim();
+                const yDs = String(yDef.ds || '').trim();
+                return xDs && yDs && sgNames.has(xDs) && sgNames.has(yDs);
+            });
         }
 
         if (completion.kind === 'time_plot_series_bound') {
@@ -338,7 +369,7 @@
     function resolveFocusElement(session, step) {
         if (!session || !step || !step.focusKey) return null;
 
-        if (step.id === 'create-datasource') {
+        if (['create-datasource', 'create-first-datasource', 'create-second-datasource'].includes(step.id)) {
             const modal = document.querySelector('#modal_overlay');
             if (modal) {
                 const sgTile = modal.querySelector('.datasource-tile[data-type="signal_generator_datasource"]');
@@ -351,6 +382,18 @@
 
         if (step.id === 'add-time-plot-widget') {
             const tile = FOCUS_RESOLVERS['modal.widgetPicker.timePlot']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'add-xy-plot-widget') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.xyPlot']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'add-xy-source-manager') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.xySourceManager']();
             if (tile) return tile;
             return FOCUS_RESOLVERS['pane.first.addWidget']();
         }

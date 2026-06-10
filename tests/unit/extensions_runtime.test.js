@@ -58,12 +58,20 @@ function runDefaultRuntimeAssertions() {
     assert.deepStrictEqual(basicsTutorial.menuSegments, ['Core', 'Dashboard Basics']);
     assert.strictEqual(basicsTutorial.steps.length, 7);
     assert.strictEqual(basicsTutorial.steps.some((step) => step.focusKey === 'modal.timePlotEditor'), true);
+    const xyTutorial = runtime.bootstrap.tutorials.find((entry) => entry.id === 'core/xy-signal-generator');
+    assert.ok(xyTutorial, 'xy-signal-generator tutorial should be loaded');
+    assert.deepStrictEqual(xyTutorial.menuSegments, ['Core', 'Xy Signal Generator']);
+    assert.strictEqual(xyTutorial.steps.length, 7);
+    assert.strictEqual(xyTutorial.steps.some((step) => step.completion && step.completion.kind === 'xy_plot_sources_bound'), true);
+    const countStep = xyTutorial.steps.find((step) => step.completion && step.completion.kind === 'datasource_type_exists' && step.completion.count === 2);
+    assert.ok(countStep, 'xy tutorial should have a datasource_type_exists step with count:2');
     assert.strictEqual(Array.isArray(runtime.bootstrap.dashboardWelcomeEntries), true);
     const startupWelcome = runtime.bootstrap.dashboardWelcomeEntries.find((entry) => entry.id === 'tutorials-startup');
     assert.ok(startupWelcome, 'tutorial startup welcome should be loaded');
     assert.strictEqual(startupWelcome.trigger, 'startup');
     assert.strictEqual(startupWelcome.showWhen, 'empty_default_dashboard');
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/dashboard-basics'), true);
+    assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/xy-signal-generator'), true);
 }
 
 function runDisabledRuntimeAssertions() {
@@ -421,6 +429,67 @@ function runCoreAlwaysEnabled() {
     }
 }
 
+function runTutorialCompletionKindAssertions() {
+    // Verify that the xy-signal-generator tutorial loads with all expected completion kinds.
+    const runtime = buildExtensionRuntime({
+        appRoot,
+        env: { ...process.env, ENABLE_THINGSET: '1' },
+    });
+
+    const xyTutorial = runtime.bootstrap.tutorials.find((entry) => entry.id === 'core/xy-signal-generator');
+    assert.ok(xyTutorial, 'xy-signal-generator tutorial must be present');
+
+    const kinds = xyTutorial.steps.map((step) => step.completion && step.completion.kind).filter(Boolean);
+    assert.ok(kinds.includes('manual'), 'manual kind must be present');
+    assert.ok(kinds.includes('pane_count_at_least'), 'pane_count_at_least kind must be present');
+    assert.ok(kinds.includes('datasource_type_exists'), 'datasource_type_exists kind must be present');
+    assert.ok(kinds.includes('widget_type_exists'), 'widget_type_exists kind must be present');
+    assert.ok(kinds.includes('xy_plot_sources_bound'), 'xy_plot_sources_bound kind must be present');
+
+    // count:2 on datasource_type_exists must be preserved
+    const countedStep = xyTutorial.steps.find(
+        (step) => step.completion && step.completion.kind === 'datasource_type_exists' && step.completion.count === 2
+    );
+    assert.ok(countedStep, 'datasource_type_exists step with count:2 must normalise correctly');
+
+    // count:1 default when count is omitted
+    const defaultCountStep = xyTutorial.steps.find(
+        (step) => step.completion && step.completion.kind === 'datasource_type_exists' && step.completion.count === 1
+    );
+    assert.ok(defaultCountStep, 'datasource_type_exists step without count should default to count:1');
+
+    // widget_type_exists steps carry the correct type names
+    const xyWidgetStep = xyTutorial.steps.find(
+        (step) => step.completion && step.completion.kind === 'widget_type_exists' && step.completion.widgetType === 'xy_plot_uplot'
+    );
+    assert.ok(xyWidgetStep, 'widget_type_exists step for xy_plot_uplot must be present');
+
+    // Verify that an unsupported completion kind throws during normalisation
+    const tempAppRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-ck-'));
+    const warnings = [];
+    try {
+        fs.cpSync(appRoot, tempAppRoot, { recursive: true });
+        const badDir = path.join(tempAppRoot, 'extensions', 'tutorials', 'tutorials', 'core', 'bad-kind');
+        fs.mkdirSync(badDir, { recursive: true });
+        fs.writeFileSync(path.join(badDir, 'tutorial.json'), JSON.stringify({
+            title: 'Bad Kind',
+            order: 99,
+            steps: [{ id: 's1', title: 'S1', markdown: 'x', completion: { kind: 'unknown_kind_xyz' } }]
+        }), 'utf8');
+
+        const rt = buildExtensionRuntime({
+            appRoot: tempAppRoot,
+            env: { ...process.env, ENABLE_THINGSET: '1' },
+            logger: { warn: (...args) => warnings.push(args.join(' ')), error: () => {}, info: () => {} },
+        });
+
+        assert.strictEqual(rt.bootstrap.tutorials.some((e) => e.id === 'core/bad-kind'), false, 'bad-kind tutorial must be rejected');
+        assert.ok(warnings.some((m) => m.includes('Invalid tutorial entry')), 'warning must mention invalid tutorial entry');
+    } finally {
+        fs.rmSync(tempAppRoot, { recursive: true, force: true });
+    }
+}
+
 runDefaultRuntimeAssertions();
 runDisabledRuntimeAssertions();
 runInvalidManifestAssertions();
@@ -435,5 +504,6 @@ runBuiltinOverrideDisable();
 runBuiltinOverrideEnable();
 runEnvVarWinsOverPersistedState();
 runCoreAlwaysEnabled();
+runTutorialCompletionKindAssertions();
 
 console.log('All extension runtime tests passed.');

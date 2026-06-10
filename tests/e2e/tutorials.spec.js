@@ -98,7 +98,7 @@ test('empty default dashboard shows the tutorial welcome card at startup', async
 
   await expectWelcomeVisible(page);
   await expect(page.locator('#tutorial-welcome .tutorial-welcome-title')).toHaveText('Welcome to Modular');
-  await expect(page.locator('#tutorial-welcome .tutorial-welcome-action')).toContainText('Dashboard Basics');
+  await expect(page.locator('#tutorial-welcome .tutorial-welcome-action').first()).toContainText('Dashboard Basics');
 
   await app.close();
 });

@@ -890,7 +890,7 @@ function normalizeTutorialCompletion(step, index) {
     if (!kind) {
         throw new Error(`steps[${index}].completion.kind must be a non-empty string`);
     }
-    if (kind === 'manual' || kind === 'time_plot_series_bound') {
+    if (kind === 'manual' || kind === 'time_plot_series_bound' || kind === 'xy_plot_sources_bound') {
         return { kind };
     }
     if (kind === 'pane_count_at_least') {
@@ -907,7 +907,9 @@ function normalizeTutorialCompletion(step, index) {
         if (!datasourceType) {
             throw new Error(`steps[${index}].completion.datasourceType must be a non-empty string`);
         }
-        return { kind, datasourceType };
+        const rawCount = Number(completion.count);
+        const count = Number.isFinite(rawCount) && rawCount >= 1 ? Math.floor(rawCount) : 1;
+        return { kind, datasourceType, count };
     }
     if (kind === 'widget_type_exists') {
         const widgetType = typeof completion.widgetType === 'string'
