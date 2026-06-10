@@ -120,6 +120,25 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(gaugeTutorial.steps.some((step) => step.completion && step.completion.kind === 'gauge_source_bound'), true);
     assert.strictEqual(gaugeTutorial.steps.some((step) => step.completion && step.completion.kind === 'gauge_runtime_offset_adjusted'), true);
     assert.strictEqual(gaugeTutorial.steps.some((step) => step.completion && step.completion.kind === 'datasource_type_exists' && step.completion.datasourceType === 'signal_generator_datasource'), true);
+    const spinTutorial = runtime.bootstrap.tutorials.find((entry) => entry.id === 'hardware/spin-serial-basics');
+    assert.ok(spinTutorial, 'spin-serial-basics tutorial should be loaded');
+    assert.strictEqual(spinTutorial.title, 'SPIN Serial Basics');
+    assert.deepStrictEqual(spinTutorial.menuSegments, ['Hardware', 'Spin Serial Basics']);
+    assert.strictEqual(spinTutorial.steps.length, 9);
+    assert.strictEqual(spinTutorial.steps.some((step) => step.completion && step.completion.kind === 'serialport_datasource_connected'), true);
+    assert.strictEqual(spinTutorial.steps.some((step) => step.completion && step.completion.kind === 'flash_completed'), true);
+    assert.strictEqual(spinTutorial.steps.some((step) => step.completion && step.completion.kind === 'serial_command_buttons_configured'), true);
+    assert.strictEqual(spinTutorial.steps.some((step) => step.completion && step.completion.kind === 'serial_csv_recorder_started'), true);
+    assert.ok(spinTutorial.resources, 'spin tutorial should have resources');
+    assert.strictEqual(typeof spinTutorial.resources.firmware, 'string');
+    assert.strictEqual(path.isAbsolute(spinTutorial.resources.firmware), true, 'resources.firmware should be an absolute path');
+    assert.strictEqual(spinTutorial.resources.firmware.endsWith('duty_cycle_setting.mcuboot.bin'), true, 'resources.firmware should end with duty_cycle_setting.mcuboot.bin');
+    assert.strictEqual(fs.existsSync(spinTutorial.resources.firmware), true, 'resources.firmware file should exist on disk');
+    const addFlasherStep = spinTutorial.steps.find((step) => step.id === 'add-flasher');
+    assert.ok(addFlasherStep, 'spin tutorial should have an add-flasher step');
+    assert.ok(Array.isArray(addFlasherStep.actions), 'add-flasher step should have actions array');
+    assert.strictEqual(addFlasherStep.actions.length, 1);
+    assert.strictEqual(addFlasherStep.actions[0].kind, 'apply_tutorial_firmware');
 }
 
 function runDisabledRuntimeAssertions() {

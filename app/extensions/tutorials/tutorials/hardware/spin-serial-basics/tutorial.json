@@ -1,0 +1,73 @@
+{
+  "title": "SPIN Serial Basics",
+  "order": 10,
+  "resources": {
+    "firmware": "../../../assets/duty_cycle_setting.mcuboot.bin"
+  },
+  "steps": [
+    {
+      "id": "intro",
+      "title": "What is SPIN Serial Basics?",
+      "markdown": "This tutorial walks you through setting up a live serial connection to an OwnTech SPIN board, flashing the **duty cycle setting** firmware, and recording data to CSV.\n\nYou will need:\n- An OwnTech SPIN board connected via USB\n- A few minutes to work through each step\n\n**What you will learn:**\n- How to add a serial port datasource\n- How to flash firmware from inside the dashboard\n- How to send commands to the board\n- How to record live data to a CSV file",
+      "completion": { "kind": "manual" }
+    },
+    {
+      "id": "connect-board",
+      "title": "Connect the SPIN board",
+      "markdown": "Plug in your SPIN board via USB.\n\n1. Open the **Datasources** side panel and click **Add datasource**.\n2. Select **Serial Port** from the picker.\n3. In the settings dialog, give it a name (e.g. `SPIN`), select your board's COM port from the **Port** dropdown, and click **OK**.\n\nThe datasource will appear in the panel once connected.",
+      "focusKey": "side.addDatasource",
+      "completion": { "kind": "serialport_datasource_connected" }
+    },
+    {
+      "id": "create-pane",
+      "title": "Create a pane",
+      "markdown": "Every widget lives inside a **pane**.\n\nClick the **Add pane** button in the top bar.",
+      "focusKey": "header.addPane",
+      "completion": { "kind": "pane_count_at_least", "count": 1 }
+    },
+    {
+      "id": "add-flasher",
+      "title": "Add the firmware flasher",
+      "markdown": "Click the **Add widget** icon on the pane, then select **Serial Firmware Flasher** from the widget picker.\n\nThe tutorial firmware will be pre-loaded for you.",
+      "focusKey": "pane.first.addWidget",
+      "autoAdvance": true,
+      "actions": [{ "kind": "apply_tutorial_firmware" }],
+      "completion": { "kind": "widget_type_exists", "widgetType": "serial_flasher" }
+    },
+    {
+      "id": "flash-firmware",
+      "title": "Flash the firmware",
+      "markdown": "The firmware file is pre-loaded in the flasher widget.\n\n1. Make sure your SPIN board's port is selected in the **Serial Port** dropdown.\n2. Click **Start Flash** and wait for it to finish.\n\nThe board will reboot automatically when the flash is complete.",
+      "focusKey": "widget.flasher.startBtn",
+      "completion": { "kind": "flash_completed" }
+    },
+    {
+      "id": "add-command-sender",
+      "title": "Set up command buttons",
+      "markdown": "Add a **Serial Commands Sender** widget to the pane.\n\nIn its settings dialog:\n1. Set **Datasource** to your serial datasource.\n2. Add a button: label `Duty UP`, command `u`.\n3. Add a second button: label `Duty DOWN`, command `d`.\n4. Click **OK**.\n\nYou can now send commands to the running firmware by clicking the buttons.",
+      "focusKey": "pane.first.addWidget",
+      "completion": { "kind": "serial_command_buttons_configured" }
+    },
+    {
+      "id": "add-csv-recorder",
+      "title": "Add the CSV recorder",
+      "markdown": "Add a **Serial CSV Recorder** widget to the pane.\n\nYou can leave the default file path (`record.csv`) or change it to a location of your choice.\n\nClick **OK** to add it.",
+      "focusKey": "pane.first.addWidget",
+      "autoAdvance": true,
+      "completion": { "kind": "widget_type_exists", "widgetType": "serial_csv_recorder" }
+    },
+    {
+      "id": "start-recording",
+      "title": "Start recording",
+      "markdown": "In the CSV Recorder widget, click **Start Record**.\n\nThe button will change to **Stop Record** to indicate that data is being saved. Watch the board produce live measurements.",
+      "focusKey": "widget.csvRecorder.startBtn",
+      "completion": { "kind": "serial_csv_recorder_started" }
+    },
+    {
+      "id": "complete",
+      "title": "Tutorial complete",
+      "markdown": "Your SPIN board is live, flashed, and recording data.\n\n**What you learned:**\n- Adding a serial port datasource and connecting to the SPIN board\n- Flashing firmware from inside the dashboard\n- Sending duty cycle commands to the board\n- Recording live serial data to CSV\n\nClose this panel with **Done** and explore the dashboard further.",
+      "completion": { "kind": "manual" }
+    }
+  ]
+}

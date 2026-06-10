@@ -178,6 +178,12 @@
                 this.logArea.toggle(!vis);
                 this.logToggle.text(vis ? 'Show log' : 'Hide log');
             });
+
+            if (window._tutorialPendingFirmware) {
+                this.selectedFilePath = window._tutorialPendingFirmware;
+                this.fileLabel.val(this._basename(window._tutorialPendingFirmware));
+                window._tutorialPendingFirmware = null;
+            }
         }
 
         _formatPortLabel(port) {

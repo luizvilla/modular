@@ -37,6 +37,11 @@
         'modal.gaugeEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
         'modal.widgetPicker.verticalGauge': () => document.querySelector('#modal_overlay .widget-tile[data-type="vertical_gauge"]'),
         'widget.gauge.offsetControl': () => document.querySelector('.gauge-family-host .gauge-offset-control'),
+        'modal.widgetPicker.flasher': () => document.querySelector('#modal_overlay .widget-tile[data-type="serial_flasher"]'),
+        'modal.widgetPicker.commandSender': () => document.querySelector('#modal_overlay .widget-tile[data-type="serial_command_buttons"]'),
+        'modal.widgetPicker.csvRecorder': () => document.querySelector('#modal_overlay .widget-tile[data-type="serial_csv_recorder"]'),
+        'widget.flasher.startBtn': () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Start Flash') || null,
+        'widget.csvRecorder.startBtn': () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Start Record' || b.textContent.trim() === 'Stop Record') || null,
         'widget.xySourceManager.apply': () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Apply to XY Plot') || null,
         'doc.uploadFirmware': () => document.querySelector('#doc-upload-firmware-btn'),
         'doc.loadDashboard': () => document.querySelector('#doc-load-dashboard-btn'),
@@ -347,6 +352,38 @@
             return !isNaN(val) && val !== 0;
         }
 
+        if (completion.kind === 'serialport_datasource_connected') {
+            return snapshot.datasources.some((datasource) => {
+                if (readValue(datasource.type) !== 'serialport_datasource') return false;
+                const settings = typeof datasource.settings === 'function' ? datasource.settings() : (datasource.settings || {});
+                const portPath = typeof settings.portPath === 'string' ? settings.portPath.trim() : '';
+                return !!portPath;
+            });
+        }
+
+        if (completion.kind === 'flash_completed') {
+            return !!window._tutorialFlashCompleted;
+        }
+
+        if (completion.kind === 'serial_command_buttons_configured') {
+            return snapshot.widgets.some((widget) => {
+                if (readValue(widget.type) !== 'serial_command_buttons') return false;
+                const settings = typeof widget.settings === 'function' ? widget.settings() : (widget.settings || {});
+                const ds = typeof settings.datasource === 'string' ? settings.datasource.trim() : '';
+                if (!ds) return false;
+                const buttons = safeParseJson(settings.buttons);
+                const arr = Array.isArray(buttons) ? buttons : [];
+                return arr.some((btn) => {
+                    return btn && typeof btn.label === 'string' && btn.label.trim() &&
+                           typeof btn.command === 'string' && btn.command.trim();
+                });
+            });
+        }
+
+        if (completion.kind === 'serial_csv_recorder_started') {
+            return Array.from(document.querySelectorAll('button')).some((b) => b.textContent.trim() === 'Stop Record');
+        }
+
         if (completion.kind === 'time_plot_series_bound') {
             const signalGeneratorNames = new Set(
                 snapshot.datasources
@@ -476,6 +513,32 @@
 
         if (step.id === 'adjust-offset') {
             return FOCUS_RESOLVERS['widget.gauge.offsetControl']();
+        }
+
+        if (step.id === 'add-flasher') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.flasher']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'flash-firmware') {
+            return FOCUS_RESOLVERS['widget.flasher.startBtn']();
+        }
+
+        if (step.id === 'add-command-sender') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.commandSender']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'add-csv-recorder') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.csvRecorder']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'start-recording') {
+            return FOCUS_RESOLVERS['widget.csvRecorder.startBtn']();
         }
 
         if (step.id === 'add-xy-source-manager') {
@@ -711,6 +774,15 @@
                 if (csvPath) {
                     window._tutorialPendingCsv = csvPath;
                 }
+            }
+            if (action.kind === 'apply_tutorial_firmware') {
+                const firmwarePath = tutorial && tutorial.resources && typeof tutorial.resources.firmware === 'string'
+                    ? tutorial.resources.firmware
+                    : '';
+                if (firmwarePath) {
+                    window._tutorialPendingFirmware = firmwarePath;
+                }
+                window._tutorialFlashCompleted = false;
             }
         });
     }
@@ -1200,6 +1272,14 @@
             attributes: true,
             attributeFilter: ['class', 'style']
         });
+
+        const flashApi = window.api && window.api.flash;
+        if (flashApi && typeof flashApi.onComplete === 'function') {
+            flashApi.onComplete(() => {
+                window._tutorialFlashCompleted = true;
+                evaluateActiveSession();
+            });
+        }
     }
 
     async function init() {

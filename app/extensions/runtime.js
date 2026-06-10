@@ -890,7 +890,7 @@ function normalizeTutorialCompletion(step, index) {
     if (!kind) {
         throw new Error(`steps[${index}].completion.kind must be a non-empty string`);
     }
-    if (kind === 'manual' || kind === 'time_plot_series_bound' || kind === 'xy_plot_sources_bound' || kind === 'fast_frame_plot_configured' || kind === 'fft_spectrum_configured' || kind === 'gauge_source_bound' || kind === 'gauge_runtime_offset_adjusted') {
+    if (kind === 'manual' || kind === 'time_plot_series_bound' || kind === 'xy_plot_sources_bound' || kind === 'fast_frame_plot_configured' || kind === 'fft_spectrum_configured' || kind === 'gauge_source_bound' || kind === 'gauge_runtime_offset_adjusted' || kind === 'flash_completed' || kind === 'serialport_datasource_connected' || kind === 'serial_command_buttons_configured' || kind === 'serial_csv_recorder_started') {
         return { kind };
     }
     if (kind === 'pane_count_at_least') {
@@ -929,6 +929,7 @@ function normalizeStepActions(rawActions, stepIndex) {
         const src = ensureObject(action, `steps[${stepIndex}].actions[${ai}]`);
         const kind = typeof src.kind === 'string' ? src.kind.trim() : '';
         if (kind === 'apply_tutorial_csv') return { kind };
+        if (kind === 'apply_tutorial_firmware') return { kind };
         throw new Error(`steps[${stepIndex}].actions[${ai}].kind "${kind}" is not supported`);
     });
 }
@@ -945,6 +946,16 @@ function normalizeTutorialResources(rawResources, extensionRoot, tutorialDir) {
             throw new Error(`resources.csv does not exist: ${absolutePath}`);
         }
         result.csv = absolutePath;
+    }
+    if (typeof rawResources.firmware === 'string' && rawResources.firmware.trim()) {
+        const absolutePath = path.resolve(tutorialDir, rawResources.firmware.trim());
+        if (!isPathInside(extensionRoot, absolutePath)) {
+            throw new Error(`resources.firmware must stay inside the extension directory`);
+        }
+        if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+            throw new Error(`resources.firmware does not exist: ${absolutePath}`);
+        }
+        result.firmware = absolutePath;
     }
     return result;
 }

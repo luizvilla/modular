@@ -1,2 +1,3 @@
-# Un-ignore shipped tutorial asset CSV files
+# Un-ignore shipped tutorial asset files
 !*.csv
+!*.bin
