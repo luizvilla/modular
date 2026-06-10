@@ -136,31 +136,14 @@ test('fft-spectrum-from-csv tutorial happy path completes with fft_spectrum_conf
   await page.locator('#add-pane').click();
   await clickTutorialNext(page);
 
-  // Step 3: add FFT widget — auto-opens integrated editor
+  // Step 3: add FFT widget — apply_tutorial_csv action fires on step entry, then
+  // clicking the tile auto-opens the editor with the CSV already pre-loaded.
   await expectSubtitle(page, 'Add an FFT Spectrum widget');
   await page.locator('.gs_w .pane-tools li[title="Add widget"]').first().click();
   const fftTile = page.locator('#modal_overlay .widget-tile[data-type="fft_spectrum_plot"]');
   await expect(fftTile).toBeVisible({ timeout: 10_000 });
   await fftTile.click();
-  // Clicking the tile auto-fires dialog-ok; the integrated editor opens.
-  // Close with Save (empty settings) to trigger widget_type_exists and auto-advance to step 4.
-  await (await activeModal(page)).locator('#dialog-ok').click();
-  await page.waitForFunction(() => {
-    const model = window.freeboard.getLiveModel();
-    return model.panes().some((p) => p.widgets().some((w) => w.type() === 'fft_spectrum_plot'));
-  }, null, { timeout: 20_000 });
-  // auto-advances on widget_type_exists: fft_spectrum_plot; step 4 entered, action fires
-  await expectSubtitle(page, 'Configure the channels');
-
-  // Step 4: configure-fft-channels.
-  // apply_tutorial_csv action fired on step entry → window._tutorialPendingCsv set.
-  // Re-open the editor to pick up the pre-loaded CSV.
-  await page.evaluate(() => {
-    const model = window.freeboard.getLiveModel();
-    const widget = model.panes().flatMap((p) => p.widgets()).find((w) => w.type() === 'fft_spectrum_plot');
-    if (widget) window.freeboard.openIntegratedPlotEditor(widget, 'fft_spectrum_plot');
-  });
-
+  // The integrated editor opens automatically with the CSV pre-loaded.
   const fftEditor = await activeModal(page);
   await expect(fftEditor.locator('.integrated-plot-editor')).toBeVisible({ timeout: 10_000 });
 

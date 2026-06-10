@@ -21,17 +21,17 @@
     {
       "id": "add-fast-frame-widget",
       "title": "Add a Fast Frame Plot widget",
-      "markdown": "Click the **Add widget** icon on the pane, then select **Fast Frame Widget** from the picker.\n\nAfter you click OK the configuration editor will open automatically. You can close it with **Save** for now — we will configure it in the next step.",
+      "markdown": "Click the **Add widget** icon on the pane, then select **Fast Frame Widget** from the picker.\n\nThe editor will open automatically with the sample CSV already loaded. You can configure a channel right away.",
       "focusKey": "pane.first.addWidget",
       "autoAdvance": true,
+      "actions": [{ "kind": "apply_tutorial_csv" }],
       "completion": { "kind": "widget_type_exists", "widgetType": "fast_frame_plot" }
     },
     {
       "id": "configure-channels",
       "title": "Configure the plot",
-      "markdown": "Click the **wrench (edit)** icon on the Fast Frame widget to open its editor.\n\nA sample CSV has been pre-loaded for you. In the editor:\n1. Set **X Variable** to `time_ms` (or leave it as row index)\n2. Change **Type** to **Math** and add a math channel: set **A** to `I1_low_value`, **Op** to `+`, and **B** to `I2_low_value`\n3. Give it a label such as `Total current`\n4. Click **Add channel**, then click **Save**",
+      "markdown": "Add a math channel from the sample CSV:\n\n1. Change **Type** to **Math**, set **A** to `I1_low_value`, **Op** to `+`, **B** to `I2_low_value`\n2. Optionally set a label such as `Total current`\n3. Click **Add channel**, then click **Save**\n\nIf you already did this when the editor opened, click **Next** to continue.",
       "focusKey": "modal.fastFrameEditor",
-      "actions": [{ "kind": "apply_tutorial_csv" }],
       "completion": { "kind": "fast_frame_plot_configured" }
     },
     {

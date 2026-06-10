@@ -135,39 +135,18 @@ test('fast-frame-from-csv tutorial happy path completes with fast_frame_plot_con
   await page.locator('#add-pane').click();
   await clickTutorialNext(page);
 
-  // Step 3: add fast frame widget — auto-opens integrated editor
+  // Step 3: add fast frame widget — apply_tutorial_csv action fires on step entry, then
+  // clicking the tile auto-opens the editor with the CSV already pre-loaded.
   await expectSubtitle(page, 'Add a Fast Frame Plot widget');
   await page.locator('.gs_w .pane-tools li[title="Add widget"]').first().click();
   const ffTile = page.locator('#modal_overlay .widget-tile[data-type="fast_frame_plot"]');
   await expect(ffTile).toBeVisible({ timeout: 10_000 });
   await ffTile.click();
-  // Skip immediate ok — clicking the tile auto-fires dialog-ok; the integrated editor opens.
-  // Close it with Save (empty settings) to trigger widget_type_exists and auto-advance to step 4.
-  await (await activeModal(page)).locator('#dialog-ok').click();
-  await page.waitForFunction(() => {
-    const model = window.freeboard.getLiveModel();
-    return model.panes().some((p) => p.widgets().some((w) => w.type() === 'fast_frame_plot'));
-  }, null, { timeout: 20_000 });
-  // auto-advances on widget_type_exists: fast_frame_plot; step 4 entered, action fires
-  await expectSubtitle(page, 'Configure the plot');
-
-  // Step 4: configure-channels.
-  // The action (apply_tutorial_csv) set window._tutorialPendingCsv when step 4 was entered.
-  // Re-open the editor to pick up the pre-loaded CSV.
-  const pendingCsv = await page.evaluate(() => window._tutorialPendingCsv || null);
-  // If _tutorialPendingCsv was already consumed by a residual editor open, check via widget
-  // programmatically open the Fast Frame editor so the tutorial CSV gets pre-loaded.
-  await page.evaluate(() => {
-    const model = window.freeboard.getLiveModel();
-    const widget = model.panes().flatMap((p) => p.widgets()).find((w) => w.type() === 'fast_frame_plot');
-    if (widget) window.freeboard.openIntegratedPlotEditor(widget, 'fast_frame_plot');
-  });
-
+  // The integrated editor opens automatically with the CSV pre-loaded.
   const ffEditor = await activeModal(page);
   await expect(ffEditor.locator('.integrated-plot-editor')).toBeVisible({ timeout: 10_000 });
 
   // Verify the CSV was pre-loaded by checking that columns are available in the X Variable select.
-  // The sample_data.csv has a time_ms-like first unnamed column; at minimum check select has options.
   await page.waitForFunction(async () => {
     const editor = document.querySelector('#modal_overlay .integrated-plot-editor');
     if (!editor) return false;

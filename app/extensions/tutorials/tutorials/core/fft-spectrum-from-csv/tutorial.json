@@ -19,17 +19,17 @@
     {
       "id": "add-fft-widget",
       "title": "Add an FFT Spectrum widget",
-      "markdown": "Click the **Add widget** button on the pane, then select **FFT Spectrum Widget** from the widget picker. The editor will open automatically.",
+      "markdown": "Click the **Add widget** button on the pane, then select **FFT Spectrum Widget** from the widget picker.\n\nThe editor will open automatically with the sample CSV already loaded. You can configure a channel right away.",
       "focusKey": "pane.first.addWidget",
       "autoAdvance": true,
+      "actions": [{ "kind": "apply_tutorial_csv" }],
       "completion": { "kind": "widget_type_exists", "widgetType": "fft_spectrum_plot" }
     },
     {
       "id": "configure-fft-channels",
       "title": "Configure the channels",
-      "markdown": "The sample CSV has been pre-loaded. Add a channel to analyse:\n\n1. Leave **Type** as *Regular* and pick `Vgrid` from the **Y Variable** drop-down.\n2. Click **Add channel**.\n3. Click **Save**.\n\nThe widget will compute the FFT and display the frequency spectrum below.",
+      "markdown": "Add a channel to analyse:\n\n1. Leave **Type** as *Regular* and pick `Vgrid` from the **Y Variable** drop-down.\n2. Click **Add channel**.\n3. Click **Save**.\n\nIf you already did this when the editor opened, click **Next** to continue.",
       "focusKey": "modal.fftSpectrumEditor",
-      "actions": [{ "kind": "apply_tutorial_csv" }],
       "completion": { "kind": "fft_spectrum_configured" }
     },
     {
