@@ -1,8 +1,4 @@
 (function () {
-    if (!window.require) return;
-    const { webFrame } = window.require('electron') || {};
-    if (!webFrame) return;
-
     const MIN_ZOOM = 0.5;
     const MAX_ZOOM = 2.0;
     const STEP = 0.1;
@@ -14,7 +10,7 @@
 
     function applyZoom(value) {
         currentZoom = clamp(value);
-        webFrame.setZoomFactor(currentZoom);
+        if (window.api && window.api.zoom) window.api.zoom.setFactor(currentZoom);
         localStorage.setItem('dashboard_zoom', currentZoom.toString());
         document.dispatchEvent(new CustomEvent('dashboard-zoom-changed', { detail: { factor: currentZoom } }));
     }
@@ -30,7 +26,7 @@
         getCurrent: () => currentZoom,
     };
 
-    window.addEventListener('DOMContentLoaded', () => {
+    function initZoomUI() {
         applyZoom(currentZoom);
 
         const zoomInBtn  = document.getElementById('zoom-in-btn');
@@ -49,7 +45,14 @@
 
         document.addEventListener('dashboard-zoom-changed', updateZoomUI);
         updateZoomUI();
-    });
+    }
+
+    // Script may load after DOMContentLoaded has fired (placed at bottom of body).
+    if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', initZoomUI);
+    } else {
+        initZoomUI();
+    }
 
     window.addEventListener('keydown', (evt) => {
         if (!evt.ctrlKey) return;

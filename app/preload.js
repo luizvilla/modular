@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
@@ -17,6 +17,10 @@ function onDocKind(channel, kind, handler) {
 }
 
 const api = {
+    zoom: {
+        setFactor: (factor) => webFrame.setZoomFactor(factor),
+        getFactor: () => webFrame.getZoomFactor(),
+    },
     activity: {
         on: (cb) => on('activity', cb),
         onToggle: (cb) => on('activity-toggle', cb),
