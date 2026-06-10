@@ -890,6 +890,9 @@
             }
             #tutorial-welcome .tutorial-welcome-card {
                 width: min(680px, calc(100vw - 48px));
+                max-height: 100%;
+                display: flex;
+                flex-direction: column;
                 pointer-events: auto;
                 background:
                     radial-gradient(circle at top right, rgba(88, 179, 104, 0.14), transparent 34%),
@@ -905,6 +908,9 @@
                 flex-direction: column;
                 gap: 18px;
                 padding: 24px;
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
             }
             #tutorial-welcome .tutorial-welcome-kicker {
                 font-size: 11px;
