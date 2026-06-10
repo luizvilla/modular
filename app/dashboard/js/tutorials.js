@@ -15,6 +15,7 @@
         datasources: [],
         columns: 3
     };
+    const TUTORIAL_COMPLETION_STORAGE_KEY = 'tutorial_completion_state_v1';
 
     const FOCUS_RESOLVERS = {
         'header.addPane': () => document.querySelector('#add-pane'),
@@ -65,8 +66,16 @@
 
     const state = {
         tutorialsById: new Map(),
+        dashboardWelcomeEntries: [],
         sessionsByTabId: new Map(),
         activeSessionTabId: null,
+        welcomeRoot: null,
+        welcomeTitle: null,
+        welcomeInstructions: null,
+        welcomeActions: null,
+        welcomeDismissButton: null,
+        dismissedWelcomeIds: new Set(),
+        completedTutorials: {},
         root: null,
         progressBar: null,
         title: null,
@@ -92,6 +101,49 @@
 
     function cloneBlankDashboard() {
         return JSON.parse(JSON.stringify(BLANK_TUTORIAL_DASHBOARD));
+    }
+
+    function normalizeStoredTutorialCompletion(raw) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+        const result = {};
+        Object.entries(raw).forEach(([tutorialId, value]) => {
+            if (!tutorialId) return;
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+            const completedAt = typeof value.completedAt === 'string' && value.completedAt.trim()
+                ? value.completedAt.trim()
+                : null;
+            if (!completedAt) return;
+            result[tutorialId] = { completedAt };
+        });
+        return result;
+    }
+
+    function loadTutorialCompletionState() {
+        try {
+            const raw = localStorage.getItem(TUTORIAL_COMPLETION_STORAGE_KEY);
+            state.completedTutorials = normalizeStoredTutorialCompletion(JSON.parse(raw || '{}'));
+        } catch {
+            state.completedTutorials = {};
+        }
+    }
+
+    function saveTutorialCompletionState() {
+        try {
+            localStorage.setItem(TUTORIAL_COMPLETION_STORAGE_KEY, JSON.stringify(state.completedTutorials));
+        } catch {}
+    }
+
+    function isTutorialCompleted(tutorialId) {
+        return !!state.completedTutorials[String(tutorialId || '').trim()];
+    }
+
+    function markTutorialCompleted(tutorialId) {
+        const normalizedId = String(tutorialId || '').trim();
+        if (!normalizedId || isTutorialCompleted(normalizedId)) return;
+        state.completedTutorials[normalizedId] = {
+            completedAt: new Date().toISOString()
+        };
+        saveTutorialCompletionState();
     }
 
     function safeParseJson(value) {
@@ -132,6 +184,10 @@
 
     function tutorialLabel(tutorial) {
         return `Tutorial: ${tutorial.title}`;
+    }
+
+    function isDefaultDashboardTab(tab) {
+        return !!(tab && tab.id === 'dashboard' && tab.type === 'dashboard' && !(tab.meta && tab.meta.tutorial));
     }
 
     function setHighlight(element) {
@@ -259,6 +315,19 @@
             : null;
     }
 
+    function tutorialIsActuallyComplete(tutorial) {
+        if (!tutorial || !Array.isArray(tutorial.steps) || !tutorial.steps.length) return false;
+        return tutorial.steps.every((step) => completionSatisfied(step));
+    }
+
+    function persistTutorialCompletionIfEligible(session) {
+        if (!session || !session.tutorial || !session.isVisible) return;
+        const lastIndex = session.tutorial.steps.length - 1;
+        if (session.stepIndex < lastIndex) return;
+        if (!tutorialIsActuallyComplete(session.tutorial)) return;
+        markTutorialCompleted(session.tutorial.id);
+    }
+
     function resolveIllustrationUrl(step) {
         if (!step || !step.illustrationPath) return '';
         return pathsApi && typeof pathsApi.toFileUrl === 'function'
@@ -288,6 +357,86 @@
 
         const resolver = FOCUS_RESOLVERS[step.focusKey];
         return typeof resolver === 'function' ? resolver() : null;
+    }
+
+    function setWelcomeVisible(visible) {
+        if (!state.welcomeRoot) return;
+        state.welcomeRoot.hidden = !visible;
+        state.welcomeRoot.classList.toggle('is-hidden', !visible);
+    }
+
+    function getStartupWelcomeEntry() {
+        return state.dashboardWelcomeEntries.find((entry) => (
+            entry && entry.trigger === 'startup' && entry.showWhen === 'empty_default_dashboard'
+        )) || null;
+    }
+
+    function hasVisibleTutorialSession() {
+        return Array.from(state.sessionsByTabId.values()).some((session) => !session.dismissed && session.isVisible);
+    }
+
+    function isCurrentDashboardEmpty() {
+        const snapshot = collectModelSnapshot();
+        return snapshot.panes.length === 0 && snapshot.datasources.length === 0 && snapshot.widgets.length === 0;
+    }
+
+    function openTutorialFromWelcome(tutorialId) {
+        handleOpenRequest({ id: tutorialId }).catch((err) => {
+            console.error('[tutorials] welcome launch failed', err);
+        });
+    }
+
+    function renderWelcomeAction(entry, action) {
+        const button = document.createElement('button');
+        const tutorial = findTutorialById(action.tutorialId);
+        const completed = isTutorialCompleted(action.tutorialId);
+
+        button.type = 'button';
+        button.className = 'tutorial-welcome-action';
+        if (completed) button.classList.add('is-complete');
+        if (!tutorial) button.classList.add('is-unavailable');
+        button.disabled = !tutorial;
+        button.innerHTML = `
+            <span class="tutorial-welcome-action-header">
+                <span class="tutorial-welcome-action-label">${action.label}</span>
+                ${completed ? '<span class="tutorial-welcome-action-state">Completed</span>' : ''}
+            </span>
+            ${action.description ? `<span class="tutorial-welcome-action-description">${action.description}</span>` : ''}
+        `;
+        if (tutorial) {
+            button.addEventListener('click', () => openTutorialFromWelcome(action.tutorialId));
+        }
+        state.welcomeActions.appendChild(button);
+    }
+
+    function renderWelcome() {
+        if (!state.welcomeRoot) return;
+        const entry = getStartupWelcomeEntry();
+        const active = getActiveTabSnapshot();
+        const shouldShow = !!entry
+            && !state.dismissedWelcomeIds.has(entry.id)
+            && isDefaultDashboardTab(active)
+            && !hasVisibleTutorialSession()
+            && isCurrentDashboardEmpty();
+
+        if (!shouldShow) {
+            setWelcomeVisible(false);
+            return;
+        }
+
+        setWelcomeVisible(true);
+        state.welcomeRoot.dataset.welcomeId = entry.id;
+        state.welcomeTitle.textContent = entry.title;
+        state.welcomeInstructions.innerHTML = renderMarkdown(entry.markdown);
+        state.welcomeActions.replaceChildren();
+        entry.actions.forEach((action) => renderWelcomeAction(entry, action));
+    }
+
+    function dismissWelcome() {
+        const entry = getStartupWelcomeEntry();
+        if (!entry) return;
+        state.dismissedWelcomeIds.add(entry.id);
+        renderWelcome();
     }
 
     function setRootVisible(visible) {
@@ -368,9 +517,11 @@
             state.nextButton.textContent = session.stepIndex === session.tutorial.steps.length - 1 ? 'Done' : 'Next';
             state.skipButton.textContent = session.stepIndex === session.tutorial.steps.length - 1 ? 'Close' : 'Skip';
 
+            persistTutorialCompletionIfEligible(session);
             updateFocus(session, step);
         } finally {
             _renderingSession = false;
+            renderWelcome();
         }
     }
 
@@ -580,8 +731,155 @@
                 outline-offset: 3px;
                 box-shadow: 0 0 0 6px rgba(134, 217, 147, 0.18) !important;
             }
+            #tutorial-welcome {
+                position: fixed;
+                inset: 120px 24px 40px;
+                z-index: 2800;
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+                pointer-events: none;
+            }
+            #tutorial-welcome.is-hidden {
+                display: none;
+            }
+            #tutorial-welcome .tutorial-welcome-card {
+                width: min(680px, calc(100vw - 48px));
+                pointer-events: auto;
+                background:
+                    radial-gradient(circle at top right, rgba(88, 179, 104, 0.14), transparent 34%),
+                    linear-gradient(180deg, rgba(17, 24, 34, 0.96), rgba(15, 21, 30, 0.98));
+                border: 1px solid rgba(118, 147, 180, 0.35);
+                border-radius: 24px;
+                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+                color: #eef4fb;
+                overflow: hidden;
+            }
+            #tutorial-welcome .tutorial-welcome-body {
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+                padding: 24px;
+            }
+            #tutorial-welcome .tutorial-welcome-kicker {
+                font-size: 11px;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: #91abc6;
+            }
+            #tutorial-welcome .tutorial-welcome-title {
+                margin: 6px 0 0;
+                font-size: 32px;
+                line-height: 1.1;
+                font-weight: 600;
+            }
+            #tutorial-welcome .tutorial-welcome-markdown {
+                font-size: 15px;
+                line-height: 1.6;
+                color: #dbe7f5;
+            }
+            #tutorial-welcome .tutorial-welcome-markdown p:last-child,
+            #tutorial-welcome .tutorial-welcome-markdown ul:last-child {
+                margin-bottom: 0;
+            }
+            #tutorial-welcome .tutorial-welcome-actions {
+                display: grid;
+                gap: 12px;
+            }
+            #tutorial-welcome .tutorial-welcome-action {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                align-items: flex-start;
+                width: 100%;
+                padding: 16px 18px;
+                border-radius: 16px;
+                border: 1px solid rgba(134, 217, 147, 0.35);
+                background: rgba(88, 179, 104, 0.1);
+                color: #eef4fb;
+                cursor: pointer;
+                text-align: left;
+                transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+            }
+            #tutorial-welcome .tutorial-welcome-action:hover {
+                transform: translateY(-1px);
+                border-color: rgba(134, 217, 147, 0.6);
+                background: rgba(88, 179, 104, 0.16);
+            }
+            #tutorial-welcome .tutorial-welcome-action.is-complete {
+                border-color: rgba(145, 171, 198, 0.28);
+                background: rgba(145, 171, 198, 0.1);
+                color: #d9e2ec;
+            }
+            #tutorial-welcome .tutorial-welcome-action.is-complete:hover {
+                border-color: rgba(145, 171, 198, 0.45);
+                background: rgba(145, 171, 198, 0.14);
+            }
+            #tutorial-welcome .tutorial-welcome-action.is-unavailable {
+                opacity: 0.55;
+                cursor: default;
+            }
+            #tutorial-welcome .tutorial-welcome-action-header {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                width: 100%;
+                justify-content: space-between;
+            }
+            #tutorial-welcome .tutorial-welcome-action-label {
+                font-size: 18px;
+                font-weight: 600;
+            }
+            #tutorial-welcome .tutorial-welcome-action-state {
+                padding: 3px 8px;
+                border-radius: 999px;
+                background: rgba(145, 171, 198, 0.18);
+                color: #c8d6e6;
+                font-size: 11px;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+            #tutorial-welcome .tutorial-welcome-action-description {
+                font-size: 13px;
+                line-height: 1.45;
+                color: #c7d4e4;
+            }
+            #tutorial-welcome .tutorial-welcome-footer {
+                display: flex;
+                justify-content: flex-end;
+            }
+            #tutorial-welcome .tutorial-welcome-dismiss {
+                border: 1px solid rgba(145, 171, 198, 0.35);
+                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.04);
+                color: #eef4fb;
+                padding: 8px 12px;
+                font-size: 13px;
+                cursor: pointer;
+            }
         `;
         document.head.appendChild(style);
+
+        const welcomeRoot = document.createElement('aside');
+        welcomeRoot.id = 'tutorial-welcome';
+        welcomeRoot.hidden = true;
+        welcomeRoot.className = 'is-hidden';
+        welcomeRoot.innerHTML = `
+            <div class="tutorial-welcome-card">
+                <div class="tutorial-welcome-body">
+                    <div class="tutorial-welcome-header">
+                        <div class="tutorial-welcome-kicker">Getting Started</div>
+                        <h2 class="tutorial-welcome-title"></h2>
+                    </div>
+                    <div class="tutorial-welcome-markdown"></div>
+                    <div class="tutorial-welcome-actions"></div>
+                    <div class="tutorial-welcome-footer">
+                        <button type="button" class="tutorial-welcome-dismiss">Hide</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(welcomeRoot);
 
         const root = document.createElement('aside');
         root.id = 'tutorial-stepper';
@@ -609,6 +907,11 @@
         `;
         document.body.appendChild(root);
 
+        state.welcomeRoot = welcomeRoot;
+        state.welcomeTitle = welcomeRoot.querySelector('.tutorial-welcome-title');
+        state.welcomeInstructions = welcomeRoot.querySelector('.tutorial-welcome-markdown');
+        state.welcomeActions = welcomeRoot.querySelector('.tutorial-welcome-actions');
+        state.welcomeDismissButton = welcomeRoot.querySelector('.tutorial-welcome-dismiss');
         state.root = root;
         state.progressBar = root.querySelector('.tutorial-progress > div');
         state.title = root.querySelector('.tutorial-title');
@@ -625,6 +928,7 @@
         state.nextButton.addEventListener('click', advanceStep);
         state.skipButton.addEventListener('click', skipStep);
         state.exitButton.addEventListener('click', exitTutorial);
+        state.welcomeDismissButton.addEventListener('click', dismissWelcome);
     }
 
     async function loadBootstrap() {
@@ -636,6 +940,10 @@
                 state.tutorialsById.set(tutorial.id, tutorial);
             }
         });
+        state.dashboardWelcomeEntries = Array.isArray(bootstrap && bootstrap.dashboardWelcomeEntries)
+            ? bootstrap.dashboardWelcomeEntries.slice()
+            : [];
+        loadTutorialCompletionState();
         state.bootstrapLoaded = true;
     }
 
@@ -722,7 +1030,13 @@
 
         let _observerRenderHandle = null;
         state.mutationObserver = new MutationObserver((mutations) => {
-            if (state.root && mutations.every((m) => state.root.contains(m.target))) return;
+            if (mutations.every((mutation) => {
+                const target = mutation.target;
+                return !!(
+                    (state.root && state.root.contains(target))
+                    || (state.welcomeRoot && state.welcomeRoot.contains(target))
+                );
+            })) return;
             if (_observerRenderHandle !== null) return;
             _observerRenderHandle = setTimeout(() => {
                 _observerRenderHandle = null;

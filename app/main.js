@@ -95,6 +95,7 @@ function cloneExtensionBootstrap() {
         exampleRoots: extensionRuntime.bootstrap.exampleRoots.map((entry) => ({ ...entry })),
         coursewareRoots: extensionRuntime.bootstrap.coursewareRoots.map((entry) => ({ ...entry })),
         tutorialRoots: extensionRuntime.bootstrap.tutorialRoots.map((entry) => ({ ...entry })),
+        dashboardWelcomePaths: extensionRuntime.bootstrap.dashboardWelcomePaths.map((entry) => ({ ...entry })),
         dashboardRoots: extensionRuntime.bootstrap.dashboardRoots.map((entry) => ({ ...entry })),
         widgetDocs: extensionRuntime.bootstrap.widgetDocs.map((entry) => ({ ...entry })),
         courseware: extensionRuntime.bootstrap.courseware.map((entry) => ({ ...entry })),
@@ -102,6 +103,10 @@ function cloneExtensionBootstrap() {
             ...entry,
             menuSegments: Array.isArray(entry.menuSegments) ? entry.menuSegments.slice() : [],
             steps: Array.isArray(entry.steps) ? entry.steps.map((step) => ({ ...step })) : [],
+        })),
+        dashboardWelcomeEntries: extensionRuntime.bootstrap.dashboardWelcomeEntries.map((entry) => ({
+            ...entry,
+            actions: Array.isArray(entry.actions) ? entry.actions.map((action) => ({ ...action })) : [],
         })),
         datasources: extensionRuntime.bootstrap.datasources.map((entry) => ({ ...entry })),
     };

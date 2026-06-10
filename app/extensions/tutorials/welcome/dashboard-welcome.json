@@ -1,0 +1,15 @@
+{
+  "id": "tutorials-startup",
+  "title": "Welcome to Modular",
+  "markdown": "This dashboard starts empty on purpose.\n\nUse a guided tutorial to learn the core workflow before building your own board.\n\nYou can reopen any tutorial later from the **Tutorials** menu.",
+  "trigger": "startup",
+  "showWhen": "empty_default_dashboard",
+  "order": 10,
+  "actions": [
+    {
+      "tutorialId": "core/dashboard-basics",
+      "label": "Dashboard Basics",
+      "description": "Learn panes, datasources, widgets, and a first time plot."
+    }
+  ]
+}

@@ -38,6 +38,10 @@ async function expectTutorialSubtitle(page, title) {
   await expect(page.locator('#tutorial-stepper .tutorial-subtitle')).toHaveText(title);
 }
 
+async function expectWelcomeVisible(page) {
+  await expect(page.locator('#tutorial-welcome')).toBeVisible();
+}
+
 test('tutorials menu and tutorial bootstrap are exposed when enabled', async () => {
   const { app, page } = await launchApp();
   await waitForDashboard(page);
@@ -47,6 +51,7 @@ test('tutorials menu and tutorial bootstrap are exposed when enabled', async () 
     return {
       tutorials: Array.isArray(bootstrap.tutorials) ? bootstrap.tutorials : [],
       tutorialRoots: Array.isArray(bootstrap.tutorialRoots) ? bootstrap.tutorialRoots : [],
+      dashboardWelcomeEntries: Array.isArray(bootstrap.dashboardWelcomeEntries) ? bootstrap.dashboardWelcomeEntries : [],
     };
   });
 
@@ -56,6 +61,16 @@ test('tutorials menu and tutorial bootstrap are exposed when enabled', async () 
       id: TUTORIAL_ID,
       title: 'Dashboard Basics',
       menuSegments: ['Core', 'Dashboard Basics'],
+    }),
+  ]));
+  expect(bootstrapState.dashboardWelcomeEntries).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      id: 'tutorials-startup',
+      trigger: 'startup',
+      showWhen: 'empty_default_dashboard',
+      actions: expect.arrayContaining([
+        expect.objectContaining({ tutorialId: TUTORIAL_ID, label: 'Dashboard Basics' }),
+      ]),
     }),
   ]));
 
@@ -73,6 +88,17 @@ test('tutorials menu and tutorial bootstrap are exposed when enabled', async () 
   expect(menuState.hasTutorials).toBe(true);
   expect(menuState.rootLabels).toEqual(expect.arrayContaining(['Core']));
   expect(menuState.coreLabels).toEqual(expect.arrayContaining(['Dashboard Basics']));
+
+  await app.close();
+});
+
+test('empty default dashboard shows the tutorial welcome card at startup', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+
+  await expectWelcomeVisible(page);
+  await expect(page.locator('#tutorial-welcome .tutorial-welcome-title')).toHaveText('Welcome to Modular');
+  await expect(page.locator('#tutorial-welcome .tutorial-welcome-action')).toContainText('Dashboard Basics');
 
   await app.close();
 });
@@ -215,6 +241,62 @@ test('tutorial stepper hides when leaving the tutorial tab and resumes on return
   await page.locator('[data-tab-id^="dashboard:"]').filter({ hasText: 'Tutorial: Dashboard Basics' }).click();
   await expect(page.locator('#tutorial-stepper')).toBeVisible();
   await expectTutorialSubtitle(page, 'Create a pane');
+
+  await app.close();
+});
+
+test('welcome action becomes completed after finishing the tutorial and remains clickable', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  await expectWelcomeVisible(page);
+
+  await page.locator('#tutorial-welcome .tutorial-welcome-action').first().click();
+  await waitForTutorialTab(page);
+
+  await clickTutorialNext(page);
+  await clickTutorialNext(page);
+  await page.locator('#add-pane').click();
+  await clickTutorialNext(page);
+
+  await page.locator('#side-tab-datasources .table-operation').click();
+  await page.locator('#modal_overlay .datasource-tile[data-type="signal_generator_datasource"]').click();
+  const datasourceModal = await activeModal(page);
+  await datasourceModal
+    .locator('.form-row')
+    .filter({ has: page.locator('.form-label', { hasText: 'Name' }) })
+    .locator('input')
+    .fill(DATASOURCE_NAME);
+  await datasourceModal.locator('#dialog-ok').click();
+  await expectTutorialSubtitle(page, 'Add a time plot widget');
+
+  await page.locator('.gs_w .pane-tools li[title="Add widget"]').first().click();
+  await page.locator('#modal_overlay .widget-tile[data-type="time_plot_uplot"]').click();
+  await (await activeModal(page)).locator('#dialog-ok').click();
+  await expectTutorialSubtitle(page, 'Bind one signal to the plot');
+
+  const plotModal = await activeModal(page);
+  await plotModal
+    .locator('.input-group')
+    .filter({ has: page.locator('.input-group-text', { hasText: 'Source' }) })
+    .locator('select')
+    .first()
+    .selectOption(DATASOURCE_NAME);
+  await plotModal.getByRole('button', { name: 'Add channel' }).click();
+  await plotModal.locator('#dialog-ok').click();
+  await clickTutorialNext(page);
+  await expectTutorialSubtitle(page, 'Tutorial complete');
+
+  await page.locator('[data-tab-id="dashboard"]').click();
+  await expectWelcomeVisible(page);
+  const welcomeAction = page.locator('#tutorial-welcome .tutorial-welcome-action').first();
+  await expect(welcomeAction).toHaveClass(/is-complete/);
+  await expect(welcomeAction).toContainText('Completed');
+
+  await welcomeAction.click();
+  await page.waitForFunction(() => {
+    const tutorialTabs = Array.from(document.querySelectorAll('[data-tab-id^="dashboard:"]'));
+    return tutorialTabs.filter((node) => /Tutorial: Dashboard Basics/.test(node.textContent || '')).length >= 2;
+  }, null, { timeout: 20_000 });
 
   await app.close();
 });

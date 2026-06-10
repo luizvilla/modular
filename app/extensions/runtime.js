@@ -230,6 +230,21 @@ function normalizeTutorialRoots(manifest, appRoot) {
     });
 }
 
+function normalizeDashboardWelcomePaths(manifest, appRoot) {
+    const raw = manifest.dashboardWelcomePaths || manifest.dashboardWelcomePath;
+    if (!raw) return [];
+    const list = Array.isArray(raw) ? raw : [raw];
+    return list.map((entry, index) => {
+        const relPath = typeof entry === 'string'
+            ? entry
+            : ensureObject(entry, `dashboardWelcomePaths[${index}]`).path;
+        return {
+            extensionId: manifest.id,
+            path: ensureAppFile(appRoot, relPath, `dashboardWelcomePaths[${index}]`),
+        };
+    });
+}
+
 function normalizeDashboardRoots(manifest, appRoot) {
     if (!Array.isArray(manifest.dashboardRoots)) return [];
     return manifest.dashboardRoots.map((entry, index) => {
@@ -307,6 +322,7 @@ function normalizeManifestRecord(manifestPath, options) {
         exampleRoots: normalizeExampleRoots(manifest, appRoot),
         coursewareRoots: normalizeCoursewareRoots(manifest, appRoot),
         tutorialRoots: normalizeTutorialRoots(manifest, appRoot),
+        dashboardWelcomePaths: normalizeDashboardWelcomePaths(manifest, appRoot),
         dashboardRoots: normalizeDashboardRoots(manifest, appRoot),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
         requiresExtensions: normalizeRequiredExtensions(manifest.requiresExtensions),
@@ -360,12 +376,14 @@ function createContributionRegistry() {
     const exampleRootKeys = new Set();
     const coursewareRootKeys = new Set();
     const tutorialRootKeys = new Set();
+    const dashboardWelcomeKeys = new Set();
     const dashboardRootKeys = new Set();
     const rendererScripts = [];
     const widgetDocsRoots = [];
     const exampleRoots = [];
     const coursewareRoots = [];
     const tutorialRoots = [];
+    const dashboardWelcomePaths = [];
     const dashboardRoots = [];
     const flags = {};
 
@@ -418,6 +436,15 @@ function createContributionRegistry() {
         }
     }
 
+    function addDashboardWelcomePaths(list) {
+        for (const entry of list || []) {
+            const key = entry.path;
+            if (dashboardWelcomeKeys.has(key)) continue;
+            dashboardWelcomeKeys.add(key);
+            dashboardWelcomePaths.push({ ...entry });
+        }
+    }
+
     function addDashboardRoots(list) {
         for (const entry of list || []) {
             const key = entry.path;
@@ -439,6 +466,7 @@ function createContributionRegistry() {
         addExampleRoots(extension.exampleRoots);
         addCoursewareRoots(extension.coursewareRoots);
         addTutorialRoots(extension.tutorialRoots);
+        addDashboardWelcomePaths(extension.dashboardWelcomePaths);
         addDashboardRoots(extension.dashboardRoots);
         addFlags(extension.preloadFlags);
     }
@@ -460,6 +488,7 @@ function createContributionRegistry() {
         addExampleRoots(contribution.exampleRoots);
         addCoursewareRoots(contribution.coursewareRoots);
         addTutorialRoots(contribution.tutorialRoots);
+        addDashboardWelcomePaths(contribution.dashboardWelcomePaths);
         addDashboardRoots(contribution.dashboardRoots);
         addFlags(contribution.flags);
     }
@@ -476,6 +505,7 @@ function createContributionRegistry() {
             exampleRoots: exampleRoots.map((entry) => ({ ...entry })),
             coursewareRoots: coursewareRoots.map((entry) => ({ ...entry })),
             tutorialRoots: tutorialRoots.map((entry) => ({ ...entry })),
+            dashboardWelcomePaths: dashboardWelcomePaths.map((entry) => ({ ...entry })),
             dashboardRoots: dashboardRoots.map((entry) => ({ ...entry })),
         };
     }
@@ -624,6 +654,21 @@ function normalizeInstalledTutorialRoots(manifest, bundleDir) {
     });
 }
 
+function normalizeInstalledDashboardWelcomePaths(manifest, bundleDir) {
+    const raw = manifest.dashboardWelcomePaths || manifest.dashboardWelcomePath;
+    if (!raw) return [];
+    const list = Array.isArray(raw) ? raw : [raw];
+    return list.map((entry, index) => {
+        const relPath = typeof entry === 'string'
+            ? entry
+            : ensureObject(entry, `dashboardWelcomePaths[${index}]`).path;
+        return {
+            extensionId: manifest.id,
+            path: ensureRelativeFile(bundleDir, relPath, `dashboardWelcomePaths[${index}]`),
+        };
+    });
+}
+
 function normalizeInstalledDashboardRoots(manifest, bundleDir) {
     if (!Array.isArray(manifest.dashboardRoots)) return [];
     return manifest.dashboardRoots.map((entry, index) => {
@@ -682,6 +727,7 @@ function normalizeInstalledBundleRecord(manifestPath, options) {
         exampleRoots: normalizeInstalledExampleRoots(manifest, bundleDir),
         coursewareRoots: normalizeInstalledCoursewareRoots(manifest, bundleDir),
         tutorialRoots: normalizeInstalledTutorialRoots(manifest, bundleDir),
+        dashboardWelcomePaths: normalizeInstalledDashboardWelcomePaths(manifest, bundleDir),
         dashboardRoots: normalizeInstalledDashboardRoots(manifest, bundleDir),
         preloadFlags: normalizePreloadFlags(manifest.preloadFlags),
         requiresExtensions: normalizeRequiredExtensions(manifest.requiresExtensions),
@@ -904,6 +950,26 @@ function normalizeTutorialStep(step, index, tutorialDir) {
     };
 }
 
+function normalizeDashboardWelcomeAction(action, index) {
+    const source = ensureObject(action, `actions[${index}]`);
+    const tutorialId = typeof source.tutorialId === 'string' ? source.tutorialId.trim() : '';
+    const label = typeof source.label === 'string' ? source.label.trim() : '';
+    if (!tutorialId) {
+        throw new Error(`actions[${index}].tutorialId must be a non-empty string`);
+    }
+    if (!label) {
+        throw new Error(`actions[${index}].label must be a non-empty string`);
+    }
+    return {
+        id: typeof source.id === 'string' && source.id.trim() ? source.id.trim() : tutorialId,
+        tutorialId,
+        label,
+        description: typeof source.description === 'string' && source.description.trim()
+            ? source.description.trim()
+            : '',
+    };
+}
+
 function loadCourseware(coursewareRoots, logger) {
     const seen = new Set();
     const result = [];
@@ -985,6 +1051,70 @@ function loadCourseware(coursewareRoots, logger) {
         const leftMenu = left.menuSegments.join('/');
         const rightMenu = right.menuSegments.join('/');
         if (leftMenu !== rightMenu) return leftMenu.localeCompare(rightMenu);
+        if (left.order !== right.order) return left.order - right.order;
+        return left.title.localeCompare(right.title);
+    });
+}
+
+function loadDashboardWelcome(dashboardWelcomePaths, logger) {
+    const seen = new Set();
+    const result = [];
+
+    for (const source of dashboardWelcomePaths || []) {
+        if (!source || !source.path) continue;
+        try {
+            const raw = fs.readFileSync(source.path, 'utf8');
+            const parsed = ensureObject(JSON.parse(raw), source.path);
+            const title = typeof parsed.title === 'string' && parsed.title.trim()
+                ? parsed.title.trim()
+                : null;
+            const markdown = typeof parsed.markdown === 'string' && parsed.markdown.trim()
+                ? parsed.markdown.trim()
+                : null;
+            if (!title) {
+                throw new Error('title must be a non-empty string');
+            }
+            if (!markdown) {
+                throw new Error('markdown must be a non-empty string');
+            }
+            const trigger = typeof parsed.trigger === 'string' ? parsed.trigger.trim() : 'startup';
+            const showWhen = typeof parsed.showWhen === 'string' ? parsed.showWhen.trim() : 'empty_default_dashboard';
+            if (trigger !== 'startup') {
+                throw new Error(`trigger "${trigger}" is not supported`);
+            }
+            if (showWhen !== 'empty_default_dashboard') {
+                throw new Error(`showWhen "${showWhen}" is not supported`);
+            }
+            const actions = Array.isArray(parsed.actions) ? parsed.actions : null;
+            if (!actions || !actions.length) {
+                throw new Error('actions must be a non-empty array');
+            }
+            const id = typeof parsed.id === 'string' && parsed.id.trim()
+                ? parsed.id.trim()
+                : `${source.extensionId}:${path.basename(source.path, path.extname(source.path))}`;
+            if (seen.has(id)) {
+                logger.warn(`[extensions] Duplicate dashboard welcome id "${id}" in ${source.path} — skipped`);
+                continue;
+            }
+            seen.add(id);
+            result.push({
+                id,
+                extensionId: source.extensionId,
+                path: source.path,
+                title,
+                markdown,
+                trigger,
+                showWhen,
+                order: Number.isFinite(Number(parsed.order)) ? Number(parsed.order) : 999,
+                actions: actions.map((action, index) => normalizeDashboardWelcomeAction(action, index)),
+            });
+        } catch (err) {
+            logger.warn(`[extensions] Invalid dashboard welcome entry ${source.path}: ${err?.message || err}`);
+        }
+    }
+
+    return result.sort((left, right) => {
+        if (left.extensionId !== right.extensionId) return left.extensionId.localeCompare(right.extensionId);
         if (left.order !== right.order) return left.order - right.order;
         return left.title.localeCompare(right.title);
     });
@@ -1159,6 +1289,7 @@ function buildExtensionRuntime(options = {}) {
     bootstrap.widgetDocs = loadWidgetDocs(bootstrap.widgetDocsRoots, logger);
     bootstrap.courseware = loadCourseware(bootstrap.coursewareRoots, logger);
     bootstrap.tutorials = loadTutorials(bootstrap.tutorialRoots, logger);
+    bootstrap.dashboardWelcomeEntries = loadDashboardWelcome(bootstrap.dashboardWelcomePaths, logger);
     bootstrap.datasources = mergeDatasources(sortedRecords);
 
     return {

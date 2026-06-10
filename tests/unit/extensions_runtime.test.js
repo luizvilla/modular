@@ -58,6 +58,12 @@ function runDefaultRuntimeAssertions() {
     assert.deepStrictEqual(basicsTutorial.menuSegments, ['Core', 'Dashboard Basics']);
     assert.strictEqual(basicsTutorial.steps.length, 7);
     assert.strictEqual(basicsTutorial.steps.some((step) => step.focusKey === 'modal.timePlotEditor'), true);
+    assert.strictEqual(Array.isArray(runtime.bootstrap.dashboardWelcomeEntries), true);
+    const startupWelcome = runtime.bootstrap.dashboardWelcomeEntries.find((entry) => entry.id === 'tutorials-startup');
+    assert.ok(startupWelcome, 'tutorial startup welcome should be loaded');
+    assert.strictEqual(startupWelcome.trigger, 'startup');
+    assert.strictEqual(startupWelcome.showWhen, 'empty_default_dashboard');
+    assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/dashboard-basics'), true);
 }
 
 function runDisabledRuntimeAssertions() {
@@ -96,6 +102,8 @@ function runDisabledRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.coursewareRoots.length, 0);
     assert.strictEqual(runtime.bootstrap.tutorialRoots.length, 0);
     assert.strictEqual(runtime.bootstrap.tutorials.length, 0);
+    assert.strictEqual(runtime.bootstrap.dashboardWelcomePaths.length, 0);
+    assert.strictEqual(runtime.bootstrap.dashboardWelcomeEntries.length, 0);
 }
 
 function runInvalidManifestAssertions() {
@@ -156,6 +164,39 @@ function runInvalidTutorialAssertions() {
         assert.ok(runtime.bootstrap.tutorials.some((entry) => entry.id === 'core/dashboard-basics'));
         assert.strictEqual(runtime.bootstrap.tutorials.some((entry) => entry.id === 'core/broken'), false);
         assert.strictEqual(warnings.some((message) => message.includes('Invalid tutorial entry')), true);
+    } finally {
+        fs.rmSync(tempAppRoot, { recursive: true, force: true });
+    }
+}
+
+function runInvalidDashboardWelcomeAssertions() {
+    const tempAppRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'modular-app-'));
+    const warnings = [];
+
+    try {
+        fs.cpSync(appRoot, tempAppRoot, { recursive: true });
+        const welcomePath = path.join(tempAppRoot, 'extensions', 'tutorials', 'welcome', 'dashboard-welcome.json');
+        fs.writeFileSync(welcomePath, JSON.stringify({
+            title: '',
+            markdown: '',
+            trigger: 'startup',
+            showWhen: 'empty_default_dashboard',
+            actions: []
+        }), 'utf8');
+
+        const runtime = buildExtensionRuntime({
+            appRoot: tempAppRoot,
+            env: {
+                ...process.env,
+                ENABLE_THINGSET: '1',
+            },
+            logger: {
+                warn: (...args) => warnings.push(args.join(' ')),
+            },
+        });
+
+        assert.strictEqual(runtime.bootstrap.dashboardWelcomeEntries.length, 0);
+        assert.strictEqual(warnings.some((message) => message.includes('Invalid dashboard welcome entry')), true);
     } finally {
         fs.rmSync(tempAppRoot, { recursive: true, force: true });
     }
@@ -384,6 +425,7 @@ runDefaultRuntimeAssertions();
 runDisabledRuntimeAssertions();
 runInvalidManifestAssertions();
 runInvalidTutorialAssertions();
+runInvalidDashboardWelcomeAssertions();
 runInstalledBundleDiscovery();
 runInstalledBundleStateOverride();
 runInstalledBundleIntegrityFailure();

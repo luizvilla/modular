@@ -12,6 +12,7 @@
     "tutorials",
     "docs"
   ],
+  "dashboardWelcomePath": "extensions/tutorials/welcome/dashboard-welcome.json",
   "tutorialRoots": [
     {
       "path": "extensions/tutorials/tutorials"
