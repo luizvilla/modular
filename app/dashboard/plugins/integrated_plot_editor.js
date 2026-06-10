@@ -433,6 +433,23 @@
             .filter(Boolean);
     }
 
+    function normalizeFftChannelDefs(settings, sharedFast) {
+        const palette = sharedFast ? sharedFast.DEFAULT_COLORS : ['#4e9fd4', '#e6862a', '#5cb85c', '#d9534f', '#9b59b6', '#1abc9c'];
+        const rawDefs = Array.isArray(settings && settings.channelDefs) ? settings.channelDefs : [];
+        if (rawDefs.length) {
+            return rawDefs.filter((d) => d && (
+                (d.variable && typeof d.variable === 'string') ||
+                (d.type === 'math' && d.operandA && d.operator && d.operandB !== undefined && d.operandB !== '')
+            )).map((def, index) => Object.assign({ color: palette[index % palette.length] }, def));
+        }
+        const cols = parseFftSignalColumns(settings);
+        return cols.map((col, index) => ({
+            variable: col,
+            label: col,
+            color: palette[index % palette.length]
+        }));
+    }
+
     function updateFastFrameSourceButtonLabel(button, mode) {
         if (!button) return;
         button.text(mode === 'latest' ? 'Choose Fallback CSV / Directory Anchor' : 'Choose CSV File');
@@ -733,7 +750,7 @@
             selectedCsvPath: settings.csvPath || '',
             availableFiles: Array.isArray(widgetInstance && widgetInstance.availableFiles) ? widgetInstance.availableFiles.slice() : [],
             availableColumns: Array.isArray(widgetInstance && widgetInstance.availableColumns) ? widgetInstance.availableColumns.slice() : [],
-            signalColumns: parseFftSignalColumns(settings)
+            channelDefs: normalizeFftChannelDefs(settings, sharedFast)
         };
 
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
@@ -752,16 +769,41 @@
         sourceSection.append(sourceModeField.row, chooseCsvButton, csvName, timeColumnField.row);
         left.append(sourceSection);
 
-        const signalsSection = createSection('Signals');
-        const signalColumnField = createSelectRow('Signal', [], '', 'Select signal column');
-        const signalActions = $('<div class="d-flex gap-2 flex-wrap"></div>');
+        const channelsSection = createSection('Channels');
+        const typeField = createSelectRow('Type', [
+            { value: 'regular', label: 'Regular' },
+            { value: 'math', label: 'Math' }
+        ], 'regular');
+        const yVariableField = createSelectRow('Y Variable', [], '', 'Select signal column');
+        const mathAField = createSelectRow('A', [], '', 'Select A');
+        const mathOpField = createSelectRow('Op', [
+            { value: '+', label: '+' }, { value: '-', label: '−' },
+            { value: '*', label: '×' }, { value: '/', label: '/' }
+        ], '+');
+        mathOpField.row.find('.input-group-text').css('min-width', '0');
+        const mathBField = createSelectRow('B', [], '', 'Select B');
+        const mathKField = createInputRow('k', 'number', '', 'constant value');
+        const labelField = createInputRow('Label', 'text', '', 'Optional label');
+        const colorField = createInputRow('Color', 'color', sharedFast.DEFAULT_COLORS[0]);
+        const channelActions = $('<div class="d-flex gap-2 flex-wrap"></div>');
         const applySourceButton = $('<button type="button" class="btn btn-sm btn-outline-secondary">Apply source</button>');
-        const addSignalButton = $('<button type="button" class="btn btn-sm btn-primary">Add signal</button>');
-        const resetSignalsButton = $('<button type="button" class="btn btn-sm btn-outline-danger">Reset signals</button>');
-        const signalList = $('<div class="d-flex flex-column gap-2"></div>');
-        signalActions.append(applySourceButton, addSignalButton, resetSignalsButton);
-        signalsSection.append(signalColumnField.row, signalActions, signalList);
-        left.append(signalsSection);
+        const addChannelButton = $('<button type="button" class="btn btn-sm btn-primary">Add channel</button>');
+        const resetChannelsButton = $('<button type="button" class="btn btn-sm btn-outline-danger">Reset channels</button>');
+        const channelList = $('<div class="d-flex flex-column gap-2"></div>');
+        channelActions.append(applySourceButton, addChannelButton, resetChannelsButton);
+        channelsSection.append(
+            typeField.row,
+            yVariableField.row,
+            mathAField.row,
+            mathOpField.row,
+            mathBField.row,
+            mathKField.row,
+            labelField.row,
+            colorField.row,
+            channelActions,
+            channelList
+        );
+        left.append(channelsSection);
 
         const displaySection = createSection('Display');
         const titleField = createInputRow('Title', 'text', settings.title || 'FFT Spectrum');
@@ -786,25 +828,44 @@
         );
         right.append(displaySection);
 
+        function syncChannelTypeUi() {
+            const isMath = typeField.select.val() === 'math';
+            yVariableField.row.toggle(!isMath);
+            mathAField.row.toggle(isMath);
+            mathOpField.row.toggle(isMath);
+            mathBField.row.toggle(isMath);
+            mathKField.row.toggle(isMath && mathBField.select.val() === '__const__');
+        }
+        typeField.select.on('change', syncChannelTypeUi);
+        mathBField.select.on('change', () => mathKField.row.toggle(mathBField.select.val() === '__const__'));
+        syncChannelTypeUi();
+
         function displayCsvLabel(filePath) {
             if (!filePath) return 'No file selected.';
             return sharedFast.displayPath ? sharedFast.displayPath(filePath) : filePath;
         }
 
-        function renderSignalList() {
-            signalList.empty();
-            state.signalColumns.forEach((column, index) => {
-                const label = state.availableColumns.includes(column) ? column : `${column} (missing)`;
+        function renderChannelList() {
+            channelList.empty();
+            state.channelDefs.forEach((def, index) => {
                 const row = $('<div class="border rounded p-2 d-flex justify-content-between align-items-center gap-2"></div>');
-                row.append($('<div class="small"></div>').text(label));
+                let summary;
+                if (def.type === 'math') {
+                    summary = `${def.label || (def.operandA + ' ' + def.operator + ' ' + def.operandB)} (math)`;
+                } else {
+                    const missing = !state.availableColumns.includes(def.variable) && state.availableColumns.length ? ' (missing)' : '';
+                    summary = (def.label || def.variable) + missing;
+                }
+                const dot = $('<span style="display:inline-block;width:10px;height:10px;border-radius:2px;flex-shrink:0;"></span>').css('background', def.color || '#888');
+                row.append(dot, $('<div class="small flex-fill min-w-0 text-truncate"></div>').text(summary));
                 row.append($('<button type="button" class="btn btn-sm btn-outline-danger">Remove</button>').on('click', () => {
-                    state.signalColumns.splice(index, 1);
-                    renderSignalList();
+                    state.channelDefs.splice(index, 1);
+                    renderChannelList();
                 }));
-                signalList.append(row);
+                channelList.append(row);
             });
-            if (!state.signalColumns.length) {
-                signalList.append('<div class="small text-muted">No signals configured. The widget will auto-pick numeric columns.</div>');
+            if (!state.channelDefs.length) {
+                channelList.append('<div class="small text-muted">No channels configured. The widget will auto-pick numeric columns.</div>');
             }
         }
 
@@ -821,7 +882,7 @@
             }
         }
 
-        async function refreshColumns(preferredTimeColumn, preferredSignalColumn) {
+        async function refreshColumns(preferredTimeColumn) {
             const currentMode = sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings);
             updateFastFrameSourceButtonLabel(chooseCsvButton, currentMode);
             csvName.text(displayCsvLabel(state.selectedCsvPath || settings.csvPath || ''));
@@ -850,17 +911,19 @@
                 state.availableColumns,
                 preferredTimeColumn !== undefined ? preferredTimeColumn : (timeColumnField.select.val() || settings.timeColumn || '')
             );
-            populateFastFrameColumnSelect(
-                signalColumnField.select,
-                state.availableColumns,
-                preferredSignalColumn !== undefined ? preferredSignalColumn : signalColumnField.select.val(),
-                'Select signal column'
-            );
-            renderSignalList();
+            populateFastFrameColumnSelect(yVariableField.select, state.availableColumns, yVariableField.select.val() || '', 'Select signal column');
+            populateFastFrameColumnSelect(mathAField.select, state.availableColumns, mathAField.select.val() || '', 'Select A');
+            const prevB = mathBField.select.val();
+            mathBField.select.empty().append('<option value="">Select B</option>');
+            state.availableColumns.forEach((col) => mathBField.select.append($('<option></option>').attr('value', col).text(col)));
+            mathBField.select.append('<option value="__const__">— constant k —</option>');
+            if (prevB && mathBField.select.find(`option[value="${prevB}"]`).length) mathBField.select.val(prevB);
+            mathKField.row.toggle(typeField.select.val() === 'math' && mathBField.select.val() === '__const__');
+            renderChannelList();
         }
 
         sourceModeField.select.on('change', () => {
-            refreshColumns(timeColumnField.select.val(), signalColumnField.select.val()).catch(() => {});
+            refreshColumns(timeColumnField.select.val()).catch(() => {});
         });
 
         chooseCsvButton.on('click', async () => {
@@ -870,29 +933,45 @@
             if (!chosen) return;
             state.selectedCsvPath = chosen;
             csvName.text(displayCsvLabel(chosen));
-            await refreshColumns(timeColumnField.select.val(), signalColumnField.select.val());
+            await refreshColumns(timeColumnField.select.val());
         });
 
         applySourceButton.on('click', () => {
-            refreshColumns(timeColumnField.select.val(), signalColumnField.select.val()).catch(() => {});
+            refreshColumns(timeColumnField.select.val()).catch(() => {});
         });
 
-        addSignalButton.on('click', () => {
-            const variable = signalColumnField.select.val();
-            if (!variable || state.signalColumns.includes(variable)) return;
-            state.signalColumns.push(variable);
-            renderSignalList();
+        addChannelButton.on('click', () => {
+            const isMath = typeField.select.val() === 'math';
+            const color = colorField.input.val() || sharedFast.DEFAULT_COLORS[state.channelDefs.length % sharedFast.DEFAULT_COLORS.length];
+            const label = labelField.input.val().trim();
+            if (isMath) {
+                const operandA = mathAField.select.val();
+                const operator = mathOpField.select.val();
+                const bIsConst = mathBField.select.val() === '__const__';
+                const operandB = bIsConst ? String(parseFloat(mathKField.input.val()) || 0) : mathBField.select.val();
+                if (!operandA || !operator || !operandB) return;
+                state.channelDefs.push({ type: 'math', operandA, operator, operandB,
+                    label: label || `${operandA} ${operator} ${operandB}`, color });
+            } else {
+                const variable = yVariableField.select.val();
+                if (!variable) return;
+                if (state.channelDefs.some((d) => !d.type && d.variable === variable)) return;
+                state.channelDefs.push({ variable, label: label || variable, color });
+            }
+            labelField.input.val('');
+            colorField.input.val(sharedFast.DEFAULT_COLORS[state.channelDefs.length % sharedFast.DEFAULT_COLORS.length]);
+            renderChannelList();
         });
 
-        resetSignalsButton.on('click', () => {
-            state.signalColumns = [];
-            renderSignalList();
+        resetChannelsButton.on('click', () => {
+            state.channelDefs = [];
+            renderChannelList();
         });
 
         updateFastFrameSourceButtonLabel(chooseCsvButton, sourceModeField.select.val() || sharedFast.getCsvSourceMode(settings));
         csvName.text(displayCsvLabel(state.selectedCsvPath || settings.csvPath || ''));
-        renderSignalList();
-        refreshColumns(settings.timeColumn || '', state.signalColumns[0] || '').catch(() => {});
+        renderChannelList();
+        refreshColumns(settings.timeColumn || '').catch(() => {});
 
         new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
             const csvPath = state.selectedCsvPath || settings.csvPath || '';
@@ -906,7 +985,7 @@
                 csvDirectory,
                 csvPath,
                 timeColumn: timeColumnField.select.val() || '',
-                signalColumns: state.signalColumns.join(','),
+                channelDefs: state.channelDefs,
                 samplingPeriodUs: samplingPeriodField.input.val() || '100',
                 fundamentalFreqHz: fundamentalField.input.val() || '50',
                 maxFreqHz: maxFreqField.input.val() || '1000',
