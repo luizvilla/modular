@@ -3104,16 +3104,23 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                 return;
         }
         if (openPorts.has(path)) {
-                console.warn(`Port ${path} is already open.`);
-                // ensure buffers for this datasource type exist
-                const key = dsKey(path, type);
-                if (!headerBuffers.has(key)) headerBuffers.set(key, []);
-                if (!colorBuffers.has(key)) colorBuffers.set(key, []);
-                if (type === 'fast_frame_datasource' && !fastStatus.has(path)) {
-                        setFastStatus(path, { state: 'idle', message: 'Fast frame port ready', completedAt: null, datasetPoints: 0 });
+                const existing = openPorts.get(path);
+                if (existing && existing.isOpen) {
+                        console.warn(`Port ${path} is already open.`);
+                        // ensure buffers for this datasource type exist
+                        const key = dsKey(path, type);
+                        if (!headerBuffers.has(key)) headerBuffers.set(key, []);
+                        if (!colorBuffers.has(key)) colorBuffers.set(key, []);
+                        if (type === 'fast_frame_datasource' && !fastStatus.has(path)) {
+                                setFastStatus(path, { state: 'idle', message: 'Fast frame port ready', completedAt: null, datasetPoints: 0 });
+                        }
+                        emitActivity({ id: 'serial:open', title: path, state: 'done', label: 'Serial already open' });
+                        return;
                 }
-                emitActivity({ id: 'serial:open', title: path, state: 'done', label: 'Serial already open' });
-                return;
+                // Stale entry: in the map but not open (failed open left it behind). Remove
+                // and fall through so a fresh open is attempted.
+                console.warn(`Port ${path} has a stale non-open entry — removing and retrying open.`);
+                openPorts.delete(path);
         }
 
         // Persist settings so a later auto-reopen uses the same config.
@@ -3133,6 +3140,10 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
         port.open(err => {
                 if (err) {
                         console.error("Serial open error:", err.message);
+                        // Remove the stale map entry — openPorts.set() runs synchronously
+                        // below before this callback fires, so if open fails the map holds
+                        // a non-open port object that blocks every future open attempt.
+                        openPorts.delete(path);
                         emitActivity({ id: 'serial:open', title: path, state: 'error', label: 'Open serial port', detail: err.message });
                         return;
                 }
@@ -3371,6 +3382,7 @@ ipcMain.handle("write-serial-port", async (event, { path, data }) => {
                         });
                 });
         } else {
+                console.error(`write-serial-port: cannot write — path=${path}, found=${!!targetPort}, isOpen=${targetPort ? targetPort.isOpen : 'N/A'}, openPorts=[${[...openPorts.keys()].join(', ')}]`);
                 throw new Error("No open serial port");
         }
 });

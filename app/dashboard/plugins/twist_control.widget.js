@@ -175,7 +175,9 @@
             const idle = $('<button class="btn btn-outline-secondary btn-sm">IDLE</button>');
             const on = $('<button class="btn btn-outline-success btn-sm">POWER ON</button>');
             const off = $('<button class="btn btn-outline-danger btn-sm">POWER OFF</button>');
-            row.append(idle, on, off);
+            const resend = $('<button class="btn btn-outline-warning btn-sm" title="Resend current power state and all toggle states to the board">Resend All</button>');
+            resend.on('click', () => this._resendAll());
+            row.append(idle, on, off, resend);
             const setPower = (mode, send) => {
                 this.powerState = mode;
                 this.settings.powerState = mode;
@@ -264,6 +266,16 @@
 
             this.scopeWrap = $('<div></div>').append($('<div class="fw-semibold">Scope</div>'), row, status);
             this.container.append(this.scopeWrap);
+        }
+
+        async _resendAll() {
+            if (this.powerState === 'IDLE') await this._send(protocol.cmdIdle());
+            else if (this.powerState === 'ON') await this._send(protocol.cmdPowerOn());
+            else if (this.powerState === 'OFF') await this._send(protocol.cmdPowerOff());
+            for (const [key, state] of this.toggleState) {
+                const [action, legStr] = key.split(':');
+                await this._send(protocol.cmdToggle(action, Number(legStr), state, this.settings.deviceType));
+            }
         }
 
         _applySmState(detail) {

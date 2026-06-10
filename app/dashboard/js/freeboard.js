@@ -3094,7 +3094,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		var typeControl;
 		var widgetPicker;
 		var firstWidgetTypeName;
-		var widgetCategoryOrder = ["Plots", "Gauges", "Serial", "Controls", "OwnTech", "ThingSet", "Other"];
+		var widgetCategoryOrder = ["Plots", "Gauges", "Serial", "Fast Frame", "Controls", "OwnTech", "ThingSet", "Other"];
 
 		var widgetCategoryDefaultIcons = {
 			"OwnTech": "bolt",
@@ -3113,7 +3113,8 @@ PluginEditor = function(jsEditor, valueEditor)
 				"Plots": {
 					"time_plot_uplot": 0,
 					"xy_plot_uplot": 1,
-					"fast_frame_plot": 2
+					"fast_frame_plot": 2,
+					"fft_spectrum_plot": 3
 				},
 				"Gauges": {
 					"vertical_gauge": 0,
@@ -3130,6 +3131,13 @@ PluginEditor = function(jsEditor, valueEditor)
 					"xy_plot_source_manager": 4,
 					"vertical_gauge_manager": 5,
 					"vertical_gauge_config_panel": 6
+				},
+				"Fast Frame": {
+					"fast_frame_control": 0,
+					"fast_frame_plot": 1,
+					"fft_spectrum_plot": 2,
+					"fast_frame_plot_ui": 10,
+					"fast_frame_channel_manager": 11
 				},
 				"OwnTech": {
 					"twist_actions_panel": 0,
@@ -4450,12 +4458,12 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 						return;
 					}
 
-					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge' || instanceType === 'state_machine')) {
+					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'fft_spectrum_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge' || instanceType === 'state_machine')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
 					}
 
-					var integratedEditorTypes = ['time_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot',
+					var integratedEditorTypes = ['time_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot', 'fft_spectrum_plot',
 						'vertical_gauge', 'horizontal_gauge', 'radial_arc_gauge', 'radial_needle_gauge', 'donut_gauge',
 						'fast_frame_control'];
 					pluginEditor.createPluginEditor(title, types, instanceType, settings, function(newSettings)
@@ -4495,7 +4503,7 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 
 								freeboardUI.attachWidgetEditIcons(element);
 
-									if (newSettings.type === 'time_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'vertical_gauge' || newSettings.type === 'horizontal_gauge' || newSettings.type === 'radial_arc_gauge' || newSettings.type === 'radial_needle_gauge' || newSettings.type === 'donut_gauge') {
+									if (newSettings.type === 'time_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'fft_spectrum_plot' || newSettings.type === 'vertical_gauge' || newSettings.type === 'horizontal_gauge' || newSettings.type === 'radial_arc_gauge' || newSettings.type === 'radial_needle_gauge' || newSettings.type === 'donut_gauge') {
 									freeboard.openIntegratedPlotEditor(newViewModel, newSettings.type);
 								}
 							}
@@ -4570,12 +4578,16 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 			var minCount = params.count || 8;
 			var $el = $(element);
 			var table = null;
+			// Separate wrapper so Save/Load buttons survive buildTable rebuilds.
+			var tableWrap = $('<div class="channel-map-table-wrap"></div>');
 
-			function buildTable(count)
+			// exactCount=true: use the provided count verbatim (live data drives it).
+			// exactCount=false/omitted: never go below the saved array length (user input).
+			function buildTable(count, exactCount)
 			{
 				var current = valueObs() || [];
-				count = Math.max(count, current.length);
-				$el.empty();
+				if(!exactCount) count = Math.max(count, current.length);
+				tableWrap.empty();
 				table = $('<table class="channel-map-table"></table>');
 				for(var i = 0; i < count; i++)
 				{
@@ -4601,10 +4613,61 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 						table.append(row);
 					})(i);
 				}
-				$el.append(table);
+				tableWrap.append(table);
 			}
 
 			buildTable(minCount);
+
+			// Save / Load header buttons
+			var btnRow = $('<div class="channel-map-buttons d-flex gap-2 mt-1"></div>');
+			var saveBtn = $('<button type="button" class="btn btn-outline-secondary btn-sm">Save Headers</button>');
+			var fileInput = $('<input type="file" accept=".json" style="display:none">');
+			var loadBtn = $('<button type="button" class="btn btn-outline-secondary btn-sm">Load Headers</button>');
+
+			saveBtn.on('click', function()
+			{
+				var current = valueObs() || [];
+				var count = tableWrap.find('.channel-map-input').length;
+				var labels = [];
+				for(var i = 0; i < count; i++)
+				{
+					var alpha = String.fromCharCode(65 + (i % 26));
+					var sfx = i >= 26 ? ' ' + (Math.floor(i / 26) + 1) : '';
+					labels.push(current[i] || ('Channel ' + alpha + sfx));
+				}
+				var blob = new Blob([JSON.stringify(labels, null, 2)], { type: 'application/json' });
+				var url = URL.createObjectURL(blob);
+				var a = document.createElement('a');
+				a.href = url; a.download = 'headers.json';
+				document.body.appendChild(a); a.click();
+				document.body.removeChild(a); URL.revokeObjectURL(url);
+			});
+
+			fileInput.on('change', function(e)
+			{
+				var file = e.target.files[0];
+				if(!file) return;
+				var reader = new FileReader();
+				reader.onload = function(ev)
+				{
+					try
+					{
+						var loaded = JSON.parse(ev.target.result);
+						if(!Array.isArray(loaded)) return;
+						valueObs(loaded);
+						buildTable(loaded.length, true);
+						$el.closest('form').trigger('submit');
+					}
+					catch(err) { console.error('Failed to load headers JSON', err); }
+				};
+				reader.readAsText(file);
+				e.target.value = '';
+			});
+
+			loadBtn.on('click', function() { fileInput.trigger('click'); });
+			btnRow.append(saveBtn, loadBtn, fileInput);
+			$el.append(tableWrap, btnRow);
+
 			$(element).data('channelMapState', { buildTable: buildTable, valueObs: valueObs, minCount: minCount });
 		},
 		update: function(element, valueAccessor)
@@ -4617,10 +4680,12 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 			if(!state || !dsName || !dsType || !window.ModularPlotEditorShared) return;
 			window.ModularPlotEditorShared.fetchDatasourceChannelCount(dsName, dsType).then(function(actualCount)
 			{
-				var needed = Math.max(state.minCount, actualCount, (state.valueObs() || []).length);
-				if(needed > $(element).find('.channel-map-input').length)
+				var needed = Math.max(state.minCount, actualCount);
+				var currentRows = $(element).find('.channel-map-input').length;
+				// Rebuild when count changes in either direction (not just when growing).
+				if(needed !== currentRows)
 				{
-					state.buildTable(needed);
+					state.buildTable(needed, true);
 				}
 			}).catch(function() {});
 		}

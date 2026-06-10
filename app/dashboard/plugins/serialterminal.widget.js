@@ -46,6 +46,7 @@
             this.headers = [];
             this.lastHeaderCheck = 0;
             this._paused = false;
+            this._lastParts = null;
 
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto"></div>');
             this.dsSelect = $('<select class="form-select form-select-sm flex-fill"></select>');
@@ -246,7 +247,11 @@
 
         _buildHeader(sampleLine, separator) {
             const parts = sampleLine.trim().split(separator).filter(p => p !== '');
-            const colCount = Math.max(this.headers.length, parts.length);
+            this._lastParts = parts;
+            // Use the live data column count as the authority — if the board switches
+            // modes and the column count drops, truncate the header row to match rather
+            // than leaving stale columns from the old frame format.
+            const colCount = parts.length;
             if (!colCount) { this.headerCode.empty(); return; }
 
             const spans = [];

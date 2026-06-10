@@ -186,8 +186,11 @@
                 syncAutoBtn();
             });
 
+            const resendBtn = $('<button class="btn btn-outline-warning btn-sm" title="Resend all non-empty setpoints to the board">Resend All</button>');
+            resendBtn.on('click', () => this._resendAll());
+            const headerBtns = $('<div class="d-flex gap-1"></div>').append(autoSendBtn, resendBtn);
             const sectionHeader = $('<div class="d-flex align-items-center justify-content-between"></div>');
-            sectionHeader.append($('<span class="fw-semibold">Setpoints</span>'), autoSendBtn);
+            sectionHeader.append($('<span class="fw-semibold">Setpoints</span>'), headerBtns);
 
             for (let legNum = 1; legNum <= profile.legs; legNum += 1) {
                 const leg = legNum;
@@ -287,6 +290,21 @@
 
             this.setpointWrap = $('<div class="d-flex flex-column gap-1"></div>').append(sectionHeader, wrap);
             this.container.append(this.setpointWrap);
+        }
+
+        async _resendAll() {
+            const profile = this._profile();
+            for (let leg = 1; leg <= profile.legs; leg++) {
+                const inputs = this._legInputs[leg];
+                if (!inputs) continue;
+                const { refVar, refVal, dutyVal, freqVal, phaseVal, dtRiseVal, dtFallVal } = inputs;
+                if (refVal.val() !== '') await this._send(protocol.cmdReference(leg, refVar.val(), refVal.val(), this.settings.deviceType));
+                if (dutyVal.val() !== '') await this._send(protocol.cmdDuty(leg, dutyVal.val(), this.settings.deviceType));
+                if (freqVal.val() !== '') await this._send(protocol.cmdFrequency(leg, freqVal.val(), this.settings.deviceType));
+                if (phaseVal.val() !== '') await this._send(protocol.cmdPhaseShift(leg, phaseVal.val(), this.settings.deviceType));
+                if (dtRiseVal.val() !== '') await this._send(protocol.cmdDeadTimeRising(leg, dtRiseVal.val(), this.settings.deviceType));
+                if (dtFallVal.val() !== '') await this._send(protocol.cmdDeadTimeFalling(leg, dtFallVal.val(), this.settings.deviceType));
+            }
         }
 
         _applySmState(detail) {
