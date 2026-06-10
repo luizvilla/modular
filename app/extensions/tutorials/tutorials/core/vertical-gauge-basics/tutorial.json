@@ -1,0 +1,54 @@
+{
+  "title": "Vertical Gauge Basics",
+  "order": 50,
+  "steps": [
+    {
+      "id": "intro",
+      "title": "What is a Vertical Gauge?",
+      "markdown": "A **Vertical Gauge** is a live bar indicator that tracks a single numeric value from any datasource.\n\nIt supports:\n- Configurable min / max range and engineering units\n- Colour-coded alarm zones (warning and critical)\n- A **runtime offset** control that lets you shift the reading up or down without editing settings\n\nIn this tutorial you will connect a gauge to a built-in signal generator and explore the offset control.",
+      "completion": { "kind": "manual" }
+    },
+    {
+      "id": "create-datasource",
+      "title": "Add a signal generator",
+      "markdown": "A **Signal Generator** datasource produces a continuous synthetic waveform — no hardware needed.\n\n1. Open the **Datasources** side panel and click **Add datasource**.\n2. Select **Signal Generator** from the picker.\n3. Leave the default settings (sine wave, amplitude 1, offset 0) and click **OK**.\n\nThe datasource will start producing values in the range −1 to 1.",
+      "focusKey": "side.addDatasource",
+      "completion": { "kind": "datasource_type_exists", "datasourceType": "signal_generator_datasource" }
+    },
+    {
+      "id": "create-pane",
+      "title": "Create a pane",
+      "markdown": "Every widget lives inside a **pane**.\n\nClick the **Add pane** button in the top bar.",
+      "focusKey": "header.addPane",
+      "completion": { "kind": "pane_count_at_least", "count": 1 }
+    },
+    {
+      "id": "add-gauge-widget",
+      "title": "Add a Vertical Gauge widget",
+      "markdown": "Click the **Add widget** icon on the pane, then select **Vertical Gauge** from the widget picker.\n\nEnter a title (e.g. `My Signal`) in the settings dialog and click **OK**.",
+      "focusKey": "pane.first.addWidget",
+      "autoAdvance": true,
+      "completion": { "kind": "widget_type_exists", "widgetType": "vertical_gauge" }
+    },
+    {
+      "id": "configure-gauge",
+      "title": "Connect the gauge to your signal",
+      "markdown": "Click the **wrench (edit)** icon on the gauge widget to open its editor.\n\nIn the **Source** section:\n1. Click the datasource dropdown and select your signal generator.\n2. In the **Display** section set **Min** to `-1` and **Max** to `1`.\n3. Click **Save**.\n\nThe gauge bar will now track the live sine wave.",
+      "focusKey": "modal.gaugeEditor",
+      "completion": { "kind": "gauge_source_bound" }
+    },
+    {
+      "id": "adjust-offset",
+      "title": "Explore runtime offset",
+      "markdown": "The gauge widget has **+** and **−** buttons at the bottom labelled *offset*.\n\nClick **+** or **−** to shift the displayed reading up or down without changing the datasource or saving any settings.\n\nThis is useful for zeroing a sensor or applying a known calibration correction at runtime.",
+      "focusKey": "widget.gauge.offsetControl",
+      "completion": { "kind": "gauge_runtime_offset_adjusted" }
+    },
+    {
+      "id": "complete",
+      "title": "Tutorial complete",
+      "markdown": "Your Vertical Gauge is live and you have explored the runtime offset control.\n\n**What you learned:**\n- How to add a Signal Generator datasource\n- How to add and configure a Vertical Gauge widget\n- How to bind a gauge to a datasource via the integrated editor\n- How the runtime offset shifts readings without touching settings\n\nClose this panel with **Done** and explore the other tutorials.",
+      "completion": { "kind": "manual" }
+    }
+  ]
+}

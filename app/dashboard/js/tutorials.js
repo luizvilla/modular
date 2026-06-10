@@ -34,6 +34,9 @@
         'modal.widgetPicker.fastFrame': () => document.querySelector('#modal_overlay .widget-tile[data-type="fast_frame_plot"]'),
         'modal.fftSpectrumEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
         'modal.widgetPicker.fftSpectrum': () => document.querySelector('#modal_overlay .widget-tile[data-type="fft_spectrum_plot"]'),
+        'modal.gaugeEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
+        'modal.widgetPicker.verticalGauge': () => document.querySelector('#modal_overlay .widget-tile[data-type="vertical_gauge"]'),
+        'widget.gauge.offsetControl': () => document.querySelector('.gauge-family-host .gauge-offset-control'),
         'widget.xySourceManager.apply': () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Apply to XY Plot') || null,
         'doc.uploadFirmware': () => document.querySelector('#doc-upload-firmware-btn'),
         'doc.loadDashboard': () => document.querySelector('#doc-load-dashboard-btn'),
@@ -328,6 +331,22 @@
             });
         }
 
+        if (completion.kind === 'gauge_source_bound') {
+            return snapshot.widgets.some((widget) => {
+                if (readValue(widget.type) !== 'vertical_gauge') return false;
+                const settings = typeof widget.settings === 'function' ? widget.settings() : (widget.settings || {});
+                const sourceDef = settings.sourceDef;
+                return !!(sourceDef && typeof sourceDef.ds === 'string' && sourceDef.ds.trim());
+            });
+        }
+
+        if (completion.kind === 'gauge_runtime_offset_adjusted') {
+            const offsetEl = document.querySelector('.gauge-family-host .gauge-offset-value');
+            if (!offsetEl) return false;
+            const val = parseFloat(offsetEl.textContent || '0');
+            return !isNaN(val) && val !== 0;
+        }
+
         if (completion.kind === 'time_plot_series_bound') {
             const signalGeneratorNames = new Set(
                 snapshot.datasources
@@ -440,6 +459,23 @@
             if (modal) return modal;
             const pane = document.querySelector('.gridster > ul > li, .gs_w');
             return pane ? (pane.querySelector('.sub-section-tools .tool-edit') || null) : null;
+        }
+
+        if (step.id === 'add-gauge-widget') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.verticalGauge']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'configure-gauge') {
+            const modal = FOCUS_RESOLVERS['modal.gaugeEditor']();
+            if (modal) return modal;
+            const pane = document.querySelector('.gridster > ul > li, .gs_w');
+            return pane ? (pane.querySelector('.sub-section-tools .tool-edit') || null) : null;
+        }
+
+        if (step.id === 'adjust-offset') {
+            return FOCUS_RESOLVERS['widget.gauge.offsetControl']();
         }
 
         if (step.id === 'add-xy-source-manager') {

@@ -106,11 +106,20 @@ function runDefaultRuntimeAssertions() {
     assert.ok(startupWelcome, 'tutorial startup welcome should be loaded');
     assert.strictEqual(startupWelcome.trigger, 'startup');
     assert.strictEqual(startupWelcome.showWhen, 'empty_default_dashboard');
-    assert.strictEqual(startupWelcome.actions.length, 4, 'startup welcome should have 4 tutorial actions');
+    assert.strictEqual(startupWelcome.actions.length, 5, 'startup welcome should have 5 tutorial actions');
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/dashboard-basics'), true);
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/xy-signal-generator'), true);
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/fast-frame-from-csv'), true);
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/fft-spectrum-from-csv'), true);
+    assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/vertical-gauge-basics'), true);
+    const gaugeTutorial = runtime.bootstrap.tutorials.find((entry) => entry.id === 'core/vertical-gauge-basics');
+    assert.ok(gaugeTutorial, 'vertical-gauge-basics tutorial should be loaded');
+    assert.strictEqual(gaugeTutorial.title, 'Vertical Gauge Basics');
+    assert.deepStrictEqual(gaugeTutorial.menuSegments, ['Core', 'Vertical Gauge Basics']);
+    assert.strictEqual(gaugeTutorial.steps.length, 7);
+    assert.strictEqual(gaugeTutorial.steps.some((step) => step.completion && step.completion.kind === 'gauge_source_bound'), true);
+    assert.strictEqual(gaugeTutorial.steps.some((step) => step.completion && step.completion.kind === 'gauge_runtime_offset_adjusted'), true);
+    assert.strictEqual(gaugeTutorial.steps.some((step) => step.completion && step.completion.kind === 'datasource_type_exists' && step.completion.datasourceType === 'signal_generator_datasource'), true);
 }
 
 function runDisabledRuntimeAssertions() {

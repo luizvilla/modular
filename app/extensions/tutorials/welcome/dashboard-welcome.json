@@ -25,6 +25,11 @@
       "tutorialId": "core/fft-spectrum-from-csv",
       "label": "FFT Spectrum From CSV",
       "description": "Load a captured CSV waveform and analyse its frequency content with FFT."
+    },
+    {
+      "tutorialId": "core/vertical-gauge-basics",
+      "label": "Vertical Gauge Basics",
+      "description": "Add a live gauge widget, bind it to a signal generator, and explore the runtime offset control."
     }
   ]
 }
