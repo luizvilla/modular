@@ -374,12 +374,12 @@
             ed.type = $('<select class="form-select form-select-sm"></select>')
                 .append('<option value="regular">Regular</option>')
                 .append('<option value="math">Math</option>');
-            ed.variable = $('<select class="form-select form-select-sm" style="min-width:0;flex:1 1 0"></select>');
-            ed.mathA    = $('<select class="form-select form-select-sm" style="min-width:0;flex:1 1 0"></select>');
+            ed.variable = $('<select class="form-select form-select-sm" style="min-width:0;width:100%"></select>');
+            ed.mathA    = $('<select class="form-select form-select-sm" style="min-width:0;width:100%"></select>');
             ed.mathOp   = $('<select class="form-select form-select-sm" style="max-width:56px"></select>')
                 .append('<option value="+">+</option>').append('<option value="-">−</option>')
                 .append('<option value="*">×</option>').append('<option value="/">/</option>');
-            ed.mathB    = $('<select class="form-select form-select-sm" style="min-width:0;flex:1 1 0"></select>');
+            ed.mathB    = $('<select class="form-select form-select-sm" style="min-width:0;width:100%"></select>');
             ed.mathK    = $('<input type="number" class="form-control form-control-sm" placeholder="k" step="any">');
             ed.label    = $('<input type="text" class="form-control form-control-sm" placeholder="Label (optional)">');
             ed.color    = $(`<input type="color" class="form-control form-control-sm" value="${initColor}" style="max-width:52px">`);
@@ -391,7 +391,7 @@
                 freeboard.addStyle('.ff-ed-lbl', 'min-width:68px;font-size:11px;justify-content:center;');
             }
             const mkRow = (lbl, ...ctrls) =>
-                $('<div class="input-group input-group-sm" style="flex-wrap:nowrap"></div>')
+                $('<div class="input-group input-group-sm" style="display:grid;grid-template-columns:max-content 1fr"></div>')
                 .append(`<span class="input-group-text ff-ed-lbl">${lbl}</span>`, ...ctrls);
 
             ed.varRow  = mkRow('Channel', ed.variable);

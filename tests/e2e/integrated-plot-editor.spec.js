@@ -249,6 +249,80 @@ test('fast-frame plot add flow opens the integrated editor and saves source/chan
   }
 });
 
+test('fft spectrum add flow opens the integrated editor and saves csv-driven signal configuration', async () => {
+  const csvPath = path.join(os.tmpdir(), `modular-fft-spectrum-${Date.now()}.csv`);
+  const { app, page } = await launchApp({ MOCK_CSV_PATH: csvPath });
+  try {
+    await waitForDashboard(page);
+    await page.evaluate(async (targetPath) => {
+      await window.api.files.writeText(targetPath, [
+        'Vgrid,Igrid',
+        '0,0',
+        '1,1',
+        '0,0',
+        '-1,-1',
+      ].join('\n'));
+    }, csvPath);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+    await enableEditing(page);
+
+    const helperCountsBefore = await getHelperCounts(page);
+
+    await openAddWidgetModal(page, 1);
+    await chooseWidgetType(page, 'fft_spectrum_plot');
+
+    await page.waitForFunction(() => {
+      const pane = window.freeboard.getLiveModel().panes()[1];
+      return pane.widgets().length === 1 && pane.widgets()[0].type() === 'fft_spectrum_plot';
+    });
+    await expectIntegratedEditor(page);
+    await closeStackedAddFlowModals(page);
+
+    await reopenWidgetEditor(page, 1, 0);
+    await expectIntegratedEditor(page);
+    await activeModal(page).getByRole('button', { name: 'Choose CSV File' }).click();
+    await activeModal(page).locator('#dialog-ok').click();
+    await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
+
+    expect(await getHelperCounts(page)).toEqual(helperCountsBefore);
+
+    await page.waitForFunction(() => {
+      const widget = window.freeboard.getLiveModel().panes()[1].widgets()[0];
+      return widget
+        && widget.widgetInstance
+        && Array.isArray(widget.widgetInstance.availableColumns)
+        && widget.widgetInstance.availableColumns.includes('Vgrid')
+        && widget.widgetInstance.lastComputation
+        && widget.widgetInstance.lastComputation.signals.length > 0;
+    });
+
+    const widgetState = await page.evaluate(() => {
+      const widget = window.freeboard.getLiveModel().panes()[1].widgets()[0];
+      return {
+        settings: widget.settings(),
+        status: widget.widgetInstance.status.text(),
+        availableColumns: widget.widgetInstance.availableColumns.slice(),
+        signal: widget.widgetInstance.lastComputation?.signals?.[0]?.signal || null
+      };
+    });
+    expect(widgetState.availableColumns).toEqual(expect.arrayContaining(['Vgrid', 'Igrid']));
+    expect(widgetState.settings.csvPath).toBe(csvPath);
+    expect(widgetState.status).toContain('Loaded CSV');
+    expect(widgetState.signal).toBe('Vgrid');
+
+    await reopenWidgetEditor(page, 1, 0);
+    await expectIntegratedEditor(page);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
+
+  } finally {
+    try {
+      fs.unlinkSync(csvPath);
+    } catch {}
+    await app.close();
+  }
+});
+
 test('vertical gauge add flow opens the integrated editor and saves bound source configuration', async () => {
   const { app, page } = await launchApp();
   try {
@@ -388,6 +462,52 @@ test('non-plot widgets still use the generic plugin editor', async () => {
     await reopenWidgetEditor(page, 0, 3);
     await expect(page.locator('#modal_overlay .integrated-plot-editor')).toHaveCount(0);
     await expect(page.locator('#setting-row-title')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test('fast-frame editor channel rows render label and select side-by-side (no overflow wrapping)', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+    await enableEditing(page);
+
+    await openAddWidgetModal(page, 1);
+    await chooseWidgetType(page, 'fast_frame_plot');
+    await page.waitForFunction(() => {
+      const pane = window.freeboard.getLiveModel().panes()[1];
+      return pane.widgets().length === 1 && pane.widgets()[0].type() === 'fast_frame_plot';
+    });
+    await expectIntegratedEditor(page);
+    await closeStackedAddFlowModals(page);
+
+    await reopenWidgetEditor(page, 1, 0);
+    await expectIntegratedEditor(page);
+
+    const yVarRow = activeModal(page).locator('.input-group').filter({
+      has: page.locator('.input-group-text', { hasText: 'Y Variable' })
+    });
+    await expect(yVarRow).toBeVisible();
+
+    const layout = await yVarRow.evaluate((row) => {
+      const label = row.querySelector('.input-group-text');
+      const select = row.querySelector('select');
+      const lr = label.getBoundingClientRect();
+      const sr = select.getBoundingClientRect();
+      return { labelTop: lr.top, labelRight: lr.right, selectTop: sr.top, selectLeft: sr.left, selectWidth: sr.width };
+    });
+
+    // Select must be at least 50px wide (not crushed to zero)
+    expect(layout.selectWidth).toBeGreaterThan(50);
+    // Label and select must share the same row (top within 5px)
+    expect(Math.abs(layout.labelTop - layout.selectTop)).toBeLessThan(5);
+    // Select must start immediately after the label (not wrapped to a new line)
+    expect(layout.selectLeft).toBeGreaterThanOrEqual(layout.labelRight - 2);
+
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
   } finally {

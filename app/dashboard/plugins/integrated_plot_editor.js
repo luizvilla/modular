@@ -12,8 +12,8 @@
     }
 
     function createInputRow(label, type, initialValue, placeholder) {
-        const row = $('<div class="input-group input-group-sm" style="flex-wrap:nowrap"></div>');
-        const input = $(`<input type="${type}" class="form-control form-control-sm" style="flex:1;min-width:0">`);
+        const row = $('<div class="input-group input-group-sm" style="display:grid;grid-template-columns:max-content 1fr"></div>');
+        const input = $(`<input type="${type}" class="form-control form-control-sm" style="min-width:0;width:100%">`);
         if (placeholder) input.attr('placeholder', placeholder);
         if (initialValue !== undefined && initialValue !== null) input.val(initialValue);
         row.append($('<span class="input-group-text"></span>').text(label), input);
@@ -28,8 +28,8 @@
     }
 
     function createSelectRow(label, options, selectedValue, placeholder) {
-        const row = $('<div class="input-group input-group-sm" style="flex-wrap:nowrap"></div>');
-        const select = $('<select class="form-select form-select-sm" style="flex:1;min-width:0"></select>');
+        const row = $('<div class="input-group input-group-sm" style="display:grid;grid-template-columns:max-content 1fr"></div>');
+        const select = $('<select class="form-select form-select-sm" style="min-width:0;width:100%"></select>');
         if (placeholder) select.append($('<option value=""></option>').text(placeholder));
         (options || []).forEach((option) => {
             const value = option && typeof option === 'object' ? option.value : option;
