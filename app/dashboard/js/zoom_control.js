@@ -26,6 +26,49 @@
         getCurrent: () => currentZoom,
     };
 
+    // ── Ctrl + scroll wheel zoom ──────────────────────────────────────────────
+    window.addEventListener('wheel', (evt) => {
+        if (!evt.ctrlKey) return;
+        evt.preventDefault();
+        changeZoom(evt.deltaY < 0 ? STEP : -STEP);
+    }, { passive: false });
+
+    // ── Right-click drag pan ──────────────────────────────────────────────────
+    let _panning   = false;
+    let _panStartX = 0, _panStartY = 0;
+    let _panScrollX = 0, _panScrollY = 0;
+
+    document.addEventListener('mousedown', (evt) => {
+        if (evt.button !== 2) return;
+        _panning    = true;
+        _panStartX  = evt.clientX;
+        _panStartY  = evt.clientY;
+        _panScrollX = window.scrollX;
+        _panScrollY = window.scrollY;
+        document.body.classList.add('is-panning');
+        evt.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (evt) => {
+        if (!_panning) return;
+        window.scrollTo(
+            _panScrollX - (evt.clientX - _panStartX),
+            _panScrollY - (evt.clientY - _panStartY)
+        );
+    });
+
+    document.addEventListener('mouseup', (evt) => {
+        if (evt.button !== 2 || !_panning) return;
+        _panning = false;
+        document.body.classList.remove('is-panning');
+    });
+
+    // Suppress the browser context menu — right-click is reserved for pan.
+    document.addEventListener('contextmenu', (evt) => {
+        evt.preventDefault();
+    });
+
+    // ── Button and keyboard wiring ────────────────────────────────────────────
     function initZoomUI() {
         applyZoom(currentZoom);
 

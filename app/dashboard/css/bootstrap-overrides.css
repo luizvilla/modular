@@ -1482,6 +1482,12 @@ html.theme-light #zoom-level-label {
     color: #7a5f2a;
 }
 
+body.is-panning,
+body.is-panning * {
+    cursor: grabbing !important;
+    user-select: none;
+}
+
 /* ── Light theme overrides ───────────────────────────────────────────────── */
 html.theme-light {
     --bs-body-bg: #f5f5f5;
