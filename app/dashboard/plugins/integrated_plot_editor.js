@@ -515,7 +515,7 @@
         const mathBField = createSelectRow('B', [], '', 'Select B');
         const mathKField = createInputRow('k', 'number', '', 'constant value');
         const labelField = createInputRow('Label', 'text', '', 'Optional label');
-        const colorField = createInputRow('Color', 'color', sharedFast.DEFAULT_COLORS[0]);
+        const colorField = createInputRow('Color', 'color', sharedFast.DEFAULT_COLORS[state.seriesDefs.length % sharedFast.DEFAULT_COLORS.length]);
         const visibleField = createCheckboxRow('Visible', true);
         const channelActions = $('<div class="d-flex gap-2"></div>');
         const applySourceButton = $('<button type="button" class="btn btn-sm btn-outline-secondary">Apply source</button>');
@@ -696,11 +696,13 @@
                 state.seriesDefs.push({ variable, label: label || variable, color, visible });
             }
             labelField.input.val('');
+            colorField.input.val(sharedFast.DEFAULT_COLORS[state.seriesDefs.length % sharedFast.DEFAULT_COLORS.length]);
             renderSeriesList();
         });
 
         resetChannelsButton.on('click', () => {
             state.seriesDefs = [];
+            colorField.input.val(sharedFast.DEFAULT_COLORS[0]);
             renderSeriesList();
         });
 
@@ -784,7 +786,7 @@
         const mathBField = createSelectRow('B', [], '', 'Select B');
         const mathKField = createInputRow('k', 'number', '', 'constant value');
         const labelField = createInputRow('Label', 'text', '', 'Optional label');
-        const colorField = createInputRow('Color', 'color', sharedFast.DEFAULT_COLORS[0]);
+        const colorField = createInputRow('Color', 'color', sharedFast.DEFAULT_COLORS[state.channelDefs.length % sharedFast.DEFAULT_COLORS.length]);
         const channelActions = $('<div class="d-flex gap-2 flex-wrap"></div>');
         const applySourceButton = $('<button type="button" class="btn btn-sm btn-outline-secondary">Apply source</button>');
         const addChannelButton = $('<button type="button" class="btn btn-sm btn-primary">Add channel</button>');
@@ -965,6 +967,7 @@
 
         resetChannelsButton.on('click', () => {
             state.channelDefs = [];
+            colorField.input.val(sharedFast.DEFAULT_COLORS[0]);
             renderChannelList();
         });
 
