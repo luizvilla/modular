@@ -32,6 +32,8 @@
         'modal.xyPlotEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
         'modal.fastFrameEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
         'modal.widgetPicker.fastFrame': () => document.querySelector('#modal_overlay .widget-tile[data-type="fast_frame_plot"]'),
+        'modal.fftSpectrumEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
+        'modal.widgetPicker.fftSpectrum': () => document.querySelector('#modal_overlay .widget-tile[data-type="fft_spectrum_plot"]'),
         'widget.xySourceManager.apply': () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Apply to XY Plot') || null,
         'doc.uploadFirmware': () => document.querySelector('#doc-upload-firmware-btn'),
         'doc.loadDashboard': () => document.querySelector('#doc-load-dashboard-btn'),
@@ -316,6 +318,16 @@
             });
         }
 
+        if (completion.kind === 'fft_spectrum_configured') {
+            return snapshot.widgets.some((widget) => {
+                if (readValue(widget.type) !== 'fft_spectrum_plot') return false;
+                const settings = typeof widget.settings === 'function' ? widget.settings() : (widget.settings || {});
+                const csvPath = typeof settings.csvPath === 'string' ? settings.csvPath.trim() : '';
+                const defs = Array.isArray(settings.channelDefs) ? settings.channelDefs : [];
+                return !!(csvPath && defs.length > 0);
+            });
+        }
+
         if (completion.kind === 'time_plot_series_bound') {
             const signalGeneratorNames = new Set(
                 snapshot.datasources
@@ -412,6 +424,19 @@
 
         if (step.id === 'configure-channels') {
             const modal = FOCUS_RESOLVERS['modal.fastFrameEditor']();
+            if (modal) return modal;
+            const pane = document.querySelector('.gridster > ul > li, .gs_w');
+            return pane ? (pane.querySelector('.sub-section-tools .tool-edit') || null) : null;
+        }
+
+        if (step.id === 'add-fft-widget') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.fftSpectrum']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'configure-fft-channels') {
+            const modal = FOCUS_RESOLVERS['modal.fftSpectrumEditor']();
             if (modal) return modal;
             const pane = document.querySelector('.gridster > ul > li, .gs_w');
             return pane ? (pane.querySelector('.sub-section-tools .tool-edit') || null) : null;

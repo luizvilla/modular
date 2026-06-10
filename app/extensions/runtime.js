@@ -890,7 +890,7 @@ function normalizeTutorialCompletion(step, index) {
     if (!kind) {
         throw new Error(`steps[${index}].completion.kind must be a non-empty string`);
     }
-    if (kind === 'manual' || kind === 'time_plot_series_bound' || kind === 'xy_plot_sources_bound' || kind === 'fast_frame_plot_configured') {
+    if (kind === 'manual' || kind === 'time_plot_series_bound' || kind === 'xy_plot_sources_bound' || kind === 'fast_frame_plot_configured' || kind === 'fft_spectrum_configured') {
         return { kind };
     }
     if (kind === 'pane_count_at_least') {

@@ -83,15 +83,32 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(configureStep.actions[0].kind, 'apply_tutorial_csv');
     const noActionSteps = ffTutorial.steps.filter((step) => step.id !== 'configure-channels');
     assert.strictEqual(noActionSteps.every((step) => Array.isArray(step.actions) && step.actions.length === 0), true, 'other steps should have empty actions arrays');
+    const fftTutorial = runtime.bootstrap.tutorials.find((entry) => entry.id === 'core/fft-spectrum-from-csv');
+    assert.ok(fftTutorial, 'fft-spectrum-from-csv tutorial should be loaded');
+    assert.strictEqual(fftTutorial.title, 'FFT Spectrum From CSV');
+    assert.deepStrictEqual(fftTutorial.menuSegments, ['Core', 'Fft Spectrum From Csv']);
+    assert.strictEqual(fftTutorial.steps.length, 5);
+    assert.strictEqual(fftTutorial.steps.some((step) => step.completion && step.completion.kind === 'fft_spectrum_configured'), true);
+    assert.ok(fftTutorial.resources, 'fft-spectrum tutorial should have resources');
+    assert.strictEqual(typeof fftTutorial.resources.csv, 'string');
+    assert.strictEqual(path.isAbsolute(fftTutorial.resources.csv), true, 'fft resources.csv should be absolute');
+    assert.strictEqual(fftTutorial.resources.csv.endsWith('sample_data.csv'), true, 'fft resources.csv should end with sample_data.csv');
+    assert.strictEqual(fs.existsSync(fftTutorial.resources.csv), true, 'fft resources.csv should exist on disk');
+    const fftConfigStep = fftTutorial.steps.find((step) => step.id === 'configure-fft-channels');
+    assert.ok(fftConfigStep, 'fft tutorial should have a configure-fft-channels step');
+    assert.ok(Array.isArray(fftConfigStep.actions), 'configure-fft-channels step should have actions array');
+    assert.strictEqual(fftConfigStep.actions.length, 1);
+    assert.strictEqual(fftConfigStep.actions[0].kind, 'apply_tutorial_csv');
     assert.strictEqual(Array.isArray(runtime.bootstrap.dashboardWelcomeEntries), true);
     const startupWelcome = runtime.bootstrap.dashboardWelcomeEntries.find((entry) => entry.id === 'tutorials-startup');
     assert.ok(startupWelcome, 'tutorial startup welcome should be loaded');
     assert.strictEqual(startupWelcome.trigger, 'startup');
     assert.strictEqual(startupWelcome.showWhen, 'empty_default_dashboard');
-    assert.strictEqual(startupWelcome.actions.length, 3, 'startup welcome should have 3 tutorial actions');
+    assert.strictEqual(startupWelcome.actions.length, 4, 'startup welcome should have 4 tutorial actions');
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/dashboard-basics'), true);
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/xy-signal-generator'), true);
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/fast-frame-from-csv'), true);
+    assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/fft-spectrum-from-csv'), true);
 }
 
 function runDisabledRuntimeAssertions() {

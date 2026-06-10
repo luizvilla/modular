@@ -20,6 +20,11 @@
       "tutorialId": "core/fast-frame-from-csv",
       "label": "Fast Frame From CSV",
       "description": "Load a captured CSV waveform and plot a math channel on a Fast Frame widget."
+    },
+    {
+      "tutorialId": "core/fft-spectrum-from-csv",
+      "label": "FFT Spectrum From CSV",
+      "description": "Load a captured CSV waveform and analyse its frequency content with FFT."
     }
   ]
 }

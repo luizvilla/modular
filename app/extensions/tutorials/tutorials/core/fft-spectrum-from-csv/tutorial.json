@@ -1,0 +1,42 @@
+{
+  "title": "FFT Spectrum From CSV",
+  "order": 40,
+  "resources": { "csv": "../../../assets/sample_data.csv" },
+  "steps": [
+    {
+      "id": "intro",
+      "title": "What is an FFT Spectrum plot?",
+      "markdown": "The **FFT Spectrum** widget loads a captured CSV waveform and applies a Fast Fourier Transform to show the frequency content of each signal.\n\nYou can see the time-domain waveform, the frequency spectrum, and harmonic amplitude bars side by side. A THD (Total Harmonic Distortion) summary table is computed automatically.\n\nIn this tutorial you will add the widget, load the included sample CSV, and configure one channel to analyze.",
+      "completion": { "kind": "manual" }
+    },
+    {
+      "id": "create-pane",
+      "title": "Create a pane",
+      "markdown": "Click the **Add pane** button in the dashboard header to create a new pane. The FFT Spectrum widget will live inside it.",
+      "focusKey": "header.addPane",
+      "completion": { "kind": "pane_count_at_least", "count": 1 }
+    },
+    {
+      "id": "add-fft-widget",
+      "title": "Add an FFT Spectrum widget",
+      "markdown": "Click the **Add widget** button on the pane, then select **FFT Spectrum Widget** from the widget picker. The editor will open automatically.",
+      "focusKey": "pane.first.addWidget",
+      "autoAdvance": true,
+      "completion": { "kind": "widget_type_exists", "widgetType": "fft_spectrum_plot" }
+    },
+    {
+      "id": "configure-fft-channels",
+      "title": "Configure the channels",
+      "markdown": "The sample CSV has been pre-loaded. Add a channel to analyse:\n\n1. Leave **Type** as *Regular* and pick `Vgrid` from the **Y Variable** drop-down.\n2. Click **Add channel**.\n3. Click **Save**.\n\nThe widget will compute the FFT and display the frequency spectrum below.",
+      "focusKey": "modal.fftSpectrumEditor",
+      "actions": [{ "kind": "apply_tutorial_csv" }],
+      "completion": { "kind": "fft_spectrum_configured" }
+    },
+    {
+      "id": "complete",
+      "title": "Tutorial complete",
+      "markdown": "The FFT Spectrum widget is live. Try zooming into the spectrum, toggling the log scale, or adjusting the fundamental frequency to track different harmonics.\n\nCome back to this tutorial from the **Tutorials** menu any time.",
+      "completion": { "kind": "manual" }
+    }
+  ]
+}
