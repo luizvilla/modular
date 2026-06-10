@@ -56,3 +56,45 @@ test('Ctrl+scroll wheel zooms in and out', async () => {
 
     await app.close();
 });
+
+test('right-click drag pans #board-content', async () => {
+    const { app, page } = await launchApp();
+    await waitForDashboard(page);
+
+    // Inject a tall spacer so #board-content is scrollable without needing real panes.
+    await page.evaluate(() => {
+        const el = document.getElementById('board-content');
+        const spacer = document.createElement('div');
+        spacer.id = 'pan-test-spacer';
+        spacer.style.height = '3000px';
+        el.appendChild(spacer);
+    });
+
+    await page.waitForFunction(() => {
+        const el = document.getElementById('board-content');
+        return el && el.scrollHeight > el.clientHeight;
+    }, null, { timeout: 5_000 });
+
+    const boardBox = await page.locator('#board-content').boundingBox();
+    const cx = boardBox.x + boardBox.width / 2;
+    const cy = boardBox.y + boardBox.height / 2;
+
+    // is-panning class appears on right-mousedown and disappears on right-mouseup.
+    await page.mouse.move(cx, cy);
+    await page.mouse.down({ button: 'right' });
+    await expect(page.locator('body')).toHaveClass(/is-panning/, { timeout: 2_000 });
+    await page.mouse.up({ button: 'right' });
+    await expect(page.locator('body')).not.toHaveClass(/is-panning/, { timeout: 2_000 });
+
+    // Start at scrollTop = 0, drag upward → scrollTop should increase.
+    await page.evaluate(() => { document.getElementById('board-content').scrollTop = 0; });
+    await page.mouse.move(cx, cy);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(cx, cy - 150, { steps: 10 });
+    await page.mouse.up({ button: 'right' });
+
+    const scrollTop = await page.evaluate(() => document.getElementById('board-content').scrollTop);
+    expect(scrollTop).toBeGreaterThan(0);
+
+    await app.close();
+});

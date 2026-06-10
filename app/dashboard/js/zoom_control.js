@@ -34,34 +34,43 @@
     }, { passive: false });
 
     // ── Right-click drag pan ──────────────────────────────────────────────────
-    let _panning   = false;
-    let _panStartX = 0, _panStartY = 0;
+    // The scroll container is #board-content (overflow-y: auto); body has
+    // overflow: hidden so window.scrollTo does nothing.
+    function getPanTarget() {
+        return document.getElementById('board-content');
+    }
+
+    let _panning    = false;
+    let _panStartX  = 0, _panStartY  = 0;
     let _panScrollX = 0, _panScrollY = 0;
 
+    // Capture phase so Gridster element handlers can't stop propagation.
     document.addEventListener('mousedown', (evt) => {
         if (evt.button !== 2) return;
+        const el = getPanTarget();
+        if (!el) return;
         _panning    = true;
         _panStartX  = evt.clientX;
         _panStartY  = evt.clientY;
-        _panScrollX = window.scrollX;
-        _panScrollY = window.scrollY;
+        _panScrollX = el.scrollLeft;
+        _panScrollY = el.scrollTop;
         document.body.classList.add('is-panning');
         evt.preventDefault();
-    });
+    }, true);
 
     document.addEventListener('mousemove', (evt) => {
         if (!_panning) return;
-        window.scrollTo(
-            _panScrollX - (evt.clientX - _panStartX),
-            _panScrollY - (evt.clientY - _panStartY)
-        );
+        const el = getPanTarget();
+        if (!el) return;
+        el.scrollLeft = _panScrollX - (evt.clientX - _panStartX);
+        el.scrollTop  = _panScrollY - (evt.clientY - _panStartY);
     });
 
     document.addEventListener('mouseup', (evt) => {
         if (evt.button !== 2 || !_panning) return;
         _panning = false;
         document.body.classList.remove('is-panning');
-    });
+    }, true);
 
     // Suppress the browser context menu — right-click is reserved for pan.
     document.addEventListener('contextmenu', (evt) => {
