@@ -65,13 +65,33 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(xyTutorial.steps.some((step) => step.completion && step.completion.kind === 'xy_plot_sources_bound'), true);
     const countStep = xyTutorial.steps.find((step) => step.completion && step.completion.kind === 'datasource_type_exists' && step.completion.count === 2);
     assert.ok(countStep, 'xy tutorial should have a datasource_type_exists step with count:2');
+    const ffTutorial = runtime.bootstrap.tutorials.find((entry) => entry.id === 'core/fast-frame-from-csv');
+    assert.ok(ffTutorial, 'fast-frame-from-csv tutorial should be loaded');
+    assert.strictEqual(ffTutorial.title, 'Fast Frame From CSV');
+    assert.deepStrictEqual(ffTutorial.menuSegments, ['Core', 'Fast Frame From Csv']);
+    assert.strictEqual(ffTutorial.steps.length, 5);
+    assert.strictEqual(ffTutorial.steps.some((step) => step.completion && step.completion.kind === 'fast_frame_plot_configured'), true);
+    assert.ok(ffTutorial.resources, 'fast-frame tutorial should have resources');
+    assert.strictEqual(typeof ffTutorial.resources.csv, 'string');
+    assert.strictEqual(path.isAbsolute(ffTutorial.resources.csv), true, 'resources.csv should be an absolute path');
+    assert.strictEqual(ffTutorial.resources.csv.endsWith('sample_data.csv'), true, 'resources.csv should end with sample_data.csv');
+    assert.strictEqual(fs.existsSync(ffTutorial.resources.csv), true, 'resources.csv file should exist on disk');
+    const configureStep = ffTutorial.steps.find((step) => step.id === 'configure-channels');
+    assert.ok(configureStep, 'fast-frame tutorial should have a configure-channels step');
+    assert.ok(Array.isArray(configureStep.actions), 'configure-channels step should have actions array');
+    assert.strictEqual(configureStep.actions.length, 1);
+    assert.strictEqual(configureStep.actions[0].kind, 'apply_tutorial_csv');
+    const noActionSteps = ffTutorial.steps.filter((step) => step.id !== 'configure-channels');
+    assert.strictEqual(noActionSteps.every((step) => Array.isArray(step.actions) && step.actions.length === 0), true, 'other steps should have empty actions arrays');
     assert.strictEqual(Array.isArray(runtime.bootstrap.dashboardWelcomeEntries), true);
     const startupWelcome = runtime.bootstrap.dashboardWelcomeEntries.find((entry) => entry.id === 'tutorials-startup');
     assert.ok(startupWelcome, 'tutorial startup welcome should be loaded');
     assert.strictEqual(startupWelcome.trigger, 'startup');
     assert.strictEqual(startupWelcome.showWhen, 'empty_default_dashboard');
+    assert.strictEqual(startupWelcome.actions.length, 3, 'startup welcome should have 3 tutorial actions');
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/dashboard-basics'), true);
     assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/xy-signal-generator'), true);
+    assert.strictEqual(startupWelcome.actions.some((action) => action.tutorialId === 'core/fast-frame-from-csv'), true);
 }
 
 function runDisabledRuntimeAssertions() {

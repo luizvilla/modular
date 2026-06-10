@@ -1,0 +1,44 @@
+{
+  "title": "Fast Frame From CSV",
+  "order": 30,
+  "resources": {
+    "csv": "../../../assets/sample_data.csv"
+  },
+  "steps": [
+    {
+      "id": "intro",
+      "title": "What is a Fast Frame plot?",
+      "markdown": "A **Fast Frame plot** lets you visualise high-speed capture data stored in a CSV file. Unlike a live time-plot, it reads a static (or periodically updated) file from disk and renders all its channels at once.\n\nIn this tutorial you will:\n- Add a Fast Frame Plot widget\n- Load a sample CSV with power-converter waveforms\n- Add a **math channel** that sums two current measurements",
+      "completion": { "kind": "manual" }
+    },
+    {
+      "id": "create-pane",
+      "title": "Create a pane",
+      "markdown": "Every widget lives inside a **pane**.\n\nClick the **Add pane** button in the top bar to create one.",
+      "focusKey": "header.addPane",
+      "completion": { "kind": "pane_count_at_least", "count": 1 }
+    },
+    {
+      "id": "add-fast-frame-widget",
+      "title": "Add a Fast Frame Plot widget",
+      "markdown": "Click the **Add widget** icon on the pane, then select **Fast Frame Widget** from the picker.\n\nAfter you click OK the configuration editor will open automatically. You can close it with **Save** for now — we will configure it in the next step.",
+      "focusKey": "pane.first.addWidget",
+      "autoAdvance": true,
+      "completion": { "kind": "widget_type_exists", "widgetType": "fast_frame_plot" }
+    },
+    {
+      "id": "configure-channels",
+      "title": "Configure the plot",
+      "markdown": "Click the **wrench (edit)** icon on the Fast Frame widget to open its editor.\n\nA sample CSV has been pre-loaded for you. In the editor:\n1. Set **X Variable** to `time_ms` (or leave it as row index)\n2. Change **Type** to **Math** and add a math channel: set **A** to `I1_low_value`, **Op** to `+`, and **B** to `I2_low_value`\n3. Give it a label such as `Total current`\n4. Click **Add channel**, then click **Save**",
+      "focusKey": "modal.fastFrameEditor",
+      "actions": [{ "kind": "apply_tutorial_csv" }],
+      "completion": { "kind": "fast_frame_plot_configured" }
+    },
+    {
+      "id": "complete",
+      "title": "Tutorial complete",
+      "markdown": "Your Fast Frame plot is displaying the summed current waveform from the sample CSV.\n\n**What you learned:**\n- How to add a Fast Frame Plot widget\n- How to load a CSV data source\n- How to create a math channel from two existing columns\n\nClose this panel with **Done** and explore the other tutorials.",
+      "completion": { "kind": "manual" }
+    }
+  ]
+}

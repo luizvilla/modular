@@ -30,6 +30,8 @@
         'modal.widgetPicker.xySourceManager': () => document.querySelector('#modal_overlay .widget-tile[data-type="xy_plot_source_manager"]'),
         'modal.timePlotEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
         'modal.xyPlotEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
+        'modal.fastFrameEditor': () => document.querySelector('#modal_overlay .integrated-plot-editor'),
+        'modal.widgetPicker.fastFrame': () => document.querySelector('#modal_overlay .widget-tile[data-type="fast_frame_plot"]'),
         'widget.xySourceManager.apply': () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Apply to XY Plot') || null,
         'doc.uploadFirmware': () => document.querySelector('#doc-upload-firmware-btn'),
         'doc.loadDashboard': () => document.querySelector('#doc-load-dashboard-btn'),
@@ -304,6 +306,16 @@
             });
         }
 
+        if (completion.kind === 'fast_frame_plot_configured') {
+            return snapshot.widgets.some((widget) => {
+                if (readValue(widget.type) !== 'fast_frame_plot') return false;
+                const settings = typeof widget.settings === 'function' ? widget.settings() : (widget.settings || {});
+                const csvPath = typeof settings.csvPath === 'string' ? settings.csvPath.trim() : '';
+                const defs = Array.isArray(settings.seriesDefs) ? settings.seriesDefs : [];
+                return !!(csvPath && defs.length > 0);
+            });
+        }
+
         if (completion.kind === 'time_plot_series_bound') {
             const signalGeneratorNames = new Set(
                 snapshot.datasources
@@ -390,6 +402,19 @@
             const tile = FOCUS_RESOLVERS['modal.widgetPicker.xyPlot']();
             if (tile) return tile;
             return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'add-fast-frame-widget') {
+            const tile = FOCUS_RESOLVERS['modal.widgetPicker.fastFrame']();
+            if (tile) return tile;
+            return FOCUS_RESOLVERS['pane.first.addWidget']();
+        }
+
+        if (step.id === 'configure-channels') {
+            const modal = FOCUS_RESOLVERS['modal.fastFrameEditor']();
+            if (modal) return modal;
+            const pane = document.querySelector('.gridster > ul > li, .gs_w');
+            return pane ? (pane.querySelector('.sub-section-tools .tool-edit') || null) : null;
         }
 
         if (step.id === 'add-xy-source-manager') {
@@ -614,10 +639,26 @@
         renderSession();
     }
 
+    function executeStepActions(session, step) {
+        if (!step || !Array.isArray(step.actions) || !step.actions.length) return;
+        const tutorial = session && session.tutorial;
+        step.actions.forEach((action) => {
+            if (action.kind === 'apply_tutorial_csv') {
+                const csvPath = tutorial && tutorial.resources && typeof tutorial.resources.csv === 'string'
+                    ? tutorial.resources.csv
+                    : '';
+                if (csvPath) {
+                    window._tutorialPendingCsv = csvPath;
+                }
+            }
+        });
+    }
+
     function moveToStep(session, nextIndex) {
         if (!session) return;
         const maxIndex = session.tutorial.steps.length - 1;
         session.stepIndex = Math.max(0, Math.min(maxIndex, nextIndex));
+        executeStepActions(session, session.tutorial.steps[session.stepIndex]);
         renderSession();
     }
 

@@ -482,6 +482,10 @@
             availableColumns: Array.isArray(widgetInstance && widgetInstance.availableColumns) ? widgetInstance.availableColumns.slice() : [],
             seriesDefs: normalizeFastFrameSeriesDefs(settings, sharedFast)
         };
+        if (window._tutorialPendingCsv) {
+            state.selectedCsvPath = window._tutorialPendingCsv;
+            window._tutorialPendingCsv = null;
+        }
 
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
         const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');

@@ -890,7 +890,7 @@ function normalizeTutorialCompletion(step, index) {
     if (!kind) {
         throw new Error(`steps[${index}].completion.kind must be a non-empty string`);
     }
-    if (kind === 'manual' || kind === 'time_plot_series_bound' || kind === 'xy_plot_sources_bound') {
+    if (kind === 'manual' || kind === 'time_plot_series_bound' || kind === 'xy_plot_sources_bound' || kind === 'fast_frame_plot_configured') {
         return { kind };
     }
     if (kind === 'pane_count_at_least') {
@@ -923,6 +923,32 @@ function normalizeTutorialCompletion(step, index) {
     throw new Error(`steps[${index}].completion.kind "${kind}" is not supported`);
 }
 
+function normalizeStepActions(rawActions, stepIndex) {
+    if (!Array.isArray(rawActions)) return [];
+    return rawActions.map((action, ai) => {
+        const src = ensureObject(action, `steps[${stepIndex}].actions[${ai}]`);
+        const kind = typeof src.kind === 'string' ? src.kind.trim() : '';
+        if (kind === 'apply_tutorial_csv') return { kind };
+        throw new Error(`steps[${stepIndex}].actions[${ai}].kind "${kind}" is not supported`);
+    });
+}
+
+function normalizeTutorialResources(rawResources, extensionRoot, tutorialDir) {
+    const result = {};
+    if (!rawResources || typeof rawResources !== 'object' || Array.isArray(rawResources)) return result;
+    if (typeof rawResources.csv === 'string' && rawResources.csv.trim()) {
+        const absolutePath = path.resolve(tutorialDir, rawResources.csv.trim());
+        if (!isPathInside(extensionRoot, absolutePath)) {
+            throw new Error(`resources.csv must stay inside the extension directory`);
+        }
+        if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+            throw new Error(`resources.csv does not exist: ${absolutePath}`);
+        }
+        result.csv = absolutePath;
+    }
+    return result;
+}
+
 function normalizeTutorialStep(step, index, tutorialDir) {
     const source = ensureObject(step, `steps[${index}]`);
     const id = typeof source.id === 'string' ? source.id.trim() : '';
@@ -948,6 +974,7 @@ function normalizeTutorialStep(step, index, tutorialDir) {
             ? source.focusKey.trim()
             : null,
         autoAdvance: source.autoAdvance === true,
+        actions: normalizeStepActions(source.actions, index),
         completion: normalizeTutorialCompletion(source, index),
     };
 }
@@ -1152,6 +1179,7 @@ function loadTutorials(tutorialRoots, logger) {
 
     for (const root of tutorialRoots || []) {
         if (!root || !root.path) continue;
+        const extensionRoot = path.dirname(root.path);
         const manifests = collectManifests(root.path).sort((left, right) => left.localeCompare(right));
         for (const manifestPath of manifests) {
             const tutorialDir = path.dirname(manifestPath);
@@ -1177,6 +1205,7 @@ function loadTutorials(tutorialRoots, logger) {
                     throw new Error('steps must be a non-empty array');
                 }
                 const order = Number.isFinite(Number(parsed.order)) ? Number(parsed.order) : 999;
+                const resources = normalizeTutorialResources(parsed.resources, extensionRoot, tutorialDir);
                 const normalizedSteps = steps.map((step, index) => normalizeTutorialStep(step, index, tutorialDir));
                 const stepIds = new Set();
                 normalizedSteps.forEach((step, index) => {
@@ -1197,6 +1226,7 @@ function loadTutorials(tutorialRoots, logger) {
                     dirPath: tutorialDir,
                     manifestPath,
                     menuSegments: menuSegments.map(humanizePathSegment),
+                    resources,
                     steps: normalizedSteps,
                 });
             } catch (err) {

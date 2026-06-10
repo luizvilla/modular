@@ -15,6 +15,11 @@
       "tutorialId": "core/xy-signal-generator",
       "label": "XY Signal Generator",
       "description": "Trace two signal generators against each other in a live XY plot."
+    },
+    {
+      "tutorialId": "core/fast-frame-from-csv",
+      "label": "Fast Frame From CSV",
+      "description": "Load a captured CSV waveform and plot a math channel on a Fast Frame widget."
     }
   ]
 }
