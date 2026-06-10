@@ -4959,8 +4959,19 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 				}
 				else if(dsType === "serialport_datasource")
 				{
-					var arr = await invoke("get-serial-buffer", { path: path });
-					if(Array.isArray(arr)) return arr.length;
+					// Use the terminal buffer (raw lines) rather than the parsed serial
+					// buffer: parseLine() filters non-numeric tokens (structs, strings)
+					// via parseFloat+isNaN, which undercounts columns relative to what
+					// the terminal widget displays.  Splitting the last raw line by the
+					// configured separator mirrors _buildHeader exactly.
+					var sep = (settings.separator || ':');
+					var lines = await invoke("get-terminal-buffer", { path: path });
+					if(Array.isArray(lines) && lines.length)
+					{
+						var last = lines[lines.length - 1];
+						var parts = last.trim().split(sep).filter(function(s) { return s.trim() !== ''; });
+						return parts.length;
+					}
 				}
 			}
 			catch(e) {}
