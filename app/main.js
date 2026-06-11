@@ -139,13 +139,16 @@ function buildTimestampStamp(date = new Date()) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
 }
 
-function resolveTimestampedCsvPath(filePath) {
+function resolveTimestampedCsvPath(filePath, defaultDir) {
     const target = String(filePath || '').trim();
     if (!target) return target;
     const parsed = path.parse(target);
     const ext = parsed.ext || '.csv';
     const baseName = parsed.name || 'fast_frame';
-    return path.join(parsed.dir || '.', `${buildTimestampStamp()}-${baseName}${ext}`);
+    // Fall back to defaultDir (or acquireDir once declared) so relative names
+    // never resolve against the process cwd (can be System32 on Windows).
+    const dir = parsed.dir || defaultDir || '.';
+    return path.join(dir, `${buildTimestampStamp()}-${baseName}${ext}`);
 }
 
 function isFirmwareWorkspaceEnabled() {
@@ -1297,6 +1300,8 @@ const machinesDir = path.join(app.getPath('userData'), 'machines');
 fs.mkdirSync(machinesDir, { recursive: true });
 const headersDir = path.join(__dirname, 'headers');
 fs.mkdirSync(headersDir, { recursive: true });
+const acquireDir = path.join(__dirname, 'acquire');
+fs.mkdirSync(acquireDir, { recursive: true });
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -3620,7 +3625,9 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
                 emitActivity({ id: 'csv:save-fast', title: path, state: 'error', label: 'Save fast dataset', detail: err });
                 throw new Error(err);
         }
-        const resolvedFilePath = useTimestampedFileName ? resolveTimestampedCsvPath(filePath) : filePath;
+        const resolvedFilePath = useTimestampedFileName
+            ? resolveTimestampedCsvPath(filePath, acquireDir)
+            : (path.isAbsolute(filePath) ? filePath : path.join(acquireDir, filePath));
         const headers = headerBuffers.get(dsKey(path, 'fast_frame_datasource')) || [];
         const sep = separator || ',';
         const eolStr = decodeEolToken(eol);
