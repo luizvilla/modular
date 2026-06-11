@@ -296,6 +296,10 @@
                 if (sp.dead_time_rising !== undefined) await this._send(protocol.cmdDeadTimeRising(n, sp.dead_time_rising, deviceType));
                 if (sp.dead_time_falling !== undefined) await this._send(protocol.cmdDeadTimeFalling(n, sp.dead_time_falling, deviceType));
             }
+
+            if (state.trigger === 'scope') await this._send(protocol.cmdScopeTrigger());
+            else if (state.trigger === 'acquire') await this._send(protocol.cmdScopeAcquire());
+            else if (state.trigger === 'ripple') await this._send(protocol.cmdRippleAcquire());
         }
 
         async _readVariable(varName) {

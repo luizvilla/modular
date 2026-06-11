@@ -18,6 +18,7 @@
             this._legControls = {};
             this._nameInput = null;
             this._powerSelect = null;
+            this._triggerSelect = null;
         }
 
         open() {
@@ -395,6 +396,7 @@
             );
             this._nameInput = null;
             this._powerSelect = null;
+            this._triggerSelect = null;
             this._legControls = {};
         }
 
@@ -427,6 +429,15 @@
             this._powerSelect.val(state.powerMode || '');
             header.append($('<div class="input-group input-group-sm" style="max-width:200px"></div>').append(
                 '<span class="input-group-text">Power</span>', this._powerSelect
+            ));
+            this._triggerSelect = $('<select class="form-select form-select-sm" style="max-width:140px"></select>');
+            this._triggerSelect.append('<option value="">— (no trigger)</option>');
+            this._triggerSelect.append('<option value="scope">Triggering</option>');
+            this._triggerSelect.append('<option value="acquire">Acquire</option>');
+            this._triggerSelect.append('<option value="ripple">Ripple Trigger</option>');
+            this._triggerSelect.val(state.trigger || '');
+            header.append($('<div class="input-group input-group-sm" style="max-width:230px"></div>').append(
+                '<span class="input-group-text">Trigger</span>', this._triggerSelect
             ));
             this._paramsPanel.append(header);
 
@@ -491,6 +502,7 @@
             const name = this._nameInput.val().trim();
             if (name) state.name = name;
             state.powerMode = this._powerSelect?.val() || null;
+            state.trigger = this._triggerSelect?.val() || null;
             (state.legs || []).forEach(leg => {
                 const ctrl = this._legControls[leg.leg];
                 if (!ctrl) return;
@@ -518,7 +530,7 @@
                     setpoints: { reference_var: protocol?.getProfile(this._deviceType)?.variables[0] || 'V1', reference_val: 0, duty: 0, phase_shift: 0, frequency: 200000, dead_time_rising: 200, dead_time_falling: 200 }
                 });
             }
-            this._states.push({ id, name: `State ${idx + 1}`, x: 80 + (idx % 5) * 130, y: 80 + Math.floor(idx / 5) * 110, powerMode: null, legs });
+            this._states.push({ id, name: `State ${idx + 1}`, x: 80 + (idx % 5) * 130, y: 80 + Math.floor(idx / 5) * 110, powerMode: null, trigger: null, legs });
             if (!this._initialState) this._initialState = id;
             this._renderAll();
             this._selectState(id);
