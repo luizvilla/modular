@@ -4926,6 +4926,8 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 						return serial && serial.getFastDataset ? serial.getFastDataset(payload.path) : null;
 					case "get-serial-buffer":
 						return serial && serial.getBuffer ? serial.getBuffer(payload.path) : null;
+					case "get-terminal-buffer":
+						return serial && serial.getTerminalBuffer ? serial.getTerminalBuffer(payload.path) : null;
 					case "can-aggregate-start":
 						return can && can.aggregateStart ? can.aggregateStart(payload) : null;
 					case "can-aggregate-snapshot":
@@ -4968,9 +4970,18 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 					var lines = await invoke("get-terminal-buffer", { path: path });
 					if(Array.isArray(lines) && lines.length)
 					{
-						var last = lines[lines.length - 1];
-						var parts = last.trim().split(sep).filter(function(s) { return s.trim() !== ''; });
-						return parts.length;
+						// Use the widest recent line: data frames have many separator-delimited
+						// segments; debug messages from the board are much shorter. Scanning
+						// the last 20 lines picks the data frame even when a debug message
+						// is the most recent entry.
+						var recent = lines.slice(-20);
+						var maxCount = 0;
+						for(var li = 0; li < recent.length; li++)
+						{
+							var parts = recent[li].trim().split(sep).filter(function(s) { return s.trim() !== ''; });
+							if(parts.length > maxCount) maxCount = parts.length;
+						}
+						if(maxCount > 0) return maxCount;
 					}
 				}
 			}
