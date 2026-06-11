@@ -159,6 +159,14 @@
       "doc": "serial/fast-frame-plot/README.md"
     },
     {
+      "type": "fft_spectrum_plot",
+      "title": "FFT Spectrum Widget",
+      "category": "Plots",
+      "icon": "wave-square",
+      "preferredOrder": 3,
+      "doc": "serial/fft-spectrum-plot/README.md"
+    },
+    {
       "type": "fast_frame_plot_ui",
       "title": "Fast Frame UI",
       "category": "Fast Frame",

@@ -325,7 +325,7 @@ var freeboard = (function()
 
 	function isIntegratedPlotEditorType(typeName)
 	{
-		return typeName === "time_plot_uplot" || typeName === "xy_plot_uplot" || typeName === "fast_frame_plot" || typeName === "vertical_gauge" || typeName === "horizontal_gauge" || typeName === "radial_arc_gauge" || typeName === "radial_needle_gauge" || typeName === "donut_gauge";
+		return typeName === "time_plot_uplot" || typeName === "xy_plot_uplot" || typeName === "fast_frame_plot" || typeName === "fft_spectrum_plot" || typeName === "vertical_gauge" || typeName === "horizontal_gauge" || typeName === "radial_arc_gauge" || typeName === "radial_needle_gauge" || typeName === "donut_gauge";
 	}
 
 	var plotEditorShared = (function()
@@ -717,6 +717,9 @@ var freeboard = (function()
 						return;
 					}
 
+					var integratedEditorTypes = ['time_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot', 'fft_spectrum_plot',
+						'vertical_gauge', 'horizontal_gauge', 'radial_arc_gauge', 'radial_needle_gauge', 'donut_gauge',
+						'fast_frame_control'];
 					pluginEditor.createPluginEditor(title, types, instanceType, settings, function(newSettings)
 					{
 						if(options.operation == 'add')
@@ -775,7 +778,7 @@ var freeboard = (function()
 								viewModel.settings(newSettings.settings);
 							}
 						}
-					});
+					}, options.type == 'widget', options.type == 'widget' ? integratedEditorTypes : null);
 				}
 			});
 		}

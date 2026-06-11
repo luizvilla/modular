@@ -730,6 +730,7 @@ PluginEditor = function(jsEditor, valueEditor)
 			"Serial": "terminal",
 			"Plots": "chart-line",
 			"Gauges": "gauge-high",
+			"Fast Frame": "chart-area",
 			"Controls": "sliders",
 			"Other": "puzzle-piece"
 		};

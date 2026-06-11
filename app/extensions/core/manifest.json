@@ -21,6 +21,7 @@
     { "path": "plugins/fast_frame_plot.widget.js", "order": 140 },
     { "path": "plugins/fast_frame_plot_ui.widget.js", "order": 150 },
     { "path": "plugins/fast_frame_channel_manager.widget.js", "order": 160 },
+    { "path": "plugins/fft_spectrum.widget.js", "order": 165 },
     { "path": "plugins/serialfast.datasource.js", "order": 200 },
     { "path": "plugins/serialport.datasource.js", "order": 220 },
     { "path": "plugins/signal_generator.datasource.js", "order": 240 },

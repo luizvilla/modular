@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "panes": [
+    {
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 3,
+      "widgets": [
+        {
+          "type": "fft_spectrum_plot",
+          "settings": {
+            "title": "FFT Spectrum",
+            "csvSourceMode": "fixed",
+            "csvDirectory": "tests/fixtures",
+            "csvPath": "tests/fixtures/fft_spectrum_plot.csv",
+            "signalColumns": "Vgrid,Igrid",
+            "timeColumn": "",
+            "samplingPeriodUs": "97.65625",
+            "fundamentalFreqHz": "50",
+            "maxFreqHz": "1000",
+            "maxHarmonic": "11",
+            "showTimeDomain": true,
+            "showSpectrum": true,
+            "showHarmonicBars": true,
+            "logScaleSpectrum": true
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [],
+  "columns": 3
+}

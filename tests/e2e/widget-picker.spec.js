@@ -80,11 +80,25 @@ test('add-widget modal renders the icon grid and keeps control helpers available
     await expect(widgetPicker.locator('.widget-tile[data-type="uplot_config_panel"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="uplot_series_manager"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="xy_plot_source_manager"]')).toBeVisible();
+    await expect(widgetPicker.locator('.widget-tile[data-type="fft_spectrum_plot"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_config_panel"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="vertical_gauge_manager"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="gauge"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_plot_ui"]')).toHaveCount(0);
     await expect(widgetPicker.locator('.widget-tile[data-type="fast_frame_channel_manager"]')).toBeVisible();
+
+    const plotTileTypes = await page.evaluate(() => {
+      const sections = Array.from(document.querySelectorAll('#modal_overlay .widget-picker-section'));
+      const plotSection = sections.find((section) => section.querySelector('.widget-picker-section-title')?.textContent?.trim() === 'Plots');
+      if (!plotSection) return [];
+      return Array.from(plotSection.querySelectorAll('.widget-tile')).map((tile) => tile.getAttribute('data-type'));
+    });
+    expect(plotTileTypes.slice(0, 4)).toEqual([
+      'time_plot_uplot',
+      'xy_plot_uplot',
+      'fast_frame_plot',
+      'fft_spectrum_plot',
+    ]);
 
     await expect(widgetPicker.locator('.widget-tile[data-type="horizontal_gauge"]')).toBeVisible();
     await expect(widgetPicker.locator('.widget-tile[data-type="radial_arc_gauge"]')).toBeVisible();

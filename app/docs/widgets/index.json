@@ -134,6 +134,13 @@
       "requiresThingset": false
     },
     {
+      "type": "fft_spectrum_plot",
+      "title": "FFT Spectrum Widget",
+      "category": "Plots",
+      "doc": "serial/fft-spectrum-plot/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "fast_frame_plot_ui",
       "title": "Fast Frame UI",
       "category": "Fast Frame",
