@@ -4624,7 +4624,7 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 			var fileInput = $('<input type="file" accept=".json" style="display:none">');
 			var loadBtn = $('<button type="button" class="btn btn-outline-secondary btn-sm">Load Headers</button>');
 
-			saveBtn.on('click', function()
+			saveBtn.on('click', async function()
 			{
 				var current = valueObs() || [];
 				var count = tableWrap.find('.channel-map-input').length;
@@ -4635,37 +4635,26 @@ if (options.type == 'widget' && options.operation == 'edit' && instanceType === 
 					var sfx = i >= 26 ? ' ' + (Math.floor(i / 26) + 1) : '';
 					labels.push(current[i] || ('Channel ' + alpha + sfx));
 				}
-				var blob = new Blob([JSON.stringify(labels, null, 2)], { type: 'application/json' });
-				var url = URL.createObjectURL(blob);
-				var a = document.createElement('a');
-				a.href = url; a.download = 'headers.json';
-				document.body.appendChild(a); a.click();
-				document.body.removeChild(a); URL.revokeObjectURL(url);
+				if(window.api && window.api.headers)
+				{
+					await window.api.headers.save(labels);
+				}
 			});
 
-			fileInput.on('change', function(e)
+			loadBtn.on('click', async function()
 			{
-				var file = e.target.files[0];
-				if(!file) return;
-				var reader = new FileReader();
-				reader.onload = function(ev)
+				if(window.api && window.api.headers)
 				{
-					try
+					var result = await window.api.headers.load();
+					if(result && result.loaded && Array.isArray(result.labels))
 					{
-						var loaded = JSON.parse(ev.target.result);
-						if(!Array.isArray(loaded)) return;
-						valueObs(loaded);
-						buildTable(loaded.length, true);
+						valueObs(result.labels);
+						buildTable(result.labels.length, true);
 						$el.closest('form').trigger('submit');
 					}
-					catch(err) { console.error('Failed to load headers JSON', err); }
-				};
-				reader.readAsText(file);
-				e.target.value = '';
+				}
 			});
-
-			loadBtn.on('click', function() { fileInput.trigger('click'); });
-			btnRow.append(saveBtn, loadBtn, fileInput);
+			btnRow.append(saveBtn, loadBtn);
 			$el.append(tableWrap, btnRow);
 
 			$(element).data('channelMapState', { buildTable: buildTable, valueObs: valueObs, minCount: minCount });

@@ -1294,6 +1294,8 @@ const dashboardsDir = path.join(app.getPath('userData'), 'dashboards');
 fs.mkdirSync(dashboardsDir, { recursive: true });
 const machinesDir = path.join(app.getPath('userData'), 'machines');
 fs.mkdirSync(machinesDir, { recursive: true });
+const headersDir = path.join(__dirname, 'headers');
+fs.mkdirSync(headersDir, { recursive: true });
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -1305,6 +1307,31 @@ ipcMain.handle('show-open-dashboard', async () => {
     });
     if (canceled || !filePaths || filePaths.length === 0) return null;
     return filePaths[0];
+});
+
+ipcMain.handle('headers-save', async (_event, { labels } = {}) => {
+    if (!mainWindow) return { saved: false };
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save Channel Headers',
+        defaultPath: path.join(headersDir, 'headers.json'),
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) return { saved: false };
+    fs.writeFileSync(filePath, JSON.stringify(labels, null, 2), 'utf8');
+    return { saved: true };
+});
+
+ipcMain.handle('headers-load', async (_event) => {
+    if (!mainWindow) return { loaded: false };
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'Load Channel Headers',
+        defaultPath: headersDir,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile']
+    });
+    if (canceled || !filePaths || !filePaths.length) return { loaded: false };
+    const content = fs.readFileSync(filePaths[0], 'utf8');
+    return { loaded: true, labels: JSON.parse(content) };
 });
 
 ipcMain.handle('show-save-dashboard', async (_event, { content } = {}) => {

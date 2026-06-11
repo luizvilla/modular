@@ -85,6 +85,10 @@ const api = {
         onProgress: (cb) => on('flash-progress', cb),
         onComplete: (cb) => on('flash-complete', cb)
     },
+    headers: {
+        save: (labels) => ipcRenderer.invoke('headers-save', { labels }),
+        load: () => ipcRenderer.invoke('headers-load')
+    },
     serial: {
         listPorts: () => ipcRenderer.invoke('get-serial-ports'),
         openPort: (payload) => ipcRenderer.invoke('open-serial-port', payload),
