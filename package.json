@@ -1,6 +1,6 @@
 {
   "name": "modular",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "",
   "main": "app/main.js",
   "scripts": {
@@ -31,7 +31,8 @@
     "luxon": "^3.6.1",
     "monaco-editor": "^0.55.1",
     "raphael": "^2.3.0",
-    "serialport": "^13.0.0"
+    "serialport": "^13.0.0",
+    "usb": "^3.0.0"
   },
   "optionalDependencies": {
     "socketcan": "^2.9.0"

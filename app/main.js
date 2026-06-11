@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, nativeTheme, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
+const { usb: usbInstance } = require('usb');
 const fs = require('fs');
 const { flashFirmware, cancelFlash } = require('./flasher');
 const { spawn, spawnSync } = require('child_process');
@@ -3111,6 +3112,44 @@ async function sendIdleToAllPorts() {
     ]);
 }
 
+// Reset USB devices for all currently-open serial ports.
+// Uses SerialPort.list() to resolve VID/PID, then calls the WebUSB reset()
+// method (open → reset → close).  Caps at 2 s so a failed reset never
+// blocks shutdown.  Works cross-platform via libusb (Linux, macOS, Windows).
+async function resetUsbForOpenPorts() {
+    if (openPorts.size === 0) return;
+    let allPorts;
+    try {
+        allPorts = await SerialPort.list();
+    } catch (e) {
+        console.error('USB reset: could not list ports:', e);
+        return;
+    }
+    const resets = [];
+    for (const [portPath] of openPorts) {
+        const info = allPorts.find(p => p.path === portPath);
+        if (!info || !info.vendorId || !info.productId) continue;
+        const vid = parseInt(info.vendorId, 16);
+        const pid = parseInt(info.productId, 16);
+        resets.push((async () => {
+            try {
+                const device = await usbInstance.findDeviceByIds(vid, pid);
+                if (!device) return;
+                await device.open();
+                await device.reset();
+                await device.close();
+                console.log(`USB reset OK: ${portPath} (${info.vendorId}:${info.productId})`);
+            } catch (e) {
+                console.error(`USB reset failed for ${portPath}:`, e.message);
+            }
+        })());
+    }
+    await Promise.race([
+        Promise.all(resets),
+        new Promise(resolve => setTimeout(resolve, 2000))
+    ]);
+}
+
 let _safetyShutdownDone = false;
 app.on('before-quit', async (event) => {
     cancelRunningFirmwareBuild('app-quit');
@@ -3121,6 +3160,11 @@ app.on('before-quit', async (event) => {
         await sendIdleToAllPorts();
     } catch (e) {
         console.error('Safety shutdown failed:', e);
+    }
+    try {
+        await resetUsbForOpenPorts();
+    } catch (e) {
+        console.error('USB reset failed:', e);
     }
     app.quit();
 });
