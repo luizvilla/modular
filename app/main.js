@@ -3087,8 +3087,39 @@ ipcMain.handle('load-dashboard-from-path', async (_event, { dashboardPath } = {}
 });
 
 app.whenReady().then(createWindow);
-app.on('before-quit', () => {
+// Send IDLE command to every open serial port so no board is left running
+// unattended after the app closes.
+async function sendIdleToAllPorts() {
+    const IDLE_CMD = 'd_i\r\n';
+    const writes = [];
+    for (const [, port] of openPorts) {
+        if (!port || !port.isOpen) continue;
+        writes.push(new Promise(resolve => {
+            port.write(IDLE_CMD, err => {
+                if (err) { resolve(); return; }
+                port.drain(() => resolve());
+            });
+        }));
+    }
+    // Cap the wait at 1 second so a dead port never blocks the shutdown.
+    await Promise.race([
+        Promise.all(writes),
+        new Promise(resolve => setTimeout(resolve, 1000))
+    ]);
+}
+
+let _safetyShutdownDone = false;
+app.on('before-quit', async (event) => {
     cancelRunningFirmwareBuild('app-quit');
+    if (_safetyShutdownDone) return;
+    event.preventDefault();
+    _safetyShutdownDone = true;
+    try {
+        await sendIdleToAllPorts();
+    } catch (e) {
+        console.error('Safety shutdown failed:', e);
+    }
+    app.quit();
 });
 
 // 🔌 List serial ports
