@@ -2489,6 +2489,7 @@ function resolveMcumgrPath(userPath) {
 const activeRecordings = new Map(); // Active CSV recordings mapped by port path
 const openPorts = new Map(); // key: path, value: SerialPort instance
 extensionSharedContext.openPorts = openPorts;
+const safetyCommands = new Map(); // key: path, value: command string to send on shutdown
 // Track ports that should not be opened (e.g., during flashing).
 const serialLocks = new Map(); // key: path, value: { reason, until }
 // Persist last-known serial settings per port so we can auto-reopen later.
@@ -3087,15 +3088,17 @@ ipcMain.handle('load-dashboard-from-path', async (_event, { dashboardPath } = {}
 });
 
 app.whenReady().then(createWindow);
-// Send IDLE command to every open serial port so no board is left running
-// unattended after the app closes.
+// Send each port's registered shutdown command so boards are not left running
+// unattended after the app closes.  Ports with no registered command are skipped.
 async function sendIdleToAllPorts() {
-    const IDLE_CMD = 'd_i\r\n';
     const writes = [];
-    for (const [, port] of openPorts) {
+    for (const [path, port] of openPorts) {
         if (!port || !port.isOpen) continue;
+        const cmd = safetyCommands.get(path);
+        if (!cmd) continue;
+        const fullCmd = cmd + '\r\n';
         writes.push(new Promise(resolve => {
-            port.write(IDLE_CMD, err => {
+            port.write(fullCmd, err => {
                 if (err) { resolve(); return; }
                 port.drain(() => resolve());
             });
@@ -3244,6 +3247,7 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
         port.on("close", () => {
                         console.log(`🔌 Serial port ${path} closed.`);
                         openPorts.delete(path);
+                        safetyCommands.delete(path);
                         terminalBuffers.delete(path);
                         serialBuffers.delete(path);
                         for (const key of [...headerBuffers.keys()]) {
@@ -3310,6 +3314,13 @@ ipcMain.handle('get-serial-headers', (_event, { path, type = 'serialport_datasou
 ipcMain.handle('set-serial-headers', (_event, { path, headers, type = 'serialport_datasource' }) => {
     if (!Array.isArray(headers)) headers = [];
     headerBuffers.set(dsKey(path, type), headers);
+    return 'ok';
+});
+
+// 🛑 Register/clear the command sent to a board when the app quits.
+ipcMain.handle('register-safety-command', (_event, { path, command }) => {
+    if (path && command && command.trim()) safetyCommands.set(path, command.trim());
+    else if (path) safetyCommands.delete(path);
     return 'ok';
 });
 

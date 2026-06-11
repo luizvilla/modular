@@ -122,6 +122,23 @@
                         }
                 }
 
+        async function registerShutdownCommand() {
+                        if (!currentSettings.portPath) return;
+                        const cmd = (currentSettings.shutdownCommand || '').trim();
+                        try {
+                                if (serialApi && serialApi.registerSafetyCommand) {
+                                        await serialApi.registerSafetyCommand(currentSettings.portPath, cmd || null);
+                                } else if (ipcRenderer) {
+                                        await ipcRenderer.invoke('register-safety-command', {
+                                                path: currentSettings.portPath,
+                                                command: cmd
+                                        });
+                                }
+                        } catch (e) {
+                                console.error('Failed to register shutdown command:', e);
+                        }
+                }
+
 	async function openPort() {
                         if (isPaused()) return;
 			try {
@@ -136,6 +153,7 @@
 				console.error("Open serial failed:", e.message);
 			}
                         await pushDataHeaders();
+                        await registerShutdownCommand();
 		}
 
                 async function syncPortState(portOptions) {
@@ -279,6 +297,13 @@ freeboard.loadDatasourcePlugin({
                                 display_name: "End of Line",
                                 type: "text",
                                 default_value: "\\r\\n"
+                        },
+                        {
+                                name: "shutdownCommand",
+                                display_name: "Shutdown Command",
+                                description: "Sent to the board when Modular closes (e.g. d_i or i). Leave blank to skip.",
+                                type: "text",
+                                default_value: ""
                         },
                         {
                                 name: "dataHeaders",

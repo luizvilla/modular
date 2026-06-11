@@ -107,6 +107,7 @@ const api = {
         getColors: (path, type) => ipcRenderer.invoke('get-serial-colors', { path, type }),
         setColors: (path, colors, type) => ipcRenderer.invoke('set-serial-colors', { path, colors, type }),
         flush: (path) => ipcRenderer.invoke('flush-serial-buffers', { path }),
+        registerSafetyCommand: (path, command) => ipcRenderer.invoke('register-safety-command', { path, command }),
         startCsvRecord: (payload) => ipcRenderer.invoke('start-csv-record', payload),
         stopCsvRecord: (path) => ipcRenderer.invoke('stop-csv-record', { path }),
         saveFastCsv: (payload) => ipcRenderer.invoke('save-fast-csv', payload)
