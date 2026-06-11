@@ -205,11 +205,17 @@
             const trigger = $('<button class="btn btn-outline-warning btn-sm">Trigger</button>');
             const acquire = $('<button class="btn btn-outline-info btn-sm">Acquire</button>');
             const ripple = $('<button class="btn btn-outline-secondary btn-sm">Ripple Acq.</button>');
+            const periodsLabel = $('<label class="small text-muted mb-0 align-self-center">Periods:</label>');
+            const periodsInput = $('<input type="number" class="form-control form-control-sm" min="1" max="32" value="1" style="width:4.5rem">')
             const status = $('<div class="small text-muted">—</div>');
-            row.append(trigger, acquire, ripple);
+            row.append(trigger, acquire, ripple, periodsLabel, periodsInput);
 
             trigger.on('click', () => this._send(protocol.cmdScopeTrigger()));
             ripple.on('click', () => this._send(protocol.cmdRippleAcquire()));
+            periodsInput.on('change', () => {
+                const n = parseInt(periodsInput.val(), 10);
+                if (n >= 1 && n <= 32) this._send(protocol.cmdRippleSetPeriods(n));
+            });
 
             acquire.on('click', async () => {
                 const portPath = this._getPortPath();

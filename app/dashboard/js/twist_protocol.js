@@ -137,6 +137,12 @@
     return 'o_p';
   }
 
+  function cmdRippleSetPeriods(n) {
+    const num = Math.max(1, Math.min(32, Math.round(Number(n))));
+    if (!Number.isFinite(num)) throw new Error('Invalid ripple period count');
+    return `o_n_${num}`;
+  }
+
   function cmdCalibrate(variable, gain, offset, deviceType) {
     const varId = normalizeVariable(variable, deviceType);
     return `k_${varId}_g_${formatFixed(gain, 8)}_o_${formatFixed(offset, 8)}`;
@@ -155,6 +161,7 @@
     cmdScopeTrigger,
     cmdScopeAcquire,
     cmdRippleAcquire,
+    cmdRippleSetPeriods,
     cmdReference,
     cmdDuty,
     cmdPhaseShift,
