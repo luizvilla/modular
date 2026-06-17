@@ -160,7 +160,8 @@ const api = {
         log: (level, args) => ipcRenderer.send('renderer-log', { level, args })
     },
     diagnostics: {
-        captureSnapshot: () => ipcRenderer.invoke('diagnostics-capture-snapshot')
+        captureSnapshot: () => ipcRenderer.invoke('diagnostics-capture-snapshot'),
+        perfLogSnapshot: () => ipcRenderer.invoke('perf-log-snapshot')
     },
     theme: {
         setTheme: (theme) => ipcRenderer.send('set-theme', theme)
@@ -364,6 +365,7 @@ if (isMock) {
             openExternal: async () => ({ ok: true })
         };
         api.diagnostics = {
+            perfLogSnapshot: async () => ({ mock: true }),
             captureSnapshot: async () => ({
                 timestamp: Date.now(),
                 process: {

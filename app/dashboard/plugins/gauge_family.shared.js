@@ -634,10 +634,13 @@
             this.bodyEl = $('<div class="gauge-family__body"></div>');
             this.valueEl = $('<div class="gauge-family__value"></div>');
             this.timer = null;
+            this._dsSubscription = null;
             this.currentValue = null;
             this._rawValue = null;
             this._runtimeOffset = 0;
             this._summaryRequestId = 0;
+            this._rafId = null;
+            this._pendingRenderValue = null;
             this.renderer = RENDERERS[this.family] || RENDERERS.vertical;
             this.normalizedSettings = normalizeSettings(type, settings);
             this._built = false;
@@ -687,10 +690,9 @@
         }
 
         onDispose() {
-            if (this.timer) {
-                clearInterval(this.timer);
-                this.timer = null;
-            }
+            if (this.timer) { clearInterval(this.timer); this.timer = null; }
+            if (this._dsSubscription) { this._dsSubscription.dispose(); this._dsSubscription = null; }
+            if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
         }
 
         getHeight() {
@@ -735,12 +737,56 @@
         }
 
         _restartTimer() {
-            if (this.timer) {
-                clearInterval(this.timer);
-                this.timer = null;
+            // Tear down whatever was running before.
+            if (this.timer) { clearInterval(this.timer); this.timer = null; }
+            if (this._dsSubscription) { this._dsSubscription.dispose(); this._dsSubscription = null; }
+
+            const sourceDef = this._getSourceDef();
+            const op = this.normalizedSettings.sourceOp || 'identity';
+
+            // For a single-source serialport_datasource we subscribe to Freeboard's KO
+            // observable so the gauge updates exactly when the datasource fires updateCallback —
+            // no independent IPC polling, no timer drift.
+            if (sourceDef?.ds && sourceDef.type === 'serialport_datasource' && op !== 'mulvar') {
+                this._subscribeToSerialDatasource(sourceDef);
+            } else {
+                // All other types (CAN, fast_frame, signal_generator, mulvar) keep polling.
+                this.timer = setInterval(() => this._pollOnce(), this.normalizedSettings.refreshRate);
+                this._pollOnce();
             }
+        }
+
+        _subscribeToSerialDatasource(sourceDef) {
+            try {
+                const live = typeof freeboard !== 'undefined' && freeboard.getLiveModel
+                    ? freeboard.getLiveModel() : null;
+                const dsModel = live?.datasources().find(d => {
+                    try { return d.name() === sourceDef.ds; } catch { return false; }
+                });
+                if (dsModel?.latestData) {
+                    this._dsSubscription = dsModel.latestData.subscribe(data => {
+                        this._applyDatasourceData(data, sourceDef);
+                    });
+                    // Apply current data immediately if the datasource already has a value.
+                    const cur = dsModel.latestData();
+                    if (cur) this._applyDatasourceData(cur, sourceDef);
+                    return;
+                }
+            } catch {}
+            // Datasource not in model yet (dashboard still loading) — fall back to polling.
             this.timer = setInterval(() => this._pollOnce(), this.normalizedSettings.refreshRate);
             this._pollOnce();
+        }
+
+        _applyDatasourceData(data, sourceDef) {
+            try {
+                const idx = Number(sourceDef.var);
+                const raw = data ? Number(data[`y${idx + 1}`]) : null;
+                if (raw == null || !Number.isFinite(raw)) return;
+                const op = this.normalizedSettings.sourceOp || 'identity';
+                const value = this._applySourceOp(op, this.normalizedSettings.sourceParam, raw);
+                if (value != null && Number.isFinite(value)) this._updateValue(value);
+            } catch {}
         }
 
         async _pollOnce() {
@@ -783,16 +829,35 @@
         _updateValue(value) {
             this._rawValue = value;
             const adjusted = value + this._runtimeOffset;
+            const prev = this.currentValue;
             this.currentValue = adjusted;
-            this.renderer.updateValue(this, adjusted);
-            this._applyValueDisplay(adjusted);
-            this._applyAlarmState(adjusted);
+            // Skip render entirely when value is unchanged — prevents SVG tile rasterization churn.
+            // Chrome re-rasterizes SVG tiles on every attribute mutation even if the path/coords
+            // are identical, which causes the renderer process to accumulate GBs of tile cache.
+            if (prev !== null && adjusted === prev) return;
+            this._scheduleRender(adjusted);
+        }
+
+        _scheduleRender(value) {
+            this._pendingRenderValue = value;
+            if (this._rafId) return; // already scheduled
+            this._rafId = requestAnimationFrame(() => {
+                this._rafId = null;
+                const v = this._pendingRenderValue;
+                this.renderer.updateValue(this, v);
+                this._applyValueDisplay(v);
+                this._applyAlarmState(v);
+            });
         }
 
         _onOffsetChanged() {
             const v = this._runtimeOffset;
             this.offsetValueEl.text(v === 0 ? '0' : (v > 0 ? '+' : '') + (Math.round(v * 100) / 100));
-            if (this._rawValue != null) this._updateValue(this._rawValue);
+            // Force a render even if the adjusted value happens to equal the previous one.
+            if (this._rawValue != null) {
+                this.currentValue = null; // clear so _updateValue doesn't skip
+                this._updateValue(this._rawValue);
+            }
         }
 
         _applyAlarmState(value) {

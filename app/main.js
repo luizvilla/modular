@@ -2474,6 +2474,61 @@ extensionSharedContext.emitActivity = emitActivity;
 // Allow renderer to query the current activity toggle state.
 ipcMain.handle('get-activity-enabled', () => ({ enabled: !!activityEnabled }));
 ipcMain.handle('diagnostics-capture-snapshot', async () => captureDiagnosticsSnapshot());
+ipcMain.handle('perf-log-snapshot', async () => {
+    const mem = process.memoryUsage();
+    const ipcSnapshot = Object.fromEntries(ipcCallCounts);
+    const inProgressAcq = [];
+    for (const [port, st] of fastStates) {
+        if (st.state === FAST_RECORD) inProgressAcq.push({ port, lines: st.data.length });
+    }
+    let rendererMem = null;
+    try {
+        const rendererPid = mainWindow?.webContents?.getOSProcessId?.();
+        if (rendererPid && typeof app.getAppMetrics === 'function') {
+            const metric = app.getAppMetrics().find(m => m.pid === rendererPid);
+            if (metric?.memory) {
+                rendererMem = { workingSetMB: (metric.memory.workingSetSize / 1024).toFixed(1), pid: rendererPid };
+            }
+        }
+    } catch (_) { /* ignore */ }
+    let rendererV8 = null;
+    try {
+        if (mainWindow?.webContents && !mainWindow.webContents.isDestroyed()) {
+            rendererV8 = await mainWindow.webContents.executeJavaScript(`
+                (function() {
+                    const m = performance.memory;
+                    if (!m) return null;
+                    return {
+                        usedMB: (m.usedJSHeapSize / 1e6).toFixed(1),
+                        totalMB: (m.totalJSHeapSize / 1e6).toFixed(1),
+                        limitMB: (m.jsHeapSizeLimit / 1e6).toFixed(1),
+                        domNodes: document.querySelectorAll('*').length
+                    };
+                })()
+            `);
+        }
+    } catch (_) { /* ignore */ }
+    const snap = {
+        uptimeSec: Math.round(process.uptime()),
+        mainProc: {
+            heapUsedMB: (mem.heapUsed / 1e6).toFixed(1),
+            heapTotalMB: (mem.heapTotal / 1e6).toFixed(1),
+            rssMB: (mem.rss / 1e6).toFixed(1),
+            externalMB: (mem.external / 1e6).toFixed(1),
+        },
+        renderer: { proc: rendererMem, v8: rendererV8 },
+        ipcCallsSinceStart: ipcSnapshot,
+        ports: {
+            open: openPorts.size,
+            serialBuffers: summarizeArrayMap(serialBuffers),
+            terminalBuffers: summarizeArrayMap(terminalBuffers),
+            rawBufferSizes: Object.fromEntries(rawBufferSizes),
+            inProgressAcquisitions: inProgressAcq,
+        },
+    };
+    console.log('[HEALTH/on-demand]', JSON.stringify(snap, null, 2));
+    return snap;
+});
 
 // Path to mcumgr binary, assumes it is bundled alongside the app in a tools folder
 const mcumgrBinary = process.platform === 'win32' ? 'mcumgr.exe'
@@ -2513,6 +2568,11 @@ const fastStates = new Map(); // key: path, value: state for fast frame parsing
 const fastBuffers = new Map(); // key: path, value: last parsed fast dataset
 const fastStatus = new Map(); // key: path, value: acquisition status metadata
 const fastAcquisitionSeq = new Map(); // key: path, value: monotonically increasing acquisition id
+
+// Instrumentation
+const ipcCallCounts = new Map(); // channel → call count since last health log
+const rawBufferSizes = new Map(); // port path → current rawBuffer byte length
+
 const FAST_IDLE = 0;
 const FAST_RECORD = 1;
 const MAX_BUFFER_SIZE = 1000;
@@ -2550,6 +2610,10 @@ function summarizeFastBuffers(map) {
 
 function summarizeMapEntries(map) {
     return { entries: map.size };
+}
+
+function trackIpcCall(channel) {
+    ipcCallCounts.set(channel, (ipcCallCounts.get(channel) || 0) + 1);
 }
 
 async function captureDiagnosticsSnapshot() {
@@ -2633,6 +2697,105 @@ async function captureDiagnosticsSnapshot() {
                 },
                 appMetrics
             };
+}
+
+function startHealthMonitor(intervalMs = 60_000) {
+    const { PerformanceObserver } = require('perf_hooks');
+    const gcEvents = [];
+    try {
+        const obs = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+                gcEvents.push({ kind: entry.detail?.kind, durationMs: Math.round(entry.duration) });
+                if (gcEvents.length > 30) gcEvents.shift();
+            }
+        });
+        obs.observe({ entryTypes: ['gc'] });
+    } catch (e) {
+        console.warn('[HEALTH] GC observer unavailable:', e.message);
+    }
+
+    // Detect event-loop blockage: measure how far each 1-second tick drifts.
+    let lagBaseline = Date.now();
+    const lagChecker = setInterval(() => {
+        const now = Date.now();
+        const lag = now - lagBaseline - 1000;
+        lagBaseline = now;
+        if (lag > 150) console.warn(`[HEALTH] Event-loop lag: ${lag}ms`);
+    }, 1000);
+    lagChecker.unref();
+
+    const healthTick = setInterval(async () => {
+        const mem = process.memoryUsage();
+
+        // Snapshot and reset IPC call counts
+        const ipcSnapshot = {};
+        for (const [ch, n] of ipcCallCounts) {
+            ipcSnapshot[ch] = n;
+            ipcCallCounts.set(ch, 0);
+        }
+
+        // In-progress fast acquisitions whose data[] array could grow unbounded
+        const inProgressAcq = [];
+        for (const [port, st] of fastStates) {
+            if (st.state === FAST_RECORD) inProgressAcq.push({ port, lines: st.data.length });
+        }
+
+        // Renderer OS-level memory: find the renderer process in app.getAppMetrics() by PID.
+        // workingSetSize (KB) is the reliable cross-platform field on Linux.
+        let rendererMem = null;
+        try {
+            const rendererPid = mainWindow?.webContents?.getOSProcessId?.();
+            if (rendererPid && typeof app.getAppMetrics === 'function') {
+                const metric = app.getAppMetrics().find(m => m.pid === rendererPid);
+                if (metric?.memory) {
+                    rendererMem = {
+                        workingSetMB: (metric.memory.workingSetSize / 1024).toFixed(1),
+                        pid: rendererPid,
+                    };
+                }
+            }
+        } catch (_) { /* ignore */ }
+
+        // Renderer V8 JS heap via executeJavaScript (gives usedJSHeapSize / totalJSHeapSize)
+        let rendererV8 = null;
+        try {
+            if (mainWindow?.webContents && !mainWindow.webContents.isDestroyed()) {
+                rendererV8 = await mainWindow.webContents.executeJavaScript(`
+                    (function() {
+                        const m = performance.memory;
+                        if (!m) return null;
+                        return {
+                            usedMB: (m.usedJSHeapSize / 1e6).toFixed(1),
+                            totalMB: (m.totalJSHeapSize / 1e6).toFixed(1),
+                            limitMB: (m.jsHeapSizeLimit / 1e6).toFixed(1),
+                            domNodes: document.querySelectorAll('*').length
+                        };
+                    })()
+                `);
+            }
+        } catch (_) { /* ignore */ }
+
+        console.log('[HEALTH]', JSON.stringify({
+            uptimeSec: Math.round(process.uptime()),
+            mainProc: {
+                heapUsedMB: (mem.heapUsed / 1e6).toFixed(1),
+                heapTotalMB: (mem.heapTotal / 1e6).toFixed(1),
+                rssMB: (mem.rss / 1e6).toFixed(1),
+                externalMB: (mem.external / 1e6).toFixed(1),
+            },
+            renderer: { proc: rendererMem, v8: rendererV8 },
+            ipcCallsLastCycle: ipcSnapshot,
+            ports: {
+                open: openPorts.size,
+                serialBuffers: summarizeArrayMap(serialBuffers),
+                terminalBuffers: summarizeArrayMap(terminalBuffers),
+                rawBufferSizes: Object.fromEntries(rawBufferSizes),
+                inProgressAcquisitions: inProgressAcq,
+            },
+            gcRecentEvents: gcEvents.slice(-5),
+        }));
+    }, intervalMs);
+    healthTick.unref();
 }
 
 function decodeEolToken(token) {
@@ -2833,6 +2996,7 @@ function createWindow() {
         mainWindow.on('closed', () => {
                 mainWindow = null;
         });
+        startHealthMonitor(60_000);
 }
 
 function normalizeDocRequest(kindOrPayload, id) {
@@ -3278,6 +3442,7 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                         rawBuffer += chunk.toString();
                         const lines = rawBuffer.split(parser.eol);
                         rawBuffer = lines.pop(); // keep the last (possibly incomplete) line
+                        rawBufferSizes.set(path, rawBuffer.length);
                         const termBuf = terminalBuffers.get(path) || [];
                         for (const line of lines) {
                                         const parsed = parseLine(line, parser.separator);
@@ -3309,6 +3474,7 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                         fastBuffers.delete(path);
                         fastStatus.delete(path);
                         parserSettings.delete(path);
+                        rawBufferSizes.delete(path);
                         emitActivity({ id: 'serial:close', title: path, state: 'done', label: 'Serial closed' });
         });
 
@@ -3321,11 +3487,13 @@ ipcMain.handle("open-serial-port", async (_event, payload) => {
 
 // 📥 Renderer pulls latest parsed data
 ipcMain.handle("get-serial-buffer", (event, { path }) => {
+        trackIpcCall('get-serial-buffer');
         const buf = serialBuffers.get(path) || [];
         return buf.length > 0 ? buf[buf.length - 1] : [];
 });
 
 ipcMain.handle('get-fast-dataset', (event, { path }) => {
+    trackIpcCall('get-fast-dataset');
     return fastBuffers.get(path) || null;
 });
 
@@ -3340,6 +3508,7 @@ ipcMain.handle('enable-fast-capture', (_event, { path }) => {
 });
 
 ipcMain.handle('get-fast-frame-status', (_event, { path }) => {
+    trackIpcCall('get-fast-frame-status');
     return fastStatus.get(path) || {
         state: 'idle',
         message: 'No acquisition yet',
@@ -3352,11 +3521,13 @@ ipcMain.handle('get-fast-frame-status', (_event, { path }) => {
 
 // 📄 Get terminal lines for a port
 ipcMain.handle("get-terminal-buffer", (event, { path }) => {
+        trackIpcCall('get-terminal-buffer');
         return terminalBuffers.get(path) || [];
 });
 
 // 🏷️ Get/set headers for a port
 ipcMain.handle('get-serial-headers', (_event, { path, type = 'serialport_datasource' }) => {
+    trackIpcCall('get-serial-headers');
     return headerBuffers.get(dsKey(path, type)) || [];
 });
 
@@ -3375,6 +3546,7 @@ ipcMain.handle('register-safety-command', (_event, { path, command }) => {
 
 // 🎨 Get/set colors for a port
 ipcMain.handle('get-serial-colors', (_event, { path, type = 'serialport_datasource' }) => {
+    trackIpcCall('get-serial-colors');
     return colorBuffers.get(dsKey(path, type)) || [];
 });
 
