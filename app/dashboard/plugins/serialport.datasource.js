@@ -246,6 +246,32 @@
                         syncPortState(portOptions);
                 };
 
+                // Sends the configured idle/shutdown command (if any), then reboots
+                // the MCU for real via mcumgr (see reset-device in main.js) — a true
+                // hardware reset, not just an app-level idle command. No-ops if the
+                // port isn't currently open.
+                this.resetDevice = async function () {
+                        const path = currentSettings.portPath;
+                        const cmd = (currentSettings.shutdownCommand || '').trim();
+                        if (!path) return;
+                        try {
+                                const open = await isSerialPortOpen(path).catch(() => false);
+                                if (!open) {
+                                        logSerial('warn', `Reset device skipped — port ${path} is not open.`);
+                                        return;
+                                }
+                                logSerial('log', `Resetting ${path}${cmd ? ` (idle command "${cmd}" first)` : ''}...`);
+                                if (serialApi && serialApi.resetDevice) {
+                                        await serialApi.resetDevice(path, cmd);
+                                } else if (ipcRenderer) {
+                                        await ipcRenderer.invoke('reset-device', { path, idleCommand: cmd });
+                                }
+                                logSerial('log', `Reset command sequence complete for ${path}.`);
+                        } catch (e) {
+                                logSerial('error', `Failed to reset ${path}:`, e.message || e);
+                        }
+                };
+
 		this.onDispose = function () {
 			stopTimer();
                         instances.delete(self);

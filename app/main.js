@@ -3964,6 +3964,88 @@ ipcMain.handle('choose-firmware-file', async () => {
     return filePaths[0];
 });
 
+// Reboots the MCU for real via mcumgr's SMP transport over serial — the
+// same mechanism already used to reset the board after a firmware flash.
+// Kept independent of flasher.js's process/cancel state so a device reset
+// can't be killed by a concurrent "cancel flash" (or vice versa).
+function resetDeviceViaMcumgr(comPort) {
+    const mcumgrPath = resolveMcumgrPath();
+    const runStep = (args) => new Promise((resolve, reject) => {
+        const proc = spawn(mcumgrPath, args);
+        let stderr = '';
+        proc.on('error', reject);
+        proc.stdout.on('data', d => serialLog('log', comPort, 'mcumgr', d.toString().trim()));
+        proc.stderr.on('data', d => {
+            stderr += d.toString();
+            serialLog('warn', comPort, 'mcumgr', d.toString().trim());
+        });
+        proc.on('close', code => {
+            if (code !== 0) {
+                reject(new Error(`mcumgr ${args.join(' ')} failed (exit ${code})${stderr ? ': ' + stderr.trim() : ''}`));
+            } else {
+                resolve();
+            }
+        });
+    });
+
+    return runStep(['conn', 'add', 'serial', 'type=serial', `connstring=dev=${comPort},baud=115200,mtu=128`])
+        .then(() => runStep(['-c', 'serial', 'reset']));
+}
+
+// 🔄 Reset a board for real: optionally send its configured idle command
+// first (graceful stop), then reboot the MCU via mcumgr. Requires exclusive
+// access to the port, so the datasource's connection is closed for the
+// duration — the renderer's own port-list polling reopens it once the
+// device re-enumerates after reboot (same as after a firmware flash).
+ipcMain.handle('reset-device', async (_event, { path, idleCommand } = {}) => {
+    if (!path) throw new Error('path required');
+    if (isSerialLocked(path)) {
+        const lock = serialLocks.get(path);
+        throw new Error(`Port is locked (${lock && lock.reason ? lock.reason : 'locked'})`);
+    }
+    const port = openPorts.get(path);
+    if (!port || !port.isOpen) {
+        throw new Error('Port is not open');
+    }
+
+    const cmd = (idleCommand || '').trim();
+    serialLog('log', path, 'reset device requested', cmd ? `idle command="${cmd}"` : '(no idle command configured)');
+    emitActivity({ id: 'serial:reset', title: path, state: 'start', label: 'Reset device' });
+    lockSerialPort(path, 'reset', 20000);
+
+    try {
+        if (cmd) {
+            await new Promise((resolve, reject) => {
+                port.write(cmd + '\r\n', err => {
+                    if (err) return reject(err);
+                    port.drain(drainErr => drainErr ? reject(drainErr) : resolve());
+                });
+            });
+            // Give the firmware a moment to act on the idle command before the
+            // port is yanked out from under it for the reboot.
+            await new Promise(resolve => setTimeout(resolve, 400));
+        }
+
+        explicitCloses.add(path);
+        await new Promise(resolve => port.close(() => resolve()));
+
+        await resetDeviceViaMcumgr(path);
+        // Give the board a moment to actually reboot and re-enumerate over USB
+        // before the lock lifts, so the first reopen attempt isn't wasted.
+        await new Promise(resolve => setTimeout(resolve, 800));
+        serialLog('log', path, 'mcumgr reset succeeded — board is rebooting');
+        emitActivity({ id: 'serial:reset', title: path, state: 'done', label: 'Reset device complete' });
+    } catch (err) {
+        serialLog('error', path, 'reset device failed', describeError(err));
+        emitActivity({ id: 'serial:reset', title: path, state: 'error', label: 'Reset device', detail: err.message });
+        throw err;
+    } finally {
+        unlockSerialPort(path);
+    }
+
+    return { ok: true };
+});
+
 // 🔥 Flash firmware to a board over serial
 ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath: userPath }) => {
     const flashId = ++activeFlashId;

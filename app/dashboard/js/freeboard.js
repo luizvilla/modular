@@ -24,15 +24,6 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 		var paused = !!(newValue && newValue.paused);
 		self.isPaused(paused);
 	}
-	this.settings.subscribe(function(newValue)
-	{
-		syncPausedFromSettings(newValue);
-		if(!_.isUndefined(self.datasourceInstance) && _.isFunction(self.datasourceInstance.onSettingsChanged))
-		{
-			self.datasourceInstance.onSettingsChanged(newValue);
-		}
-	});
-
 	this.updateCallback = function(newData)
 	{
 		// Skip updates while paused to keep widgets static and avoid port contention.
@@ -86,6 +77,41 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 		var plugin = datasourcePlugins[t];
 		return (plugin && plugin.display_name) || t;
 	});
+
+	function currentSettingDefs() {
+		var t = self.type();
+		var plugin = t ? datasourcePlugins[t] : null;
+		return (plugin && Array.isArray(plugin.settings)) ? plugin.settings : [];
+	}
+
+	// True for datasources backed by a serial-style port (they declare a
+	// "portPath" setting) — these get the Open/Close Port + Reset Device
+	// buttons instead of the generic Pause/Resume wording.
+	this.isPortBased = ko.computed(function() {
+		return currentSettingDefs().some(function(d) { return d.name === 'portPath'; });
+	});
+
+	// True when the plugin declares a "shutdownCommand" setting at all
+	// (only serial datasources do today) — controls whether the Reset
+	// Device button is shown.
+	this.supportsResetCommand = ko.computed(function() {
+		return currentSettingDefs().some(function(d) { return d.name === 'shutdownCommand'; });
+	});
+
+	// True when the user has actually filled in a shutdown command —
+	// controls whether the Reset Device button is enabled.
+	this.hasResetCommandConfigured = ko.computed(function() {
+		var s = self.settings() || {};
+		return !!(s.shutdownCommand && String(s.shutdownCommand).trim());
+	});
+
+	// Delegates to the plugin instance's own resetDevice(), if it has one.
+	this.resetDevice = function() {
+		if (!_.isUndefined(self.datasourceInstance) && _.isFunction(self.datasourceInstance.resetDevice))
+		{
+			self.datasourceInstance.resetDevice();
+		}
+	};
 
 	this._editableName   = ko.observable('');
 	this._editableFields = ko.observableArray([]);

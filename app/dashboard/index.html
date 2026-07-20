@@ -264,10 +264,14 @@
                 <p class="detail-empty">Select a datasource to view its settings.</p>
                 <!-- /ko -->
                 <!-- ko with: selectedDatasource -->
+                <!-- Fields apply themselves as soon as you leave them (or flip a
+                     checkbox/dropdown) — no separate Save step. The submit binding
+                     stays wired for Enter-to-commit and the channel header editor,
+                     which triggers a native form submit internally. -->
                 <form class="detail-form" data-bind="submit: saveInlineSettings">
                     <div class="detail-field">
                         <label class="detail-label">Name</label>
-                        <input class="detail-input" type="text" data-bind="value: _editableName, valueUpdate: 'input'" placeholder="Datasource name">
+                        <input class="detail-input" type="text" title="Applies when you leave this field" data-bind="value: _editableName, valueUpdate: 'input', event: { change: saveInlineSettings }" placeholder="Datasource name">
                     </div>
                     <div class="detail-field">
                         <label class="detail-label">Type</label>
@@ -277,27 +281,51 @@
                     <div class="detail-field">
                         <label class="detail-label" data-bind="text: def.display_name || def.name, attr: { title: def.description || '' }"></label>
                         <!-- ko if: def.type === 'boolean' -->
-                        <input type="checkbox" data-bind="checked: value">
+                        <input type="checkbox" title="Applies immediately" data-bind="checked: value, event: { change: $parent.saveInlineSettings }">
                         <!-- /ko -->
                         <!-- ko if: def.type === 'option' -->
-                        <select class="detail-select" data-bind="value: value, options: options, optionsText: 'display', optionsValue: 'value'"></select>
+                        <select class="detail-select" title="Applies immediately" data-bind="value: value, options: options, optionsText: 'display', optionsValue: 'value', event: { change: $parent.saveInlineSettings }"></select>
                         <!-- /ko -->
                         <!-- ko if: def.type === 'channel_map' -->
                         <div data-bind="channelMapEditor: { value: value, count: def.channelCount || 8, dsName: $parent.name(), dsType: $parent.type(), lastUpdated: $parent.last_updated }"></div>
                         <!-- /ko -->
                         <!-- ko if: def.type !== 'boolean' && def.type !== 'option' && def.type !== 'channel_map' -->
-                        <input class="detail-input" data-bind="value: value, valueUpdate: 'input', attr: { type: def.type === 'number' ? 'number' : 'text', placeholder: def.placeholder || '' }">
+                        <input class="detail-input" title="Applies when you leave this field" data-bind="value: value, valueUpdate: 'input', attr: { type: def.type === 'number' ? 'number' : 'text', placeholder: def.placeholder || '' }, event: { change: $parent.saveInlineSettings }">
                         <!-- /ko -->
                     </div>
                     <!-- /ko -->
                     <div class="detail-actions">
-                        <button type="submit" class="detail-btn primary">Save</button>
-                        <button type="button" class="detail-btn" data-bind="click: buildEditableFields">Reset</button>
-                        <button type="button" class="detail-btn" data-bind="click: updateNow" title="Refresh now">Refresh</button>
-                        <button type="button" class="detail-btn" data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume' : 'Pause' }">
+                        <!-- ko if: isPortBased -->
+                        <div class="port-toggle-row">
+                            <button type="button" class="port-toggle" role="switch"
+                                    data-bind="click: togglePause,
+                                               css: { 'is-open': !isPaused() },
+                                               attr: { 'aria-checked': !isPaused(), title: isPaused() ? 'Port is closed — click to open the serial connection' : 'Port is open — click to close the serial connection' }">
+                                <span class="port-toggle-thumb"></span>
+                            </button>
+                            <span class="port-toggle-label" data-bind="text: isPaused() ? 'Port Closed' : 'Port Open', css: { 'is-open': !isPaused() }"></span>
+                        </div>
+                        <!-- /ko -->
+                        <!-- ko ifnot: isPortBased -->
+                        <button type="button" class="detail-btn" data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume updates' : 'Pause updates' }">
                             <!-- ko if: isPaused() -->Resume<!-- /ko --><!-- ko ifnot: isPaused() -->Pause<!-- /ko -->
                         </button>
-                        <button type="button" class="detail-btn danger" data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}">Delete</button>
+                        <!-- /ko -->
+
+                        <!-- ko if: supportsResetCommand -->
+                        <button type="button" class="detail-btn"
+                                data-bind="click: resetDevice,
+                                           enable: hasResetCommandConfigured() && !isPaused(),
+                                           attr: { title: !hasResetCommandConfigured() ? 'Set a shutdown command above to enable this' : (isPaused() ? 'Open the port first to send the reset command' : 'Send the configured shutdown command to fully reset the board') }">
+                            Reset Device
+                        </button>
+                        <!-- /ko -->
+
+                        <button type="button" class="detail-btn" data-bind="click: updateNow, attr: { title: isPortBased() ? 'Force an immediate read of the serial buffer' : 'Force an immediate update' }">
+                            <!-- ko if: isPortBased -->Refresh Buffer<!-- /ko --><!-- ko ifnot: isPortBased -->Refresh<!-- /ko -->
+                        </button>
+
+                        <button type="button" class="detail-btn danger" data-bind="pluginEditor: {operation: 'delete', type: 'datasource'}" title="Delete this datasource">Delete</button>
                     </div>
                     <div class="detail-status">
                         Last updated: <span data-bind="text: last_updated"></span>

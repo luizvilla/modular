@@ -97,6 +97,7 @@ const api = {
         releasePort: (payload) => ipcRenderer.invoke('release-serial-port', payload),
         isOpen: (path) => ipcRenderer.invoke('is-serial-port-open', { path }),
         write: (path, data) => ipcRenderer.invoke('write-serial-port', { path, data }),
+        resetDevice: (path, idleCommand) => ipcRenderer.invoke('reset-device', { path, idleCommand }),
         getBuffer: (path) => ipcRenderer.invoke('get-serial-buffer', { path }),
         getTerminalBuffer: (path) => ipcRenderer.invoke('get-terminal-buffer', { path }),
         getFastDataset: (path) => ipcRenderer.invoke('get-fast-dataset', { path }),
