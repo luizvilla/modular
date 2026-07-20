@@ -3,6 +3,21 @@
         const serialApi = api && api.serial ? api.serial : null;
         const ipcRenderer = !api && window.require ? window.require("electron")?.ipcRenderer : null;
 
+        // Mirror serial diagnostics to the main process so they show up in the
+        // terminal (VS Code integrated terminal / wherever `npm start` runs),
+        // not just the DevTools console.
+        function logSerial(level, ...args) {
+                if (level === 'error') console.error('[serial]', ...args);
+                else if (level === 'warn') console.warn('[serial]', ...args);
+                else console.log('[serial]', ...args);
+                const message = args.map(a => (a instanceof Error ? a.message : (typeof a === 'object' ? JSON.stringify(a) : String(a)))).join(' ');
+                if (api && api.logger && api.logger.log) {
+                        api.logger.log(level, [`[serial-datasource] ${message}`]);
+                } else if (ipcRenderer) {
+                        ipcRenderer.send('renderer-log', { level, args: [`[serial-datasource] ${message}`] });
+                }
+        }
+
         function formatPortLabel(port) {
             if (port === null || port === undefined) return '';
             if (typeof port === 'string') return port;
@@ -77,7 +92,7 @@
                                 }
                         });
                 } catch (e) {
-                        console.error('Failed to refresh serial ports', e);
+                        logSerial('error', 'Failed to refresh serial port list:', e.message || e);
                 }
         }
 
@@ -150,7 +165,7 @@
                                         type: 'serialport_datasource'
                                 });
 			} catch (e) {
-				console.error("Open serial failed:", e.message);
+				logSerial('error', `Open failed for ${currentSettings.portPath} @ ${currentSettings.baudRate}baud —`, e.message || e);
 			}
                         await pushDataHeaders();
                         await registerShutdownCommand();
@@ -166,11 +181,13 @@
                                 const isOpen = await isSerialPortOpen(path).catch(() => false);
                                 if (!portSet.has(path)) {
                                         if (isOpen) {
+                                                logSerial('warn', `Port ${path} vanished from the OS port list while open — device likely unplugged or lost power. Closing.`);
                                                 await closeSerialPort(path).catch(() => {});
                                         }
                                         return;
                                 }
                                 if (!isOpen) {
+                                        logSerial('warn', `Port ${path} is in the OS port list but not open in-app — attempting reopen.`);
                                         await openPort();
                                 }
                         })();
@@ -189,7 +206,7 @@
                                         latestData = data;
                                 }
                         } catch (err) {
-                                console.error("Failed to poll serial data:", err);
+                                logSerial('error', `Failed to poll serial data for ${currentSettings.portPath}:`, err.message || err);
                         }
                 }
 
@@ -234,9 +251,9 @@
                         instances.delete(self);
 			if (currentSettings.portPath) {
 				closeSerialPort(currentSettings.portPath).then(() => {
-					console.log("🔌 Serial port closed via IPC.");
+					logSerial('log', `Port ${currentSettings.portPath} closed via IPC (widget disposed).`);
 				}).catch(err => {
-					console.error("❌ Failed to close port:", err);
+					logSerial('error', `Failed to close port ${currentSettings.portPath}:`, err.message || err);
 				});
 			}
 		};

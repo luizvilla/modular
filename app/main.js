@@ -2601,6 +2601,39 @@ const fastAcquisitionSeq = new Map(); // key: path, value: monotonically increas
 const ipcCallCounts = new Map(); // channel → call count since last health log
 const rawBufferSizes = new Map(); // port path → current rawBuffer byte length
 
+// --- Serial diagnostics -----------------------------------------------
+// Verbose, timestamped logging for open/close/error/write events so
+// connection drops and open/write failures show up clearly in this
+// terminal while testing. Toggle off with SERIAL_DEBUG=0.
+const SERIAL_DEBUG = process.env.SERIAL_DEBUG !== '0';
+const portOpenedAt = new Map(); // path -> timestamp when the port successfully opened
+const explicitCloses = new Set(); // paths currently being closed intentionally (close/release/reopen)
+// Guards against two concurrent open-serial-port calls on the same path (e.g. two
+// datasource widget instances racing). Without this, the second call sees the first
+// port's not-yet-open handle, treats it as stale, and opens a second OS handle on the
+// same device — colliding with node-serialport's flock and leaving the first handle
+// leaked/locked until the device is physically unplugged.
+const openingPorts = new Map(); // path -> in-flight open Promise
+
+function serialLog(level, path, event, detail) {
+    if (!SERIAL_DEBUG) return;
+    const ts = new Date().toISOString();
+    const suffix = detail ? ` — ${detail}` : '';
+    const line = `[serial][${ts}] ${path || '(no path)'} :: ${event}${suffix}`;
+    if (level === 'error') console.error(line);
+    else if (level === 'warn') console.warn(line);
+    else console.log(line);
+}
+
+function describeError(err) {
+    if (!err) return '';
+    const parts = [err.message];
+    if (err.code) parts.push(`code=${err.code}`);
+    if (err.errno) parts.push(`errno=${err.errno}`);
+    if (err.syscall) parts.push(`syscall=${err.syscall}`);
+    return parts.join(' ');
+}
+
 const FAST_IDLE = 0;
 const FAST_RECORD = 1;
 const MAX_BUFFER_SIZE = 1000;
@@ -3388,10 +3421,27 @@ ipcMain.handle('get-serial-ports', async () => {
 
 
 // 🚪 Open serial port with tracking and buffer setup
-async function openSerialPortInternal({ path, baudRate, separator, eol, type = 'serialport_datasource' }) {
+async function openSerialPortInternal(opts) {
+        const { path } = opts || {};
         if (!path) {
                 throw new Error('Serial port path is required');
         }
+        const inFlight = openingPorts.get(path);
+        if (inFlight) {
+                serialLog('log', path, 'open requested while an open is already in flight — awaiting it instead of racing a second handle');
+                return inFlight;
+        }
+        const attempt = openSerialPortAttempt(opts);
+        openingPorts.set(path, attempt);
+        try {
+                return await attempt;
+        } finally {
+                if (openingPorts.get(path) === attempt) openingPorts.delete(path);
+        }
+}
+
+async function openSerialPortAttempt({ path, baudRate, separator, eol, type = 'serialport_datasource' }) {
+        serialLog('log', path, 'open requested', `baudRate=${baudRate} separator=${JSON.stringify(separator)} eol=${JSON.stringify(eol)} type=${type}`);
         emitActivity({ id: 'serial:open', title: path, state: 'start', label: 'Open serial port' });
         const decodedEol = decodeEolToken(eol);
         parserSettings.set(path, {
@@ -3401,7 +3451,9 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
         if (isSerialLocked(path)) {
                 const lock = serialLocks.get(path);
                 const reason = lock && lock.reason ? lock.reason : 'locked';
+                const remainingMs = lock && lock.until ? Math.max(0, lock.until - Date.now()) : null;
                 console.warn(`Port ${path} is locked (${reason}).`);
+                serialLog('warn', path, 'open blocked: port locked', `reason=${reason}${remainingMs !== null ? ` remainingMs=${remainingMs}` : ''}`);
                 emitActivity({ id: 'serial:open', title: path, state: 'error', label: 'Open serial port', detail: `locked (${reason})` });
                 return;
         }
@@ -3409,6 +3461,7 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                 const existing = openPorts.get(path);
                 if (existing && existing.isOpen) {
                         console.warn(`Port ${path} is already open.`);
+                        serialLog('warn', path, 'open skipped: already open');
                         // ensure buffers for this datasource type exist
                         const key = dsKey(path, type);
                         if (!headerBuffers.has(key)) headerBuffers.set(key, []);
@@ -3422,6 +3475,7 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                 // Stale entry: in the map but not open (failed open left it behind). Remove
                 // and fall through so a fresh open is attempted.
                 console.warn(`Port ${path} has a stale non-open entry — removing and retrying open.`);
+                serialLog('warn', path, 'stale port entry removed, retrying open');
                 openPorts.delete(path);
         }
 
@@ -3439,19 +3493,22 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
 		autoOpen: false
 	});
 
-        port.open(err => {
-                if (err) {
-                        console.error("Serial open error:", err.message);
-                        // Remove the stale map entry — openPorts.set() runs synchronously
-                        // below before this callback fires, so if open fails the map holds
-                        // a non-open port object that blocks every future open attempt.
-                        openPorts.delete(path);
-                        emitActivity({ id: 'serial:open', title: path, state: 'error', label: 'Open serial port', detail: err.message });
-                        return;
-                }
-                console.log("✅ Serial port opened:", path);
-                emitActivity({ id: 'serial:open', title: path, state: 'done', label: 'Serial opened' });
-        });
+        // Awaited (rather than fire-and-forget) so the openingPorts guard above covers
+        // the full duration of the OS-level open — otherwise this function would resolve
+        // before the callback fires and a concurrent call could sneak in and race it.
+        const openErr = await new Promise(resolve => port.open(resolve));
+        if (openErr) {
+                console.error("Serial open error:", openErr.message);
+                serialLog('error', path, 'open failed', describeError(openErr));
+                openPorts.delete(path);
+                portOpenedAt.delete(path);
+                emitActivity({ id: 'serial:open', title: path, state: 'error', label: 'Open serial port', detail: openErr.message });
+                return;
+        }
+        console.log("✅ Serial port opened:", path);
+        portOpenedAt.set(path, Date.now());
+        serialLog('log', path, 'open succeeded', `baudRate=${parseInt(baudRate)}`);
+        emitActivity({ id: 'serial:open', title: path, state: 'done', label: 'Serial opened' });
 
 	let rawBuffer = "";
 
@@ -3484,10 +3541,21 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
 
 	port.on("error", err => {
 		console.error("Serial port error:", err.message);
+		serialLog('error', path, 'runtime error', describeError(err));
 	});
 
         port.on("close", () => {
+                        const wasExplicit = explicitCloses.delete(path);
+                        const openedAt = portOpenedAt.get(path);
+                        const uptimeMs = openedAt ? Date.now() - openedAt : null;
                         console.log(`🔌 Serial port ${path} closed.`);
+                        serialLog(
+                            wasExplicit ? 'log' : 'warn',
+                            path,
+                            wasExplicit ? 'closed (requested)' : 'closed unexpectedly — device may have been unplugged or lost power',
+                            uptimeMs !== null ? `wasOpenForMs=${uptimeMs}` : undefined
+                        );
+                        portOpenedAt.delete(path);
                         openPorts.delete(path);
                         safetyCommands.delete(path);
                         terminalBuffers.delete(path);
@@ -3503,7 +3571,7 @@ async function openSerialPortInternal({ path, baudRate, separator, eol, type = '
                         fastStatus.delete(path);
                         parserSettings.delete(path);
                         rawBufferSizes.delete(path);
-                        emitActivity({ id: 'serial:close', title: path, state: 'done', label: 'Serial closed' });
+                        emitActivity({ id: 'serial:close', title: path, state: 'done', label: wasExplicit ? 'Serial closed' : 'Serial closed unexpectedly' });
         });
 
 	openPorts.set(path, port);
@@ -3587,12 +3655,18 @@ ipcMain.handle('set-serial-colors', (_event, { path, colors, type = 'serialport_
 
 // ❌ Close port
 ipcMain.handle("close-serial-port", async (event, { path }) => {
+	serialLog('log', path, 'close requested (IPC)');
 	emitActivity({ id: 'serial:close', title: path, state: 'start', label: 'Close serial port' });
 	const port = openPorts.get(path);
 	if (port && port.isOpen) {
+			explicitCloses.add(path);
 			return new Promise((resolve, reject) => {
 					port.close(err => {
-							if (err) return reject(err.message);
+							if (err) {
+								explicitCloses.delete(path);
+								serialLog('error', path, 'close failed', describeError(err));
+								return reject(err.message);
+							}
                                                         openPorts.delete(path);
                                                         terminalBuffers.delete(path);
                                                         serialBuffers.delete(path);
@@ -3622,7 +3696,9 @@ ipcMain.handle("release-serial-port", async (_event, { path, reopen = true, reop
                 return { released: false, reason: "not-open" };
         }
         const settings = portSettings.get(path) || null;
+        serialLog('log', path, 'release requested', `reopen=${reopen} reopenDelayMs=${reopenDelayMs}`);
         // Close now to free the COM port for external flash tools.
+        explicitCloses.add(path);
         await new Promise((resolve) => port.close(() => resolve()));
         // Clear any prior pending reopen.
         const pending = pendingReopens.get(path);
@@ -3633,6 +3709,7 @@ ipcMain.handle("release-serial-port", async (_event, { path, reopen = true, reop
         if (reopen && settings) {
                 if (reopenDelayMs > 0) {
                         const timer = setTimeout(() => {
+                                serialLog('log', path, 'auto-reopen firing after release', `delayMs=${reopenDelayMs}`);
                                 // Fire-and-forget reopen using the last-known settings.
                                 openSerialPortInternal({
                                         path,
@@ -3692,15 +3769,22 @@ ipcMain.handle("write-serial-port", async (event, { path, data }) => {
                 }
                 return new Promise((resolve, reject) => {
                         targetPort.write(data, err => {
-                                if (err) return reject(err.message);
+                                if (err) {
+                                        serialLog('error', path, 'write failed', describeError(err));
+                                        return reject(err.message);
+                                }
                                 targetPort.drain(drainErr => {
-                                        if (drainErr) return reject(drainErr.message);
+                                        if (drainErr) {
+                                                serialLog('error', path, 'drain failed', describeError(drainErr));
+                                                return reject(drainErr.message);
+                                        }
                                         resolve("written");
                                 });
                         });
                 });
         } else {
                 console.error(`write-serial-port: cannot write — path=${path}, found=${!!targetPort}, isOpen=${targetPort ? targetPort.isOpen : 'N/A'}, openPorts=[${[...openPorts.keys()].join(', ')}]`);
+                serialLog('error', path, 'write blocked: no open port', `found=${!!targetPort} isOpen=${targetPort ? targetPort.isOpen : 'N/A'} openPorts=[${[...openPorts.keys()].join(', ')}]`);
                 throw new Error("No open serial port");
         }
 });
@@ -3905,9 +3989,11 @@ ipcMain.handle('start-flash', async (event, { comPort, firmwarePath, mcumgrPath:
     }
     const existing = openPorts.get(comPort);
     if (existing && existing.isOpen) {
+        explicitCloses.add(comPort);
         await new Promise(res => existing.close(err => {
             if (err) {
                 console.error('Error closing port before flash:', err.message);
+                explicitCloses.delete(comPort);
             }
             res();
         }));
