@@ -1,5 +1,5 @@
 const { test, expect } = require('playwright/test');
-const { launchApp, waitForDashboard } = require('./helpers');
+const { launchApp, waitForDashboard, fixturePath } = require('./helpers');
 
 test.setTimeout(60_000);
 
@@ -152,6 +152,55 @@ test('undock and re-dock up to 10 example tabs', async () => {
 
   await openExampleTabs(app, ids);
   await waitForTabCount(page, ids.length);
+
+  await app.close();
+});
+
+/**
+ * Regression: edits made to a dashboard tab (e.g. adding/renaming a
+ * datasource) must survive navigating away to a doc tab and back.
+ *
+ * The bug: switchToDashboardTab only ever refreshed a dashboard tab's saved
+ * snapshot when leaving *another* dashboard tab. Doc-tab navigation calls
+ * setActiveTab directly and never touches window.freeboard's live state (it
+ * just hides the board with CSS), so the live model kept accumulating edits
+ * -- but returning to the dashboard tab unconditionally reloaded the stale
+ * snapshot from tab-creation time, silently discarding everything done since,
+ * and duplicated every pane/widget in the DOM in the process (fadeOut-based
+ * pane removal racing the synchronous rebuild).
+ *
+ * The fix tracks which dashboard tab's data is actually live in
+ * window.freeboard; returning to that same tab is a no-op (view toggle only,
+ * no reload), and any other dashboard's live state gets saved into the
+ * right tab regardless of what was active in between.
+ */
+test('editing a dashboard, visiting a doc tab, and returning preserves the edit', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+
+  await page.evaluate((p) => window.dashboardTabs.openFile(p), fixturePath('drag_drop_dashboard.json'));
+  await page.waitForFunction(() => {
+    const model = window.freeboard && window.freeboard.getLiveModel && window.freeboard.getLiveModel();
+    return !!(model && model.datasources && model.datasources().length > 0);
+  });
+
+  await page.evaluate(() => window.freeboard.getLiveModel().datasources()[0].name('LIVE_EDIT_SURVIVES'));
+
+  const gridItemsBefore = await page.locator('.gridster > ul > li, .gridster > li').count();
+
+  const ids = await getExampleIds(page, 1);
+  expect(ids.length).toBeGreaterThan(0);
+  await openExampleTabs(app, ids);
+  await waitForTabCount(page, 1);
+
+  await page.locator('.tab[data-tab-id^="dashboard:"]').first().click();
+  await page.waitForTimeout(300);
+
+  const name = await page.evaluate(() => window.freeboard.getLiveModel().datasources()[0].name());
+  expect(name).toBe('LIVE_EDIT_SURVIVES');
+
+  const gridItemsAfter = await page.locator('.gridster > ul > li, .gridster > li').count();
+  expect(gridItemsAfter).toBe(gridItemsBefore);
 
   await app.close();
 });

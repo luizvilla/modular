@@ -47,6 +47,14 @@ This is most noticeable in dashboards that mix thin, tall panes (e.g. a single-c
 
 ---
 
+## Fixed: Dashboard Edits Lost When Switching Tabs
+
+Editing a dashboard — adding a datasource, renaming one, dragging a pane — then clicking away to a documentation tab and back could silently discard those edits, reverting to whatever the dashboard looked like when the tab was first opened. The same bug also caused every pane and widget to be duplicated in the page (invisibly, since it happened while the dashboard was hidden behind the doc view).
+
+The dashboard's live state is now correctly recognized as still current when you return to the same tab, instead of being unconditionally reloaded from an outdated snapshot. Switching between two different dashboard tabs continues to save and restore each one's state independently, as before.
+
+---
+
 ## Serial Connection Reliability
 
 ### Fixed: concurrent port opens could permanently lock a device

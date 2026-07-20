@@ -124,6 +124,11 @@
     const coursewareById = new Map();
     const widgetDocsByType = new Map();
     let activeTabId = dashboardTabId;
+    // Which dashboard tab's data is currently live in window.freeboard. This is
+    // NOT the same as activeTabId: visiting a doc/widget-doc tab never touches
+    // freeboard's in-memory state, so the live model can keep belonging to a
+    // dashboard tab while some other tab is active on screen.
+    let liveDashboardTabId = dashboardTabId;
     let currentDashboardPath = null;
     let dashboardTabCounter = 0;
     let pendingOpenId = null;
@@ -1351,15 +1356,28 @@
 
     async function switchToDashboardTab(id) {
         if (activeTabId === id) return;
-        // Serialize current freeboard state into the departing dashboard tab.
-        const prevTab = tabs.get(activeTabId);
-        if (prevTab && (activeTabId === dashboardTabId || prevTab.type === 'dashboard')) {
-            prevTab.savedData = window.freeboard && typeof window.freeboard.serialize === 'function'
-                ? window.freeboard.serialize() : null;
+        const nextTab = tabs.get(id);
+        const targetIsDashboard = !!nextTab && (id === dashboardTabId || nextTab.type === 'dashboard');
+        // Skip the reload entirely when the arriving tab's data is already the
+        // one live in window.freeboard (e.g. returning to the same dashboard
+        // tab after visiting a doc tab, which never touches freeboard state).
+        // Reloading from savedData here would silently discard any edits made
+        // since the last save -- new datasources, dragged panes, etc.
+        if (targetIsDashboard && liveDashboardTabId === id) {
+            setActiveTab(id);
+            return;
+        }
+        // Serialize current freeboard state into whichever dashboard tab
+        // currently owns it. This is liveDashboardTabId, not necessarily
+        // activeTabId/prevTab -- the active tab may be a doc tab whose visit
+        // never touched freeboard, leaving live edits attributed to whatever
+        // dashboard tab was loaded before that.
+        const liveTab = tabs.get(liveDashboardTabId);
+        if (liveTab && window.freeboard && typeof window.freeboard.serialize === 'function') {
+            liveTab.savedData = window.freeboard.serialize();
         }
         // Load the arriving tab's state into freeboard.
-        const nextTab = tabs.get(id);
-        if (nextTab && (id === dashboardTabId || nextTab.type === 'dashboard')) {
+        if (targetIsDashboard) {
             const loadFn = (window.freeboard && typeof window.freeboard.loadDashboard === 'function')
                 ? (d) => window.freeboard.loadDashboard(d)
                 : (window.freeboardModel && typeof window.freeboardModel.loadDashboard === 'function')
@@ -1367,6 +1385,7 @@
                     : null;
             if (loadFn) loadFn(nextTab.savedData || { allow_edit: true });
             currentDashboardPath = nextTab.filePath || null;
+            liveDashboardTabId = id;
         }
         setActiveTab(id);
     }
