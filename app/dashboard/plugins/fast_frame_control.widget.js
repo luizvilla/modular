@@ -158,7 +158,6 @@
 
         _syncControls() {
             this._refreshDatasourceOptions();
-            this.dsSelect.val(this.settings.datasource || '');
             this.armInput.val(this.settings.armCommand || 't');
             this.retrieveInput.val(this.settings.retrieveCommand || 'r');
             this.delayInput.val(this.settings.retrieveDelayMs ?? 100);
