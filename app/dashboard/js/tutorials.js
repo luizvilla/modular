@@ -609,7 +609,8 @@
             && !state.dismissedWelcomeIds.has(entry.id)
             && isDefaultDashboardTab(active)
             && !hasVisibleTutorialSession()
-            && isCurrentDashboardEmpty();
+            && isCurrentDashboardEmpty()
+            && !document.getElementById('modal_overlay');
 
         if (!shouldShow) {
             setWelcomeVisible(false);

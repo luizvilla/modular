@@ -2,7 +2,7 @@
     const api = window.api || null;
     const serialApi = api && api.serial ? api.serial : null;
     const ipcRenderer = !api && window.require ? window.require('electron')?.ipcRenderer : null;
-    // Add a user-friendly tag for OwnTech devices without duplicating.
+
     function formatPortLabel(port) {
         if (port === null || port === undefined) return '';
         if (typeof port === 'string') return port;
@@ -11,6 +11,43 @@
         return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
     }
 
+    function normalizePortValue(port) {
+        return port?.value || port?.path || port?.name || String(port || '');
+    }
+
+    const portPollIntervalMs = 1500;
+    let cachedPortOptions = [];
+    let lastPortValues = [];
+    let portPollTimer = null;
+
+    async function listSerialPorts() {
+        if (serialApi && serialApi.listPorts) return serialApi.listPorts();
+        if (ipcRenderer) return ipcRenderer.invoke('get-serial-ports');
+        return [];
+    }
+
+    async function refreshPortCache(force = false) {
+        try {
+            const ports = await listSerialPorts();
+            const portOptions = Array.isArray(ports)
+                ? ports.map((p) => ({ name: formatPortLabel(p), value: normalizePortValue(p) }))
+                : [];
+            const values = portOptions.map((p) => p.value).filter(Boolean);
+            const changed = force || values.length !== lastPortValues.length
+                || values.some((v, i) => v !== lastPortValues[i]);
+            if (!changed) return;
+            lastPortValues = values;
+            cachedPortOptions = portOptions;
+        } catch (e) {
+            console.error('Failed to refresh serial ports', e);
+        }
+    }
+
+    function startPortPolling() {
+        if (portPollTimer || (!serialApi && !ipcRenderer)) return;
+        refreshPortCache(true);
+        portPollTimer = setInterval(() => refreshPortCache(false), portPollIntervalMs);
+    }
 
     function FastFrameDatasource(settings, updateCallback) {
         let currentSettings = settings;
@@ -103,20 +140,10 @@
         }
     }
 
-    async function register() {
-        let portOptions = [];
-        if (serialApi || ipcRenderer) {
-            try {
-                const ports = serialApi && serialApi.listPorts
-                    ? await serialApi.listPorts()
-                    : await ipcRenderer.invoke('get-serial-ports');
-                portOptions = ports.map(p => ({ name: formatPortLabel(p), value: p.value }));
-            } catch (e) {
-                console.error('Failed to list serial ports', e);
-            }
-        }
+    function register() {
+        startPortPolling();
 
-freeboard.loadDatasourcePlugin({
+        freeboard.loadDatasourcePlugin({
             type_name: 'fast_frame_datasource',
             display_name: 'Fast Serial Frame',
             description: 'Parse fast record frames from serial',
@@ -125,8 +152,8 @@ freeboard.loadDatasourcePlugin({
                     name: 'portPath',
                     display_name: 'Port',
                     type: 'option',
-                    options: portOptions,
-                    default_value: portOptions.length ? portOptions[0].value : ''
+                    options: () => cachedPortOptions,
+                    optionsRefreshMs: portPollIntervalMs
                 },
                 { name: 'baudRate', display_name: 'Baud Rate', type: 'number', default_value: 115200 },
                 { name: 'separator', display_name: 'Separator', type: 'text', default_value: ':' },
