@@ -1,6 +1,6 @@
 {
   "name": "modular",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "",
   "main": "app/main.js",
   "scripts": {
@@ -46,6 +46,7 @@
     "playwright": "^1.50.0"
   },
   "build": {
+    "afterPack": "./scripts/afterPack.js",
     "appId": "com.modular.app",
     "productName": "Modular",
     "asar": false,
