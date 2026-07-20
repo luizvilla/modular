@@ -170,3 +170,79 @@ test('pane drag — bystander pane models stay in sync with DOM after drag', asy
 
   await app.close();
 });
+
+/**
+ * Regression: a narrow (1-column) bystander pane must not ping-pong sideways
+ * as a wider pane drags across it.
+ *
+ * The bug: try_swap_widget_sideways recomputed its preferred swap direction
+ * from scratch on every collision tick (`player_col >= widget_grid_data.col`),
+ * so a 1-column pane sitting between two open columns could get swapped back
+ * and forth — e.g. col 5 -> 6 -> 5 -> 6 — as the drag continued, even though
+ * the drag itself was moving steadily in one direction. This was most visible
+ * with a thin/tall pane (e.g. a 1-column command panel) next to a much wider
+ * one (e.g. a plot), since the thin pane always has somewhere else to go.
+ *
+ * The fix: try_swap_widget_sideways first checks whether the bystander's
+ * *current* column already clears the player's real, pixel-accurate
+ * footprint; if so it leaves the bystander alone instead of re-picking a
+ * side. The fixture here has "Cmd" (1 column wide, 18 rows tall) at col 5
+ * and "Plot" (2 columns wide, 2 rows tall) at col 1 on a 10-column grid, with
+ * open columns on both sides of Cmd so the buggy code had a real choice to
+ * flip-flop between.
+ */
+test('pane drag — narrow bystander does not oscillate sideways next to a wide pane', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  await loadDashboard(page, fixturePath('pane_drag_thin_vs_square.json'));
+
+  await page.evaluate(() => window.freeboard.setEditing(true));
+  await page.waitForTimeout(400);
+
+  const paneDragLines = [];
+  page.on('console', (msg) => {
+    if (msg.text().includes('[pane-drag]')) paneDragLines.push(msg.text());
+  });
+
+  const panes = page.locator('.gridster .gs_w');
+  await expect(panes).toHaveCount(2, { timeout: 10_000 });
+
+  // Cmd is pane 0 (col 5), Plot is pane 1 (col 1). Drag Plot slowly to the
+  // right, through and past Cmd's column, so on_drag fires many times while
+  // grazing it -- the exact condition that used to cause oscillation.
+  const handlePlot = panes.nth(1).locator('.pane-drag-handle');
+  const box = await handlePlot.boundingBox();
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  // Real human drags aren't perfectly linear -- small back-and-forth jitter
+  // while crossing Cmd's column is what actually triggered the flip-flop in
+  // try_swap_widget_sideways (prefer_left_first depends on the player's
+  // *current* column relative to the bystander, so a tiny reversal in
+  // pointer motion used to be enough to flip the preferred swap side).
+  const steps = 80;
+  const totalDx = 1300; // PANE_WIDTH is 300px/col -- cross from col 1 through col 5 and beyond
+  const jitter = 40;
+  for (let s = 1; s <= steps; s++) {
+    const base = box.x + box.width / 2 + (totalDx * s) / steps;
+    const wiggle = s % 4 === 0 ? -jitter : 0;
+    await page.mouse.move(base + wiggle, box.y + box.height / 2);
+    await page.waitForTimeout(20);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+
+  // Extract every column Cmd was swapped to, in order, from the diagnostic
+  // log (see freeboard.thirdparty.js's paneDragLog). Oscillation shows up as
+  // a non-monotonic sequence, e.g. [6, 7, 6] instead of [6, 7, 8].
+  const cmdCols = paneDragLines
+    .map((l) => l.match(/Cmd col=(\d+)->(\d+)/))
+    .filter(Boolean)
+    .map((m) => Number(m[2]));
+
+  for (let i = 1; i < cmdCols.length; i++) {
+    expect(cmdCols[i], `Cmd swap sequence ${JSON.stringify(cmdCols)} is not monotonic`).toBeGreaterThanOrEqual(cmdCols[i - 1]);
+  }
+
+  await app.close();
+});

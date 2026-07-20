@@ -16682,6 +16682,41 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 	 * @param {Event} event The original browser event
 	 * @param {Object} ui A prepared ui object.
 	 */
+	// Pane-drag diagnostics: logs every time a pane actually changes position
+	// (dragged pane settling, or a bystander being pushed/floated/swapped out
+	// of the way), so drag behavior can be observed directly in this console
+	// while testing. Mirrors to the main-process terminal via the existing
+	// renderer-log bridge when running inside the app.
+	function paneDragTitle($el)
+	{
+		try
+		{
+			var node = $el && $el[0];
+			if(!node || !window.ko || !window.ko.dataFor)
+			{
+				return '(unknown pane)';
+			}
+			var model = window.ko.dataFor(node);
+			var title = model && typeof model.title === 'function' && model.title();
+			return title || '(untitled pane)';
+		}
+		catch(e)
+		{
+			return '(unknown pane)';
+		}
+	}
+
+	function paneDragLog(event, detail)
+	{
+		var ts = new Date().toISOString();
+		var line = '[pane-drag][' + ts + '] ' + event + (detail ? ' — ' + detail : '');
+		console.log(line);
+		if(window.api && window.api.logger && window.api.logger.log)
+		{
+			window.api.logger.log('log', ['[pane-drag] ' + event + (detail ? ' — ' + detail : '')]);
+		}
+	}
+
 	fn.on_start_drag = function(event, ui)
 	{
 
@@ -16690,6 +16725,8 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 		this.$player.addClass('player');
 		this.player_grid_data = this.$player.coords().grid;
 		this.placeholder_grid_data = $.extend({}, this.player_grid_data);
+
+		paneDragLog('drag start', paneDragTitle(this.$player) + ' at row=' + this.player_grid_data.row + ' col=' + this.player_grid_data.col);
 
 		//set new grid height along the dragging period
 		this.$el.css('height', this.$el.height() + (this.player_grid_data.size_y * this.min_widget_height));
@@ -16798,6 +16835,8 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 
 		this.$player.coords().grid.row = this.placeholder_grid_data.row;
 		this.$player.coords().grid.col = this.placeholder_grid_data.col;
+
+		paneDragLog('drag end', paneDragTitle(this.$player) + ' settled at row=' + this.placeholder_grid_data.row + ' col=' + this.placeholder_grid_data.col);
 
 		if(this.options.draggable.stop)
 		{
@@ -17154,6 +17193,8 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 			return false;
 		}
 
+		paneDragLog('bystander swapped sideways', paneDragTitle($widget) + ' col=' + widget_grid_data.col + '->' + col);
+
 		this.remove_from_gridmap(widget_grid_data);
 		widget_grid_data.col = col;
 		this.add_to_gridmap(widget_grid_data, $widget);
@@ -17166,6 +17207,20 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 	// Try moving the overlapped widget left/right before falling back to vertical displacement.
 	fn.try_swap_widget_sideways = function(widget_grid_data, player_col)
 	{
+		// If the widget's current column no longer truly overlaps the
+		// player's real (pixel-accurate) footprint, leave it where it is
+		// instead of re-picking a "preferred" swap direction from scratch.
+		// Without this, a narrow widget with valid columns free on both
+		// sides gets swapped back and forth every time the drag ticks
+		// forward, because `player_col >= widget_grid_data.col` can flip
+		// from one call to the next even though the drag barely moved —
+		// most visible with a 1-column-wide widget sitting next to a much
+		// wider one, since it always has somewhere else to go.
+		if(this.widget_col_clear_of_player(widget_grid_data))
+		{
+			return true;
+		}
+
 		var left_col = player_col - widget_grid_data.size_x;
 		var right_col = player_col + this.player_grid_data.size_x;
 		var prefer_left_first = player_col >= widget_grid_data.col;
@@ -17186,6 +17241,92 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 		}
 
 		return false;
+	};
+
+	// Converts a pixel Y coordinate to a fractional grid row (1-based),
+	// mirroring the formula gridster uses to place rows via CSS elsewhere
+	// (baseY + (row - 1) * min_widget_height). Used to measure the drag's
+	// *actual* current position instead of the row it will eventually settle
+	// on, so bystander displacement can be computed from the true overlap.
+	fn.pixel_y_to_row = function(y)
+	{
+		return 1 + ((y - this.baseY) / this.min_widget_height);
+	};
+
+	// Horizontal counterpart to pixel_y_to_row.
+	fn.pixel_x_to_col = function(x)
+	{
+		return 1 + ((x - this.baseX) / this.min_widget_width);
+	};
+
+	// True if widget_grid_data's current column span no longer truly
+	// overlaps the player's real (pixel-accurate) footprint. Falls back to
+	// false (assume still overlapping) if live pixel data isn't available,
+	// so the caller's existing swap-selection logic still runs as before.
+	fn.widget_col_clear_of_player = function(widget_grid_data)
+	{
+		if(!this.$helper || !this.min_widget_width)
+		{
+			return false;
+		}
+
+		var player_px = this.$helper.coords().get();
+		if(!player_px)
+		{
+			return false;
+		}
+
+		var player_col_left  = this.pixel_x_to_col(player_px.x1);
+		var player_col_right = this.pixel_x_to_col(player_px.x2);
+		var widget_col_left  = widget_grid_data.col;
+		var widget_col_right = widget_grid_data.col + widget_grid_data.size_x;
+
+		var overlap = Math.min(player_col_right, widget_col_right) - Math.max(player_col_left, widget_col_left);
+		return overlap <= 0;
+	};
+
+	// How many rows a bystander widget must move down to clear the player's
+	// *actual current* footprint (its real-time pixel position), rather than
+	// `fallback_y`, which is based on the row the drag will eventually settle
+	// on (to_row).
+	//
+	// A single drag position can trigger manage_movements several times in a
+	// row (on_overlapped_row_change fires once per row spanned by the
+	// player's own height, from the collider's row upward) — the old formula
+	// pushed the widget further *every single time*, even though the player
+	// hadn't actually moved between those calls, so a widget could get
+	// shoved down by the player's entire height for what was only a slight
+	// graze. Working off the player's true current bottom edge instead means
+	// once a widget has already been pushed clear, later calls in the same
+	// cascade compute 0 (already clear) instead of pushing it again.
+	//
+	// Falls back to the old value if live pixel data isn't available, and
+	// never returns more than fallback_y — so this can only ever push a
+	// widget less far than before, never further.
+	fn.minimal_push_rows = function(wgd, fallback_y)
+	{
+		if(!this.$helper || !this.min_widget_height)
+		{
+			return fallback_y;
+		}
+
+		var player_px = this.$helper.coords().get();
+		if(!player_px)
+		{
+			return fallback_y;
+		}
+
+		var player_row_bottom = this.pixel_y_to_row(player_px.y2);
+		var target_row = Math.ceil(player_row_bottom);
+		var needed = target_row - wgd.row;
+
+		if(needed <= 0)
+		{
+			// Already clear of the player's actual current footprint.
+			return 0;
+		}
+
+		return Math.min(fallback_y, needed);
 	};
 
 
@@ -17229,9 +17370,13 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 					// prefer a horizontal swap when space allows; otherwise move down
 					if(!this.try_swap_widget_sideways(wgd, to_col))
 					{
-						var y = (to_row + this.player_grid_data.size_y) - wgd.row;
+						var fallback_y = (to_row + this.player_grid_data.size_y) - wgd.row;
+						var y = this.minimal_push_rows(wgd, fallback_y);
 
-						this.move_widget_down($w, y);
+						if(y > 0)
+						{
+							this.move_widget_down($w, y);
+						}
 						this.set_placeholder(to_col, to_row);
 					}
 					else
@@ -17485,7 +17630,13 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 			$widgets_under_ph.each($.proxy(function(i, widget)
 			{
 				var $w = $(widget);
-				this.move_widget_down($w, row + phgd.size_y - $w.data('coords').grid.row);
+				var under_wgd = $w.data('coords').grid;
+				var fallback_y = row + phgd.size_y - under_wgd.row;
+				var y = this.minimal_push_rows(under_wgd, fallback_y);
+				if(y > 0)
+				{
+					this.move_widget_down($w, y);
+				}
 			}, this));
 		}
 
@@ -17845,6 +17996,8 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 			return false;
 		}
 
+		paneDragLog('bystander floated up', paneDragTitle($widget) + ' row=' + widget_grid_data.row + '->' + row + ' (filling freed space)');
+
 		this.remove_from_gridmap(widget_grid_data);
 		widget_grid_data.row = row;
 		this.add_to_gridmap(widget_grid_data);
@@ -17912,6 +18065,8 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 					return true;
 				}
 
+				paneDragLog('bystander moved up', paneDragTitle($widget) + ' row=' + widget_grid_data.row + '->' + next_row);
+
 				var $next_widgets = this.widgets_below($widget);
 
 				this.remove_from_gridmap(widget_grid_data);
@@ -17970,6 +18125,8 @@ new a.w;var b=new a.Ba;0<b.Rb&&a.La(b);a.b("jqueryTmplTemplateEngine",a.Ba)})()}
 			var widget_grid_data = el_grid_data;
 			var next_row = actual_row + y_units;
 			var $next_widgets = this.widgets_below($widget);
+
+			paneDragLog('bystander pushed down', paneDragTitle($widget) + ' row=' + actual_row + '->' + next_row + ' (by ' + y_units + ')');
 
 			this.remove_from_gridmap(widget_grid_data);
 
