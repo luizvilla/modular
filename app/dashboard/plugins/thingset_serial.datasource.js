@@ -265,6 +265,12 @@
     function updateTimer() {
       stopTimer();
       if (isPaused()) return;
+      // A ThingSet refresh is a full tree walk -- dozens of round-trip serial
+      // commands, not a cheap buffer read -- so unlike a regular serial
+      // datasource it does NOT poll on a timer unless explicitly enabled.
+      // Undefined (e.g. dashboards saved before this setting existed) is
+      // treated the same as off, matching the declared default.
+      if (currentSettings.autoRefresh !== true) return;
       let interval = Number(currentSettings.refresh);
       if (!Number.isFinite(interval) || interval < 200) interval = 1000;
       timer = setInterval(() => { self.updateNow(); }, interval);
@@ -329,6 +335,13 @@ freeboard.loadDatasourcePlugin({
         },
         { name: 'baudRate', display_name: 'Baud Rate', type: 'number', default_value: 115200 },
         { name: 'usePrefix', display_name: 'Use "thingset" command prefix', type: 'boolean', default_value: false },
+        {
+          name: 'autoRefresh',
+          display_name: 'Auto Refresh',
+          type: 'boolean',
+          default_value: false,
+          description: 'Automatically re-fetch the ThingSet tree on a timer. Each refresh walks the whole tree (many round-trip commands), so this is off by default -- use the Refresh button for on-demand updates.',
+        },
         { name: 'refresh', display_name: 'Refresh Every', type: 'number', suffix: 'ms', default_value: 2000 },
         { name: 'debug', display_name: 'Verbose logging', type: 'boolean', default_value: false },
       ],

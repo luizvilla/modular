@@ -770,13 +770,19 @@ function loadExtensionEntries(records, registry, logger, extensionContext) {
             if (typeof entry !== 'function') {
                 throw new Error(`Expected ${record.mainEntryPath} to export a function`);
             }
-            entry({
+            // Extensions load synchronously here, very early in main.js's module
+            // evaluation -- before properties like openPorts/emitActivity exist on
+            // extensionContext (they're assigned later, once those subsystems are
+            // set up). Using extensionContext as the prototype rather than spreading
+            // it into a flat copy means property lookups (context.openPorts, etc.)
+            // resolve live at *access* time, not at this require-time snapshot, so
+            // extensions see those properties once they're actually populated.
+            entry(Object.assign(Object.create(extensionContext || null), {
                 manifest: record.manifest,
                 extension: toInventoryEntry(record),
                 registerManifestContribution: () => registry.addManifestContribution(record),
                 registerBootstrapContribution: (contribution) => registry.addBootstrapContribution(record, contribution),
-                ...(extensionContext || {}),
-            });
+            }));
         } catch (err) {
             logger.warn(`[extensions] Failed to load ${record.id}: ${err?.message || err}`);
         }

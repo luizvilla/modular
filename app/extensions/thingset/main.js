@@ -32,6 +32,16 @@ module.exports = function registerThingSetExtension(context) {
         return (context.openPorts && context.openPorts.get(portPath)) || null;
     }
 
+    // Diagnostics: timestamped [thingset] logging so serial detect/tree
+    // attempts are directly observable in this terminal while testing.
+    function tsLog(level, event, detail) {
+        const ts = new Date().toISOString();
+        const line = `[thingset][${ts}] ${event}${detail ? ' — ' + detail : ''}`;
+        if (level === 'error') console.error(line);
+        else if (level === 'warn') console.warn(line);
+        else console.log(line);
+    }
+
     // -------------------------------------------------------------------------
     // Storage: thingset runtime data lives in userData, not the repo root.
     // -------------------------------------------------------------------------
@@ -109,8 +119,31 @@ module.exports = function registerThingSetExtension(context) {
     // -------------------------------------------------------------------------
     // ThingSet serial detect
     // -------------------------------------------------------------------------
-    ipcMain.handle('ts-serial-detect', async (_event, { port = null, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    // Same reasoning as inFlightTreeFetches: a scan across every candidate port
+    // is expensive, so two overlapping detect calls (e.g. a duplicated
+    // datasource instance and its own auto-detect retry) shouldn't each open
+    // and probe every port independently.
+    const inFlightDetects = new Map(); // "port or '*'" -> Promise
+
+    ipcMain.handle('ts-serial-detect', async (_event, opts = {}) => {
+        const key = opts.port || '*';
+        const existing = inFlightDetects.get(key);
+        if (existing) {
+            tsLog('log', `detect requested (${key})`, 'a detect scan is already in flight — awaiting it instead of starting a second one');
+            return existing;
+        }
+        const attempt = runSerialDetect(opts);
+        inFlightDetects.set(key, attempt);
+        try {
+            return await attempt;
+        } finally {
+            if (inFlightDetects.get(key) === attempt) inFlightDetects.delete(key);
+        }
+    });
+
+    async function runSerialDetect({ port = null, baudRate = 115200, usePrefix = false, verbose = false } = {}) {
         const candidates = await collectSerialCandidates(port);
+        tsLog('log', 'detect requested', `candidates=[${candidates.join(', ')}]`);
         if (!candidates.length) throw new Error('No serial ports found to probe for ThingSet shell');
         const attempts = [];
         const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
@@ -118,6 +151,7 @@ module.exports = function registerThingSetExtension(context) {
             let shell = null;
             try {
                 const existingPort = getOpenPort(candidate);
+                tsLog('log', `probing ${candidate}`, existingPort ? `reusing already-open handle (isOpen=${existingPort.isOpen})` : 'no open handle found — will open a new one');
                 shell = new ThingSetSerialShell({ path: candidate, baudRate, usePrefix, verbose: isVerbose, existingPort });
                 await shell.open();
                 await shell.enterThingSet();
@@ -126,9 +160,11 @@ module.exports = function registerThingSetExtension(context) {
                 const nodeName = await shell.readNodeName().catch(() => null);
                 const nodeAddr = await shell.readNodeAddr().catch(() => null);
                 const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
+                tsLog('log', `probe succeeded on ${candidate}`, addressHex || nodeUid || 'ok');
                 emit({ id: `serial:${candidate}:detect`, title: candidate, state: 'done', label: 'ThingSet serial detect', detail: nodeUid || addressHex || 'ok' });
                 return { port: candidate, baudRate, node_uid: nodeUid, node_name: nodeName, node_addr: nodeAddr, address_hex: addressHex, command_prefix: shell.getCommandPrefix() };
             } catch (err) {
+                tsLog('warn', `probe failed on ${candidate}`, err?.message || String(err));
                 attempts.push({ port: candidate, error: err?.message || String(err) });
                 emit({ id: `serial:${candidate}:detect`, title: candidate, state: 'error', label: 'ThingSet serial detect', detail: err?.message || String(err) });
             } finally {
@@ -136,16 +172,43 @@ module.exports = function registerThingSetExtension(context) {
             }
         }
         const detail = attempts.map((t) => `${t.port}: ${t.error}`).join('; ');
+        tsLog('error', 'detect exhausted all candidates', detail);
         throw new Error(detail || 'ThingSet serial shell not found');
-    });
+    }
 
     // -------------------------------------------------------------------------
     // ThingSet serial tree
     // -------------------------------------------------------------------------
+    // A full ThingSet tree walk is dozens of round-trip serial commands, not a
+    // cheap read. If two callers ask for the same port's tree at once (e.g. a
+    // duplicated datasource/widget pair left over from a stale dashboard save,
+    // or a widget refresh landing mid-poll), letting both run opens two
+    // independent serial handles on the same path and interleaves their
+    // command/response traffic — this guard makes the second caller just await
+    // the first's in-flight walk instead.
+    const inFlightTreeFetches = new Map(); // port -> Promise
+
     ipcMain.handle('ts-serial-tree', async (_event, { port, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
         if (!port) throw new Error('port required');
+        const existing = inFlightTreeFetches.get(port);
+        if (existing) {
+            tsLog('log', `tree requested for ${port}`, 'a tree fetch is already in flight for this port — awaiting it instead of starting a second one');
+            return existing;
+        }
+        const attempt = runSerialTree({ port, baudRate, usePrefix, verbose });
+        inFlightTreeFetches.set(port, attempt);
+        try {
+            return await attempt;
+        } finally {
+            if (inFlightTreeFetches.get(port) === attempt) inFlightTreeFetches.delete(port);
+        }
+    });
+
+    async function runSerialTree({ port, baudRate, usePrefix, verbose }) {
+        tsLog('log', `tree requested for ${port}`);
         emit({ id: `serial:${port}:tree`, title: port, state: 'start', label: 'ThingSet serial tree' });
         const existingPort = getOpenPort(port);
+        tsLog('log', `${port}`, existingPort ? `reusing already-open handle (isOpen=${existingPort.isOpen})` : 'no open handle found — will open a new one');
         const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
         const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
         try {
@@ -184,15 +247,17 @@ module.exports = function registerThingSetExtension(context) {
                     console.warn('Failed to persist ThingSet serial tree:', persistErr?.message || persistErr);
                 }
             }
+            tsLog('log', `tree succeeded for ${port}`, addressHex || 'n/a');
             emit({ id: `serial:${port}:tree`, title: port, state: 'done', label: 'ThingSet serial tree', detail: addressHex || 'n/a' });
             return { node_uid: nodeUid, node_name: nodeName, address_hex: addressHex, node_addr: nodeAddr, root, saved_tree_path: savedTreePath };
         } catch (err) {
+            tsLog('error', `tree failed for ${port}`, err?.message || String(err));
             emit({ id: `serial:${port}:tree`, title: port, state: 'error', label: 'ThingSet serial tree', detail: err?.message || String(err) });
             throw err;
         } finally {
             try { await shell.close(); } catch {}
         }
-    });
+    }
 
     // -------------------------------------------------------------------------
     // ThingSet serial value operations
