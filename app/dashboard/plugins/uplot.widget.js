@@ -919,6 +919,7 @@ class TimePlotUPlot {
                     label: d?.label || '',
                     op: d?.op || 'identity',
                     param: Number(d?.param) || 0,
+                    color: d?.color || null,
                     a: {
                         ds: a.ds || '',
                         type: a.type || this._getDatasourceType(a.ds) || '',

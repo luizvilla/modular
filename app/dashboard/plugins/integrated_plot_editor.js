@@ -241,6 +241,7 @@
             label: def && def.label ? def.label : '',
             op: def && def.op ? def.op : 'identity',
             param: Number(def && def.param) || 0,
+            color: def && def.color ? def.color : null,
             a: {
                 ds: sourceA.ds || '',
                 type: sourceA.type || '',
