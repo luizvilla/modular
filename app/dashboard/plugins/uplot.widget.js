@@ -51,6 +51,21 @@
         window.URL.revokeObjectURL(a.href);
     }
 
+    async function saveCsvExport(rows, filename, category) {
+        const content = rows.map(row => row.map(csvEscape).join(',')).join('\r\n');
+        if (api && api.files && typeof api.files.saveExportCsv === 'function') {
+            try {
+                const result = await api.files.saveExportCsv(category, filename, content);
+                if (result && result.ok) return result;
+                console.warn('[export] save-export-csv failed, falling back to browser download', result && result.error);
+            } catch (err) {
+                console.error('[export] save-export-csv failed, falling back to browser download', err);
+            }
+        }
+        downloadCsv(rows, filename);
+        return null;
+    }
+
     freeboard.loadWidgetPlugin({
         type_name: "time_plot_uplot",
         display_name: "Time Plot Widget",
@@ -246,7 +261,7 @@ class TimePlotUPlot {
             }
         }
 
-        _exportCsv() {
+        async _exportCsv() {
             const timestamps = this.dataBuffer[0] || [];
             const headers = ['Time'];
             for (let i = 0; i < this.seriesCount; i++) headers.push(this._getSeriesLabel(i));
@@ -256,7 +271,7 @@ class TimePlotUPlot {
                 for (let i = 1; i <= this.seriesCount; i++) row.push(this.dataBuffer[i]?.[t]);
                 rows.push(row);
             }
-            downloadCsv(rows, `${buildTimestampStamp()}-time_plot.csv`);
+            await saveCsvExport(rows, `${buildTimestampStamp()}-time_plot.csv`, 'time_plot_csv');
         }
 
         _getSeriesLabel(idx) {

@@ -45,6 +45,21 @@
         window.URL.revokeObjectURL(a.href);
     }
 
+    async function saveCsvExport(rows, filename, category) {
+        const content = rows.map(row => row.map(csvEscape).join(',')).join('\r\n');
+        if (api && api.files && typeof api.files.saveExportCsv === 'function') {
+            try {
+                const result = await api.files.saveExportCsv(category, filename, content);
+                if (result && result.ok) return result;
+                console.warn('[export] save-export-csv failed, falling back to browser download', result && result.error);
+            } catch (err) {
+                console.error('[export] save-export-csv failed, falling back to browser download', err);
+            }
+        }
+        downloadCsv(rows, filename);
+        return null;
+    }
+
     freeboard.loadWidgetPlugin({
         type_name: "xy_plot_uplot",
         display_name: "XY Plot Widget",
@@ -397,14 +412,14 @@
             this._refreshStatus();
         }
 
-        _exportCsv() {
+        async _exportCsv() {
             const xs = this.dataBuffer[0] || [];
             const ys = this.dataBuffer[1] || [];
             const xLabel = this._resolveSetting('xLabel') || 'X';
             const yLabel = this._resolveSetting('yLabel') || 'Y';
             const rows = [[xLabel, yLabel]];
             for (let i = 0; i < xs.length; i++) rows.push([xs[i], ys[i]]);
-            downloadCsv(rows, `${buildTimestampStamp()}-xy_plot.csv`);
+            await saveCsvExport(rows, `${buildTimestampStamp()}-xy_plot.csv`, 'xy_plot_csv');
         }
 
         _updatePlot(force = false) {
