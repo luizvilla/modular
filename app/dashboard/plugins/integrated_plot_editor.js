@@ -1224,6 +1224,12 @@
         sourcesSection.append(xAxisControls.card, yAxisControls.card);
         left.append(sourcesSection);
 
+        const styleSection = createSection('Style');
+        const trailColorField = createInputRow('Trail Color', 'color', settings.trailColor || '#4e79a7');
+        const latestColorField = createInputRow('Latest Point Color', 'color', settings.latestColor || '#e15759');
+        styleSection.append(trailColorField.row, latestColorField.row);
+        left.append(styleSection);
+
         const displaySection = createSection('Display');
         const titleField = createInputRow('Title', 'text', settings.title || 'XY Plot');
         const historyField = createInputRow('History Length', 'number', settings.historyLength || 200);
@@ -1261,6 +1267,8 @@
                 xMax: shared.parseNumber(xMaxField.input.val()),
                 yMin: shared.parseNumber(yMinField.input.val()),
                 yMax: shared.parseNumber(yMaxField.input.val()),
+                trailColor: trailColorField.input.val() || '#4e79a7',
+                latestColor: latestColorField.input.val() || '#e15759',
                 xSourceDef,
                 ySourceDef
             });

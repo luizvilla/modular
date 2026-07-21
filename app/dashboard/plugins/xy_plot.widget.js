@@ -205,19 +205,19 @@
                     {},
                     {
                         label: 'Trail',
-                        stroke: '#4e79a7',
+                        stroke: this._resolveSetting('trailColor') || '#4e79a7',
                         width: 2,
                         points: { show: false }
                     },
                     {
                         label: 'Latest',
-                        stroke: '#e15759',
+                        stroke: this._resolveSetting('latestColor') || '#e15759',
                         width: 0,
                         paths: () => null,
                         points: {
                             show: true,
                             size: 10,
-                            fill: '#e15759',
+                            fill: this._resolveSetting('latestColor') || '#e15759',
                             stroke: '#ffffff',
                             width: 2
                         }
@@ -465,6 +465,8 @@
             const ys = this.dataBuffer[1];
             const xLabel = _.escape(this._resolveSetting('xLabel') || 'X');
             const yLabel = _.escape(this._resolveSetting('yLabel') || 'Y');
+            const trailColor = _.escape(this._resolveSetting('trailColor') || '#4e79a7');
+            const latestColor = _.escape(this._resolveSetting('latestColor') || '#e15759');
             const lastX = xs.length ? this._fmt(xs[xs.length - 1]) : '---';
             const lastY = ys.length ? this._fmt(ys[ys.length - 1]) : '---';
             this.readout.html(
@@ -473,12 +475,12 @@
                 `<span class="uplot-readout-value">${xs.length}</span>` +
                 `</div>` +
                 `<div class="uplot-readout-item">` +
-                `<span class="uplot-readout-swatch" style="border-color:#4e79a7;"></span>` +
+                `<span class="uplot-readout-swatch" style="border-color:${trailColor};"></span>` +
                 `<span class="uplot-readout-label">${xLabel}</span>` +
                 `<span class="uplot-readout-value">${lastX}</span>` +
                 `</div>` +
                 `<div class="uplot-readout-item">` +
-                `<span class="uplot-readout-swatch" style="border-color:#e15759;"></span>` +
+                `<span class="uplot-readout-swatch" style="border-color:${latestColor};"></span>` +
                 `<span class="uplot-readout-label">${yLabel}</span>` +
                 `<span class="uplot-readout-value">${lastY}</span>` +
                 `</div>`
