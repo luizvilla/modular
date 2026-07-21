@@ -3792,21 +3792,22 @@ ipcMain.handle("write-serial-port", async (event, { path, data }) => {
 });
 
 // 📂 Start CSV recording for a given port
-ipcMain.handle('start-csv-record', async (event, { path, filePath, separator, eol, order = 'old', addHeader = true, timestampMode = 'none', type = 'serialport_datasource' }) => {
-        emitActivity({ id: 'csv:record', title: path, state: 'start', label: 'Start CSV recording', detail: filePath });
-        const port = openPorts.get(path);
+ipcMain.handle('start-csv-record', async (event, { path: portPath, filePath, separator, eol, order = 'old', addHeader = true, timestampMode = 'none', type = 'serialport_datasource' }) => {
+        emitActivity({ id: 'csv:record', title: portPath, state: 'start', label: 'Start CSV recording', detail: filePath });
+        const port = openPorts.get(portPath);
         if (!port) {
                 const err = 'port not open';
-                emitActivity({ id: 'csv:record', title: path, state: 'error', label: 'Start CSV recording', detail: err });
+                emitActivity({ id: 'csv:record', title: portPath, state: 'error', label: 'Start CSV recording', detail: err });
                 throw new Error(err);
         }
-        if (activeRecordings.has(path)) {
-                emitActivity({ id: 'csv:record', title: path, state: 'done', label: 'Already recording' });
+        if (activeRecordings.has(portPath)) {
+                emitActivity({ id: 'csv:record', title: portPath, state: 'done', label: 'Already recording' });
                 return 'already recording';
         }
         const sep = separator || ',';
         const eolStr = decodeEolToken(eol);
-        const headers = headerBuffers.get(dsKey(path, type)) || [];
+        const headers = headerBuffers.get(dsKey(portPath, type)) || [];
+        const resolvedFilePath = path.isAbsolute(filePath) ? filePath : path.join(capturesDir, filePath);
         const recording = {
                 order,
                 addHeader,
@@ -3817,14 +3818,14 @@ ipcMain.handle('start-csv-record', async (event, { path, filePath, separator, eo
                 listener: null,
                 startTime: Date.now(),
                 headerWritten: false,
-                filePath,
+                filePath: resolvedFilePath,
                 sep,
                 eolStr,
                 headers
         };
 
         if (order === 'old') {
-                recording.stream = fs.createWriteStream(filePath, { flags: 'a' });
+                recording.stream = fs.createWriteStream(resolvedFilePath, { flags: 'a' });
         }
 
         let buffer = '';
@@ -3872,8 +3873,8 @@ ipcMain.handle('start-csv-record', async (event, { path, filePath, separator, eo
         };
 		recording.listener = listener;
         port.on('data', listener);
-        activeRecordings.set(path, recording);
-        emitActivity({ id: 'csv:record', title: path, state: 'done', label: 'CSV recording started' });
+        activeRecordings.set(portPath, recording);
+        emitActivity({ id: 'csv:record', title: portPath, state: 'done', label: 'CSV recording started' });
         return 'started';
 });
 
@@ -3903,18 +3904,18 @@ ipcMain.handle('stop-csv-record', async (event, { path }) => {
 });
 
 // 💾 Save the latest fast frame dataset to CSV
-ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, addHeader = true, timestampMode = 'none', useTimestampedFileName = false }) => {
-        emitActivity({ id: 'csv:save-fast', title: path, state: 'start', label: 'Save fast dataset', detail: filePath });
-        const dataset = fastBuffers.get(path);
+ipcMain.handle('save-fast-csv', async (event, { path: portPath, filePath, separator, eol, addHeader = true, timestampMode = 'none', useTimestampedFileName = false }) => {
+        emitActivity({ id: 'csv:save-fast', title: portPath, state: 'start', label: 'Save fast dataset', detail: filePath });
+        const dataset = fastBuffers.get(portPath);
         if (!dataset || !Array.isArray(dataset.series)) {
                 const err = 'no dataset';
-                emitActivity({ id: 'csv:save-fast', title: path, state: 'error', label: 'Save fast dataset', detail: err });
+                emitActivity({ id: 'csv:save-fast', title: portPath, state: 'error', label: 'Save fast dataset', detail: err });
                 throw new Error(err);
         }
         const resolvedFilePath = useTimestampedFileName
             ? resolveTimestampedCsvPath(filePath, capturesDir)
             : (path.isAbsolute(filePath) ? filePath : path.join(capturesDir, filePath));
-        const headers = headerBuffers.get(dsKey(path, 'fast_frame_datasource')) || [];
+        const headers = headerBuffers.get(dsKey(portPath, 'fast_frame_datasource')) || [];
         const sep = separator || ',';
         const eolStr = decodeEolToken(eol);
         const out = [];
@@ -3942,13 +3943,13 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
         }
         const content = out.join(eolStr) + eolStr;
         await fs.promises.writeFile(resolvedFilePath, content);
-        setFastStatus(path, {
+        setFastStatus(portPath, {
                 state: 'saved',
                 message: 'Fast frame saved to CSV',
                 datasetPoints: Array.isArray(dataset.timestamps) ? dataset.timestamps.length : 0,
                 filePath: resolvedFilePath
         });
-        emitActivity({ id: 'csv:save-fast', title: path, state: 'done', label: 'Saved fast dataset', detail: resolvedFilePath });
+        emitActivity({ id: 'csv:save-fast', title: portPath, state: 'done', label: 'Saved fast dataset', detail: resolvedFilePath });
         return { status: 'saved', filePath: resolvedFilePath };
 });
 
