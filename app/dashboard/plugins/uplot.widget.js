@@ -290,6 +290,8 @@ class TimePlotUPlot {
         }
 
         _getSeriesColor(idx) {
+            const def = Array.isArray(this.seriesDefs) ? this.seriesDefs[idx] : null;
+            if (def && def.color) return def.color;
             const mapping = this.dsMap[idx] || {};
             const ds = mapping.ds ?? this.datasourceName;
             const chIdx = mapping.idx ?? this.channelIndices[idx] ?? idx;

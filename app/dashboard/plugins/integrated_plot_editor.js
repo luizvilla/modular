@@ -261,6 +261,7 @@
 
     function openOwntechPlotEditor(widgetModel, shared) {
         const settings = widgetModel.settings() || {};
+        const sharedFast = shared.getFastFrameShared ? shared.getFastFrameShared() : window.FastFrameShared;
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
         const left = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
         const right = $('<div class="col-md-6 d-flex flex-column gap-2"></div>');
@@ -285,6 +286,7 @@
             addParamField.row.toggle(op === 'scale' || op === 'offset');
         });
         const addSource = buildSourceControls(shared, 'Source', {});
+        const addColorField = createInputRow('Color', 'color', '#4e79a7');
 
         const channelActions = $('<div class="d-flex gap-2"></div>');
         const addChannelButton = $('<button type="button" class="btn btn-sm btn-primary">Add channel</button>');
@@ -292,7 +294,7 @@
         channelActions.append(addChannelButton, resetChannelsButton);
 
         const channelList = $('<div class="d-flex flex-column gap-1 mt-1"></div>');
-        channelsSection.append(addLabelField.row, addOpField.row, addParamField.row, addSource.wrapper, channelActions, channelList);
+        channelsSection.append(addLabelField.row, addOpField.row, addParamField.row, addSource.wrapper, addColorField.row, channelActions, channelList);
         left.append(channelsSection);
 
         // ── Display section ──────────────────────────────────────────────────
@@ -324,6 +326,16 @@
             .map(normalizeOwntechSeriesDef)
             .map((def) => { const d = { ...def, b: null }; if (d.op === 'mulvar') d.op = 'identity'; return d; });
 
+        function nextChannelColor() {
+            const paletteName = paletteField.select.val() || 'ColorBlind10';
+            const themes = shared.getColorThemes();
+            const palette = (Array.isArray(themes[paletteName]) && themes[paletteName].length)
+                ? themes[paletteName]
+                : (sharedFast ? sharedFast.DEFAULT_COLORS : ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc949']);
+            return palette[channelDefs.length % palette.length];
+        }
+        addColorField.input.val(nextChannelColor());
+
         function renderChannelList() {
             channelList.empty();
             if (!channelDefs.length) {
@@ -336,7 +348,9 @@
                 const varLabel = (def.a && def.a.var !== undefined && def.a.var !== null) ? ` · ${def.a.var}` : '';
                 const opLabel = (def.op && def.op !== 'identity') ? ` [${def.op}${def.op === 'scale' || def.op === 'offset' ? ` ${def.param}` : ''}]` : '';
                 const summary = (def.label || `${dsLabel}${varLabel}`) + opLabel;
-                row.append($('<div class="small"></div>').text(summary));
+                const dot = $('<span style="display:inline-block;width:10px;height:10px;border-radius:2px;flex-shrink:0;"></span>').css('background', def.color || '#888');
+                const labelWrap = $('<div class="d-flex align-items-center gap-2"></div>').append(dot, $('<div class="small"></div>').text(summary));
+                row.append(labelWrap);
                 row.append($('<button type="button" class="btn btn-sm btn-outline-danger">Remove</button>').on('click', () => {
                     channelDefs.splice(index, 1);
                     renderChannelList();
@@ -353,15 +367,18 @@
                 label: (addLabelField.input.val() || '').trim(),
                 op,
                 param: (op === 'scale' || op === 'offset') ? (parseFloat(addParamField.input.val()) || 0) : 0,
+                color: addColorField.input.val() || nextChannelColor(),
                 a: sourceValue,
                 b: null
             });
             addLabelField.input.val('');
+            addColorField.input.val(nextChannelColor());
             renderChannelList();
         });
 
         resetChannelsButton.on('click', () => {
             channelDefs.length = 0;
+            addColorField.input.val(nextChannelColor());
             renderChannelList();
         });
 
