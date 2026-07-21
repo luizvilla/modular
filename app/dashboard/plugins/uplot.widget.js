@@ -28,6 +28,29 @@
             }
         };
     })(api);
+
+    function buildTimestampStamp(date = new Date()) {
+        const pad = (value) => String(value).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+    }
+
+    function csvEscape(value) {
+        const str = value === null || value === undefined ? '' : String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    }
+
+    function downloadCsv(rows, filename) {
+        const content = rows.map(row => row.map(csvEscape).join(',')).join('\r\n');
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = window.URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(a.href);
+    }
+
     freeboard.loadWidgetPlugin({
         type_name: "time_plot_uplot",
         display_name: "Time Plot Widget",
@@ -57,12 +80,14 @@ class TimePlotUPlot {
             this.readoutHost = $('<div class="uplot-readout-grid"></div>');
             this.paused = false;
             this.pauseBtn = $('<button class="btn btn-sm btn-outline-secondary" title="Pause / resume data">⏸ Pause</button>');
+            this.exportBtn = $('<button class="btn btn-sm btn-outline-secondary" title="Export visible data to CSV">Export CSV</button>');
             this.controlsRow = $('<div class="d-flex justify-content-end" style="flex:0 0 auto;"></div>');
-            this.controlsRow.append(this.pauseBtn);
+            this.controlsRow.append(this.pauseBtn, this.exportBtn);
             this.pauseBtn.on('click', () => {
                 this.paused = !this.paused;
                 this.pauseBtn.text(this.paused ? '▶ Resume' : '⏸ Pause');
             });
+            this.exportBtn.on('click', () => this._exportCsv());
             this.container.append(this.chartHost, this.summaryHost, this.readoutHost, this.controlsRow, this.resizeHandle);
             this.plot = null;
             this.seriesCount = 0;
@@ -219,6 +244,19 @@ class TimePlotUPlot {
                 this._renderSourceSummary();
                 if (this.plot) this._resetPlot();
             }
+        }
+
+        _exportCsv() {
+            const timestamps = this.dataBuffer[0] || [];
+            const headers = ['Time'];
+            for (let i = 0; i < this.seriesCount; i++) headers.push(this._getSeriesLabel(i));
+            const rows = [headers];
+            for (let t = 0; t < timestamps.length; t++) {
+                const row = [new Date(timestamps[t]).toISOString()];
+                for (let i = 1; i <= this.seriesCount; i++) row.push(this.dataBuffer[i]?.[t]);
+                rows.push(row);
+            }
+            downloadCsv(rows, `${buildTimestampStamp()}-time_plot.csv`);
         }
 
         _getSeriesLabel(idx) {

@@ -23,6 +23,28 @@
         };
     })(api);
 
+    function buildTimestampStamp(date = new Date()) {
+        const pad = (value) => String(value).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+    }
+
+    function csvEscape(value) {
+        const str = value === null || value === undefined ? '' : String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    }
+
+    function downloadCsv(rows, filename) {
+        const content = rows.map(row => row.map(csvEscape).join(',')).join('\r\n');
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = window.URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(a.href);
+    }
+
     freeboard.loadWidgetPlugin({
         type_name: "xy_plot_uplot",
         display_name: "XY Plot Widget",
@@ -58,15 +80,18 @@
             this.xSourceDef = this._parseSourceDef(this._resolveSetting('xSourceDef'));
             this.ySourceDef = this._parseSourceDef(this._resolveSetting('ySourceDef'));
             this.dataBuffer = [[], [], []]; // x, y, latest-point-only y
+            this.paused = false;
 
             this.container = $('<div class="xy-plot-shell h-100 d-flex flex-column gap-2 p-2"></div>');
             this.toolbar = $('<div class="d-flex align-items-center justify-content-between gap-2"></div>');
             this.status = $('<div class="small text-muted flex-grow-1">Configure X and Y sources.</div>');
+            this.pauseBtn = $('<button class="btn btn-outline-secondary btn-sm xy-plot-pause" title="Pause / resume data">⏸ Pause</button>');
             this.clearBtn = $('<button class="btn btn-outline-secondary btn-sm xy-plot-clear">Clear history</button>');
+            this.exportBtn = $('<button class="btn btn-outline-secondary btn-sm xy-plot-export" title="Export visible data to CSV">Export CSV</button>');
             this.chartHost = $('<div class="xy-plot-chart" style="min-height:220px;"></div>');
             this.readout = $('<div class="uplot-readout-grid"></div>');
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
-            this.toolbar.append(this.status, this.clearBtn);
+            this.toolbar.append(this.status, this.pauseBtn, this.clearBtn, this.exportBtn);
             this.container.append(this.toolbar, this.chartHost, this.readout, this.resizeHandle);
         }
 
@@ -112,6 +137,11 @@
             this.sectionElement = this.subSectionElement?.parentElement || null;
             this.container.appendTo(containerElement);
             this.clearBtn.off('click').on('click', () => this._clearHistory());
+            this.pauseBtn.off('click').on('click', () => {
+                this.paused = !this.paused;
+                this.pauseBtn.text(this.paused ? '▶ Resume' : '⏸ Pause');
+            });
+            this.exportBtn.off('click').on('click', () => this._exportCsv());
             this._maybeSpawnHelpers();
             this._initPlot();
             this._applyPlotHeight();
@@ -220,6 +250,7 @@
         }
 
         async _pollOnce() {
+            if (this.paused) return;
             if (!this.xSourceDef || !this.ySourceDef) {
                 this._refreshStatus();
                 return;
@@ -364,6 +395,16 @@
             this.dataBuffer = [[], [], []];
             this._updatePlot(true);
             this._refreshStatus();
+        }
+
+        _exportCsv() {
+            const xs = this.dataBuffer[0] || [];
+            const ys = this.dataBuffer[1] || [];
+            const xLabel = this._resolveSetting('xLabel') || 'X';
+            const yLabel = this._resolveSetting('yLabel') || 'Y';
+            const rows = [[xLabel, yLabel]];
+            for (let i = 0; i < xs.length; i++) rows.push([xs[i], ys[i]]);
+            downloadCsv(rows, `${buildTimestampStamp()}-xy_plot.csv`);
         }
 
         _updatePlot(force = false) {
