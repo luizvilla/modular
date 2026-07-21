@@ -50,7 +50,8 @@ const api = {
         readText: (filePath) => ipcRenderer.invoke('files-read-text', { filePath }),
         listDir: (dirPath) => ipcRenderer.invoke('files-list-dir', { dirPath }),
         writeText: (filePath, content) => ipcRenderer.invoke('files-write-text', { filePath, content }),
-        chooseCsvFile: () => ipcRenderer.invoke('choose-csv-file')
+        chooseCsvFile: () => ipcRenderer.invoke('choose-csv-file'),
+        saveExportCsv: (category, filename, content) => ipcRenderer.invoke('save-export-csv', { category, filename, content })
     },
     system: {
         openExternal: (url) => ipcRenderer.invoke('open-external-url', { url })

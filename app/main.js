@@ -1730,6 +1730,24 @@ ipcMain.handle('files-write-text', async (_event, { filePath, content } = {}) =>
     }
 });
 
+const EXPORT_CSV_CATEGORIES = new Set(['time_plot_csv', 'xy_plot_csv']);
+
+ipcMain.handle('save-export-csv', async (_event, { category, filename, content } = {}) => {
+    if (!EXPORT_CSV_CATEGORIES.has(category)) {
+        return { ok: false, error: `Invalid export category: ${category}` };
+    }
+    const dir = getSaveSubdir(documentsDir, category);
+    const safeName = path.basename(String(filename || 'export.csv'));
+    const filePath = path.join(dir, safeName);
+    try {
+        await fs.promises.writeFile(filePath, content ?? '', 'utf8');
+        return { ok: true, filePath };
+    } catch (err) {
+        console.warn('save-export-csv failed:', err?.message || err);
+        return { ok: false, error: err?.message || String(err) };
+    }
+});
+
 ipcMain.handle('open-external-url', async (_event, { url } = {}) => {
     if (!url || !/^https?:\/\//i.test(String(url))) {
         return { ok: false, error: 'Invalid external URL' };
