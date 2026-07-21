@@ -28,6 +28,8 @@ const {
     writeManagedPlatformioState,
 } = require('./firmware/toolchain');
 const { ClangdClient, toDocumentUri } = require('./firmware/clangd-client');
+const { getSaveRoot, getSaveSubdir } = require('./save_paths');
+const { migrateLegacySaveLocations } = require('./save_paths_migrate');
 const {
     FIRMWARE_FOCUSED_FILES,
     getFirmwareWorkspaceStatePath,
@@ -145,7 +147,7 @@ function resolveTimestampedCsvPath(filePath, defaultDir) {
     const parsed = path.parse(target);
     const ext = parsed.ext || '.csv';
     const baseName = parsed.name || 'fast_frame';
-    // Fall back to defaultDir (or acquireDir once declared) so relative names
+    // Fall back to defaultDir (or capturesDir once declared) so relative names
     // never resolve against the process cwd (can be System32 on Windows).
     const dir = parsed.dir || defaultDir || '.';
     return path.join(dir, `${buildTimestampStamp()}-${baseName}${ext}`);
@@ -1294,14 +1296,14 @@ function openFirmwareWorkspaceWindow() {
     return firmwareWindow;
 }
 
-const dashboardsDir = path.join(app.getPath('userData'), 'dashboards');
-fs.mkdirSync(dashboardsDir, { recursive: true });
-const machinesDir = path.join(app.getPath('userData'), 'machines');
-fs.mkdirSync(machinesDir, { recursive: true });
-const headersDir = path.join(__dirname, 'headers');
-fs.mkdirSync(headersDir, { recursive: true });
-const acquireDir = path.join(__dirname, 'acquire');
-fs.mkdirSync(acquireDir, { recursive: true });
+const documentsDir = app.getPath('documents');
+const saveRoot = getSaveRoot(documentsDir);
+migrateLegacySaveLocations(__dirname, documentsDir, saveRoot);
+
+const dashboardsDir = getSaveSubdir(documentsDir, 'dashboards');
+const machinesDir = getSaveSubdir(documentsDir, 'machines');
+const headersDir = getSaveSubdir(documentsDir, 'headers');
+const capturesDir = getSaveSubdir(documentsDir, 'captures');
 
 // Menu-driven file open uses main-process dialog to satisfy user activation requirements.
 ipcMain.handle('show-open-dashboard', async () => {
@@ -3910,8 +3912,8 @@ ipcMain.handle('save-fast-csv', async (event, { path, filePath, separator, eol, 
                 throw new Error(err);
         }
         const resolvedFilePath = useTimestampedFileName
-            ? resolveTimestampedCsvPath(filePath, acquireDir)
-            : (path.isAbsolute(filePath) ? filePath : path.join(acquireDir, filePath));
+            ? resolveTimestampedCsvPath(filePath, capturesDir)
+            : (path.isAbsolute(filePath) ? filePath : path.join(capturesDir, filePath));
         const headers = headerBuffers.get(dsKey(path, 'fast_frame_datasource')) || [];
         const sep = separator || ',';
         const eolStr = decodeEolToken(eol);
