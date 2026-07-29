@@ -14,6 +14,7 @@
         { "type": "serial_terminal",         "settings": { "title": "Terminal",        "datasourceName": "MockSerial", "colorize": true, "autoScroll": true, "refresh": 200, "maxLines": 20 } },
         { "type": "serial_csv_recorder",     "settings": { "filePath": "record.csv", "separator": ":", "eol": "\\n", "order": "old", "addHeader": true, "timestampMode": "none", "datasource": "MockSerial" } },
         { "type": "serial_command_buttons",  "settings": { "buttons": [], "layout": "vertical", "datasource": "MockSerial" } },
+        { "type": "plus_minus_button",       "settings": { "title": "Count", "units": "", "plusCommand": "+", "plusLegend": "1", "minusCommand": "-", "minusLegend": "1", "datasource": "MockSerial", "sourceDef": { "ds": "MockSerial", "type": "serialport_datasource", "device": null, "device_uid": null, "var": 0 } } },
         { "type": "serial_flasher",          "settings": { "title": "Flasher" } },
         { "type": "time_plot_uplot",         "settings": { "title": "Plot", "seriesDefs": [], "duration": 2000, "refreshRate": 500, "yLabel": "V", "showLegend": false } },
         { "type": "uplot_series_manager",    "settings": { "title": "Series Mgr" } },

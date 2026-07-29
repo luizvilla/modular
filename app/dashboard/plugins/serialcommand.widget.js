@@ -1,9 +1,10 @@
 (function () {
     freeboard.loadWidgetPlugin({
         type_name: "serial_command_buttons",
-        display_name: "Serial Commands sender",
+        display_name: "Push Buttons",
         description: "Buttons to send commands over a serial port",
         icon: "terminal",
+        category: "Buttons",
         settings: [
             { name: "title", display_name: "Title", type: "text" },
             {

@@ -1211,6 +1211,50 @@
         return true;
     }
 
+    function openPlusMinusButtonEditor(widgetModel, shared) {
+        const settings = widgetModel.settings() || {};
+        const form = $('<div class="d-flex flex-column gap-2 integrated-plot-editor" style="max-width:420px"></div>');
+
+        const displaySection = createSection('Display');
+        const titleField = createInputRow('Title', 'text', settings.title || '+/- Button');
+        const unitsField = createInputRow('Units', 'text', settings.units || '');
+        displaySection.append(titleField.row, unitsField.row);
+
+        const sourceSection = createSection('Value Source');
+        const sourceControls = buildSourceControls(shared, 'Datasource', settings.sourceDef);
+        sourceSection.append(sourceControls.wrapper);
+
+        const commandSection = createSection('Commands');
+        const serialDsOptions = shared.listDatasources()
+            .filter((ds) => ds.type === 'serialport_datasource' || ds.type === 'fast_frame_datasource')
+            .map((ds) => ({ value: ds.name, label: ds.name }));
+        const commandDsField = createSelectRow('Send Commands To', serialDsOptions, settings.datasource || '', 'Select datasource');
+        const plusField = createInputRow('+ Command', 'text', settings.plusCommand || '');
+        const plusLegendField = createInputRow('+ Legend', 'text', settings.plusLegend || '', 'e.g. 1');
+        const minusField = createInputRow('- Command', 'text', settings.minusCommand || '');
+        const minusLegendField = createInputRow('- Legend', 'text', settings.minusLegend || '', 'e.g. 1');
+        commandSection.append(commandDsField.row, plusField.row, plusLegendField.row, minusField.row, minusLegendField.row);
+
+        form.append(displaySection, sourceSection, commandSection);
+
+        new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
+            const sourceDef = sourceControls.buildValue();
+            const updated = _.extend({}, settings, {
+                title: titleField.input.val() || '+/- Button',
+                units: unitsField.input.val() || '',
+                sourceDef,
+                datasource: commandDsField.select.val() || '',
+                plusCommand: plusField.input.val() || '',
+                plusLegend: plusLegendField.input.val() || '',
+                minusCommand: minusField.input.val() || '',
+                minusLegend: minusLegendField.input.val() || ''
+            });
+            shared.commitWidgetSettings(widgetModel, updated);
+        });
+
+        return true;
+    }
+
     function openXYPlotEditor(widgetModel, shared) {
         const settings = widgetModel.settings() || {};
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
@@ -1309,6 +1353,9 @@
             }
             if (type === 'radial_needle_gauge') {
                 return openVerticalGaugeEditor(widgetModel, shared, type);
+            }
+            if (type === 'plus_minus_button') {
+                return openPlusMinusButtonEditor(widgetModel, shared);
             }
             return false;
         }

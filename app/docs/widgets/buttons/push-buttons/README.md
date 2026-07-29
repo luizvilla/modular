@@ -1,4 +1,4 @@
-# Serial Command Buttons
+# Push Buttons
 
 | Widget View | Edit Widget Window View |
 |---|---|

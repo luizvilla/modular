@@ -120,11 +120,19 @@
     },
     {
       "type": "serial_command_buttons",
-      "title": "Serial Command Buttons",
-      "category": "Serial",
-      "icon": "keyboard",
+      "title": "Push Buttons",
+      "category": "Buttons",
+      "icon": "terminal",
+      "preferredOrder": 0,
+      "doc": "buttons/push-buttons/README.md"
+    },
+    {
+      "type": "plus_minus_button",
+      "title": "+/- Button",
+      "category": "Buttons",
+      "icon": "toggle-on",
       "preferredOrder": 1,
-      "doc": "serial/serial-command-buttons/README.md"
+      "doc": "buttons/plus-minus-button/README.md"
     },
     {
       "type": "serial_csv_recorder",

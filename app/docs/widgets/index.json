@@ -107,9 +107,16 @@
     },
     {
       "type": "serial_command_buttons",
-      "title": "Serial Command Buttons",
-      "category": "Serial",
-      "doc": "serial/serial-command-buttons/README.md",
+      "title": "Push Buttons",
+      "category": "Buttons",
+      "doc": "buttons/push-buttons/README.md",
+      "requiresThingset": false
+    },
+    {
+      "type": "plus_minus_button",
+      "title": "+/- Button",
+      "category": "Buttons",
+      "doc": "buttons/plus-minus-button/README.md",
       "requiresThingset": false
     },
     {

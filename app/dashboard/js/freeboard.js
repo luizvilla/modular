@@ -2110,7 +2110,7 @@ var WIDGET_CATEGORY_STORAGE_KEY = "freeboard.widget_categories";
 
 function _getDefaultWidgetCategories()
 {
-	return ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Other"];
+	return ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Buttons", "Other"];
 }
 
 function _normalizeCategories(categories)
@@ -3120,7 +3120,7 @@ PluginEditor = function(jsEditor, valueEditor)
 		var typeControl;
 		var widgetPicker;
 		var firstWidgetTypeName;
-		var widgetCategoryOrder = ["Plots", "Gauges", "Serial", "Fast Frame", "Controls", "OwnTech", "ThingSet", "Other"];
+		var widgetCategoryOrder = ["Plots", "Gauges", "Serial", "Fast Frame", "Buttons", "Controls", "OwnTech", "ThingSet", "Other"];
 
 		var widgetCategoryDefaultIcons = {
 			"OwnTech": "bolt",
@@ -3130,6 +3130,7 @@ PluginEditor = function(jsEditor, valueEditor)
 			"Plots": "chart-line",
 			"Gauges": "gauge-high",
 			"Controls": "sliders",
+			"Buttons": "toggle-on",
 			"Other": "puzzle-piece"
 		};
 
@@ -3169,6 +3170,10 @@ PluginEditor = function(jsEditor, valueEditor)
 					"twist_actions_panel": 0,
 					"twist_setpoints_panel": 1,
 					"twist_calibration_panel": 2
+				},
+				"Buttons": {
+					"serial_command_buttons": 0,
+					"plus_minus_button": 1
 				}
 			};
 
@@ -4480,13 +4485,13 @@ var freeboard = (function()
 						}
 					}
 
-					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'fft_spectrum_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge' || instanceType === 'state_machine')) {
+					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'fft_spectrum_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge' || instanceType === 'state_machine' || instanceType === 'plus_minus_button')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
 					}
 
 					var integratedEditorTypes = ['time_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot', 'fft_spectrum_plot',
-						'vertical_gauge', 'horizontal_gauge', 'radial_arc_gauge', 'radial_needle_gauge', 'donut_gauge'];
+						'vertical_gauge', 'horizontal_gauge', 'radial_arc_gauge', 'radial_needle_gauge', 'donut_gauge', 'plus_minus_button'];
 					pluginEditor.createPluginEditor(title, types, instanceType, settings, function(newSettings)
 					{
 						if(options.operation == 'add')
@@ -4524,7 +4529,7 @@ var freeboard = (function()
 
 								freeboardUI.attachWidgetEditIcons(element);
 
-									if (newSettings.type === 'time_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'fft_spectrum_plot' || newSettings.type === 'vertical_gauge' || newSettings.type === 'horizontal_gauge' || newSettings.type === 'radial_arc_gauge' || newSettings.type === 'radial_needle_gauge' || newSettings.type === 'donut_gauge') {
+									if (newSettings.type === 'time_plot_uplot' || newSettings.type === 'xy_plot_uplot' || newSettings.type === 'fast_frame_plot' || newSettings.type === 'fft_spectrum_plot' || newSettings.type === 'vertical_gauge' || newSettings.type === 'horizontal_gauge' || newSettings.type === 'radial_arc_gauge' || newSettings.type === 'radial_needle_gauge' || newSettings.type === 'donut_gauge' || newSettings.type === 'plus_minus_button') {
 									freeboard.openIntegratedPlotEditor(newViewModel, newSettings.type);
 								}
 							}
