@@ -12,6 +12,7 @@
     { "path": "js/zoom_control.js", "order": 50 },
     { "path": "plugins/serialcommand.widget.js", "order": 60 },
     { "path": "plugins/plusminus_button.widget.js", "order": 65 },
+    { "path": "plugins/toggle_button.widget.js", "order": 66 },
     { "path": "plugins/serialterminal.widget.js", "order": 70 },
     { "path": "plugins/serialrecord.widget.js", "order": 80 },
     { "path": "plugins/serialflash.widget.js", "order": 90 },

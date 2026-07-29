@@ -120,6 +120,13 @@
       "requiresThingset": false
     },
     {
+      "type": "toggle_button",
+      "title": "Toggle Button",
+      "category": "Buttons",
+      "doc": "buttons/toggle-button/README.md",
+      "requiresThingset": false
+    },
+    {
       "type": "serial_csv_recorder",
       "title": "Serial CSV Recorder",
       "category": "Serial",

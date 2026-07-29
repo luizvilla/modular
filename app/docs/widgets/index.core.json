@@ -135,6 +135,14 @@
       "doc": "buttons/plus-minus-button/README.md"
     },
     {
+      "type": "toggle_button",
+      "title": "Toggle Button",
+      "category": "Buttons",
+      "icon": "power-off",
+      "preferredOrder": 2,
+      "doc": "buttons/toggle-button/README.md"
+    },
+    {
       "type": "serial_csv_recorder",
       "title": "Serial CSV Recorder",
       "category": "Serial",

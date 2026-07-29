@@ -3173,7 +3173,8 @@ PluginEditor = function(jsEditor, valueEditor)
 				},
 				"Buttons": {
 					"serial_command_buttons": 0,
-					"plus_minus_button": 1
+					"plus_minus_button": 1,
+					"toggle_button": 2
 				}
 			};
 
