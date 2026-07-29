@@ -4449,43 +4449,6 @@ var freeboard = (function()
 							settings = viewModel.settings();
 						}
 					}
-					else if(options.type == 'pane')
-					{
-						settings = {};
-
-						if(options.operation == 'edit')
-						{
-							settings.title = viewModel.title();
-							settings.col_width = viewModel.col_width();
-							settings.row_height = viewModel.row_height();
-						}
-
-						types = {
-							settings: {
-								settings: [
-									{
-										name        : "title",
-										display_name: "Title",
-										type        : "text"
-									},
-									{
-										name : "col_width",
-										display_name : "Columns",
-										type : "integer",
-                                        default_value : 2,
-										required : true
-									},
-									{
-										name : "row_height",
-										display_name : "Rows",
-										type : "integer",
-										description : "Leave blank to keep automatic pane height."
-									}
-								]
-							}
-						}
-					}
-
 					if (options.type == 'widget' && options.operation == 'edit' && (instanceType === 'time_plot_uplot' || instanceType === 'xy_plot_uplot' || instanceType === 'fast_frame_plot' || instanceType === 'fft_spectrum_plot' || instanceType === 'vertical_gauge' || instanceType === 'horizontal_gauge' || instanceType === 'radial_arc_gauge' || instanceType === 'radial_needle_gauge' || instanceType === 'donut_gauge' || instanceType === 'state_machine' || instanceType === 'plus_minus_button')) {
 						freeboard.openIntegratedPlotEditor(viewModel, instanceType);
 						return;
@@ -4537,25 +4500,14 @@ var freeboard = (function()
 						}
 						else if(options.operation == 'edit')
 						{
-							if(options.type == 'pane')
+							if(options.type == 'datasource')
 							{
-								viewModel.title(newSettings.settings.title);
-								viewModel.col_width(newSettings.settings.col_width);
-								var paneRows = Number(newSettings.settings.row_height);
-								viewModel.row_height(_.isFinite(paneRows) && paneRows > 0 ? Math.floor(paneRows) : null);
-								freeboardUI.processResize(false);
+								viewModel.name(newSettings.settings.name);
+								delete newSettings.settings.name;
 							}
-							else
-							{
-								if(options.type == 'datasource')
-								{
-									viewModel.name(newSettings.settings.name);
-									delete newSettings.settings.name;
-								}
 
-								viewModel.type(newSettings.type);
-								viewModel.settings(newSettings.settings);
-							}
+							viewModel.type(newSettings.type);
+							viewModel.settings(newSettings.settings);
 						}
 					}, options.type === 'widget', options.type === 'widget' ? integratedEditorTypes : null);
 				}
@@ -4583,6 +4535,79 @@ var freeboard = (function()
 			if(ipc) ipc.send('open-widget-doc-tab', { type: typeName });
 		}
 		catch(err) {}
+	}
+
+	// Inline pane-title rename: click (sidebar) or double-click (pane header) swaps
+	// the display text for a text input; Enter/blur commits, Escape cancels.
+	ko.bindingHandlers.paneTitleEditor = {
+		init: function(element, valueAccessor)
+		{
+			var params = ko.unwrap(valueAccessor());
+			var pane = (params && params.pane) ? params.pane : params;
+			var trigger = (params && params.trigger) ? params.trigger : "dblclick";
+			var $el = $(element);
+			var displaySpan = $('<span class="pane-title-text"></span>');
+			var input = $('<input type="text" class="pane-title-input" style="display:none;">');
+
+			$el.addClass("pane-title-editor").empty().append(displaySpan, input);
+
+			function renderDisplay()
+			{
+				var value = pane.title();
+				displaySpan.text(value || "(Untitled pane)");
+				displaySpan.toggleClass("pane-title-placeholder", !value);
+			}
+
+			function startEdit()
+			{
+				input.val(pane.title() || "");
+				displaySpan.hide();
+				input.show().focus().select();
+			}
+
+			function commitEdit()
+			{
+				pane.title(input.val().trim());
+				input.hide();
+				displaySpan.show();
+			}
+
+			function cancelEdit()
+			{
+				input.hide();
+				displaySpan.show();
+			}
+
+			$el.on(trigger, function(event)
+			{
+				event.stopPropagation();
+				startEdit();
+			});
+
+			input.on("click", function(event) { event.stopPropagation(); });
+			input.on("blur", commitEdit);
+			input.on("keydown", function(event)
+			{
+				if(event.key === "Enter")
+				{
+					event.preventDefault();
+					input.blur();
+				}
+				else if(event.key === "Escape")
+				{
+					event.preventDefault();
+					cancelEdit();
+				}
+			});
+
+			var titleSub = pane.title.subscribe(renderDisplay);
+			ko.utils.domNodeDisposal.addDisposeCallback(element, function()
+			{
+				titleSub.dispose();
+			});
+
+			renderDisplay();
+		}
 	}
 
 	ko.bindingHandlers.widgetDocs = {

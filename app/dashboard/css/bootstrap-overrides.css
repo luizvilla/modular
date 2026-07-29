@@ -362,6 +362,23 @@ textarea.form-control {
   color: #e6e6e6;
 }
 
+.widget-group-title .pane-title-text.pane-title-placeholder {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.widget-group-title .pane-title-input {
+  width: 100%;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #e6e6e6;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
 .widget-group:first-child .widget-group-title {
   padding-top: 0;
 }
@@ -1388,6 +1405,34 @@ body:not(.widget-dragging):not(.pane-dragging) .gridster section > .sub-section:
   z-index: 2;
 }
 
+/* The drag-handle sits underneath the (pointer-events:none) h1 so a drag can
+   start anywhere in the header. Only the title text/input itself opts back
+   into pointer-events so it can be double-clicked to rename without
+   swallowing drags that start elsewhere in the header. */
+.gridster .gs_w > .pane-header > h1 .pane-title-text,
+.gridster .gs_w > .pane-header > h1 .pane-title-input {
+  pointer-events: auto;
+  cursor: text;
+  user-select: text;
+}
+
+.gridster .gs_w > .pane-header > h1 .pane-title-text.pane-title-placeholder {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+.gridster .gs_w > .pane-header > h1 .pane-title-input {
+  font: inherit;
+  text-transform: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 0 4px;
+  max-width: 200px;
+  vertical-align: middle;
+}
+
 .gridster .gs_w > .pane-header {
   position: relative;
 }
@@ -1624,6 +1669,12 @@ html.theme-light .widget-group-title {
     border-bottom-color: #d0d4db;
 }
 
+html.theme-light .widget-group-title .pane-title-input {
+    color: #1a1a1a;
+    background: #fff;
+    border-color: #cdd1dc;
+}
+
 html.theme-light .widget-list-item:hover {
     background: rgba(0, 0, 0, 0.05);
 }
@@ -1783,6 +1834,11 @@ html.theme-light .pane-header {
 
 html.theme-light .pane-header h1 {
     color: #222;
+}
+
+html.theme-light .pane-header h1 .pane-title-input {
+    background: #fff;
+    border-color: #cdd1dc;
 }
 
 html.theme-light .sub-section {

@@ -342,7 +342,7 @@
                 <!-- ko foreach: panes -->
                 <!-- ko if: widgets().length -->
                 <div class="widget-group">
-                    <div class="widget-group-title" data-bind="pluginEditor: {operation: 'edit', type: 'pane'}, text: title() || '(Untitled pane)'" title="Edit pane"></div>
+                    <div class="widget-group-title" data-bind="paneTitleEditor: {pane: $data, trigger: 'click'}" title="Click to rename pane"></div>
                     <!-- ko foreach: widgets -->
                     <div class="widget-list-item" data-bind="pluginEditor: {operation: 'edit', type: 'widget'}" title="Edit widget">
                         <span class="widget-list-name" data-bind="text: displayTitle"></span>
@@ -380,13 +380,10 @@
     <li data-bind="pane: true">
         <header class="pane-header">
             <div class="pane-drag-handle" title="Drag to move pane"></div>
-            <h1 data-bind="text: title"></h1>
+            <h1 data-bind="paneTitleEditor: $data" title="Double-click to rename pane"></h1>
             <ul class="board-toolbar pane-tools">
                 <li data-bind="pluginEditor: {operation: 'add', type: 'widget'}" title="Add widget">
                     <i class="icon-plus icon-white"></i>
-                </li>
-                <li class="tool-edit" data-bind="pluginEditor: {operation: 'edit', type: 'pane'}" title="Pane parameters">
-                    <i class="icon-wrench icon-white"></i>
                 </li>
                 <li data-bind="click: $root.clonePane" title="Duplicate pane">
                     <i class="fa-solid fa-clone icon-white"></i>
