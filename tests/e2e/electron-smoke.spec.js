@@ -27,7 +27,7 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
       hasInstalledInManagerList: managerList.some((e) => e.source === 'installed'),
       hasManagerApi: typeof window.api.extensions.manager === 'object',
       hasCoreScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'),
-      hasOwntechScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/twist_control.widget.js'),
+      hasOwntechLegacyScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/twist_control.widget.js'),
       hasThingsetScript: bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/ts_device_ui.widget.js'),
       hasWidgetDocsRoots: Array.isArray(bootstrap.widgetDocsRoots) && bootstrap.widgetDocsRoots.length > 0,
       hasExampleRoots: Array.isArray(bootstrap.exampleRoots) && bootstrap.exampleRoots.length > 0,
@@ -49,23 +49,26 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
 
   expect(diagnostics.hasMainSnapshot).toBe(true);
   expect(diagnostics.hasRuntimeSnapshot).toBe(true);
-  expect(diagnostics.extensionIds).toEqual(expect.arrayContaining(['core', 'courseware', 'tutorials', 'owntech', 'owntech-workspace', 'thingset']));
+  expect(diagnostics.extensionIds).toEqual(expect.arrayContaining(['core', 'courseware', 'tutorials', 'owntech', 'owntech-legacy', 'owntech-workspace', 'thingset']));
   expect(diagnostics.inventoryHasVersionField).toBe(true);
   expect(diagnostics.inventoryHasIsInstalledField).toBe(true);
   // Manager list shows all extensions; source-loaded appear as 'builtin'.
-  expect(diagnostics.managerListIds).toEqual(expect.arrayContaining(['core', 'courseware', 'tutorials', 'owntech', 'owntech-workspace', 'thingset']));
+  expect(diagnostics.managerListIds).toEqual(expect.arrayContaining(['core', 'courseware', 'tutorials', 'owntech', 'owntech-legacy', 'owntech-workspace', 'thingset']));
   expect(diagnostics.managerListSources.every((s) => s === 'builtin' || s === 'installed')).toBe(true);
   expect(diagnostics.hasInstalledInManagerList).toBe(false);
   expect(diagnostics.hasManagerApi).toBe(true);
   expect(diagnostics.hasCoreScript).toBe(true);
-  expect(diagnostics.hasOwntechScript).toBe(true);
+  // owntech-legacy (twist widgets) is disabled by default now; the new owntech extension is empty until Milestone 1+.
+  expect(diagnostics.hasOwntechLegacyScript).toBe(false);
   expect(diagnostics.hasThingsetScript).toBe(true);
   expect(diagnostics.hasWidgetDocsRoots).toBe(true);
   expect(diagnostics.hasCoursewareRoots).toBe(true);
   expect(diagnostics.hasCourseware).toBe(true);
   expect(diagnostics.hasTutorialRoots).toBe(true);
   expect(diagnostics.hasTutorials).toBe(true);
-  expect(menuState.widgetLabels).toEqual(expect.arrayContaining(['Modular Core Widgets', 'OwnTech Widgets', 'Thingset Widgets']));
+  // 'OwnTech Widgets' is absent by default: the new owntech extension has no widget docs until Milestone 1+.
+  expect(menuState.widgetLabels).toEqual(expect.arrayContaining(['Modular Core Widgets', 'Thingset Widgets']));
+  expect(menuState.widgetLabels).not.toEqual(expect.arrayContaining(['OwnTech Widgets']));
   expect(menuState.hasTutorialsMenu).toBe(true);
 
   const filtered = errors.filter((err) => {
@@ -78,6 +81,27 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
     console.error('Renderer errors detected:', filtered.map(e => e.message));
   }
   expect(filtered).toEqual([]);
+
+  await app.close();
+});
+
+test('owntech-legacy can be re-enabled via env var override', async () => {
+  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH_LEGACY: '1' });
+
+  await waitForDashboard(page);
+  await page.waitForFunction(() => typeof window.api === 'object' && window.api !== null, null, { timeout: 15_000 });
+
+  const bootstrap = await page.evaluate(async () => window.api.extensions.getBootstrap());
+  const menuState = await app.evaluate(({ Menu }) => {
+    const menu = Menu.getApplicationMenu();
+    const widgetExtensions = menu && menu.items.find((item) => item.label === 'Widget Extensions');
+    return {
+      widgetLabels: widgetExtensions ? widgetExtensions.submenu.items.map((item) => item.label) : [],
+    };
+  });
+
+  expect(bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/twist_control.widget.js')).toBe(true);
+  expect(menuState.widgetLabels).toEqual(expect.arrayContaining(['OwnTech Widgets (Legacy)']));
 
   await app.close();
 });

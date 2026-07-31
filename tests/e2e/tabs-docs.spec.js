@@ -48,7 +48,7 @@ test('open up to 10 example tabs', async () => {
 });
 
 test('widget docs bootstrap contains merged entries from enabled extensions', async () => {
-  const { app, page } = await launchApp({ ENABLE_THINGSET: '1' });
+  const { app, page } = await launchApp({ ENABLE_THINGSET: '1', MODULAR_EXTENSION_OWNTECH_LEGACY: '1' });
   await waitForDashboard(page);
 
   const result = await page.evaluate(async () => {
@@ -67,13 +67,30 @@ test('widget docs bootstrap contains merged entries from enabled extensions', as
   expect(result.hasTwistActions).toBe(true);
   expect(result.hasThingsetDeviceUi).toBe(true);
   expect(result.timePlotCategory).toBe('Plots');
-  expect(result.twistExtensionId).toBe('owntech');
+  expect(result.twistExtensionId).toBe('owntech-legacy');
+
+  await app.close();
+});
+
+test('widget docs bootstrap excludes twist widgets by default (owntech-legacy is off by default)', async () => {
+  const { app, page } = await launchApp({ ENABLE_THINGSET: '1' });
+  await waitForDashboard(page);
+
+  const result = await page.evaluate(async () => {
+    const bootstrap = await window.api.extensions.getBootstrap();
+    const docs = Array.isArray(bootstrap.widgetDocs) ? bootstrap.widgetDocs : [];
+    return {
+      hasTwistActions: docs.some((e) => e.type === 'twist_actions_panel'),
+    };
+  });
+
+  expect(result.hasTwistActions).toBe(false);
 
   await app.close();
 });
 
 test('widget docs bootstrap excludes disabled extension entries', async () => {
-  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH: '0', ENABLE_THINGSET: '0' });
+  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH: '0', MODULAR_EXTENSION_OWNTECH_LEGACY: '0', ENABLE_THINGSET: '0' });
   await waitForDashboard(page);
 
   const result = await page.evaluate(async () => {

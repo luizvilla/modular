@@ -17,24 +17,25 @@ function runDefaultRuntimeAssertions() {
     });
 
     const extensionIds = runtime.inventory.map((entry) => entry.id);
-    ['core', 'courseware', 'tutorials', 'owntech', 'owntech-workspace', 'thingset'].forEach((id) => {
+    ['core', 'courseware', 'tutorials', 'owntech', 'owntech-legacy', 'owntech-workspace', 'thingset'].forEach((id) => {
         assert.strictEqual(extensionIds.includes(id), true, `${id} should be present in inventory`);
     });
     assert.strictEqual(runtime.isEnabled('core'), true);
     assert.strictEqual(runtime.isEnabled('courseware'), true);
     assert.strictEqual(runtime.isEnabled('tutorials'), true);
     assert.strictEqual(runtime.isEnabled('owntech'), true);
+    assert.strictEqual(runtime.isEnabled('owntech-legacy'), false, 'owntech-legacy should be disabled by default');
     assert.strictEqual(runtime.isEnabled('owntech-workspace'), true);
     assert.strictEqual(runtime.isEnabled('thingset'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'), true);
-    assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), true);
+    assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), false, 'owntech-legacy renderer scripts should be absent by default');
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/ts_device_ui.widget.js'), true);
 
     // widgetDocs: all three extensions contribute entries
     assert.strictEqual(Array.isArray(runtime.bootstrap.widgetDocs), true);
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'fast_frame_plot'), true);
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'time_plot_uplot'), true);
-    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), true);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), false, 'owntech-legacy widget docs should be absent by default');
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'thingset_device_ui'), true);
     // icon and preferredOrder are present
     const ffPlot = runtime.bootstrap.widgetDocs.find((e) => e.type === 'fast_frame_plot');
@@ -141,6 +142,24 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(addFlasherStep.actions[0].kind, 'apply_tutorial_firmware');
 }
 
+function runOwntechLegacyEnvOverrideAssertions() {
+    // owntech-legacy defaults to disabled; the generic MODULAR_EXTENSION_<ID> env
+    // override must still be able to re-enable it (round-trip of envKeyForExtension()).
+    const runtime = buildExtensionRuntime({
+        appRoot,
+        env: {
+            ...process.env,
+            MODULAR_EXTENSION_OWNTECH_LEGACY: '1',
+            ENABLE_THINGSET: '1',
+        },
+    });
+
+    assert.strictEqual(runtime.isEnabled('owntech'), true, 'new owntech extension should remain enabled');
+    assert.strictEqual(runtime.isEnabled('owntech-legacy'), true, 'MODULAR_EXTENSION_OWNTECH_LEGACY=1 should re-enable owntech-legacy');
+    assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), true, 'twist renderer scripts should reappear once owntech-legacy is re-enabled');
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), true, 'twist widget docs should reappear once owntech-legacy is re-enabled');
+}
+
 function runDisabledRuntimeAssertions() {
     const runtime = buildExtensionRuntime({
         appRoot,
@@ -158,6 +177,7 @@ function runDisabledRuntimeAssertions() {
     assert.strictEqual(runtime.isEnabled('courseware'), false);
     assert.strictEqual(runtime.isEnabled('tutorials'), false);
     assert.strictEqual(runtime.isEnabled('owntech'), false);
+    assert.strictEqual(runtime.isEnabled('owntech-legacy'), false, 'owntech-legacy stays disabled (default off, unaffected by the owntech override)');
     assert.strictEqual(runtime.isEnabled('owntech-workspace'), false);
     assert.strictEqual(runtime.isEnabled('thingset'), false);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'), true);
@@ -392,23 +412,27 @@ function runBuiltinOverrideDisable() {
     try {
         fs.writeFileSync(
             path.join(tempRoot, 'state.json'),
-            JSON.stringify({ owntech: { enabled: false } }),
+            JSON.stringify({ owntech: { enabled: false }, 'owntech-legacy': { enabled: false } }),
             'utf8'
         );
         const env = { ...process.env, ENABLE_THINGSET: '1' };
         delete env.MODULAR_EXTENSION_OWNTECH;
+        delete env.MODULAR_EXTENSION_OWNTECH_LEGACY;
         const runtime = buildExtensionRuntime({ appRoot, env, installedRoot: tempRoot });
 
         const entry = runtime.inventory.find((e) => e.id === 'owntech');
         assert.ok(entry, 'owntech should be in inventory');
         assert.strictEqual(entry.enabled, false, 'state.json should disable owntech');
+        const legacyEntry = runtime.inventory.find((e) => e.id === 'owntech-legacy');
+        assert.ok(legacyEntry, 'owntech-legacy should be in inventory');
+        assert.strictEqual(legacyEntry.enabled, false, 'state.json should keep owntech-legacy disabled');
         const workspaceEntry = runtime.inventory.find((e) => e.id === 'owntech-workspace');
         assert.ok(workspaceEntry, 'owntech-workspace should be in inventory');
         assert.strictEqual(workspaceEntry.enabled, false, 'owntech-workspace should disable when owntech is disabled');
         assert.strictEqual(
             runtime.bootstrap.rendererScripts.some((s) => s.path.includes('twist')),
             false,
-            'owntech renderer scripts should be absent when disabled via state.json'
+            'owntech-legacy renderer scripts should be absent when disabled via state.json'
         );
         assert.strictEqual(runtime.bootstrap.exampleRoots.length, 0, 'dependent examples roots should be absent when owntech is disabled');
     } finally {
@@ -558,6 +582,7 @@ function runTutorialCompletionKindAssertions() {
 }
 
 runDefaultRuntimeAssertions();
+runOwntechLegacyEnvOverrideAssertions();
 runDisabledRuntimeAssertions();
 runInvalidManifestAssertions();
 runInvalidTutorialAssertions();
