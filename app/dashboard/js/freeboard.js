@@ -105,6 +105,14 @@ DatasourceModel = function(theFreeboardModel, datasourcePlugins) {
 		return !!(s.shutdownCommand && String(s.shutdownCommand).trim());
 	});
 
+	// True for the two ThingSet-over-serial datasource types — gets a
+	// "shell detected" status card in the sidebar instead of / alongside
+	// the generic port controls.
+	this.isThingSetShell = ko.computed(function() {
+		var t = self.type();
+		return t === 'thingset_serial_datasource' || t === 'owntech_thingset_datasource';
+	});
+
 	// Delegates to the plugin instance's own resetDevice(), if it has one.
 	this.resetDevice = function() {
 		if (!_.isUndefined(self.datasourceInstance) && _.isFunction(self.datasourceInstance.resetDevice))
@@ -4731,6 +4739,93 @@ var freeboard = (function()
 			}).catch(function() {});
 		}
 	};
+
+	ko.bindingHandlers.thingsetShellStatus = {
+		init: function(element, valueAccessor, allBindings, viewModel, bindingContext)
+		{
+			var $el = $(element).addClass('thingset-shell-status');
+			var badge = $('<span class="thingset-shell-badge"></span>');
+			var meta = $('<div class="thingset-shell-meta"></div>');
+			var summary = $('<div class="thingset-shell-summary"></div>');
+			var rescanBtn = $('<button type="button" class="btn btn-outline-secondary btn-sm thingset-shell-rescan">Rescan Tree</button>');
+
+			rescanBtn.on('click', function()
+			{
+				var datasourceModel = bindingContext.$data;
+				if(datasourceModel && _.isFunction(datasourceModel.updateNow))
+				{
+					datasourceModel.updateNow();
+				}
+			});
+
+			$el.append(badge, meta, summary, rescanBtn);
+			$(element).data('thingsetShellStatusEls', { badge: badge, meta: meta, summary: summary });
+		},
+		update: function(element, valueAccessor, allBindings, viewModel, bindingContext)
+		{
+			var params = ko.unwrap(valueAccessor());
+			ko.unwrap(params.lastUpdated); // Subscribe so this re-renders after every poll/refresh
+
+			var els = $(element).data('thingsetShellStatusEls');
+			if(!els) return;
+
+			var datasourceModel = bindingContext.$data;
+			var data = (datasourceModel && _.isFunction(datasourceModel.latestData)) ? (datasourceModel.latestData() || {}) : {};
+
+			var status = data.status;
+			var badgeText = 'Detecting…';
+			var badgeClass = 'thingset-shell-badge-pending';
+			if(status === 'ok') { badgeText = 'Detected'; badgeClass = 'thingset-shell-badge-ok'; }
+			else if(status === 'no-port') { badgeText = 'Not Detected'; badgeClass = 'thingset-shell-badge-off'; }
+			else if(status === 'error') { badgeText = 'Error'; badgeClass = 'thingset-shell-badge-error'; }
+			else if(status === 'unavailable') { badgeText = 'Unavailable'; badgeClass = 'thingset-shell-badge-error'; }
+			els.badge.attr('class', 'thingset-shell-badge ' + badgeClass).text(badgeText);
+
+			var metaParts = [];
+			if(data.portPath) metaParts.push('Port: ' + data.portPath);
+			if(data.node_name) metaParts.push('Node: ' + data.node_name);
+			if(data.node_uid) metaParts.push('UID: ' + data.node_uid);
+			if(data.address_hex) metaParts.push('Addr: ' + data.address_hex);
+			if(data.error) metaParts.push('Error: ' + data.error);
+			els.meta.text(metaParts.join(' · '));
+
+			var tree = data.tree;
+			var counts = summarizeThingSetTree(tree);
+			els.summary.text(counts ? (counts.leafCount + ' leaves across ' + counts.groupCount + ' groups') : '');
+		}
+	};
+
+	// Lightweight leaf/group counter for the sidebar status card -- not the
+	// same helper as Milestone 4's leg/action discovery walk, which needs
+	// pattern-matching over group names rather than a raw count.
+	function summarizeThingSetTree(root)
+	{
+		if(!root || typeof root !== 'object') return null;
+		var leafCount = 0;
+		var groupCount = 0;
+
+		function walk(node)
+		{
+			if(!node || typeof node !== 'object') return;
+			var children = (node.children && typeof node.children === 'object') ? node.children : null;
+			if(children && Object.keys(children).length)
+			{
+				groupCount++;
+				Object.keys(children).forEach(function(name) { walk(children[name]); });
+			}
+			if(node.values && typeof node.values === 'object')
+			{
+				leafCount += Object.keys(node.values).length;
+			}
+			else if(Object.prototype.hasOwnProperty.call(node, 'value'))
+			{
+				leafCount++;
+			}
+		}
+
+		walk(root);
+		return { leafCount: leafCount, groupCount: groupCount };
+	}
 
 	ko.virtualElements.allowedBindings.datasourceTypeSettings = true;
 	ko.bindingHandlers.datasourceTypeSettings = {

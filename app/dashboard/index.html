@@ -306,6 +306,9 @@
                             <span class="port-toggle-label" data-bind="text: isPaused() ? 'Port Closed' : 'Port Open', css: { 'is-open': !isPaused() }"></span>
                         </div>
                         <!-- /ko -->
+                        <!-- ko if: isThingSetShell -->
+                        <div data-bind="thingsetShellStatus: { dsName: name(), dsType: type(), lastUpdated: last_updated }"></div>
+                        <!-- /ko -->
                         <!-- ko ifnot: isPortBased -->
                         <button type="button" class="detail-btn" data-bind="click: togglePause, attr: { title: isPaused() ? 'Resume updates' : 'Pause updates' }">
                             <!-- ko if: isPaused() -->Resume<!-- /ko --><!-- ko ifnot: isPaused() -->Pause<!-- /ko -->

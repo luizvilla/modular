@@ -575,6 +575,56 @@ textarea.form-control {
   color: #4fd18b;
 }
 
+.thingset-shell-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 0 2px;
+}
+
+.thingset-shell-badge {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #2e3849;
+  background: rgba(154, 164, 178, 0.15);
+  color: #9aa4b2;
+}
+
+.thingset-shell-badge-ok {
+  border-color: #2e8b57;
+  background: rgba(46, 139, 87, 0.2);
+  color: #4fd18b;
+}
+
+.thingset-shell-badge-off {
+  border-color: #8b2020;
+  background: rgba(139, 32, 32, 0.15);
+  color: #e05c5c;
+}
+
+.thingset-shell-badge-error {
+  border-color: #b8860b;
+  background: rgba(184, 134, 11, 0.2);
+  color: #e0b04f;
+}
+
+.thingset-shell-meta,
+.thingset-shell-summary {
+  font-size: 11px;
+  color: #9aa4b2;
+}
+
+.thingset-shell-rescan {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 .detail-status {
   font-size: 11px;
   color: #9aa4b2;
@@ -1770,6 +1820,35 @@ html.theme-light .port-toggle-label.is-open {
 
 html.theme-light .detail-status {
     color: #666;
+}
+
+html.theme-light .thingset-shell-badge {
+    border-color: #ccc;
+    background: rgba(0, 0, 0, 0.04);
+    color: #666;
+}
+
+html.theme-light .thingset-shell-badge-ok {
+    border-color: #2e8b57;
+    background: rgba(46, 139, 87, 0.12);
+    color: #1f6b42;
+}
+
+html.theme-light .thingset-shell-badge-off {
+    border-color: #c0392b;
+    background: rgba(192, 57, 43, 0.1);
+    color: #c0392b;
+}
+
+html.theme-light .thingset-shell-badge-error {
+    border-color: #b8860b;
+    background: rgba(184, 134, 11, 0.12);
+    color: #8a660a;
+}
+
+html.theme-light .thingset-shell-meta,
+html.theme-light .thingset-shell-summary {
+    color: #555;
 }
 
 html.theme-light .detail-empty {
