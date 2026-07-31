@@ -44,8 +44,8 @@
                 freeboard.addStyle('.plus-minus-value', 'font-size:24px;font-weight:bold;');
             }
 
-            this.minusBtn.on('click', () => this._sendCommand(this.settings.minusCommand));
-            this.plusBtn.on('click', () => this._sendCommand(this.settings.plusCommand));
+            this.minusBtn.on('click', () => this._send(-1));
+            this.plusBtn.on('click', () => this._send(1));
         }
 
         render(containerElement) {
@@ -76,6 +76,48 @@
             const minusLegend = this.settings.minusLegend;
             const hasMinusLegend = !_.isUndefined(minusLegend) && minusLegend !== "";
             this.minusBtn.text(hasMinusLegend ? `−${minusLegend}` : "−");
+        }
+
+        _getDatasourceType(dsName) {
+            const live = typeof freeboard !== 'undefined' && freeboard.getLiveModel ? freeboard.getLiveModel() : null;
+            const ds = live && live.datasources().find(d => { try { return d.name() === dsName; } catch (e) { return false; } });
+            return (ds && ds.type) ? ds.type() : null;
+        }
+
+        async _send(direction) {
+            const dsType = this._getDatasourceType(this.settings.datasource);
+            if (dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource') {
+                await this._sendThingSetDelta(direction);
+            } else {
+                this._sendCommand(direction > 0 ? this.settings.plusCommand : this.settings.minusCommand);
+            }
+        }
+
+        async _sendThingSetDelta(direction) {
+            const tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
+            const path = this.settings.writePath;
+            if (!tsSerialApi || !tsSerialApi.setValue || !path) return;
+            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
+            if (!dsSettings.portPath) return;
+
+            const sourceDef = this._getSourceDef();
+            const current = sourceDef ? await this._readInstantValue(sourceDef) : null;
+            const step = Number(this.settings.step);
+            const base = Number.isFinite(current) ? current : 0;
+            const next = base + direction * (Number.isFinite(step) ? step : 1);
+
+            try {
+                await tsSerialApi.setValue({
+                    port: dsSettings.portPath,
+                    path,
+                    value: next,
+                    baudRate: Number(dsSettings.baudRate) || 115200,
+                    usePrefix: !!dsSettings.usePrefix,
+                });
+                this.valueElement.text(next);
+            } catch (err) {
+                console.error("ThingSet write failed:", err);
+            }
         }
 
         _sendCommand(command) {

@@ -5,57 +5,17 @@
         description: "Buttons to send commands over a serial port",
         icon: "terminal",
         category: "Buttons",
+        // Configured via the dedicated openPushButtonsEditor custom editor
+        // (registered in integrated_plot_editor.js) so the buttons list can
+        // reshape between serial commands and ThingSet path/value targets
+        // depending on the selected datasource's type.
         settings: [
-            { name: "title", display_name: "Title", type: "text" },
-            {
-                name: "buttons",
-                display_name: "Buttons",
-                type: "array",
-                settings: [
-                    { name: "label", display_name: "Label", type: "text" },
-                    { name: "command", display_name: "Command", type: "text" }
-                ]
-            },
-            {
-                name: "layout",
-                display_name: "Layout",
-                type: "option",
-                options: [
-                    { name: "Vertical", value: "vertical" },
-                    { name: "Horizontal", value: "horizontal" }
-                ],
-                default_value: "vertical"
-            },
-            {
-                name: "datasource",
-                display_name: "Datasource Name",
-                type: "option",
-                // Keep datasource selection aligned with the Serial Terminal widget.
-                options: getSerialDatasourceOptions,
-                optionsRefreshMs: 1000
-            }
+            { name: "title", display_name: "Title", type: "text" }
         ],
         newInstance: function (settings, newInstanceCallback) {
             newInstanceCallback(new SerialCommandButtons(settings));
         }
     });
-
-    // Provide a datasource list for the widget settings dropdown.
-    function getSerialDatasourceOptions() {
-        const live = freeboard.getLiveModel?.();
-        if (!live || typeof live.datasources !== 'function') return [];
-        const options = [];
-        live.datasources().forEach(ds => {
-            try {
-                const type = ds.type && ds.type();
-                if (type === 'serialport_datasource' || type === 'fast_frame_datasource') {
-                    const name = ds.name();
-                    options.push({ name, value: name });
-                }
-            } catch (e) { /* ignore */ }
-        });
-        return options;
-    }
 
     class SerialCommandButtons {
         constructor(settings) {
@@ -98,7 +58,7 @@
             list.forEach(ds => {
                 try {
                     const type = ds.type && ds.type();
-                    if (type === 'serialport_datasource' || type === 'fast_frame_datasource') {
+                    if (type === 'serialport_datasource' || type === 'fast_frame_datasource' || type === 'thingset_serial_datasource' || type === 'owntech_thingset_datasource') {
                         const name = ds.name();
                         this.dsSelect.append(`<option value="${name}">${name}</option>`);
                     }
@@ -110,21 +70,37 @@
             this.dsSelect.val(current);
         }
 
+        // buttonTargets (ThingSet path/value) and buttons (raw serial command)
+        // are additive settings -- whichever one is populated wins, so a
+        // widget saved in one mode isn't clobbered by switching datasource
+        // type back and forth in the editor.
+        _activeButtonRows() {
+            const targets = Array.isArray(this.settings.buttonTargets) ? this.settings.buttonTargets : [];
+            if (targets.length) return { mode: 'thingset', rows: targets };
+            return { mode: 'serial', rows: Array.isArray(this.settings.buttons) ? this.settings.buttons : [] };
+        }
+
         _renderButtons() {
             this.btnContainer.empty();
             const layout = this.settings.layout || "vertical";
-            const buttons = this.settings.buttons || [];
+            const { mode, rows } = this._activeButtonRows();
             this.btnContainer.toggleClass('flex-column', layout !== 'horizontal');
             this.btnContainer.toggleClass('flex-row', layout === 'horizontal');
-            buttons.forEach(cfg => {
+            rows.forEach(cfg => {
                 const btn = $('<button class="btn btn-primary btn-sm"></button>')
-                    .text(cfg.label || cfg.command);
+                    .text(cfg.label || (mode === 'thingset' ? cfg.path : cfg.command));
                 if (layout === "horizontal") {
                     btn.addClass('me-1 mb-1');
                 } else {
                     btn.addClass('mb-1 w-100');
                 }
-                btn.on('click', () => this._sendCommand(cfg.command));
+                btn.on('click', () => {
+                    if (mode === 'thingset') {
+                        this._sendThingSetValue(cfg.path, cfg.value);
+                    } else {
+                        this._sendCommand(cfg.command);
+                    }
+                });
                 this.btnContainer.append(btn);
             });
         }
@@ -144,6 +120,22 @@
             }
         }
 
+        _sendThingSetValue(path, rawValue) {
+            if (!path) return;
+            const tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
+            if (!tsSerialApi || !tsSerialApi.setValue) return;
+            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
+            if (!dsSettings.portPath) return;
+            const value = window.ThingSetValueParse ? window.ThingSetValueParse.parseInputValue(rawValue) : rawValue;
+            tsSerialApi.setValue({
+                port: dsSettings.portPath,
+                path,
+                value,
+                baudRate: Number(dsSettings.baudRate) || 115200,
+                usePrefix: !!dsSettings.usePrefix,
+            }).catch(err => console.error("ThingSet write failed:", err));
+        }
+
         onSettingsChanged(newSettings) {
             this.settings = newSettings;
             this._refreshDatasourceOptions();
@@ -157,14 +149,15 @@
         }
 
         getHeight() {
-            const count = Array.isArray(this.settings.buttons) ? this.settings.buttons.length : 1;
-            let rows = 1; // datasource selector row
+            const { rows } = this._activeButtonRows();
+            const count = rows.length;
+            let height = 1; // datasource selector row
             if (this.settings.layout === "horizontal") {
-                rows += 1;
+                height += 1;
             } else {
-                rows += Math.max(1, count);
+                height += Math.max(1, count);
             }
-            return rows;
+            return height;
         }
     }
 })();

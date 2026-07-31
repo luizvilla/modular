@@ -1227,28 +1227,146 @@
 
         const commandSection = createSection('Commands');
         const serialDsOptions = shared.listDatasources()
-            .filter((ds) => ds.type === 'serialport_datasource' || ds.type === 'fast_frame_datasource')
+            .filter((ds) => ds.type === 'serialport_datasource' || ds.type === 'fast_frame_datasource' || ds.type === 'thingset_serial_datasource' || ds.type === 'owntech_thingset_datasource')
             .map((ds) => ({ value: ds.name, label: ds.name }));
         const commandDsField = createSelectRow('Send Commands To', serialDsOptions, settings.datasource || '', 'Select datasource');
         const plusField = createInputRow('+ Command', 'text', settings.plusCommand || '');
-        const plusLegendField = createInputRow('+ Legend', 'text', settings.plusLegend || '', 'e.g. 1');
         const minusField = createInputRow('- Command', 'text', settings.minusCommand || '');
+        const writePathField = createInputRow('ThingSet Write Path', 'text', settings.writePath || (settings.sourceDef && settings.sourceDef.var) || '', 'e.g. /Config/Leg1/duty');
+        const stepField = createInputRow('Step', 'number', settings.step ?? 1);
+        const plusLegendField = createInputRow('+ Legend', 'text', settings.plusLegend || '', 'e.g. 1');
         const minusLegendField = createInputRow('- Legend', 'text', settings.minusLegend || '', 'e.g. 1');
-        commandSection.append(commandDsField.row, plusField.row, plusLegendField.row, minusField.row, minusLegendField.row);
+        commandSection.append(commandDsField.row, plusField.row, minusField.row, writePathField.row, stepField.row, plusLegendField.row, minusLegendField.row);
+
+        function syncCommandFieldVisibility() {
+            const dsType = shared.getDatasourceType(commandDsField.select.val());
+            const isThingSet = dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
+            plusField.row.toggle(!isThingSet);
+            minusField.row.toggle(!isThingSet);
+            writePathField.row.toggle(isThingSet);
+            stepField.row.toggle(isThingSet);
+        }
+        commandDsField.select.on('change', syncCommandFieldVisibility);
+        syncCommandFieldVisibility();
 
         form.append(displaySection, sourceSection, commandSection);
 
         new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
             const sourceDef = sourceControls.buildValue();
+            const step = shared.parseNumber(stepField.input.val());
             const updated = _.extend({}, settings, {
                 title: titleField.input.val() || '+/- Button',
                 units: unitsField.input.val() || '',
                 sourceDef,
                 datasource: commandDsField.select.val() || '',
                 plusCommand: plusField.input.val() || '',
-                plusLegend: plusLegendField.input.val() || '',
                 minusCommand: minusField.input.val() || '',
+                writePath: writePathField.input.val() || '',
+                step: step !== undefined ? step : 1,
+                plusLegend: plusLegendField.input.val() || '',
                 minusLegend: minusLegendField.input.val() || ''
+            });
+            shared.commitWidgetSettings(widgetModel, updated);
+        });
+
+        return true;
+    }
+
+    function openPushButtonsEditor(widgetModel, shared) {
+        const settings = widgetModel.settings() || {};
+        const state = {
+            buttons: Array.isArray(settings.buttons) ? settings.buttons.slice() : [],
+            buttonTargets: Array.isArray(settings.buttonTargets) ? settings.buttonTargets.slice() : []
+        };
+
+        const form = $('<div class="d-flex flex-column gap-2 integrated-plot-editor" style="max-width:480px"></div>');
+
+        const displaySection = createSection('Display');
+        const titleField = createInputRow('Title', 'text', settings.title || 'Push Buttons');
+        const layoutField = createSelectRow('Layout', [
+            { value: 'vertical', label: 'Vertical' },
+            { value: 'horizontal', label: 'Horizontal' }
+        ], settings.layout || 'vertical');
+        displaySection.append(titleField.row, layoutField.row);
+
+        const dsSection = createSection('Datasource');
+        const dsOptions = shared.listDatasources()
+            .filter((ds) => ds.type === 'serialport_datasource' || ds.type === 'fast_frame_datasource' || ds.type === 'thingset_serial_datasource' || ds.type === 'owntech_thingset_datasource')
+            .map((ds) => ({ value: ds.name, label: ds.name }));
+        const dsField = createSelectRow('Send Commands To', dsOptions, settings.datasource || '', 'Select datasource');
+        dsSection.append(dsField.row);
+
+        const buttonsSection = createSection('Buttons');
+        const labelField = createInputRow('Label', 'text', '', 'Button text');
+        const commandField = createInputRow('Command', 'text', '', 'Serial command');
+        const pathField = createInputRow('ThingSet Path', 'text', '', 'e.g. /Config/Leg1/wEnable');
+        const valueField = createInputRow('ThingSet Value', 'text', '', 'true / false / a number / a quoted string');
+        const addButton = $('<button type="button" class="btn btn-sm btn-primary">Add Button</button>');
+        const buttonList = $('<div class="d-flex flex-column gap-2"></div>');
+        buttonsSection.append(labelField.row, commandField.row, pathField.row, valueField.row, addButton, buttonList);
+
+        function isThingSetMode() {
+            const dsType = shared.getDatasourceType(dsField.select.val());
+            return dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
+        }
+
+        function renderButtonList() {
+            buttonList.empty();
+            const rows = isThingSetMode() ? state.buttonTargets : state.buttons;
+            rows.forEach((row, index) => {
+                const rowEl = $('<div class="border rounded p-2 d-flex justify-content-between align-items-center gap-2"></div>');
+                const summary = isThingSetMode()
+                    ? `${row.label || row.path} (${row.path} = ${row.value})`
+                    : `${row.label || row.command} (${row.command})`;
+                rowEl.append($('<div class="small"></div>').text(summary));
+                rowEl.append($('<button type="button" class="btn btn-sm btn-outline-danger">Remove</button>').on('click', () => {
+                    rows.splice(index, 1);
+                    renderButtonList();
+                }));
+                buttonList.append(rowEl);
+            });
+            if (!rows.length) {
+                buttonList.append('<div class="small text-muted">No buttons configured.</div>');
+            }
+        }
+
+        function syncFieldVisibility() {
+            const thingset = isThingSetMode();
+            commandField.row.toggle(!thingset);
+            pathField.row.toggle(thingset);
+            valueField.row.toggle(thingset);
+            renderButtonList();
+        }
+        dsField.select.on('change', syncFieldVisibility);
+        syncFieldVisibility();
+
+        addButton.on('click', () => {
+            const label = labelField.input.val().trim();
+            if (isThingSetMode()) {
+                const path = pathField.input.val().trim();
+                if (!path) return;
+                state.buttonTargets.push({ label: label || path, path, value: valueField.input.val() });
+                pathField.input.val('');
+                valueField.input.val('');
+            } else {
+                const command = commandField.input.val().trim();
+                if (!command) return;
+                state.buttons.push({ label: label || command, command });
+                commandField.input.val('');
+            }
+            labelField.input.val('');
+            renderButtonList();
+        });
+
+        form.append(displaySection, dsSection, buttonsSection);
+
+        new DialogBox(form, 'Edit Widget', 'Save', 'Cancel', function () {
+            const updated = _.extend({}, settings, {
+                title: titleField.input.val() || 'Push Buttons',
+                layout: layoutField.select.val() || 'vertical',
+                datasource: dsField.select.val() || '',
+                buttons: state.buttons.slice(),
+                buttonTargets: state.buttonTargets.slice()
             });
             shared.commitWidgetSettings(widgetModel, updated);
         });
@@ -1357,6 +1475,9 @@
             }
             if (type === 'plus_minus_button') {
                 return openPlusMinusButtonEditor(widgetModel, shared);
+            }
+            if (type === 'serial_command_buttons') {
+                return openPushButtonsEditor(widgetModel, shared);
             }
             return false;
         }
