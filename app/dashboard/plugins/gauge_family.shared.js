@@ -907,6 +907,14 @@
                 if (data && data.value != null) return Number(data.value);
                 return null;
             }
+            if (sourceDef.type === 'thingset_serial_datasource' || sourceDef.type === 'owntech_thingset_datasource') {
+                const live = window.freeboard && freeboard.getLiveModel ? freeboard.getLiveModel() : null;
+                const dsModel = live && live.datasources().find((d) => { try { return d.name() === sourceDef.ds; } catch (e) { return false; } });
+                const data = dsModel && dsModel.latestData ? dsModel.latestData() : null;
+                const values = (data && data.values) ? data.values : {};
+                const raw = values[sourceDef.var];
+                return (typeof raw === 'number' && Number.isFinite(raw)) ? raw : Number(raw);
+            }
             return null;
         }
 
