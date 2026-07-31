@@ -1,4 +1,11 @@
-(function () {
+// ThingSet write-payload parsing (shared by widgets/tests).
+(function (root, factory) {
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.ThingSetValueParse = factory();
+  }
+})(typeof window !== 'undefined' ? window : globalThis, function () {
   function parseInputValue(raw) {
     if (raw == null) return '';
     const txt = String(raw).trim();
@@ -18,5 +25,5 @@
     return txt;
   }
 
-  window.ThingSetValueParse = { parseInputValue: parseInputValue };
-}());
+  return { parseInputValue: parseInputValue };
+});

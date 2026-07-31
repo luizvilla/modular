@@ -37,6 +37,8 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'time_plot_uplot'), true);
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), false, 'owntech-legacy widget docs should be absent by default');
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'thingset_device_ui'), true);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'owntech_actions_panel'), true, 'owntech_actions_panel widget docs should be present when owntech is enabled');
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'owntech_scope_capture'), true, 'owntech_scope_capture widget docs should be present when owntech is enabled');
     // icon and preferredOrder are present
     const ffPlot = runtime.bootstrap.widgetDocs.find((e) => e.type === 'fast_frame_plot');
     assert.strictEqual(ffPlot.icon, 'chart-area');
@@ -47,6 +49,9 @@ function runDefaultRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'thingset_serial_datasource'), true);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'owntech_thingset_datasource'), true, 'owntech_thingset_datasource should be present when owntech is enabled');
+    assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/owntech_actions_panel.widget.js'), true);
+    assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/owntech_scope.widget.js'), true);
     const ffDs = runtime.bootstrap.datasources.find((e) => e.type === 'fast_frame_datasource');
     assert.strictEqual(ffDs.icon, 'bolt');
     assert.strictEqual(ffDs.extensionId, 'core');
@@ -183,16 +188,21 @@ function runDisabledRuntimeAssertions() {
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/fast_frame_plot.widget.js'), true);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'js/twist_protocol.js'), false);
     assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/ts_device_ui.widget.js'), false);
+    assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/owntech_actions_panel.widget.js'), false, 'owntech_actions_panel renderer script should be absent when owntech is disabled');
+    assert.strictEqual(runtime.bootstrap.rendererScripts.some((entry) => entry.path === 'plugins/owntech_scope.widget.js'), false, 'owntech_scope.widget renderer script should be absent when owntech is disabled');
 
     // widgetDocs: only core entries when owntech and thingset are disabled
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'time_plot_uplot'), true);
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'twist_actions_panel'), false);
     assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'thingset_device_ui'), false);
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'owntech_actions_panel'), false, 'owntech_actions_panel widget docs should be absent when owntech is disabled');
+    assert.strictEqual(runtime.bootstrap.widgetDocs.some((e) => e.type === 'owntech_scope_capture'), false, 'owntech_scope_capture widget docs should be absent when owntech is disabled');
 
     // datasources: serialport_datasource is in core (always present); owntech/thingset entries absent
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'fast_frame_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'serialport_datasource'), true);
     assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'thingset_serial_datasource'), false);
+    assert.strictEqual(runtime.bootstrap.datasources.some((e) => e.type === 'owntech_thingset_datasource'), false, 'owntech_thingset_datasource should be absent when owntech is disabled');
     assert.strictEqual(runtime.bootstrap.exampleRoots.length, 0);
     assert.strictEqual(runtime.bootstrap.coursewareRoots.length, 0);
     assert.strictEqual(runtime.bootstrap.tutorialRoots.length, 0);

@@ -66,9 +66,10 @@ test('electron app boots and exposes window.api', async ({}, testInfo) => {
   expect(diagnostics.hasCourseware).toBe(true);
   expect(diagnostics.hasTutorialRoots).toBe(true);
   expect(diagnostics.hasTutorials).toBe(true);
-  // 'OwnTech Widgets' is absent by default: the new owntech extension has no widget docs until Milestone 1+.
-  expect(menuState.widgetLabels).toEqual(expect.arrayContaining(['Modular Core Widgets', 'Thingset Widgets']));
-  expect(menuState.widgetLabels).not.toEqual(expect.arrayContaining(['OwnTech Widgets']));
+  // 'OwnTech Widgets' reappeared by default as of Milestone 6, once the new
+  // owntech extension gained its own widgetDocsIndex (owntech_actions_panel,
+  // owntech_scope_capture).
+  expect(menuState.widgetLabels).toEqual(expect.arrayContaining(['Modular Core Widgets', 'OwnTech Widgets', 'Thingset Widgets']));
   expect(menuState.hasTutorialsMenu).toBe(true);
 
   const filtered = errors.filter((err) => {
