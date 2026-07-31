@@ -6,10 +6,25 @@
         root.ThingSetTreeWalk = factory();
     }
 })(typeof window !== 'undefined' ? window : globalThis, function () {
+    // ThingSetSerialShell.buildTree() (the real tree source) sets node.path
+    // WITHOUT a leading slash (e.g. "Debug/Scope/wArm", confirmed against
+    // real Core4/Twist hardware); flattenTree()'s own computed paths (used
+    // for the values map elsewhere in this app) always have one. The ThingSet
+    // shell layer normalizes either form identically on the wire, so this
+    // was never a functional bug -- but callers comparing a discovered
+    // leaf.path against a values-map key would see a mismatch. Always
+    // normalize to a leading slash so this module's output matches
+    // flattenTree()'s convention regardless of the input's.
+    function ensureLeadingSlash(path) {
+        if (!path) return '/';
+        return path.charAt(0) === '/' ? path : `/${path}`;
+    }
+
     function joinPath(parent, leaf) {
-        if (!leaf) return parent || '/';
-        if (!parent || parent === '/' || !parent.length) return `/${leaf}`;
-        return `${parent}/${leaf}`;
+        const base = ensureLeadingSlash(parent);
+        if (!leaf) return base;
+        if (base === '/') return `/${leaf}`;
+        return `${base}/${leaf}`;
     }
 
     // A node's leaves can show up two ways depending on the tree source:
@@ -34,7 +49,7 @@
                 const hasChildren = child.children && typeof child.children === 'object' && Object.keys(child.children).length;
                 if (hasChildren) return;
                 if (!Object.prototype.hasOwnProperty.call(child, 'value')) return;
-                leaves.push({ name, path: child.path || joinPath(node.path, name), value: child.value });
+                leaves.push({ name, path: child.path ? ensureLeadingSlash(child.path) : joinPath(node.path, name), value: child.value });
             });
         }
         return leaves;
@@ -57,7 +72,7 @@
             legs.push({
                 name,
                 index: parseInt(match[1], 10),
-                path: (node && node.path) || joinPath(config.path || '/Config', name),
+                path: (node && node.path) ? ensureLeadingSlash(node.path) : joinPath(config.path || '/Config', name),
                 node,
             });
         });

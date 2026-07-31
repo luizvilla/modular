@@ -128,9 +128,57 @@ function runChildNodeShapeTests() {
     assert.strictEqual(withNested.some((l) => l.name === 'wSub'), false, 'a group node must not be treated as a leaf');
 }
 
+function buildRealHardwarePathShapeTree() {
+    // Regression test for a real bug found against real Twist/Core4
+    // hardware: ThingSetSerialShell.buildTree()'s actual node.path values
+    // have NO leading slash (e.g. "Config/Leg1/wEnable"), unlike every
+    // synthetic fixture above and unlike flattenTree()'s own computed paths
+    // (which always start with "/"). This never broke a write/read (the
+    // shell layer normalizes either form on the wire), but a discovered
+    // leaf.path must still come out normalized so it's comparable to a
+    // flattenTree()-produced values-map key.
+    return {
+        path: undefined,
+        values: {},
+        children: {
+            Config: {
+                path: 'Config',
+                values: {},
+                children: {
+                    Leg1: {
+                        path: 'Config/Leg1',
+                        values: {},
+                        children: {
+                            wEnable: { path: 'Config/Leg1/wEnable', value: false },
+                            wDutyCycle: { path: 'Config/Leg1/wDutyCycle', value: 0.1 },
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+function runRealHardwarePathShapeTests() {
+    const tree = buildRealHardwarePathShapeTree();
+    const legs = treeWalk.findLegGroups(tree);
+    assert.strictEqual(legs.length, 1);
+    assert.strictEqual(legs[0].path, '/Config/Leg1', 'leg path must be normalized to a leading slash');
+
+    const booleans = treeWalk.findBooleanActionLeaves(legs[0].node);
+    assert.strictEqual(booleans.length, 1);
+    assert.strictEqual(booleans[0].name, 'wEnable');
+    assert.strictEqual(booleans[0].path, '/Config/Leg1/wEnable', 'leaf path must be normalized to a leading slash');
+
+    const nonBoolean = treeWalk.findWritableNonBooleanLeaves(legs[0].node);
+    assert.strictEqual(nonBoolean.length, 1);
+    assert.strictEqual(nonBoolean[0].path, '/Config/Leg1/wDutyCycle');
+}
+
 runFindLegGroupsTests();
 runFindBooleanActionLeavesTests();
 runFindWritableNonBooleanLeavesTests();
 runChildNodeShapeTests();
+runRealHardwarePathShapeTests();
 
 console.log('All thingset_tree_walk tests passed.');
