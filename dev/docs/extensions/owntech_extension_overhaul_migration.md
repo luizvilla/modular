@@ -1,0 +1,363 @@
+# OwnTech Extension Overhaul — ThingSet-Based Merge of OwnTech + ThingSet Serial
+
+## Context
+
+Today's "OwnTech" extension talks to Twist/OwnVerter boards over a bespoke, hand-rolled ASCII protocol (`twist_protocol.js`): underscore-delimited command strings sent as raw serial writes, and a plain colon-separated positional-float parser on the way in (`parseLine()` in `app/main.js`). Every widget (`twist_control`/Actions, `twist_setpoints`, `twist_calibration`, `state_machine`) hardcodes a `deviceType` → `{legs, variables}` profile (`TWIST`: 2 legs, `OWNVERTER`: 3 legs) and renders one form row per known field — 10 to 18+ manually-wired rows per widget, with no schema or wizard. This is the "too complex" problem: nothing is discovered, everything is hand-built per device shape, and OwnVerter support has never actually been implemented (the profile exists in the formatter but nothing downstream honors it correctly).
+
+Separately, a new firmware example is being built in a **different repo**, `/home/luiz-villa/code/Core4/`, that replaces this entire wire protocol with **ThingSet Text Mode** over a dedicated serial shell (`if02`): a real, discoverable object tree (`/Measurements`, `/Config/Leg1`, `/Config/Leg2`, `/Calibration/*`, `/Debug/Scope`) reachable via `select thingset` + `?path` / `?path null` / `=path json` requests, with named leaves (not positional indices) and a live tree-walk discovery mechanism — no client-side hardcoded ID map needed. Crucially, this codebase **already has a working, independent implementation of this exact same protocol** (`app/js/thingset_serial_shell.js`, built for CAN/ThingSet hardware support), including the same `select thingset` handshake and the same quote-escaping workaround for the Zephyr shell's tokenizer (`escapeJsonForShell()` — confirmed to already exist, byte-for-byte matching a quirk Core4's own Python tooling also has to work around). This is a strong, verified signal that the existing ThingSet transport can be reused almost as-is rather than rebuilt.
+
+The intended outcome: a new "OwnTech" extension where users build **simple, custom dashboards** — buttons that write a ThingSet value, gauges/measurements that read one — wired to whatever data objects the board actually exposes, discovered live, instead of maintained-by-hand per-leg forms. The Actions-style control panel remains available, but sends ThingSet writes instead of custom command strings. OwnVerter "support" is reframed as a direct consequence of never hardcoding leg/channel counts: the moment Core4 firmware adds a third leg, every widget in this plan picks it up with zero dashboard code changes, because everything walks the live discovered tree instead of consulting a profile table.
+
+## Locked-in scope decisions (confirmed with user)
+
+1. **Serial-only merge.** The new extension covers only the Serial ThingSet shell transport (what Core4 actually speaks). The existing `thingset` extension's CAN-based widgets/datasource (`can_datasource`, `thingset_device_ui`, `thingset_mode_button`, `thingset_control_panel`, `thingset_measurements`) are untouched and stay in `thingset`, unrelated to this effort.
+2. **New id, old kept side-by-side.** The current `owntech` extension is renamed to `owntech-legacy` (disabled by default, still installed, so existing saved dashboards using `twist_actions_panel`/`twist_setpoints_panel`/`twist_calibration_panel`/`state_machine` keep loading if a user re-enables it). A brand-new extension claims the `owntech` id going forward.
+3. **Every milestone spec'd in comparable detail** — no "detail M1, sketch the rest."
+4. **OwnVerter is discovery-driven, never hardcoded.** No code in the new extension may contain anything analogous to `twist_protocol.js`'s `DEVICE_PROFILES` (`TWIST: {legs:2}` / `OWNVERTER: {legs:3}`). Leg/action/channel enumeration is always derived by walking the live discovered ThingSet tree.
+
+## Architecture principles (apply to every milestone)
+
+- **Reuse the existing ThingSet transport, don't rewrite it.** `app/js/thingset_serial_shell.js` (`ThingSetSerialShell`) and the `ts-serial-detect` / `ts-serial-tree` / `ts-serial-get-value` / `ts-serial-set-value` IPC channels in `app/extensions/thingset/main.js` already implement the Core4 handshake and quote-escaping. No changes planned to this class — only live-hardware verification.
+- **Discovery over hardcoding, everywhere**, not just for "legs": boolean-action detection, writable-leaf detection, and group enumeration are all pattern/type-matched against the live tree, never a name allow-list tied to a specific firmware revision.
+- **CAN stays untouched.** No milestone below touches `can_datasource` or any `ts_*` CAN widget.
+- **Old dashboards keep working.** Renaming `owntech` → `owntech-legacy` changes only the owning manifest id — no widget files move, no `type_name`s change.
+- **Renderer script load order is global, not per-extension** (verified in `app/extensions/runtime.js:496-501` — `buildBootstrap()` sorts the combined script list purely by numeric `order`, then path, regardless of which extension declared it). This resolves what would otherwise be an ordering ambiguity for the shared datasource-core file introduced in Milestone 1: it just needs a low `order` number: which extension's manifest hosts it doesn't affect load order at all.
+
+## Documentation & progress tracking
+
+**This file is the living record of the migration, not a one-shot planning artifact.** As work on each milestone lands, append an entry to the `## Progress Log` section at the bottom of this document — one entry per milestone (or per significant commit, if a milestone spans several days/sessions). Each entry should capture:
+- Which commit(s) from the `## Commit Sequence` section it corresponds to.
+- What actually shipped, and any deviation from what this plan describes (design changes discovered mid-implementation, scope trims, etc.).
+- Verification results: which unit/e2e tests were added and passed, and — where applicable — real-hardware verification outcomes for the items each milestone's "Risks" section flags as hardware-only (e.g. the M1 handshake, M4's chunked-write removal, M5's byte format/rotation correctness).
+- Any new open questions or follow-ups discovered along the way.
+
+Do not rewrite or delete earlier milestone sections above to reflect "what actually happened" — this document's Milestone 0–6 sections stay as the original design intent; the Progress Log is where reality is recorded, so both the plan and its execution history stay legible side by side.
+
+---
+
+## Milestone 0 — Extension scaffolding & rename
+
+**Goal:** split today's single `owntech` extension into a frozen `owntech-legacy` (disabled by default) and an empty new `owntech` extension ready to receive M1–M5.
+
+**Files:**
+- Rename directory `app/extensions/owntech/` → `app/extensions/owntech-legacy/` (carries `main.js` and all existing widget files as-is, unchanged content).
+  - `manifest.json` edits: `"id": "owntech"` → `"owntech-legacy"`; `"displayName"` → `"OwnTech Extension (Legacy — Console Protocol)"`; `"enabledByDefault": true` → `false` (this is the actual disable mechanism — `resolveEnabled()` in `runtime.js:137-152` reads this boolean directly, falling back to it only after checking env-var override and persisted state); `"preloadFlags": {"owntech": true}` → `{"owntechLegacy": true}` (verify no renderer code reads `window.api.flags.owntech` before renaming the key — grep first); `"widgetDocsIndex"` → `"docs/widgets/index.owntech-legacy.json"` (rename the file alongside it, content unchanged — `state_machine` remains undocumented, that's pre-existing debt, not addressed here).
+- **New** `app/extensions/owntech/manifest.json`:
+  ```json
+  {
+    "id": "owntech",
+    "apiVersion": 1,
+    "version": "0.1.0",
+    "displayName": "OwnTech Extension",
+    "enabledByDefault": true,
+    "mainEntry": "main.js",
+    "rendererScripts": [],
+    "preloadFlags": { "owntech": true },
+    "capabilities": ["owntech", "thingset-serial"],
+    "requiresExtensions": ["thingset"],
+    "datasources": []
+  }
+  ```
+  `requiresExtensions: ["thingset"]` is deliberate: the new datasource/widgets call `window.api.thingsetSerial.*`, whose main-process handlers live in `app/extensions/thingset/main.js`. This is the same pattern `owntech-workspace`/`owntech-examples` already use for their `requiresExtensions: ["owntech"]` dependency, enforced generically by `applyRequiredExtensionConstraints()` (`runtime.js:352-371`, verified — force-disables a dependent extension if its dependency isn't enabled). **Trade-off, confirmed intentional**: disabling `thingset` also disables the new `owntech` extension. Acceptable since serial ThingSet IPC genuinely lives there today.
+- **New** `app/extensions/owntech/main.js` — minimal scaffold (`registerOwnTechExtension(context) { context.registerManifestContribution(); }`); Milestone 5 adds IPC handlers here.
+- **No changes needed** to `app/extensions/owntech-workspace/manifest.json` or `app/extensions/owntech-examples/manifest.json` — both declare `"requiresExtensions": ["owntech"]` and the new extension keeps that id. **Verified**: grepped `app/extensions/owntech-examples/dashboard/dashboards/` for `twist_control|twist_actions_panel|twist_setpoints_panel|twist_calibration_panel|state_machine` — zero matches, so no bundled example dashboard breaks from the rename.
+- `app/extensions/runtime.js`, `sortExtensions()` rank map (line 335-343) — optional cosmetic addition of `['owntech-legacy', 3.5]` so it lists near the new `owntech` in any extensions-manager UI; this only affects inventory/listing order, not script load order (confirmed above), so it's not required for correctness.
+
+**Tests to update** (`tests/unit/extensions_runtime.test.js` runs against the real `app/extensions` tree, not fixtures):
+- Every assertion currently naming `'owntech'` and expecting the Twist widgets (`js/twist_protocol.js`, `twist_actions_panel`, etc.) needs to retarget to `'owntech-legacy'`, and gains a companion assertion that `'owntech-legacy'` is disabled by default while `'owntech'` (the new, now-empty-until-M1 extension) is enabled by default.
+- Add an env-override round-trip test: `MODULAR_EXTENSION_OWNTECH_LEGACY=1` re-enables it (uses the existing generic `envKeyForExtension()` — no runtime.js code changes needed, it already derives the env var name from `manifest.id` generically, confirmed at `runtime.js:130-135`).
+- The persisted-state override block (`state.json` fixtures) needs an `owntech-legacy` entry alongside/instead of `owntech`'s.
+
+**Risks:**
+- Grep the whole renderer for `flags.owntech` / `preloadFlags.owntech` usage before finalizing the renamed key, to avoid a silent behavior change for any code gating on the old flag name.
+- Grep for any `capabilities.includes('twist')`/`'ownverter'` check elsewhere in the app before cutting the manifests over, since those capability strings move to `owntech-legacy` only.
+
+---
+
+## Milestone 1 — OwnTech ThingSet datasource + detection surfaced in the sidebar
+
+**Goal:** a new OwnTech-branded datasource that auto-detects the Core4 `if02` shell (reusing `ts-serial-detect`/`ts-serial-tree` IPC as-is), plus a "shell detected" status view in the left DATASOURCES sidebar — a real gap today, where detection status only ever shows inside the separate `ts_serial_device_ui` widget, never in the datasource's own sidebar detail pane.
+
+### Datasource: distinct type_name, shared extracted core
+
+**Decision: `type_name: "owntech_thingset_datasource"`**, distinct from `thingset_serial_datasource`, sharing an extracted implementation:
+- `thingset_serial_datasource` (owned by the generic `thingset` extension) must stay device-agnostic — it can't gain OwnTech-specific branding/defaults without creating an implicit dependency in the wrong direction.
+- A distinct type_name lets the Add-Datasource picker show a dedicated "OwnTech" tile with its own icon (manifest `datasources: [{"type": "owntech_thingset_datasource", "icon": "microchip"}]`, same `{type, icon}` shape already validated generically), while both types can be treated uniformly wherever appropriate (M2's picker, M3's send-target dropdown).
+- The ~300 lines of actual logic in `app/dashboard/plugins/thingset_serial.datasource.js` (port detection, `flattenTree()` — confirmed to already produce both a named `values` path→value map and a positional `y[]/labels[]` shape, lines 60-95 — polling/timer logic, pause handling) must not be duplicated.
+
+**Concrete refactor:**
+1. **New file** `app/dashboard/js/thingset_serial_datasource_core.js` — lift the existing `ThingSetSerialDatasource` class body out of the IIFE in `thingset_serial.datasource.js` into this file, exporting `window.ThingSetSerialDatasourceCore`. Pure code motion, zero behavior change.
+2. `app/dashboard/plugins/thingset_serial.datasource.js` shrinks to just its `freeboard.loadDatasourcePlugin({...})` registration call, using `new ThingSetSerialDatasourceCore(settings, updateCallback)`. Settings schema, defaults, `type_name` unchanged — zero risk to existing saved dashboards.
+3. **New file** `app/dashboard/plugins/owntech_thingset.datasource.js` registers `type_name: "owntech_thingset_datasource", display_name: "OwnTech (ThingSet Serial)"`, same settings schema (`autoDetect`, `portPath`, `baudRate`, `usePrefix`, `autoRefresh` default `false`, `refresh`, `debug`), same constructor call.
+4. Host the shared core file in **`app/extensions/thingset/manifest.json`**'s `rendererScripts` (it's a generalization of code that extension already owns) with a low `order` (e.g. `6`, before `thingset_serial.datasource.js`'s existing entry). Confirmed this placement is safe regardless of which extension is enabled first, because **script load order is global by `order` field** (`runtime.js:496-501`), not extension-rank-dependent — the earlier concern about a "reverse dependency" between `owntech` and `thingset` scripts does not apply.
+5. `app/extensions/owntech/manifest.json` gains `{"path": "plugins/owntech_thingset.datasource.js", "order": 200}` and the `datasources` array entry.
+
+### Sidebar "shell detected" status UI
+
+**Extension point:** `app/dashboard/js/freeboard.js`'s `DatasourceModel` (existing computed pattern: `isPortBased` line ~90, `supportsResetCommand` line ~97) and the custom-binding-handler precedent (`channelMapEditor`, line ~4625) — this codebase already has exactly the right extension points for this.
+
+- New computed on `DatasourceModel`:
+  ```js
+  this.isThingSetShell = ko.computed(function() {
+      var t = self.type();
+      return t === 'thingset_serial_datasource' || t === 'owntech_thingset_datasource';
+  });
+  ```
+- New `ko.bindingHandlers.thingsetShellStatus` in `freeboard.js`, modeled on `channelMapEditor`: renders a small status card — badge ("Detected" / "Not detected" / "Detecting…"), port path, `node_uid`, `node_name`, `address_hex`, a one-line summary ("42 leaves across 8 groups" — computed by walking the last-known tree), and a "Rescan Tree" button calling the datasource's existing `updateNow()`. Data source: read the *live datasource instance's* `latestData()` Knockout observable (`freeboard.getLiveModel().datasources().find(d => d.name() === dsName).latestData()`), which already carries `{status, portPath, node_uid, node_name, address_hex, values, ...}` from `poll()` — no new IPC call needed, this is purely a new consumer of data the datasource already produces every poll.
+- `app/dashboard/index.html` — inside the datasource detail pane (~line 262-334), add, right after the existing `<!-- ko if: isPortBased -->` block (~line 308):
+  ```html
+  <!-- ko if: isThingSetShell -->
+  <div data-bind="thingsetShellStatus: { dsName: name(), dsType: type(), lastUpdated: last_updated }"></div>
+  <!-- /ko -->
+  ```
+- **`app/dashboard/index-dev.html` does NOT need a mirrored edit** — verified this file has no datasource detail sidebar at all (no `side-pane-detail`, `isPortBased`, or `selectedDatasource` bindings present); it's a minimal/unused legacy dev harness (already established earlier in this project), not a second copy of the real UI.
+
+**Files touched:** `app/dashboard/js/thingset_serial_datasource_core.js` (new), `app/dashboard/plugins/thingset_serial.datasource.js` (shrink), `app/dashboard/plugins/owntech_thingset.datasource.js` (new), `app/extensions/thingset/manifest.json`, `app/extensions/owntech/manifest.json`, `app/dashboard/js/freeboard.js`, `app/dashboard/index.html`.
+
+**Risks:** none requiring hardware for the code structure itself. The one thing needing a real board is confirming the full handshake against Core4's actual if02 shell — but this is de-risked significantly by the verified fact that `ThingSetSerialShell` already implements the identical `select thingset` handshake and the identical quote-escaping quirk (`escapeJsonForShell`, `thingset_serial_shell.js:70-79`) that Core4's own Python tooling independently needed — strong evidence this class is already compatible, not just plausibly so.
+
+---
+
+## Milestone 2 — Generalize the shared variable picker for named ThingSet paths
+
+**Goal:** make the two ThingSet serial datasource types first-class in the shared "Datasource / Device / Variable" picker (`plotEditorShared` + `buildSourceControls`) used by Gauges and the Buttons-category widgets (Push Buttons, +/- Button, Toggle Button), which today only recognizes `serialport_datasource`/`fast_frame_datasource`/`can_datasource`/`signal_generator_datasource` and force-coerces every non-CAN "Variable" to an integer.
+
+**Exact changes:**
+
+1. `app/dashboard/js/freeboard.js`, `plotEditorShared.listDatasources()` (~line 4903-4923): broaden the hardcoded allow-list to add `"thingset_serial_datasource"` and `"owntech_thingset_datasource"`.
+2. `plotEditorShared.fetchDatasourceVariableOptions(dsName, deviceVal)` (~line 5072-5115): new branch alongside the existing `can_datasource` branch (which already proves named-path enumeration works — it reads a CAN snapshot's `flat` path→value map). New branch reads the ThingSet datasource's live `latestData().values` map (confirmed to already exist via `flattenTree()`) and emits `{value: path, label: "<leaf> - <path>"}` per key, sorted.
+3. `app/dashboard/plugins/integrated_plot_editor.js`, `buildSourceControls()` `buildValue()` (~line 180): the coercion bug —
+   ```js
+   var: dsType === 'can_datasource' ? rawVar : parseInt(rawVar, 10)
+   ```
+   becomes
+   ```js
+   var: (dsType === 'can_datasource' || dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource') ? rawVar : parseInt(rawVar, 10)
+   ```
+   (broaden the "keep as string" list rather than inverting the condition, so `serialport_datasource`/`fast_frame_datasource`/`signal_generator_datasource` keep their correct integer-index behavior).
+4. `showDevice = dsType === 'can_datasource'` (device-row visibility) stays unchanged — ThingSet serial has no "device" concept, one port is one node.
+
+**New `sourceDef`-reading branch** (value display/polling) — needed in two near-duplicate call sites, each already has an identical 4-branch if-chain (serialport/fast_frame/can/signal_generator), so add a 5th branch identically in both rather than a larger refactor now:
+- `app/dashboard/plugins/gauge_family.shared.js`, `_readInstantValue()` (used by all 5 gauge widgets).
+- `app/dashboard/plugins/plusminus_button.widget.js`, `_readInstantValue()` (lines ~157-192). Note `_subscribeToSerialDatasource()`/`_restartSource()` need **no change** — ThingSet types naturally fall into the existing polling fallback path already used for anything that isn't `serialport_datasource`.
+
+New branch (both files):
+```js
+if (sourceDef.type === 'thingset_serial_datasource' || sourceDef.type === 'owntech_thingset_datasource') {
+    const live = window.freeboard && freeboard.getLiveModel ? freeboard.getLiveModel() : null;
+    const dsModel = live && live.datasources().find(d => { try { return d.name() === sourceDef.ds; } catch { return false; } });
+    const data = dsModel && dsModel.latestData ? dsModel.latestData() : null;
+    const values = (data && data.values) ? data.values : {};
+    const raw = values[sourceDef.var];
+    return (typeof raw === 'number' && Number.isFinite(raw)) ? raw : Number(raw);
+}
+```
+Deliberately reads the datasource's already-cached `latestData()` rather than issuing a new IPC poll per widget — the datasource has already fetched and flattened the tree on its own cycle; a per-widget timer re-invoking `ts-serial-tree` would multiply serial round-trips, exactly what `autoRefresh: false`-by-default was designed to avoid.
+
+**Files touched:** `app/dashboard/js/freeboard.js`, `app/dashboard/plugins/integrated_plot_editor.js`, `app/dashboard/plugins/gauge_family.shared.js`, `app/dashboard/plugins/plusminus_button.widget.js`.
+
+**Dependency:** hard dependency on M1 for the `owntech_thingset_datasource` type_name; the `thingset_serial_datasource` half of every change can technically land in parallel since that type and its `values` map already exist unchanged today.
+
+**Risk:** `latestData()` may be `undefined`/empty before a datasource's first poll (autoRefresh is off by default) — every new consumer must treat that as a normal "not yet detected" state, matching existing `no-port`/`unavailable` status handling in `poll()`, not an error.
+
+---
+
+## Milestone 3 — Simple "buttons/measurements" widgets attached to ThingSet objects
+
+**Goal:** give Push Buttons (`serial_command_buttons`), +/- Button (`plus_minus_button`), and Toggle Button (`toggle_button`) a ThingSet-write mode — write `=<path> <value>` via `window.api.thingsetSerial.setValue` instead of a raw serial command — without new widget type_names, so all three stay generically useful for plain serial devices too.
+
+**Design: datasource-type-driven mode, no manual toggle.** Matches the idiom `buildSourceControls`/`buildValue()` already establishes: behavior switches automatically based on the type of the selected datasource, with no separate mode checkbox. When "Send Commands To" resolves to a ThingSet type, command-entry UI and `_send`/`_sendCommand` runtime switch to path+value editing and `thingsetSerial.setValue`; for serial/fast-frame datasources, everything is byte-for-byte unchanged (critical: these widgets are in general use beyond OwnTech).
+
+**Shared helper first:** lift `parseInputValue()` (already implemented in `ts_serial_device_ui.widget.js` — parses booleans/numbers/JSON/quoted strings for a write payload) into a new `app/dashboard/js/thingset_value_parse.js`, exporting `window.ThingSetValueParse.parseInputValue`. Both the existing widget and the three button widgets below require it — avoids a fourth copy-paste of the same parser.
+
+**1. Toggle Button** (`app/dashboard/plugins/toggle_button.widget.js`) — smallest change:
+- Broaden `getSerialDatasourceOptions()`'s type filter to include the two ThingSet types.
+- New settings: `writePath` (text), `onValue`/`offValue` (text, default `"true"`/`"false"`, parsed via the shared helper at send time). Free-text `writePath` in this first cut (a live dropdown of discovered writable leaves is a fast-follow once M4's tree-walk helper exists — not blocking).
+- `_sendCommand(command)` becomes a `_send(kind)` dispatcher: if the resolved datasource type is ThingSet, resolve `dsSettings.portPath` + `this.settings.writePath` + parsed `onValue`/`offValue`, call `window.api.thingsetSerial.setValue({port, path, value})`; otherwise, unchanged legacy path using `onCommand`/`offCommand`.
+
+**2. +/- Button** (`app/dashboard/plugins/plusminus_button.widget.js` + its editor `openPlusMinusButtonEditor` in `integrated_plot_editor.js`) — already gets ThingSet **read** support for free from M2 (its Value Source picker already supports named paths). Needs a **write** side:
+- `openPlusMinusButtonEditor`: broaden the "Send Commands To" filter to the two ThingSet types. When resolved to ThingSet, replace the free-text `+ Command`/`- Command` fields with a `writePath` field (pre-filled from the Value Source's `sourceDef.var`, since +/- conceptually reads-and-increments the same object, overridable) and a numeric `Step` field. Keep `plusLegend`/`minusLegend` as pure display text, unchanged — `step` is a new, separate functional field.
+- `_sendCommand` becomes an async `_send(direction)`: read current value via the existing (M2-extended) `_readInstantValue()`, compute `next = current + direction * step`, write via `thingsetSerial.setValue({port, path: writePath, value: next})`. Non-ThingSet datasources keep the existing `minusCommand`/`plusCommand` string-send path untouched.
+
+**3. Push Buttons** (`app/dashboard/plugins/serialcommand.widget.js`) — widest change, because its `buttons: [{label, command}]` array uses the **generic declarative array editor**, which can't conditionally reshape rows per datasource type. Recommendation: give Push Buttons a dedicated custom editor (`openPushButtonsEditor(widgetModel, shared)` in `integrated_plot_editor.js`, registered in `ModularIntegratedPlotEditor.open()`'s dispatch table — same pattern already used for `plus_minus_button`), replacing the generic array editor for this widget type. Settings gain an additive `buttonTargets: [{label, path, value}]` array (used only in ThingSet mode) alongside the existing `buttons: [{label, command}]` (used in serial mode) — no breaking migration for existing saved `buttons` arrays. `_renderButtons()`/`_sendCommand()` pick whichever array is populated and dispatch accordingly.
+
+**Files touched:** `toggle_button.widget.js`, `plusminus_button.widget.js`, `integrated_plot_editor.js`, `serialcommand.widget.js`, new `thingset_value_parse.js` (hosted in `thingset` extension's manifest, alongside `ts_serial_device_ui.widget.js`, its original owner).
+
+**Dependency:** hard dependency on M2 (broadened picker + `_readInstantValue` branch) and M1 (datasource type existing).
+
+**Risk (real-hardware verification, not blocking implementation):** `wDriver=false` is a documented Core4 firmware bug (write doesn't reliably disconnect). Any Toggle-Button-driven write to a `wDriver`-shaped path should surface a UI caveat ("not guaranteed to take effect — verify with a read"), since a successful ThingSet status code only confirms the shell accepted the write syntactically, not that firmware state actually changed.
+
+---
+
+## Milestone 4 — Actions panel successor (discovery-driven, not hardcoded)
+
+**Goal:** replace `twist_control.widget.js` (`twist_actions_panel`) with a widget that renders per-leg action toggles by walking the discovered tree — the concrete mechanism making OwnVerter support automatic.
+
+**Mapping:** Core4's `/Config/LegN` groups (`wEnable`, `wCapa`, `wDriver`, `wBuck`, `wBoost`, ...) map almost one-to-one onto the old widget's `LEG`/`CAPA`/`DRIVER`/`BUCK`/`BOOST` action taxonomy. Instead of hardcoding that mapping: walk `/Config`'s children, find every group whose name matches `/^Leg\d+$/i` (sorted numerically, not lexicographically, so `Leg10` doesn't sort before `Leg2`), and within each, render a toggle for every **writable, boolean-valued** leaf. Today this discovers exactly `Leg1`/`Leg2`; the moment firmware adds `Leg3` (OwnVerter), the same code discovers a third group with zero changes.
+
+**New shared helper** (not duplicated logic): `app/dashboard/js/thingset_tree_walk.js`, `window.ThingSetTreeWalk`:
+- `findLegGroups(tree)` — the group-matching/sorting logic above.
+- `findBooleanActionLeaves(legNode)` — leaves whose key starts with `w`/`s` **and** whose current value is `typeof === 'boolean'` — discovery-driven, not a name allow-list, so a firmware-added boolean toggle appears automatically too.
+- `findWritableNonBooleanLeaves(legNode)` — same walk for non-boolean writable leaves, implemented now so a future Setpoints-panel successor can reuse the same single tree-walk pass rather than re-implementing it. **Scoping note to confirm with user**: this plan's locked milestone list names only the Actions-panel successor, not Setpoints/Calibration successors — those would follow the identical pattern as a fast-follow (or may be entirely subsumed by pointing M3's button/gauge widgets at individual paths instead of a dedicated panel).
+
+**New widget** `app/dashboard/plugins/owntech_actions_panel.widget.js`:
+- `type_name: 'owntech_actions_panel'`, category `OwnTech`, icon `bolt`. Settings: `title`, `datasource` (filtered to the two ThingSet types, mirroring `ts_serial_device_ui.widget.js`'s existing filter pattern), `usePrefix`, `debug`.
+- Renders each discovered leg group as a labeled badge + a flex-wrap grid of on/off switches, reusing the existing `onoffswitch`/`twist-toggle-*` CSS classes from `twist_control.widget.js` for visual continuity, driven by the discovered leaf list instead of a fixed array.
+- Sending a toggle: `window.api.thingsetSerial.setValue({port, path: <legPath>/<leafName>, value: <bool>})` directly — no protocol-string-formatting layer at all, since ThingSet's write already *is* the wire format. This eliminates a whole code layer that existed only because the old console protocol needed hand-built command strings.
+- **Explicitly drop** the old widget's chunked-write workaround (10-byte chunks, 100ms delays — a workaround for a ~16-byte Zephyr *console* ring-buffer bug specific to the old raw command channel). `ThingSetSerialShell.sendCommand()` already writes the whole command in one call with its own buffering. Flag as a real-hardware verification item, not something to defensively re-add (re-adding it would make every toggle noticeably laggier for no proven benefit).
+- Power controls (`/Config/Mode` = 0 IDLE / 1 POWER_ON / 2 POWER_OFF): three buttons writing the enum integer directly. This *is* legitimately hardcoded protocol knowledge (the enum's meaning doesn't vary with leg count) — acceptable, unlike leg/action enumeration.
+- **Explicitly drop**: the old widget's scope/ripple controls section (it used the unrelated fast-frame capture mechanism, not Core4's actual if00 scope protocol — gets a real implementation in M5) and its `sm:state-entered` state-machine event listener (no state-machine authoring tool is in scope for this plan; `state_machine.widget.js` stays in `owntech-legacy`, unported). **Confirm this scope reduction is acceptable** — the old Actions panel had modest state-machine awareness that the new one won't have.
+
+**Manifest:** `app/extensions/owntech/manifest.json` gains the tree-walk helper (`order: 10`) and the new widget script (`order: 210`).
+
+**Dependency:** M1 only (self-contained datasource dropdown + live tree, following `ts_serial_device_ui.widget.js`'s proven pattern — doesn't touch the M2/M3 shared-picker machinery at all).
+
+**Risks (real-hardware only):** whether the chunked-write workaround is truly unneeded over if02; whether `/Config/Mode` writes reliably read back immediately (firmware notes flag `Frequency_Hz` as buggy but say nothing conclusive about `Mode` — treat writes as optimistic-but-reread-to-confirm, not assumed-successful).
+
+---
+
+## Milestone 5 — Scope/duty-cycle capture UI
+
+**Goal:** a widget for the if00 bulk-transfer side-channel — arm/trigger via ordinary ThingSet writes to `/Debug/Scope` (over if02, reusing M1's datasource), status polling, then an explicit "Download" action speaking a **different, non-ThingSet, hand-rolled protocol** over the *other* port (if00): `?` → expect `SCOPE-DATA/1 OK`; `D` while state is `READY` → a large hex-encoded block that must be rotated into chronological order. This is the one milestone requiring genuinely new main-process code — nothing in this codebase implements this if00 protocol today.
+
+**New main-process module** `app/extensions/owntech/scope_serial.js`, class `ScopeSerialLink`:
+- `constructor({path, baudRate=115200})` — opens its own independent `SerialPort` for the if00 path (a different OS device path than if02's, e.g. `/dev/ttyACM0` vs `/dev/ttyACM1` — no shared-port contention with the core `openPorts` map or the ThingSet datasource's port). Manages its own small `Map<path, ScopeSerialLink>` pool, mirroring how `thingset/main.js` manages its own bus/client maps independently of core state.
+- `async probe(timeoutMs=1500)` — sends `?`, waits for a line containing `SCOPE-DATA/1 OK`. This is the actual handshake for this side-channel, distinct from (and not to be confused with) `ThingSetSerialShell.enterThingSet()`.
+- `async download({onProgress, timeoutMs=25000})` — sends `D`, reads until the `end record` marker, accumulating the `begin record`/`#<channel names>`/`# <final index>`/hex-lines block. Parses each 8-digit hex line as a 32-bit IEEE-754 float (**byte width and endianness must be verified against real hardware/firmware source before implementation** — "8-digit hex" implies 32-bit, but which end is which byte is unconfirmed). Rotates the array so the sample right after the `# <final index>` marker becomes index 0 (standard ring-buffer-to-linear rotation — reimplement the documented *behavior*, this is a from-scratch JS implementation, not a port of any Python source). `onProgress` fires periodically for a UI progress bar (research indicates 1.3s–20s transfer time depending on decimation).
+- Arm/trigger/status are explicitly **not** this module's job — those are plain ThingSet writes/reads through the existing M1 datasource plumbing, not part of the if00 protocol.
+
+**New IPC** (registered in `app/extensions/owntech/main.js`, extending the M0 scaffold): `owntech-scope-probe`, `owntech-scope-download` (streams `owntech-scope-progress` events, resolves `{ok, channels, samples}` rotated/chronological), `owntech-scope-close`.
+
+**`app/preload.js`**: new `api.owntechScope = {probe, download, close, onProgress}`, gated behind a new `api.flags.owntech`-style check, with a `MOCK_HW=1` mock block (mirroring the existing `api.thingsetSerial` mocks) resolving a small synthetic dataset instantly — needed so e2e tests can exercise the full download UI flow without hardware or a multi-second wait.
+
+**New widget** `app/dashboard/plugins/owntech_scope.widget.js`, `type_name: 'owntech_scope_capture'`, category `OwnTech`, icon `wave-square`. Settings: `datasource` (for arm/trigger/status via existing setValue/getValue) and a separate manual `scopeSerialPort` field (if00 is not ThingSet-discoverable at all, so needs its own port picker — reuse the existing `get-serial-ports` channel already exposed as `window.api.serial.listPorts`). UI: status reflecting `/Debug/Scope`'s discovered fields (Arm/Trigger buttons reusing M4's `findBooleanActionLeaves` helper scoped to the `/Debug/Scope` group instead of `/Config/LegN` — another instance of "discover, don't hardcode," extended past legs), a decimation dropdown (`1`/`10`/`100` — a fixed 3-value protocol enum, legitimately hardcoded, same category as the Mode enum in M4), pre-trigger-ratio input, and a "Download" button (disabled until status is `READY`). On success: a lightweight inline plot (reuse `uplot.widget.js` primitives or a minimal canvas sparkline) and a "Save CSV" button (reuse existing CSV-export plumbing). Presented as an explicit, user-initiated, long-running action — **no auto-refresh timer**, matching the guidance that transfers take 1.3–20s and shouldn't be treated as casual polling.
+
+**Files touched:** new `scope_serial.js`, `owntech/main.js` (new handlers), `preload.js`, new `owntech_scope.widget.js`, `owntech/manifest.json`.
+
+**Dependency:** M1 (datasource for arm/trigger/status) and M4 (reuses its tree-walk helper). Independent of M2/M3.
+
+**Risks (real-hardware only, the largest unknowns in this plan):** exact byte width/endianness of the hex samples; whether if00 and if02 can genuinely be driven concurrently without cross-talk in practice (should be fine since they're physically separate ports, but Node's `serialport` library + OS-level USB composite device behavior should be smoke-tested, not assumed); real transfer duration for timeout/progress-UI calibration; rotation correctness, validated against a real capture with a known waveform (e.g. a fixed duty-cycle square wave).
+
+---
+
+## Milestone 6 — Docs & test coverage
+
+**Docs:**
+- New `app/docs/widgets/index.owntech.json` (distinct from `owntech-legacy`'s renamed index) with entries for `owntech_actions_panel` and `owntech_scope_capture` (category `OwnTech`). M2/M3's changes to the existing Buttons/Gauge widgets don't need new doc entries — those keep their existing type_names and whatever doc entries they already have.
+- New READMEs under `app/docs/widgets/owntech/actions/` and `.../scope/`, using `app/docs/widgets/thingset/serial-device-ui/README.md` as the structural template (a generic, discovery-driven widget doc) rather than the old per-leg-hardcoded Twist docs.
+- Add `"widgetDocsIndex": "docs/widgets/index.owntech.json"` to `app/extensions/owntech/manifest.json` only once this content exists (`normalizeWidgetDocsRoots()` throws if the path doesn't resolve) — sequenced after the file is created, not added in M0.
+
+**Tests:**
+- `tests/unit/extensions_runtime.test.js` — beyond M0's rename fixes: assert `owntech_thingset_datasource`/`owntech_actions_panel`/`owntech_scope_capture` appear in the bootstrap when `owntech` is enabled and are absent when disabled (mirrors existing `thingset_serial_datasource` assertions).
+- **New `tests/unit/thingset_tree_walk.test.js`** — pure-function tests for `findLegGroups`/`findBooleanActionLeaves` against synthetic tree fixtures, **critically including a 3-leg (`Leg1`,`Leg2`,`Leg3`) fixture**. This is the single most important regression test in the whole plan: it proves the OwnVerter-readiness claim today, via a hand-built fixture, without needing real 3-leg firmware to exist yet.
+- New `tests/unit/thingset_value_parse.test.js` for the lifted parser (booleans, numbers, JSON, quoted strings, hex).
+- New `tests/e2e/owntech-thingset.spec.js` (MOCK_HW=1, mirroring `tests/e2e/can-thingset.spec.js`'s style): a dashboard fixture with `owntech_thingset_datasource` + `owntech_actions_panel` rendering without error under a mocked tree response (extend the existing mock tree fixture in `preload.js` to include a fabricated `Leg3` subtree, exercising the 3-leg discovery path through real widget rendering, not just the unit test); a ThingSet-mode Toggle Button / +/- Button test asserting the mocked `thingsetSerial.setValue` was invoked with the expected `{path, value}` (requires making the mock recordable — check for an existing call-tracking pattern in the mock file before inventing one); a sidebar status-card test; a scope-widget test using the mock's instant synthetic download (no timing/rotation correctness assertion possible under mock — that's real-hardware-only).
+- The existing `tests/e2e/can-thingset.spec.js` and its fixture dashboard are **not touched** — new OwnTech widgets get their own fixture, keeping the CAN-focused suite untangled from this effort.
+
+**Real-hardware-only verification** (cannot be automated in CI, listed once here for the whole plan): full handshake end-to-end against a real if02 port; chunked-write removal; scope download byte format/concurrency/timing/rotation correctness; `wDriver=false` and any other known-buggy write paths.
+
+---
+
+## Sequencing / dependency graph
+
+```
+M0 (rename + scaffold)
+  │
+  ├──► M1 (datasource + sidebar status)
+  │       │
+  │       ├──► M2 (shared picker generalization) ──► M3 (button widgets ThingSet-write mode)
+  │       │
+  │       └──► M4 (Actions panel, introduces thingset_tree_walk.js) ──► M5 (scope capture, reuses it)
+  │
+  └──► M6 (docs + tests) — land incrementally alongside each milestone, not deferred to the end;
+          listed last only because the prompt's structure groups doc/test work as its own section.
+```
+- M0 blocks everything (the extension id must exist before any manifest can add scripts to it).
+- M1 blocks M2, M3, M4, M5 (all need the new datasource type_name).
+- M2 blocks M3.
+- M4 and M5 share `thingset_tree_walk.js` (introduced in M4) but don't otherwise block each other; M3 and M4 are independent widget surfaces and can be parallelized once M1+M2 land.
+
+## Verification strategy
+
+| Milestone | Unit tests | E2E (MOCK_HW=1) | Real-hardware-only |
+|---|---|---|---|
+| M0 | Rename/enable/disable assertions in `extensions_runtime.test.js` | none new | Extensions-manager UI toggle sanity (manual) |
+| M1 | none new | New datasource renders; sidebar status card shows mocked detection | Real handshake/quote-escaping against if02 |
+| M2 | none new (pure wiring) | Gauge/button pointed at a ThingSet path reads mocked value correctly | Polling cadence feel against real hardware |
+| M3 | `thingset_value_parse.test.js` | Toggle/+/-/Push-button ThingSet write asserted via recorded mock calls | `wDriver=false` behavior; real write latency |
+| M4 | `thingset_tree_walk.test.js` with a synthetic **3-leg** fixture — the core OwnVerter-readiness proof | Actions panel renders a 2-leg mock tree; re-run against a 3-leg mock fixture with zero code changes | Chunked-write removal; Mode enum write/readback |
+| M5 | Rotation-logic pure-function tests against a synthetic ring-buffer-ordered array | Full click-through against an instant synthetic mock download | Byte format/endianness, concurrency, real timing, rotation correctness vs. a real waveform |
+| M6 | n/a | n/a | n/a |
+
+## Commit sequence
+
+One commit sequence per milestone, in landing order. Each milestone ends with a `docs(owntech)` commit that appends its entry to this file's `## Progress Log` — that commit is what operationalizes the "document advances in this file" rule above; it should never be skipped or folded into a code commit, so the doc update is always separately reviewable. Multiple commits per milestone are expected; the groupings below are a starting point, not a hard requirement — splitting a step further (e.g. if a refactor turns out riskier than expected) is fine, but stay within milestone boundaries (don't mix M1 and M2 changes in one commit).
+
+**M0 — Extension scaffolding & rename**
+1. `chore(owntech): rename owntech extension to owntech-legacy, disable by default` — directory rename, manifest id/displayName/enabledByDefault/preloadFlags/widgetDocsIndex edits, doc-index rename.
+2. `feat(owntech): scaffold new empty owntech extension` — new `app/extensions/owntech/manifest.json` + `main.js`.
+3. `test(owntech): update extensions_runtime tests for the owntech-legacy rename` — `tests/unit/extensions_runtime.test.js`.
+4. `docs(owntech): log Milestone 0 completion` — Progress Log entry.
+
+**M1 — Datasource + sidebar detection UI**
+1. `refactor(thingset): extract ThingSetSerialDatasourceCore from thingset_serial.datasource.js` — pure code motion, zero behavior change.
+2. `feat(owntech): add owntech_thingset_datasource plugin` — new datasource file + manifest wiring.
+3. `feat(dashboard): add ThingSet shell status card to the datasource sidebar` — `freeboard.js` (`isThingSetShell`, `thingsetShellStatus`), `index.html`.
+4. `docs(owntech): log Milestone 1 completion` — Progress Log entry, including real-hardware handshake verification outcome.
+
+**M2 — Generalize the shared variable picker**
+1. `feat(picker): recognize ThingSet serial datasources in the shared variable picker` — `listDatasources`, `fetchDatasourceVariableOptions`.
+2. `fix(picker): stop coercing ThingSet variable paths to integers in buildSourceControls`.
+3. `feat(widgets): add ThingSet sourceDef read branch to gauges and the +/- button` — `gauge_family.shared.js`, `plusminus_button.widget.js`.
+4. `docs(owntech): log Milestone 2 completion` — Progress Log entry.
+
+**M3 — ThingSet-write mode for button widgets**
+1. `feat(shared): add thingset_value_parse helper` — lifted from `ts_serial_device_ui.widget.js`.
+2. `feat(toggle-button): add ThingSet write mode`.
+3. `feat(plusminus-button): add ThingSet write mode` — editor + `_send(direction)`.
+4. `feat(push-buttons): add dedicated ThingSet-aware editor and write mode` — `openPushButtonsEditor`, `buttonTargets`.
+5. `docs(owntech): log Milestone 3 completion` — Progress Log entry, including `wDriver=false` real-write verification outcome.
+
+**M4 — Discovery-driven Actions panel**
+1. `feat(shared): add thingset_tree_walk discovery helper`.
+2. `test(owntech): add thingset_tree_walk unit tests, including a synthetic 3-leg fixture` — the OwnVerter-readiness proof.
+3. `feat(owntech): add discovery-driven owntech_actions_panel widget`.
+4. `docs(owntech): log Milestone 4 completion` — Progress Log entry, including chunked-write-removal and `/Config/Mode` readback verification outcomes.
+
+**M5 — Scope/duty-cycle capture**
+1. `feat(owntech): add scope_serial.js if00 protocol module`.
+2. `feat(owntech): register scope IPC handlers, preload surface, and MOCK_HW fixtures`.
+3. `feat(owntech): add owntech_scope_capture widget`.
+4. `docs(owntech): log Milestone 5 completion` — Progress Log entry, including byte-format/endianness, concurrency, timing, and rotation-correctness verification outcomes (the largest set of hardware unknowns in this plan).
+
+**M6 — Docs & test coverage**
+1. `docs(owntech): add widget docs and index.owntech.json for the new widgets`.
+2. `test(owntech): add owntech-thingset.spec.js e2e coverage and remaining unit tests`.
+3. `docs(owntech): final migration-doc pass — mark plan complete` — Progress Log entry closing out the migration, summarizing what shipped vs. the original plan across all milestones.
+
+## Critical files for implementation
+
+- `app/js/thingset_serial_shell.js` — the ThingSet Text-Mode transport (`ThingSetSerialShell`), reused as-is throughout; its handshake/write/discovery behavior is the foundation for every milestone.
+- `app/extensions/thingset/main.js` — owns the `ts-serial-*` IPC registrations the new extension depends on via `requiresExtensions`; gains the shared datasource-core renderer script in M1.
+- `app/dashboard/plugins/thingset_serial.datasource.js` — source of the `flattenTree()`/polling logic extracted into a shared core module in M1; already produces the named-path data shape M2 needs.
+- `app/dashboard/js/freeboard.js` — hosts `plotEditorShared`, `DatasourceModel`, and the `channelMapEditor` binding-handler precedent used for the new sidebar status card; touched in M1 and M2.
+- `app/extensions/runtime.js` — `sortExtensions()`, `resolveEnabled()`, `applyRequiredExtensionConstraints()`, and `buildBootstrap()`'s global script-ordering govern every manifest change from M0 onward.
+
+## Progress Log
+
+_No milestones have landed yet. Append one entry per milestone (or per significant commit) as work proceeds, using this template:_
+
+```
+### YYYY-MM-DD — M<n> <short milestone name>
+- Commits: <hash(es) or message(s) from the Commit Sequence above>
+- What shipped: <summary, and any deviation from the milestone's design as written above>
+- Verification: <unit/e2e results; real-hardware results for anything that milestone's Risks section flagged as hardware-only>
+- Follow-ups: <anything newly discovered that isn't yet reflected in a later milestone's plan>
+```
+
+### 2026-07-31 — M0 Extension scaffolding & rename
+
+- Commits: `5af7c2e` chore(owntech): rename owntech extension to owntech-legacy, disable by default; `44497ac` feat(owntech): scaffold new empty owntech extension; `9048e28` test(owntech): update extensions_runtime and e2e coverage for the owntech-legacy rename.
+- What shipped: `app/extensions/owntech/` renamed to `owntech-legacy` (id, displayName, `enabledByDefault: false`, `preloadFlags.owntechLegacy`, `widgetDocsIndex` all updated; `app/docs/widgets/index.owntech.json` renamed alongside it). A new, empty `app/extensions/owntech/manifest.json` + `main.js` claims the `owntech` id, `enabledByDefault: true`, `requiresExtensions: ["thingset"]`, exactly as spec'd. `sortExtensions()`'s rank map in `runtime.js` gained `['owntech-legacy', 3.5]` (cosmetic, inventory ordering only). One deviation from the written plan: also updated `app/main.js`'s `buildWidgetExtensionsMenuItems()` to add a dedicated `{ extensionId: 'owntech-legacy', label: 'OwnTech Widgets (Legacy)' }` Help-menu section — not called out in the M0 spec, but without it the Twist widget docs would have become unreachable from the in-app Widgets menu the moment a user re-enables `owntech-legacy` (the menu was previously keyed only on the `owntech` id, which now points at the empty extension). No widget files moved and no `type_name`s changed, per the "old dashboards keep working" principle.
+- Verification: all 6 unit test files pass (`node tests/unit/*.test.js`), including the retargeted/expanded `extensions_runtime.test.js` (default-disabled state, env-var round-trip via `MODULAR_EXTENSION_OWNTECH_LEGACY`, persisted-state override). Ran the two affected Playwright e2e specs directly (`electron-smoke.spec.js`, `tabs-docs.spec.js`) — 11 tests total, all passing, including new coverage for the env-var re-enable path and the legacy Help-menu entry. Real-hardware/manual verification (extensions-manager UI toggle sanity) not performed — flagged as manual-only in the plan's Verification strategy table, no hardware or UI-click session available in this pass.
+- Follow-ups: none new. M1 (OwnTech ThingSet datasource + sidebar detection) is next and unblocked.
