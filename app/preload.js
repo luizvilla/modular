@@ -558,6 +558,22 @@ if (isMock) {
         // contextBridge structured-clones plain data once at access time --
         // only function calls round-trip live state back from the isolated world.
         const thingsetSerialSetValueCalls = [];
+        // Fabricated LegN groups so widgets/tests can exercise discovery
+        // against a realistic Core4-shaped tree without hardware. Leg3 is
+        // opt-in via MOCK_THINGSET_LEG3=1 so the default 2-leg tree stays the
+        // common case, while a test can prove the OwnVerter-readiness claim
+        // (3 legs discovered with zero widget/discovery code changes) end to
+        // end through real widget rendering, not just the pure-function unit test.
+        function mockLegGroup(name) {
+            return {
+                path: `/Config/${name}`,
+                values: { wEnable: true, wCapa: false, wDriver: false, sFault: false }
+            };
+        }
+        const legGroups = { Leg1: mockLegGroup('Leg1'), Leg2: mockLegGroup('Leg2') };
+        if (process.env.MOCK_THINGSET_LEG3 === '1') {
+            legGroups.Leg3 = mockLegGroup('Leg3');
+        }
         api.thingsetSerial = {
             detect: async () => ({ port: 'COM_MOCK', node_uid: 'MOCK_UID', node_name: 'Mock' }),
             tree: async () => ({
@@ -571,7 +587,8 @@ if (isMock) {
                     children: {
                         Config: {
                             path: '/Config',
-                            values: { rMode: 1, wMode: 0 }
+                            values: { rMode: 1, wMode: 0 },
+                            children: legGroups
                         }
                     }
                 }

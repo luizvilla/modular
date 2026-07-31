@@ -42,7 +42,10 @@ test('owntech_thingset_datasource renders and reports mocked shell detection in 
   expect(statusText).toBeTruthy();
   expect(statusText).toContain('Detected');
   expect(statusText).toContain('COM_MOCK');
-  expect(statusText).toContain('3 leaves across 1 group');
+  // Mock tree grew a Leg1/Leg2 subtree under /Config in Milestone 4 (see
+  // app/preload.js) so the Actions panel has something to discover; this
+  // pushes the summary from the original "3 leaves across 1 group" to:
+  expect(statusText).toContain('11 leaves across 2 groups');
 
   await app.close();
 });
