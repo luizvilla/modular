@@ -62,6 +62,7 @@
     { "name": "MockSerial",       "type": "serialport_datasource",   "settings": { "portPath": "COM_MOCK", "baudRate": 115200, "separator": ":", "eol": "\\n", "refresh": 500 } },
     { "name": "MockFast",         "type": "fast_frame_datasource",   "settings": { "portPath": "COM_MOCK", "baudRate": 115200, "separator": ":", "eol": "\\n", "refresh": 500 } },
     { "name": "MockThingSetSerial","type": "thingset_serial_datasource","settings": { "autoDetect": true, "portPath": "COM_MOCK", "baudRate": 115200, "usePrefix": false, "refresh": 1000, "debug": false } },
-    { "name": "MockCan",          "type": "can_datasource",          "settings": { "channel": "can0", "device": "auto", "refresh": 500, "debug": false } }
+    { "name": "MockCan",          "type": "can_datasource",          "settings": { "channel": "can0", "device": "auto", "refresh": 500, "debug": false } },
+    { "name": "MockOwnTechThingSet","type": "owntech_thingset_datasource","settings": { "autoDetect": true, "portPath": "COM_MOCK", "baudRate": 115200, "usePrefix": false, "refresh": 1000, "debug": false } }
   ]
 }

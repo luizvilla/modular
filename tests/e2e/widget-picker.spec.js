@@ -136,7 +136,7 @@ test('add-widget modal renders the icon grid and keeps control helpers available
 });
 
 test('picker shows OwnTech and ThingSet sections when extensions are enabled', async () => {
-  const { app, page } = await launchApp({ ENABLE_THINGSET: '1' });
+  const { app, page } = await launchApp({ ENABLE_THINGSET: '1', MODULAR_EXTENSION_OWNTECH_LEGACY: '1' });
   try {
     await waitForDashboard(page);
     await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
@@ -153,7 +153,7 @@ test('picker shows OwnTech and ThingSet sections when extensions are enabled', a
 });
 
 test('picker hides OwnTech section and tiles when owntech extension is disabled', async () => {
-  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH: '0', ENABLE_THINGSET: '0' });
+  const { app, page } = await launchApp({ MODULAR_EXTENSION_OWNTECH: '0', MODULAR_EXTENSION_OWNTECH_LEGACY: '0', ENABLE_THINGSET: '0' });
   try {
     await waitForDashboard(page);
     await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
