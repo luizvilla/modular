@@ -1731,7 +1731,7 @@ ipcMain.handle('files-write-text', async (_event, { filePath, content } = {}) =>
     }
 });
 
-const EXPORT_CSV_CATEGORIES = new Set(['time_plot_csv', 'xy_plot_csv']);
+const EXPORT_CSV_CATEGORIES = new Set(['time_plot_csv', 'xy_plot_csv', 'owntech_scope_csv']);
 
 ipcMain.handle('save-export-csv', async (_event, { category, filename, content } = {}) => {
     if (!EXPORT_CSV_CATEGORIES.has(category)) {

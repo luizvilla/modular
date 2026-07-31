@@ -3176,9 +3176,10 @@ PluginEditor = function(jsEditor, valueEditor)
 				},
 				"OwnTech": {
 					"owntech_actions_panel": 0,
-					"twist_actions_panel": 1,
-					"twist_setpoints_panel": 2,
-					"twist_calibration_panel": 3
+					"owntech_scope_capture": 1,
+					"twist_actions_panel": 2,
+					"twist_setpoints_panel": 3,
+					"twist_calibration_panel": 4
 				},
 				"Buttons": {
 					"serial_command_buttons": 0,
