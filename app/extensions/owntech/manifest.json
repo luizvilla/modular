@@ -1,25 +1,18 @@
 {
   "id": "owntech",
   "apiVersion": 1,
-  "version": "0.9.3",
+  "version": "0.1.0",
   "displayName": "OwnTech Extension",
   "enabledByDefault": true,
   "mainEntry": "main.js",
-  "rendererScripts": [
-    { "path": "js/twist_protocol.js", "order": 5 },
-    { "path": "plugins/twist_control.widget.js", "order": 170 },
-    { "path": "plugins/state_machine_editor.js", "order": 174 },
-    { "path": "plugins/state_machine.widget.js", "order": 175 },
-    { "path": "plugins/twist_setpoints.widget.js", "order": 180 },
-    { "path": "plugins/twist_calibration.widget.js", "order": 190 }
-  ],
+  "rendererScripts": [],
   "preloadFlags": {
     "owntech": true
   },
   "capabilities": [
-    "twist",
-    "ownverter"
+    "owntech",
+    "thingset-serial"
   ],
-  "widgetDocsIndex": "docs/widgets/index.owntech.json",
+  "requiresExtensions": ["thingset"],
   "datasources": []
 }
