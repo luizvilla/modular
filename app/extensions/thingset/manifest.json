@@ -6,6 +6,7 @@
   "enabledByDefault": true,
   "mainEntry": "main.js",
   "rendererScripts": [
+    { "path": "js/thingset_value_parse.js", "order": 4 },
     { "path": "js/thingset_serial_datasource_core.js", "order": 6 },
     { "path": "plugins/thingset_serial.datasource.js", "order": 210 },
     { "path": "plugins/can.datasource.js", "order": 230 },

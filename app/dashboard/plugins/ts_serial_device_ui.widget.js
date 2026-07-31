@@ -20,24 +20,7 @@
     return `<code>${escapeHtml(String(value))}</code>`;
   }
 
-  function parseInputValue(raw) {
-    if (raw == null) return '';
-    const txt = String(raw).trim();
-    if (txt === '') return '';
-    const lowered = txt.toLowerCase();
-    if (lowered === 'true' || lowered === 'false' || lowered === 'null') {
-      try { return JSON.parse(lowered); } catch { return txt; }
-    }
-    if ((txt.startsWith('{') && txt.endsWith('}')) || (txt.startsWith('[') && txt.endsWith(']')) || (txt.startsWith('"') && txt.endsWith('"'))) {
-      try { return JSON.parse(txt); } catch { return txt; }
-    }
-    if (/^0x[0-9a-f]+$/i.test(txt)) {
-      try { return Number.parseInt(txt, 16); } catch { return txt; }
-    }
-    const num = Number(txt);
-    if (!Number.isNaN(num)) return num;
-    return txt;
-  }
+  const parseInputValue = window.ThingSetValueParse.parseInputValue;
 
   function joinPath(base, leaf) {
     const parts = [];
