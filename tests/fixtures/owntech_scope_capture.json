@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "columns": 2,
+  "panes": [
+    {
+      "title": "OwnTech Scope",
+      "width": 1,
+      "row": { "2": 1 },
+      "col": { "2": 1 },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "owntech_scope_capture",
+          "settings": {
+            "title": "Scope",
+            "datasource": "MockOwnTechThingSet",
+            "scopeSerialPort": "COM_MOCK_SCOPE"
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [
+    { "name": "MockOwnTechThingSet", "type": "owntech_thingset_datasource", "settings": { "autoDetect": true, "portPath": "COM_MOCK", "baudRate": 115200, "usePrefix": false, "refresh": 1000, "debug": false } }
+  ]
+}
