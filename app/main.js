@@ -1518,6 +1518,7 @@ function buildWidgetExtensionsMenuItems() {
     const widgetSections = [
         { extensionId: 'core', label: 'Modular Core Widgets' },
         { extensionId: 'owntech', label: 'OwnTech Widgets' },
+        { extensionId: 'owntech-legacy', label: 'OwnTech Widgets (Legacy)' },
         { extensionId: 'thingset', label: 'Thingset Widgets' },
     ];
     const items = [];

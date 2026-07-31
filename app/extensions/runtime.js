@@ -338,6 +338,7 @@ function sortExtensions(records) {
         ['courseware', 1],
         ['tutorials', 2],
         ['owntech', 3],
+        ['owntech-legacy', 3.5],
         ['owntech-workspace', 4],
         ['thingset', 5],
     ]);
