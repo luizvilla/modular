@@ -172,12 +172,13 @@
                 if (!dsName) return null;
                 const dsType = shared.getDatasourceType(dsName);
                 const rawVar = variableRow.select.val();
+                const keepAsString = dsType === 'can_datasource' || dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
                 return {
                     ds: dsName,
                     type: dsType,
                     device: dsType === 'can_datasource' ? (deviceRow.select.val() || null) : null,
                     device_uid: dsType === 'can_datasource' ? readSelectedUid(deviceRow.select) : null,
-                    var: dsType === 'can_datasource' ? rawVar : parseInt(rawVar, 10)
+                    var: keepAsString ? rawVar : parseInt(rawVar, 10)
                 };
             }
         };
