@@ -5007,7 +5007,7 @@ var freeboard = (function()
 					var name = ds.name && ds.name();
 					var dsType = ds.type && ds.type();
 					if(!name) return;
-					if(["serialport_datasource", "fast_frame_datasource", "can_datasource", "signal_generator_datasource"].indexOf(dsType) >= 0)
+					if(["serialport_datasource", "fast_frame_datasource", "can_datasource", "signal_generator_datasource", "thingset_serial_datasource", "owntech_thingset_datasource"].indexOf(dsType) >= 0)
 					{
 						out.push({ name: name, type: dsType });
 					}
@@ -5200,6 +5200,22 @@ var freeboard = (function()
 				var nodes = snapshot && snapshot.nodes ? snapshot.nodes : {};
 				var flat = deviceVal && nodes[deviceVal] ? (nodes[deviceVal].flat || {}) : {};
 				Object.keys(flat).sort().forEach(function(path)
+				{
+					var leaf = path.indexOf("/") >= 0 ? path.split("/").pop() : path;
+					var label = (leaf && leaf !== path) ? (leaf + " - " + path) : path;
+					out.push({ value: path, label: label });
+				});
+			}
+			if(dsType === "thingset_serial_datasource" || dsType === "owntech_thingset_datasource")
+			{
+				var live = getLiveModel();
+				var dsModel = (live && typeof live.datasources === "function") ? live.datasources().find(function(d)
+				{
+					try { return d.name && d.name() === dsName; } catch(e) { return false; }
+				}) : null;
+				var data = (dsModel && dsModel.latestData) ? (dsModel.latestData() || {}) : {};
+				var values = (data && data.values) ? data.values : {};
+				Object.keys(values).sort().forEach(function(path)
 				{
 					var leaf = path.indexOf("/") >= 0 ? path.split("/").pop() : path;
 					var label = (leaf && leaf !== path) ? (leaf + " - " + path) : path;
