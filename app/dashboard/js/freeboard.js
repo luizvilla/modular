@@ -3175,9 +3175,10 @@ PluginEditor = function(jsEditor, valueEditor)
 					"fast_frame_channel_manager": 11
 				},
 				"OwnTech": {
-					"twist_actions_panel": 0,
-					"twist_setpoints_panel": 1,
-					"twist_calibration_panel": 2
+					"owntech_actions_panel": 0,
+					"twist_actions_panel": 1,
+					"twist_setpoints_panel": 2,
+					"twist_calibration_panel": 3
 				},
 				"Buttons": {
 					"serial_command_buttons": 0,

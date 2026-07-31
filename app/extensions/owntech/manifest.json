@@ -6,7 +6,9 @@
   "enabledByDefault": true,
   "mainEntry": "main.js",
   "rendererScripts": [
-    { "path": "plugins/owntech_thingset.datasource.js", "order": 200 }
+    { "path": "js/thingset_tree_walk.js", "order": 10 },
+    { "path": "plugins/owntech_thingset.datasource.js", "order": 200 },
+    { "path": "plugins/owntech_actions_panel.widget.js", "order": 210 }
   ],
   "preloadFlags": {
     "owntech": true
