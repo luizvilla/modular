@@ -123,6 +123,12 @@ const api = {
         delete: (payload) => ipcRenderer.invoke('ts-serial-delete', payload),
         exec: (payload) => ipcRenderer.invoke('ts-serial-exec', payload)
     },
+    owntechScope: {
+        probe: (payload) => ipcRenderer.invoke('owntech-scope-probe', payload),
+        download: (payload) => ipcRenderer.invoke('owntech-scope-download', payload),
+        close: (payload) => ipcRenderer.invoke('owntech-scope-close', payload),
+        onProgress: (cb) => on('owntech-scope-progress', cb)
+    },
     can: {
         getInterfaces: () => ipcRenderer.invoke('get-can-interfaces'),
         getThingSetNodes: () => ipcRenderer.invoke('get-thingset-nodes'),
@@ -230,8 +236,14 @@ const mockIpcUnavailable = process.env.MOCK_IPC_UNAVAILABLE === '1';
 const enableThingset = process.env.ENABLE_THINGSET === undefined
     ? true
     : (process.env.ENABLE_THINGSET === '1' || process.env.ENABLE_THINGSET === 'true');
+// Same pattern for OwnTech's scope side-channel; it also requires ThingSet
+// (the owntech extension itself declares requiresExtensions: ["thingset"]),
+// so it's off whenever ThingSet is off, regardless of ENABLE_OWNTECH.
+const enableOwntechScope = enableThingset && (process.env.ENABLE_OWNTECH === undefined
+    ? true
+    : (process.env.ENABLE_OWNTECH === '1' || process.env.ENABLE_OWNTECH === 'true'));
 
-api.flags = { thingset: enableThingset };
+api.flags = { thingset: enableThingset, owntech: enableOwntechScope };
 
 function createEmitter() {
     const listeners = new Map();
@@ -589,6 +601,25 @@ if (isMock) {
                             path: '/Config',
                             values: { rMode: 1, wMode: 0 },
                             children: legGroups
+                        },
+                        Debug: {
+                            path: '/Debug',
+                            values: {},
+                            children: {
+                                Scope: {
+                                    path: '/Debug/Scope',
+                                    // rState=3 (READY) by default so the Download
+                                    // button is exercisable without first driving
+                                    // an arm/trigger sequence through the mock.
+                                    values: {
+                                        wArm: false, wTrigger: false,
+                                        wPretriggerRatio: 0.2, wDecimation: 1,
+                                        rState: 3, rSampleCount: 1024, rChannelCount: 8,
+                                        rSamplePeriod_us: 100, rCaptureDuration_ms: 102.4,
+                                        rFinalIndex: 511, rLastError: 0
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -604,6 +635,23 @@ if (isMock) {
             getMockSetValueCalls: () => thingsetSerialSetValueCalls.slice()
         };
     }
+
+    // Instant synthetic capture so e2e tests can exercise the full
+    // Download UI flow without hardware or a multi-second real transfer.
+    const SCOPE_MOCK_SAMPLE_COUNT = 1024;
+    const SCOPE_MOCK_CHANNEL_NAMES = ['V1Low_V', 'V2Low_V', 'VHigh_V', 'I1Low_A', 'I2Low_A', 'IHigh_A', 'Duty1', 'Duty2'];
+    api.owntechScope = {
+        probe: async () => ({ ok: true, port: 'COM_MOCK_SCOPE' }),
+        download: async ({ port } = {}) => {
+            const samples = Array.from({ length: SCOPE_MOCK_SAMPLE_COUNT }, (_, i) => SCOPE_MOCK_CHANNEL_NAMES.map(
+                (_, ch) => Math.round(Math.sin((i / SCOPE_MOCK_SAMPLE_COUNT) * Math.PI * 2 + ch) * 100) / 100
+            ));
+            emitter.emit('owntech-scope-progress', { port, received: SCOPE_MOCK_SAMPLE_COUNT * SCOPE_MOCK_CHANNEL_NAMES.length, total: SCOPE_MOCK_SAMPLE_COUNT * SCOPE_MOCK_CHANNEL_NAMES.length });
+            return { ok: true, channels: SCOPE_MOCK_CHANNEL_NAMES.slice(), samples, finalIndex: SCOPE_MOCK_SAMPLE_COUNT - 1 };
+        },
+        close: async () => ({ ok: true }),
+        onProgress: (cb) => emitter.on('owntech-scope-progress', cb)
+    };
 }
 
 // Extension manager mock — list uses the real IPC (extensions aren't hardware);
@@ -627,6 +675,10 @@ if (!enableThingset) {
     if (api.can && typeof api.can.getThingSetNodes === 'function') {
         api.can.getThingSetNodes = async () => [];
     }
+}
+
+if (!enableOwntechScope) {
+    api.owntechScope = null;
 }
 
 if (process.contextIsolated) {
