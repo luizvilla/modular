@@ -5,7 +5,9 @@
   "displayName": "OwnTech Extension",
   "enabledByDefault": true,
   "mainEntry": "main.js",
-  "rendererScripts": [],
+  "rendererScripts": [
+    { "path": "plugins/owntech_thingset.datasource.js", "order": 200 }
+  ],
   "preloadFlags": {
     "owntech": true
   },
@@ -14,5 +16,7 @@
     "thingset-serial"
   ],
   "requiresExtensions": ["thingset"],
-  "datasources": []
+  "datasources": [
+    { "type": "owntech_thingset_datasource", "icon": "microchip" }
+  ]
 }
