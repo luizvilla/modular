@@ -551,6 +551,13 @@ if (isMock) {
             idsForPaths: async () => ({ status: 0x80, payload: [1] })
         };
 
+        // getMockSetValueCalls() records every setValue() invocation ({port,
+        // path, value, ...}) so e2e tests can assert a ThingSet write happened
+        // with the expected path/value, without real hardware or a stateful
+        // mock. Exposed as a function (not a plain array property) because
+        // contextBridge structured-clones plain data once at access time --
+        // only function calls round-trip live state back from the isolated world.
+        const thingsetSerialSetValueCalls = [];
         api.thingsetSerial = {
             detect: async () => ({ port: 'COM_MOCK', node_uid: 'MOCK_UID', node_name: 'Mock' }),
             tree: async () => ({
@@ -570,10 +577,14 @@ if (isMock) {
                 }
             }),
             getValue: async () => ({ ok: true, value: 1 }),
-            setValue: async () => ({ ok: true }),
+            setValue: async (opts) => {
+                thingsetSerialSetValueCalls.push(opts);
+                return { ok: true };
+            },
             create: async () => ({ ok: true }),
             delete: async () => ({ ok: true }),
-            exec: async () => ({ ok: true })
+            exec: async () => ({ ok: true }),
+            getMockSetValueCalls: () => thingsetSerialSetValueCalls.slice()
         };
     }
 }

@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "columns": 2,
+  "panes": [
+    {
+      "title": "OwnTech Write",
+      "width": 1,
+      "row": { "2": 1 },
+      "col": { "2": 1 },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "toggle_button",
+          "settings": {
+            "title": "Enable",
+            "onCommand": "",
+            "offCommand": "",
+            "writePath": "/Config/wMode",
+            "onValue": "true",
+            "offValue": "false",
+            "datasource": "MockOwnTechThingSet"
+          }
+        },
+        {
+          "type": "plus_minus_button",
+          "settings": {
+            "title": "Mode",
+            "units": "",
+            "plusCommand": "",
+            "plusLegend": "",
+            "minusCommand": "",
+            "minusLegend": "",
+            "datasource": "MockOwnTechThingSet",
+            "writePath": "/Config/rMode",
+            "step": 1,
+            "sourceDef": { "ds": "MockOwnTechThingSet", "type": "owntech_thingset_datasource", "device": null, "device_uid": null, "var": "/Config/rMode" }
+          }
+        },
+        {
+          "type": "serial_command_buttons",
+          "settings": {
+            "title": "Actions",
+            "layout": "vertical",
+            "datasource": "MockOwnTechThingSet",
+            "buttons": [],
+            "buttonTargets": [
+              { "label": "Enable Leg", "path": "/Config/wEnable", "value": "true" }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [
+    { "name": "MockOwnTechThingSet", "type": "owntech_thingset_datasource", "settings": { "autoDetect": true, "portPath": "COM_MOCK", "baudRate": 115200, "usePrefix": false, "refresh": 1000, "debug": false } }
+  ]
+}
