@@ -21,5 +21,6 @@
   "requiresExtensions": ["thingset"],
   "datasources": [
     { "type": "owntech_thingset_datasource", "icon": "microchip" }
-  ]
+  ],
+  "widgetDocsIndex": "docs/widgets/index.owntech.json"
 }

@@ -1,0 +1,20 @@
+{
+  "widgets": [
+    {
+      "type": "owntech_actions_panel",
+      "title": "OwnTech Actions",
+      "category": "OwnTech",
+      "icon": "bolt",
+      "preferredOrder": 0,
+      "doc": "owntech/actions/README.md"
+    },
+    {
+      "type": "owntech_scope_capture",
+      "title": "OwnTech Scope Capture",
+      "category": "OwnTech",
+      "icon": "wave-square",
+      "preferredOrder": 1,
+      "doc": "owntech/scope/README.md"
+    }
+  ]
+}
