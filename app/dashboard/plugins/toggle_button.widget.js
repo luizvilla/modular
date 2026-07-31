@@ -7,8 +7,11 @@
         category: "Buttons",
         settings: [
             { name: "title", display_name: "Title", type: "text" },
-            { name: "onCommand", display_name: "ON Command", type: "text" },
-            { name: "offCommand", display_name: "OFF Command", type: "text" },
+            { name: "onCommand", display_name: "ON Command", type: "text", description: "Sent as a raw serial command. Ignored when the datasource above is a ThingSet type -- use ON/OFF Value below instead." },
+            { name: "offCommand", display_name: "OFF Command", type: "text", description: "Sent as a raw serial command. Ignored when the datasource above is a ThingSet type -- use ON/OFF Value below instead." },
+            { name: "writePath", display_name: "ThingSet Write Path", type: "text", description: "Only used when the datasource above is a ThingSet type, e.g. /Config/Leg1/wEnable." },
+            { name: "onValue", display_name: "ThingSet ON Value", type: "text", default_value: "true", description: "Parsed as JSON/boolean/number when possible, otherwise sent as a string." },
+            { name: "offValue", display_name: "ThingSet OFF Value", type: "text", default_value: "false", description: "Parsed as JSON/boolean/number when possible, otherwise sent as a string." },
             {
                 name: "datasource",
                 display_name: "Datasource Name",
@@ -31,13 +34,26 @@
         live.datasources().forEach(ds => {
             try {
                 const type = ds.type && ds.type();
-                if (type === 'serialport_datasource' || type === 'fast_frame_datasource') {
+                if (type === 'serialport_datasource' || type === 'fast_frame_datasource' || type === 'thingset_serial_datasource' || type === 'owntech_thingset_datasource') {
                     const name = ds.name();
                     options.push({ name, value: name });
                 }
             } catch (e) { /* ignore */ }
         });
         return options;
+    }
+
+    function getDatasourceType(dsName) {
+        const live = freeboard.getLiveModel?.();
+        if (!live || typeof live.datasources !== 'function') return null;
+        const ds = live.datasources().find(d => {
+            try { return d.name() === dsName; } catch (e) { return false; }
+        });
+        return (ds && ds.type) ? ds.type() : null;
+    }
+
+    function isThingSetType(dsType) {
+        return dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
     }
 
     class ToggleButton {
@@ -82,12 +98,38 @@
         _toggle() {
             this._isOn = !this._isOn;
             this._updateVisualState();
-            this._sendCommand(this._isOn ? this.settings.onCommand : this.settings.offCommand);
+            this._send(this._isOn ? 'on' : 'off');
         }
 
         _updateVisualState() {
             this.switchEl.toggleClass('is-on', this._isOn);
             this.stateLabel.text(this._isOn ? 'ON' : 'OFF');
+        }
+
+        _send(kind) {
+            const dsType = getDatasourceType(this.settings.datasource);
+            if (isThingSetType(dsType)) {
+                this._sendThingSetValue(kind);
+            } else {
+                this._sendCommand(kind === 'on' ? this.settings.onCommand : this.settings.offCommand);
+            }
+        }
+
+        _sendThingSetValue(kind) {
+            const tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
+            const path = this.settings.writePath;
+            if (!tsSerialApi || !tsSerialApi.setValue || !path) return;
+            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
+            if (!dsSettings.portPath) return;
+            const raw = kind === 'on' ? this.settings.onValue : this.settings.offValue;
+            const value = window.ThingSetValueParse ? window.ThingSetValueParse.parseInputValue(raw) : raw;
+            tsSerialApi.setValue({
+                port: dsSettings.portPath,
+                path,
+                value,
+                baudRate: Number(dsSettings.baudRate) || 115200,
+                usePrefix: !!dsSettings.usePrefix,
+            }).catch(err => console.error("ThingSet write failed:", err));
         }
 
         _sendCommand(command) {
