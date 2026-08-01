@@ -50,18 +50,30 @@
         return options;
     }
 
-    async function getScopeSerialPortOptions() {
+    // The generic settings-dialog "option" provider (freeboard.js's
+    // resolveOptions()) calls this synchronously and only accepts a plain
+    // array back -- an async function's returned Promise fails the
+    // _.isArray() check and silently renders an empty dropdown. Serial port
+    // enumeration is inherently async (an IPC round-trip), so this keeps a
+    // background-refreshed cache and returns whatever's already in it,
+    // exactly like the datasource/pnpId-style pickers elsewhere in this
+    // codebase read a live, already-populated in-memory source synchronously.
+    let scopeSerialPortCache = [];
+    function refreshScopeSerialPortCache() {
         const serialApi = window.api && window.api.serial ? window.api.serial : null;
-        if (!serialApi || typeof serialApi.listPorts !== 'function') return [];
-        try {
-            const ports = await serialApi.listPorts();
-            return (Array.isArray(ports) ? ports : []).map((p) => {
+        if (!serialApi || typeof serialApi.listPorts !== 'function') return;
+        serialApi.listPorts().then((ports) => {
+            scopeSerialPortCache = (Array.isArray(ports) ? ports : []).map((p) => {
                 const value = p.value || p.name || p.path || String(p);
                 return { name: p.name || value, value };
             });
-        } catch (e) {
-            return [];
-        }
+        }).catch(() => { /* keep last-known-good cache on failure */ });
+    }
+    refreshScopeSerialPortCache();
+
+    function getScopeSerialPortOptions() {
+        refreshScopeSerialPortCache(); // fire-and-forget refresh for the next call
+        return scopeSerialPortCache;
     }
 
     class OwnTechScopeCapture {
