@@ -66,17 +66,33 @@ module.exports = function registerThingSetExtension(context) {
     // -------------------------------------------------------------------------
     // Serial candidate helpers (used by ts-serial-detect)
     // -------------------------------------------------------------------------
-    function orderSerialCandidates(list) {
-        const preferred = [];
-        const others = [];
+    // Deprioritizes (never excludes) "-if00" USB interfaces: confirmed against
+    // real OwnTech/Core4 hardware that this is always the scope bulk-transfer
+    // side-channel, never a ThingSet shell -- and that probing it with the
+    // full ThingSet handshake (multiple commands, each an unrecognized-input
+    // error to that port's simple single-character protocol) can wedge its
+    // firmware task until a physical reset. ttyACM0 (if00) otherwise sorts
+    // before ttyACM1 (if02) on every such board, so without this, a plain
+    // path-based scan always tries the risky port first.
+    const IF00_SUFFIX_RE = /-if00$/i;
+
+    function isIf00Candidate(port) {
+        return IF00_SUFFIX_RE.test(String(port?.pnpId || ''));
+    }
+
+    function orderSerialCandidates(ports) {
         const preferRe = /(ttyACM|ttyUSB|usbserial|usbmodem|cu\.usb|COM\d+)/i;
-        for (const entry of list) {
-            const p = String(entry || '');
-            if (!p) continue;
-            if (preferRe.test(p)) preferred.push(p);
-            else others.push(p);
-        }
-        return preferred.concat(others);
+        const rank = (port) => {
+            const p = String(port?.path || '');
+            if (isIf00Candidate(port)) return 2;
+            if (preferRe.test(p)) return 0;
+            return 1;
+        };
+        return ports
+            .slice()
+            .map((port, index) => ({ port, index }))
+            .sort((a, b) => (rank(a.port) - rank(b.port)) || (a.index - b.index))
+            .map(({ port }) => port.path);
     }
 
     async function collectSerialCandidates(explicitPort = null) {
@@ -84,7 +100,7 @@ module.exports = function registerThingSetExtension(context) {
         try {
             const ports = await SerialPort.list();
             if (!ports || !ports.length) return [];
-            return orderSerialCandidates(ports.map((p) => p?.path).filter(Boolean));
+            return orderSerialCandidates(ports.filter((p) => p && p.path));
         } catch (err) {
             console.warn('Failed to enumerate serial ports for ThingSet detect:', err?.message || err);
             return [];
