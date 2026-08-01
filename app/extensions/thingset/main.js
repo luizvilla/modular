@@ -133,6 +133,33 @@ module.exports = function registerThingSetExtension(context) {
     }
 
     // -------------------------------------------------------------------------
+    // Per-port serialization for every ts-serial-* operation
+    // -------------------------------------------------------------------------
+    // Each handler below opens its own ephemeral ThingSetSerialShell (its own
+    // SerialPort) on a given OS device path. Confirmed against real hardware:
+    // if two such operations land on the SAME port at overlapping times (e.g.
+    // a widget's tree poll racing a button's write -- an entirely normal
+    // thing to happen once a dashboard has multiple OwnTech/ThingSet widgets
+    // pointed at one datasource), the OS only lets one open handle exist at a
+    // time, so the second SerialPort.open() call fails with "Resource
+    // temporarily unavailable ... Cannot lock port". runExclusive() chains
+    // same-port operations so each one starts only once the previous one has
+    // fully finished, generalizing the same per-port-Promise idea
+    // inFlightTreeFetches (below) already used just for concurrent tree
+    // fetches to every serial ThingSet operation.
+    const portQueues = new Map(); // port -> Promise (tail of that port's queue)
+
+    function runExclusive(port, fn) {
+        const prev = portQueues.get(port) || Promise.resolve();
+        const settled = prev.then(fn, fn);
+        // The stored continuation must never reject -- otherwise one failed
+        // operation would permanently wedge every later operation on this
+        // port. Callers still get the real result/rejection via `settled`.
+        portQueues.set(port, settled.then(() => {}, () => {}));
+        return settled;
+    }
+
+    // -------------------------------------------------------------------------
     // ThingSet serial detect
     // -------------------------------------------------------------------------
     // Same reasoning as inFlightTreeFetches: a scan across every candidate port
@@ -164,27 +191,31 @@ module.exports = function registerThingSetExtension(context) {
         const attempts = [];
         const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
         for (const candidate of candidates) {
-            let shell = null;
             try {
-                const existingPort = getOpenPort(candidate);
-                tsLog('log', `probing ${candidate}`, existingPort ? `reusing already-open handle (isOpen=${existingPort.isOpen})` : 'no open handle found — will open a new one');
-                shell = new ThingSetSerialShell({ path: candidate, baudRate, usePrefix, verbose: isVerbose, existingPort });
-                await shell.open();
-                await shell.enterThingSet();
-                if (!shell.probeSucceeded()) throw new Error('ThingSet prompt not detected');
-                const nodeUid = await shell.readNodeUid().catch(() => null);
-                const nodeName = await shell.readNodeName().catch(() => null);
-                const nodeAddr = await shell.readNodeAddr().catch(() => null);
-                const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
-                tsLog('log', `probe succeeded on ${candidate}`, addressHex || nodeUid || 'ok');
-                emit({ id: `serial:${candidate}:detect`, title: candidate, state: 'done', label: 'ThingSet serial detect', detail: nodeUid || addressHex || 'ok' });
-                return { port: candidate, baudRate, node_uid: nodeUid, node_name: nodeName, node_addr: nodeAddr, address_hex: addressHex, command_prefix: shell.getCommandPrefix() };
+                const result = await runExclusive(candidate, async () => {
+                    const existingPort = getOpenPort(candidate);
+                    tsLog('log', `probing ${candidate}`, existingPort ? `reusing already-open handle (isOpen=${existingPort.isOpen})` : 'no open handle found — will open a new one');
+                    const shell = new ThingSetSerialShell({ path: candidate, baudRate, usePrefix, verbose: isVerbose, existingPort });
+                    try {
+                        await shell.open();
+                        await shell.enterThingSet();
+                        if (!shell.probeSucceeded()) throw new Error('ThingSet prompt not detected');
+                        const nodeUid = await shell.readNodeUid().catch(() => null);
+                        const nodeName = await shell.readNodeName().catch(() => null);
+                        const nodeAddr = await shell.readNodeAddr().catch(() => null);
+                        const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
+                        return { node_uid: nodeUid, node_name: nodeName, node_addr: nodeAddr, address_hex: addressHex, command_prefix: shell.getCommandPrefix() };
+                    } finally {
+                        try { await shell.close(); } catch {}
+                    }
+                });
+                tsLog('log', `probe succeeded on ${candidate}`, result.address_hex || result.node_uid || 'ok');
+                emit({ id: `serial:${candidate}:detect`, title: candidate, state: 'done', label: 'ThingSet serial detect', detail: result.node_uid || result.address_hex || 'ok' });
+                return { port: candidate, baudRate, ...result };
             } catch (err) {
                 tsLog('warn', `probe failed on ${candidate}`, err?.message || String(err));
                 attempts.push({ port: candidate, error: err?.message || String(err) });
                 emit({ id: `serial:${candidate}:detect`, title: candidate, state: 'error', label: 'ThingSet serial detect', detail: err?.message || String(err) });
-            } finally {
-                if (shell) { try { await shell.close(); } catch {} }
             }
         }
         const detail = attempts.map((t) => `${t.port}: ${t.error}`).join('; ');
@@ -211,7 +242,7 @@ module.exports = function registerThingSetExtension(context) {
             tsLog('log', `tree requested for ${port}`, 'a tree fetch is already in flight for this port — awaiting it instead of starting a second one');
             return existing;
         }
-        const attempt = runSerialTree({ port, baudRate, usePrefix, verbose });
+        const attempt = runExclusive(port, () => runSerialTree({ port, baudRate, usePrefix, verbose }));
         inFlightTreeFetches.set(port, attempt);
         try {
             return await attempt;
@@ -281,64 +312,74 @@ module.exports = function registerThingSetExtension(context) {
     ipcMain.handle('ts-serial-set-value', async (_event, { port, path: targetPath, value, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
-        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-        try {
-            await shell.open();
-            await shell.enterThingSet();
-            const coerced = coerceOutputValue(value);
-            const resp = await shell.setValue(targetPath, coerced);
-            let readBack = null;
-            try { const read = await shell.getValue(targetPath); if (read.ok) readBack = read.value; } catch {}
-            return { ok: resp.ok, raw: resp.raw, readBack };
-        } finally { try { await shell.close(); } catch {} }
+        return runExclusive(port, async () => {
+            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
+            try {
+                await shell.open();
+                await shell.enterThingSet();
+                const coerced = coerceOutputValue(value);
+                const resp = await shell.setValue(targetPath, coerced);
+                let readBack = null;
+                try { const read = await shell.getValue(targetPath); if (read.ok) readBack = read.value; } catch {}
+                return { ok: resp.ok, raw: resp.raw, readBack };
+            } finally { try { await shell.close(); } catch {} }
+        });
     });
 
     ipcMain.handle('ts-serial-get-value', async (_event, { port, path: targetPath, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
-        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-        try {
-            await shell.open();
-            await shell.enterThingSet();
-            const resp = await shell.getValue(targetPath);
-            return { ok: resp.ok, value: resp.value };
-        } finally { try { await shell.close(); } catch {} }
+        return runExclusive(port, async () => {
+            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
+            try {
+                await shell.open();
+                await shell.enterThingSet();
+                const resp = await shell.getValue(targetPath);
+                return { ok: resp.ok, value: resp.value };
+            } finally { try { await shell.close(); } catch {} }
+        });
     });
 
     ipcMain.handle('ts-serial-create', async (_event, { port, path: targetPath, value = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
-        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-        try {
-            await shell.open();
-            await shell.enterThingSet();
-            const resp = await shell.create(targetPath, value);
-            return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
-        } finally { try { await shell.close(); } catch {} }
+        return runExclusive(port, async () => {
+            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
+            try {
+                await shell.open();
+                await shell.enterThingSet();
+                const resp = await shell.create(targetPath, value);
+                return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
+            } finally { try { await shell.close(); } catch {} }
+        });
     });
 
     ipcMain.handle('ts-serial-delete', async (_event, { port, path: targetPath, value = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
-        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-        try {
-            await shell.open();
-            await shell.enterThingSet();
-            const resp = await shell.deleteValue(targetPath, value);
-            return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
-        } finally { try { await shell.close(); } catch {} }
+        return runExclusive(port, async () => {
+            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
+            try {
+                await shell.open();
+                await shell.enterThingSet();
+                const resp = await shell.deleteValue(targetPath, value);
+                return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
+            } finally { try { await shell.close(); } catch {} }
+        });
     });
 
     ipcMain.handle('ts-serial-exec', async (_event, { port, path: targetPath, args = undefined, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
-        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-        try {
-            await shell.open();
-            await shell.enterThingSet();
-            const resp = await shell.exec(targetPath, args);
-            return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
-        } finally { try { await shell.close(); } catch {} }
+        return runExclusive(port, async () => {
+            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
+            try {
+                await shell.open();
+                await shell.enterThingSet();
+                const resp = await shell.exec(targetPath, args);
+                return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
+            } finally { try { await shell.close(); } catch {} }
+        });
     });
 
     // -------------------------------------------------------------------------
