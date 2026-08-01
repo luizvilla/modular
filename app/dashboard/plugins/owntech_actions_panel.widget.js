@@ -48,6 +48,7 @@
     const MODE_IDLE = 0;
     const MODE_POWER_ON = 1;
     const MODE_POWER_OFF = 2;
+    const MODE_NAMES = ['IDLE', 'POWER_ON', 'POWER_OFF'];
 
     class OwnTechActionsPanel {
         constructor(settings) {
@@ -129,12 +130,19 @@
                 return;
             }
             const data = this._latestData();
-            if (data.status === 'ok') this.statusLine.text(`Connected · ${data.portPath || ''}`);
+            const values = data.values || {};
+            const modeNum = values['/Config/Mode'];
+            const modeText = modeNum != null ? ` · Power: ${MODE_NAMES[modeNum] || `mode ${modeNum}`}` : '';
+            if (data.status === 'ok') this.statusLine.text(`Connected · ${data.portPath || ''}${modeText}`);
             else if (data.status === 'no-port') this.statusLine.text('Shell not detected.');
             else if (data.status === 'error') this.statusLine.text(`Error: ${data.error || 'unknown'}`);
             else this.statusLine.text('Waiting for data…');
         }
 
+        // Writes, then rescans the linked datasource so the status line (and
+        // any discovered toggle) reflects the new state without the user
+        // having to separately click Rescan Tree -- a plain write success
+        // code alone gave no visible feedback that anything happened.
         async _writeValue(path, value) {
             if (!this.tsSerialApi || !this.tsSerialApi.setValue || !path) return;
             const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
@@ -148,8 +156,10 @@
                     usePrefix: !!this.settings.usePrefix,
                     verbose: !!this.settings.debug,
                 });
+                this._rescan();
             } catch (err) {
                 console.error('ThingSet write failed:', err);
+                this.statusLine.text(`Write failed: ${err?.message || err}`);
             }
         }
 

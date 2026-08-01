@@ -195,6 +195,11 @@
             });
         }
 
+        // Writes, then rescans the linked datasource so the status line (and
+        // the Download button's enabled state) reflect the new rState without
+        // the user having to separately click Rescan Tree -- previously a
+        // write success code gave no visible feedback that anything happened,
+        // which is exactly what an Arm/Trigger click looked like from the UI.
         async _writeScopePath(path, value) {
             const tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
             if (!tsSerialApi || !tsSerialApi.setValue || !path) return;
@@ -207,8 +212,11 @@
                     value,
                     baudRate: Number(dsSettings.baudRate) || 115200,
                 });
+                const dsModel = this._dsModel();
+                if (dsModel && typeof dsModel.updateNow === 'function') dsModel.updateNow();
             } catch (err) {
                 console.error('ThingSet write failed:', err);
+                this.statusLine.text(`Write failed: ${err?.message || err}`);
             }
         }
 
