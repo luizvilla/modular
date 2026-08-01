@@ -9,6 +9,16 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Zephyr's shell prefixes/suffixes its echoed input and prompt with ANSI/VT100
+// color codes (e.g. "\x1b[m", "\x1b[1;32m") whose own "[" would otherwise be
+// found by _extractJson()'s bracket search before the real JSON payload's "{",
+// breaking bracket matching entirely -- confirmed against real hardware, where
+// this silently made a perfectly valid JSON response look like "no JSON found".
+const ANSI_ESCAPE_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
+function stripAnsi(text) {
+  return typeof text === 'string' ? text.replace(ANSI_ESCAPE_RE, '') : text;
+}
+
 function normalizePath(path) {
   if (!path || path === '/') return '';
   return path.replace(/^\/+/, '');
@@ -371,8 +381,9 @@ class ThingSetSerialShell {
     return this._parseResponseBuffer(buf);
   }
 
-  _extractJson(text) {
-    if (!text) return null;
+  _extractJson(rawText) {
+    if (!rawText) return null;
+    const text = stripAnsi(rawText);
     const idx = text.search(/[\[{]/);
     if (idx < 0) return null;
     const stack = [];
