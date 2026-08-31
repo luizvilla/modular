@@ -23,6 +23,18 @@
             "datasource": "MockOwnTechThingSet",
             "sourceDef": { "ds": "MockOwnTechThingSet", "type": "owntech_thingset_datasource", "device": null, "device_uid": null, "var": "/Config/rMode" }
           }
+        },
+        {
+          "type": "vertical_gauge",
+          "settings": {
+            "title": "Mode Gauge",
+            "min": 0,
+            "max": 10,
+            "barColor": "blue",
+            "alarmEnabled": false,
+            "refreshRate": 200,
+            "sourceDef": { "ds": "MockOwnTechThingSet", "type": "owntech_thingset_datasource", "device": null, "device_uid": null, "var": "/Config/rMode" }
+          }
         }
       ]
     }
