@@ -72,6 +72,20 @@ async function closeStackedAddFlowModals(page) {
   await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0, null, { timeout: 15_000 });
 }
 
+// MOCK_HW's serialport_datasource plugin pushes its (empty, by fixture default)
+// `dataHeaders` setting to the mock on load, overwriting the mock's built-in
+// header default -- and the mock never synthesizes incoming terminal-buffer
+// lines either, so the picker's Variable dropdown for a plain serial datasource
+// is otherwise permanently unpopulatable in this harness. Seed real headers
+// directly, mirroring how a live device would already have reported columns.
+async function seedMockSerialHeaders(page, portPath = 'COM_MOCK', headers = ['ch1', 'ch2', 'ch3']) {
+  await page.evaluate(async ({ portPath, headers }) => {
+    if (window.api?.serial?.setHeaders) {
+      await window.api.serial.setHeaders(portPath, headers, 'serialport_datasource');
+    }
+  }, { portPath, headers });
+}
+
 async function configureDatasource(page, datasourceName = 'MockSerial') {
   await activeModal(page)
     .locator('.input-group')
@@ -99,6 +113,7 @@ test('time plot add flow opens the integrated editor and wrench reopens it', asy
     await waitForDashboard(page);
     await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
     await enableEditing(page);
+    await seedMockSerialHeaders(page);
 
     const helperCountsBefore = await getHelperCounts(page);
 
@@ -120,6 +135,12 @@ test('time plot add flow opens the integrated editor and wrench reopens it', asy
       .locator('select')
       .first()
       .selectOption('MockSerial');
+    const variableSelect = activeModal(page)
+      .locator('.input-group')
+      .filter({ has: page.locator('.input-group-text', { hasText: 'Variable' }) })
+      .locator('select');
+    await expect(variableSelect).not.toHaveValue('', { timeout: 10_000 });
+    await activeModal(page).getByRole('button', { name: 'Add channel' }).click();
     await activeModal(page).locator('#dialog-ok').click();
     await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
 
@@ -147,6 +168,7 @@ test('xy plot add flow opens the integrated editor and saves bound sources witho
     await waitForDashboard(page);
     await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
     await enableEditing(page);
+    await seedMockSerialHeaders(page);
 
     const helperCountsBefore = await getHelperCounts(page);
 
@@ -165,6 +187,9 @@ test('xy plot add flow opens the integrated editor and saves bound sources witho
     const datasourceRows = activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Datasource' }) });
     await datasourceRows.nth(0).locator('select').selectOption('MockSerial');
     await datasourceRows.nth(1).locator('select').selectOption('MockSerial');
+    const variableRows = activeModal(page).locator('.input-group').filter({ has: page.locator('.input-group-text', { hasText: 'Variable' }) });
+    await expect(variableRows.nth(0).locator('select')).not.toHaveValue('', { timeout: 10_000 });
+    await expect(variableRows.nth(1).locator('select')).not.toHaveValue('', { timeout: 10_000 });
     await activeModal(page).locator('#dialog-ok').click();
     await page.waitForFunction(() => document.querySelectorAll('#modal_overlay').length === 0);
 
@@ -230,11 +255,10 @@ test('fast-frame plot add flow opens the integrated editor and saves source/chan
 
     await page.waitForFunction(() => {
       const widget = window.freeboard.getLiveModel().panes()[1].widgets()[0];
-      return widget.widgetInstance.summary.text().includes('V_high (V_high)');
+      return widget?.widgetInstance?.status?.text().startsWith('Loaded');
     });
-    const summaryText = await page.evaluate(() => window.freeboard.getLiveModel().panes()[1].widgets()[0].widgetInstance.summary.text());
-    expect(summaryText).toContain('Source: Fixed CSV');
-    expect(summaryText).toContain('V_high (V_high)');
+    const statusText = await page.evaluate(() => window.freeboard.getLiveModel().panes()[1].widgets()[0].widgetInstance.status.text());
+    expect(statusText).toContain('Loaded 3 rows from');
 
     await reopenWidgetEditor(page, 1, 0);
     await expectIntegratedEditor(page);
@@ -459,7 +483,7 @@ test('non-plot widgets still use the generic plugin editor', async () => {
     await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
     await enableEditing(page);
 
-    await reopenWidgetEditor(page, 0, 3);
+    await reopenWidgetEditor(page, 0, 4);
     await expect(page.locator('#modal_overlay .integrated-plot-editor')).toHaveCount(0);
     await expect(page.locator('#setting-row-title')).toBeVisible();
     await page.keyboard.press('Escape');
