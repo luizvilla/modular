@@ -3434,6 +3434,11 @@ ipcMain.handle('get-serial-ports', async () => {
 			productId: port.productId || null,
 			manufacturer: port.manufacturer || null,
 			serialNumber: port.serialNumber || null,
+			// Exposed so renderer-side pickers (e.g. the scope widget's if00
+			// port dropdown) can apply the same -if00/-if02 USB interface
+			// classification thingset/main.js's isIf00Candidate() uses for
+			// auto-detect ordering, without duplicating a path-based guess.
+			pnpId: port.pnpId || null,
 			isOwntech: vid === '2fe3' && pid === '0100',
 		};
 	});

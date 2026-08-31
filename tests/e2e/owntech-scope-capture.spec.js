@@ -63,3 +63,27 @@ test('owntech_scope_capture arms/triggers via ThingSet writes and downloads an i
 
   await app.close();
 });
+
+test('scope port dropdown sorts the likely if00 port first and labels it', async () => {
+  const { app, page } = await launchApp();
+  await waitForDashboard(page);
+  await loadDashboard(page, fixturePath('owntech_scope_capture.json'));
+
+  await page.evaluate(() => window.freeboard.setEditing(true));
+  await page.waitForTimeout(400);
+
+  const pane = page.locator('.gs_w').first();
+  const widget = pane.locator('.sub-section').first();
+  await widget.hover();
+  await widget.locator('.tool-edit').click();
+
+  const portSelect = page.locator('#modal_overlay').last().locator('#setting-row-scopeSerialPort select');
+  await expect(portSelect).toBeVisible();
+  // MOCK_HW's COM_MOCK_IF00 mock port carries a pnpId ending in "-if00",
+  // mirroring a real Core4 board's scope-port USB interface naming -- it
+  // should sort ahead of the other (non-if00) mock ports and be labeled.
+  await expect(portSelect.locator('option').first()).toHaveText('COM_MOCK_IF00 (likely if00)');
+
+  await page.keyboard.press('Escape');
+  await app.close();
+});

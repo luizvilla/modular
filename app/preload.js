@@ -267,8 +267,12 @@ function createEmitter() {
 if (isMock) {
     const emitter = createEmitter();
     const mockPorts = mockNoPorts ? [] : [
-        { name: 'COM_MOCK', value: 'COM_MOCK', path: 'COM_MOCK', vendorId: null, productId: null, manufacturer: null, serialNumber: null, isOwntech: false },
-        { name: 'COM_MOCK_2', value: 'COM_MOCK_2', path: 'COM_MOCK_2', vendorId: null, productId: null, manufacturer: null, serialNumber: null, isOwntech: false }
+        { name: 'COM_MOCK', value: 'COM_MOCK', path: 'COM_MOCK', vendorId: null, productId: null, manufacturer: null, serialNumber: null, pnpId: null, isOwntech: false },
+        { name: 'COM_MOCK_2', value: 'COM_MOCK_2', path: 'COM_MOCK_2', vendorId: null, productId: null, manufacturer: null, serialNumber: null, pnpId: null, isOwntech: false },
+        // Mirrors a real Core4 board's if00 (scope) USB interface naming, so
+        // the scope widget's port picker has something realistic to sort to
+        // the top of its list.
+        { name: 'COM_MOCK_IF00', value: 'COM_MOCK_IF00', path: 'COM_MOCK_IF00', vendorId: null, productId: null, manufacturer: null, serialNumber: null, pnpId: 'usb-Core4-if00', isOwntech: false }
     ];
     const mockSerial = {
         openPorts: new Set(),

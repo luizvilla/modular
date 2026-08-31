@@ -50,6 +50,17 @@
         return options;
     }
 
+    // Same -if00 USB interface classification thingset/main.js's
+    // isIf00Candidate() uses for auto-detect ordering (confirmed against real
+    // Core4 hardware -- ttyACM0/if00 is always the scope bulk-transfer
+    // side-channel). ts-serial-detect deprioritizes it (it's never a ThingSet
+    // shell); this picker wants the opposite ordering, since if00 is exactly
+    // what this field is asking the user to pick.
+    const IF00_SUFFIX_RE = /-if00$/i;
+    function isIf00Port(port) {
+        return IF00_SUFFIX_RE.test(String(port?.pnpId || ''));
+    }
+
     // The generic settings-dialog "option" provider (freeboard.js's
     // resolveOptions()) calls this synchronously and only accepts a plain
     // array back -- an async function's returned Promise fails the
@@ -63,10 +74,15 @@
         const serialApi = window.api && window.api.serial ? window.api.serial : null;
         if (!serialApi || typeof serialApi.listPorts !== 'function') return;
         serialApi.listPorts().then((ports) => {
-            scopeSerialPortCache = (Array.isArray(ports) ? ports : []).map((p) => {
-                const value = p.value || p.name || p.path || String(p);
-                return { name: p.name || value, value };
-            });
+            const list = Array.isArray(ports) ? ports : [];
+            scopeSerialPortCache = list
+                .map((p, index) => ({ p, index }))
+                .sort((a, b) => (Number(isIf00Port(b.p)) - Number(isIf00Port(a.p))) || (a.index - b.index))
+                .map(({ p }) => {
+                    const value = p.value || p.name || p.path || String(p);
+                    const label = isIf00Port(p) ? `${p.name || value} (likely if00)` : (p.name || value);
+                    return { name: label, value };
+                });
         }).catch(() => { /* keep last-known-good cache on failure */ });
     }
     refreshScopeSerialPortCache();
