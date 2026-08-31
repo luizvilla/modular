@@ -221,7 +221,15 @@
             // accepted the write syntactically -- a Rescan Tree (or the
             // datasource's next poll) is what actually confirms board state.
             checkbox.on('change', () => this._writeValue(leaf.path, checkbox.prop('checked')));
-            const label = $(`<label class="input-group-text" for="${inputId}">${leaf.name}</label>`);
+            // wDriver=false is a documented Core4 firmware bug (write doesn't
+            // reliably disconnect the driver) -- flag it so a syntactically-
+            // accepted write isn't mistaken for confirmed board state.
+            const isWDriver = /^wDriver$/i.test(leaf.name || '');
+            const labelText = isWDriver ? `${leaf.name} ⚠` : leaf.name;
+            const label = $(`<label class="input-group-text" for="${inputId}">${labelText}</label>`);
+            if (isWDriver) {
+                label.attr('title', 'wDriver writes are not guaranteed to take effect (known firmware issue) — verify with a read/rescan.');
+            }
             const box = $('<span class="input-group-text twist-toggle-switch"></span>').append(switchWrap);
             const group = $('<div class="input-group input-group-sm twist-toggle-item"></div>');
             group.append(label, box);
