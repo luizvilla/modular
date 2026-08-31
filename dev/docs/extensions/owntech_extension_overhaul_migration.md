@@ -258,6 +258,63 @@ Deliberately reads the datasource's already-cached `latestData()` rather than is
 
 ---
 
+## Milestone 7 — Follow-up hardening (no hardware required)
+
+**Goal:** close out every desk-work item left open by M0–M6 and the post-plan bug-fix passes — the five follow-ups that don't need a board attached — before the next hardware session, so that session can stay focused on genuinely hardware-only unknowns.
+
+This milestone exists because the plan's own Progress Log accumulated five distinct "Follow-ups" entries across M1, M2, M3, M5, and the final post-plan pass (2026-08-01), none promoted to a tracked milestone until now. Consolidating them here is a deliberate change from this plan's original structure (which didn't anticipate a follow-up milestone) — everything below was already scoped in a prior Progress Log entry; this section just gives each one a place to land.
+
+**Items:**
+1. **Triage the 4 pre-existing `integrated-plot-editor.spec.js` failures.** Reproduced identically and flagged as unrelated in the M1, M2, M3, M4, and M6 verification notes, but never actually root-caused. Confirm via `git stash`/bisect whether they predate this migration entirely (the M1 entry already did a first-pass isolation on the M0 HEAD); fix if trivial, otherwise file as a separately tracked, non-OwnTech issue so this plan can stop re-flagging it every milestone.
+2. **Add the `wDriver=false` write caveat** to `owntech_actions_panel.widget.js`, per the M3 Progress Log follow-up: surface "not guaranteed to take effect — verify with a read" in the UI when a toggle targets a `wDriver`-shaped leaf. This was explicitly deferred pending real-hardware confirmation of the actual failure mode — the M1/M4/M5 hardware-verification pass and the post-plan bug-fix pass together now give enough real behavior to word this accurately.
+3. **Add a gauge-widget e2e read assertion**, per the M2 follow-up. `gauge_family.shared.js`'s `_readInstantValue()` ThingSet branch is identical to the already-covered `plusminus_button.widget.js` branch and has only been verified by code review + `node --check`. Needs a DOM-inspection helper capable of reading a rendered gauge's numeric value (vertical/radial gauges render into SVG/canvas, not plain text) — build the minimal helper needed, not a general-purpose one.
+4. **Scope port dropdown: filter or prioritize likely candidates.** Per the post-plan follow-up, `owntech_scope.widget.js`'s `scopeSerialPort` options list currently shows every system serial port undifferentiated (including ~32 dummy `ttyS*` entries on the dev machine). Reuse the same `pnpId`-based signal the M1 auto-detect fix already introduced in `thingset/main.js` to sort or badge likely if00-shaped ports first, rather than inventing a second heuristic.
+5. **Decide the fate of the if00 link idle-expiry gap.** `owntech/main.js`'s `getOrOpenLink` pool never expires idle links (flagged in the M5 follow-up as mirroring an accepted existing pattern in `thingset/main.js`). Either add an idle-timeout eviction to both pools together (treating this as shared debt, not OwnTech-only), or explicitly close this out as accepted-as-is with a one-line comment referencing this decision, so it stops reading as an open question.
+
+**Files touched:** `tests/e2e/integrated-plot-editor.spec.js` (investigation, fix if trivial), `app/dashboard/plugins/owntech_actions_panel.widget.js`, a gauge-focused e2e spec (new or extending `tests/e2e/owntech-thingset-value-read.spec.js`), `app/dashboard/plugins/owntech_scope.widget.js`, `app/extensions/owntech/main.js` (and possibly `app/extensions/thingset/main.js` if the idle-expiry fix is taken shared).
+
+**Dependency:** none — fully self-contained, no hardware required, can run any time, including now.
+
+**Risks:** the only real risk is scope creep on item 1 if the plot-editor failures turn out to be a deeper, non-trivial bug — time-box the investigation and file separately rather than let it block the rest of this milestone.
+
+---
+
+## Milestone 8 — Extended real-hardware verification (non-actuating)
+
+**Goal:** revisit the two open real-hardware questions left by the M1/M4/M5 hardware-verification pass that don't require enabling a leg or writing a duty cycle — using the exact same safety scoping already established (`Config/Mode = 0`, both legs' `wEnable = false` confirmed before and throughout).
+
+**Items:**
+6. **Reproduce or rule out the one-off `if00` probe timeout.** Happened exactly once, immediately after a long `if02` polling loop, and wasn't reproducible in five immediate retries or a full second end-to-end run. Re-attempt under similar conditions (probe cold, right after sustained if02 traffic); if it recurs, add a single defensive auto-retry on first timeout in `scope_serial.js`'s `probe()` — not before, since the fix shouldn't be speculative.
+7. **Scope decimation sweeps at `decimation=10` and `decimation=100`.** Only `decimation=1` has been verified end-to-end (~1.1s transfer). Record actual transfer timing at the other two settings and confirm/adjust the flat 25s default download timeout if warranted.
+8. **Extended if00/if02 concurrency stress.** The M5 hardware pass confirmed one clean concurrent arm→trigger→download cycle while if02 stayed in active use, with no cross-talk. Run several more interleaved sessions (longer duration, tighter interleaving) to build confidence beyond that single run, especially since item 6's timeout happened in a similar context.
+
+**Files touched:** `app/extensions/owntech/scope_serial.js` (only if item 6's retry is added), this migration doc's Progress Log (recording findings) — no other production files expected.
+
+**Dependency:** M7 is not a hard blocker but is recommended first, so this hardware session stays focused purely on hardware-only unknowns rather than re-treading desk-work items. Requires the real Core4/Twist board wired as before (if00 → one port, if02 → the other).
+
+**Risks:** none beyond the existing non-actuating profile — converter stays idle (`Config/Mode = 0`, both legs disabled) throughout, matching the safety scoping the original hardware-verification pass already established. No operator supervision beyond normal bench handling is required.
+
+---
+
+## Milestone 9 — Operator-supervised actuation verification
+
+**Goal:** the one category deliberately left untested through the entire migration — confirm that leg-enable, duty-cycle, and `POWER_ON`/`POWER_OFF` writes actually behave correctly on live power hardware, not just that the ThingSet write/readback mechanics work (which M1–M5 already proved against inert leaves).
+
+This is the highest-risk remaining item in the whole plan, and by design it is **not something this agent runs unattended or self-initiates** — every prior hardware pass explicitly deferred it and treated any actual power-on action as the user's call alone, consistent with Core4's own `SCOPE_DUTY_CYCLE_TEST.md`/`automated_test.md` safety discipline (isolated, current-limited bench, operator present throughout).
+
+**Items:**
+9. **`POWER_ON`/`POWER_OFF` Mode transitions** via `owntech_actions_panel`'s power buttons — verify the write, the readback, and the `Power: IDLE/POWER_ON/POWER_OFF` status-line display (added in the post-plan bug-fix pass) all agree with the board's real state through a full IDLE → POWER_ON → POWER_OFF → IDLE cycle.
+10. **Leg `wEnable` toggle and duty-cycle writes** (`wDutyCycle`/`wReferenceValue`, whichever the firmware exposes as the live setpoint) via the Actions panel and the +/- Button's ThingSet write mode, starting at the lowest safe setpoint before any higher-power exercise.
+11. **Confirm the `wDriver=false` caveat text is accurate**, once actuation is otherwise verified safe — the M7 item 2 caveat is worded from a documented firmware bug description, not from an observed real write in this migration; this is the first chance to check the wording against real behavior.
+
+**Files touched:** expected none, unless a bug is found during actuation testing, in which case fixes land in whichever widget/transport file is responsible, following the same pattern as the post-plan bug-fix commits (`fix(owntech): ...` / `fix(thingset): ...`).
+
+**Dependency:** hard dependency on a supervising operator physically present at an isolated, current-limited bench — this agent cannot schedule or initiate this milestone on its own. M7 and M8 are not blocking but are recommended to land first, so this session is spent entirely on actuation, not rediscovering desk-work issues mid-session.
+
+**Risks:** this is the only milestone in the entire plan involving genuine electrical/physical risk. No actuating write happens without the user explicitly directing it in the moment; nothing here is to be run automatically or speculatively.
+
+---
+
 ## Sequencing / dependency graph
 
 ```
@@ -276,6 +333,9 @@ M0 (rename + scaffold)
 - M1 blocks M2, M3, M4, M5 (all need the new datasource type_name).
 - M2 blocks M3.
 - M4 and M5 share `thingset_tree_walk.js` (introduced in M4) but don't otherwise block each other; M3 and M4 are independent widget surfaces and can be parallelized once M1+M2 land.
+- M7 is independent of M0–M6's sequencing (every prerequisite already landed) and can run any time, including with no hardware attached.
+- M8 depends on M7 loosely (recommended, not required) and needs the real board attached, but stays entirely in the non-actuating safety envelope M1/M4/M5 already established.
+- M9 depends on M8 loosely (recommended, not required) and needs a supervising operator at an isolated, current-limited bench — it is the terminal milestone of this plan, closing out the one category (real actuation) deliberately deferred since M0.
 
 ## Verification strategy
 
@@ -288,6 +348,9 @@ M0 (rename + scaffold)
 | M4 | `thingset_tree_walk.test.js` with a synthetic **3-leg** fixture — the core OwnVerter-readiness proof | Actions panel renders a 2-leg mock tree; re-run against a 3-leg mock fixture with zero code changes | Chunked-write removal; Mode enum write/readback |
 | M5 | Rotation-logic pure-function tests against a synthetic ring-buffer-ordered array | Full click-through against an instant synthetic mock download | Byte format/endianness, concurrency, real timing, rotation correctness vs. a real waveform |
 | M6 | n/a | n/a | n/a |
+| M7 | New/updated assertions per item (plot-editor fix if any) | New gauge-widget read assertion (item 3) | none — no hardware needed |
+| M8 | n/a | n/a | Probe-timeout reproduction/retry, decimation-sweep timing, extended if00/if02 concurrency stress |
+| M9 | n/a | n/a | `POWER_ON`/`POWER_OFF` transitions, leg `wEnable`/duty-cycle writes, `wDriver=false` caveat accuracy |
 
 ## Commit sequence
 
@@ -334,6 +397,22 @@ One commit sequence per milestone, in landing order. Each milestone ends with a 
 1. `docs(owntech): add widget docs and index.owntech.json for the new widgets`.
 2. `test(owntech): add owntech-thingset.spec.js e2e coverage and remaining unit tests`.
 3. `docs(owntech): final migration-doc pass — mark plan complete` — Progress Log entry closing out the migration, summarizing what shipped vs. the original plan across all milestones.
+
+**M7 — Follow-up hardening**
+1. `fix(tests): triage integrated-plot-editor pre-existing failures` — root-cause and fix if trivial; if not trivial, the commit instead files/references a separately tracked issue and this step's docs entry says so explicitly.
+2. `feat(owntech): add wDriver=false write caveat to Actions panel`.
+3. `test(owntech): add gauge widget e2e read assertion`.
+4. `feat(owntech): prioritize likely if00/if02 candidates in scope port dropdown`.
+5. `chore(owntech): resolve if00 link pool idle-expiry follow-up` — either the eviction fix (shared with `thingset/main.js` if taken that way) or a documented accept-as-is decision.
+6. `docs(owntech): log Milestone 7 completion` — Progress Log entry.
+
+**M8 — Extended real-hardware verification (non-actuating)**
+1. `fix(owntech): add defensive retry to scope probe on first timeout` — only lands if item 6 actually reproduces; otherwise this step is skipped and the Milestone 8 docs entry records that it didn't reproduce.
+2. `docs(owntech): log Milestone 8 completion` — Progress Log entry recording decimation-sweep timing, concurrency-stress results, and the probe-timeout outcome.
+
+**M9 — Operator-supervised actuation verification**
+1. Zero or more `fix(owntech): ...` / `fix(thingset): ...` commits, one per real bug surfaced during actuation testing — following the same per-bug-fix-then-docs pattern the post-plan bug-fix passes already established, not bundled together.
+2. `docs(owntech): log Milestone 9 completion` — Progress Log entry closing out the plan's last deferred category: `POWER_ON`/`POWER_OFF`, leg `wEnable`/duty-cycle, and `wDriver=false`-caveat verification outcomes.
 
 ## Critical files for implementation
 
