@@ -21,6 +21,15 @@ module.exports = function registerOwntechExtension(context) {
     // (this scope side-channel) and if02 (the ThingSet shell) are always
     // different OS device paths on the same board and never contend for
     // the same handle.
+    //
+    // No idle-timeout eviction here (M7 follow-up, decided rather than
+    // deferred): this mirrors thingset/main.js's canBuses/tsClients, which
+    // have never had one either -- every port/link pool in this codebase
+    // stays open until its owner explicitly closes it (widget dispose, an
+    // explicit close IPC, or app shutdown), and there's no observed
+    // port-exhaustion problem motivating a change to that pattern here.
+    // Revisit only if one actually shows up, and treat it as shared debt
+    // across all these pools together, not OwnTech-specific.
     const scopeLinks = new Map(); // path -> ScopeSerialLink
 
     async function getOrOpenLink(port, baudRate) {
