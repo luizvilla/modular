@@ -118,7 +118,7 @@ test('right-click on the plot area drills through Others into Config and quick-a
   }
 });
 
-test('right-click near the axis margin sets Y Min inline, with no dialog', async () => {
+test('hovering the Y-axis margin shows an inline quick-edit panel, no right-click needed', async () => {
   const { app, page } = await launchApp();
   try {
     await waitForDashboard(page);
@@ -129,27 +129,38 @@ test('right-click near the axis margin sets Y Min inline, with no dialog', async
     await chartHost.scrollIntoViewIfNeeded();
     const box = await chartHost.boundingBox();
 
-    await page.mouse.click(box.x + 10, box.y + box.height / 2, { button: 'right' });
-    await expect(radialMenu(page)).toBeVisible();
-    await expect(page.locator('.radial-menu-wedge-label')).toHaveText('Axis');
+    await page.mouse.move(box.x + 10, box.y + box.height / 2);
+    const panel = page.locator('.uplot-axis-hover-panel');
+    await expect(panel).toBeVisible();
+    const rows = panel.locator('.uplot-axis-hover-panel-row');
+    await expect(rows).toHaveCount(3);
+    await expect(panel).toContainText('Y Label');
+    await expect(panel).toContainText('Y Min');
+    await expect(panel).toContainText('Y Max');
 
-    await clickWedgeByLabel(page, 'Axis');
-    const yMinLeaf = page.locator('.radial-menu-leaf', { hasText: 'Y Min' });
-    await expect(yMinLeaf).toBeVisible();
-    await yMinLeaf.click();
-
-    const input = page.locator('.radial-menu-leaf-input');
-    await expect(input).toBeVisible();
-    await input.fill('-5');
-    await input.press('Enter');
-
-    await expect(radialMenu(page)).toHaveCount(0);
-    await expect(page.locator('#modal_overlay')).toHaveCount(0);
+    // The panel is meant to stay open across edits while the cursor is
+    // still on the margin/panel -- it's not a one-shot popup that closes
+    // after a single field, since "hovering it" is the whole affordance.
+    const yMinInput = rows.filter({ hasText: 'Y Min' }).locator('input');
+    await yMinInput.fill('-2');
+    await yMinInput.press('Enter');
+    await expect(panel).toBeVisible();
     const yMin = await page.evaluate(() => {
       const w = window.freeboard.getLiveModel().panes()[0].widgets()[6];
       return w.settings().yMin;
     });
-    expect(yMin).toBe(-5);
+    expect(yMin).toBe(-2);
+
+    // Moving away (past the hide debounce) closes it. yMin is in the
+    // needsReset list, so the plot -- and chartHost's layout -- may have
+    // shifted after the commit; re-measure before moving. The panel is
+    // anchored near the left edge and can be wide enough to cover the
+    // chart's horizontal center, so move to the far right edge instead --
+    // genuinely outside both the panel and the y-axis margin.
+    const freshBox = await chartHost.boundingBox();
+    await page.mouse.move(freshBox.x + freshBox.width - 10, freshBox.y + freshBox.height / 2);
+    await page.waitForTimeout(400);
+    await expect(page.locator('.uplot-axis-hover-panel')).toHaveCount(0);
 
     await app.close();
   } catch (e) {
@@ -158,7 +169,70 @@ test('right-click near the axis margin sets Y Min inline, with no dialog', async
   }
 });
 
-test('hovering the plot area or axis shows the matching plain-text action hint before right-clicking', async () => {
+test('hovering the X-axis margin shows Duration/Refresh Rate inline, no right-click needed', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+
+    const widget = await plotWidget(page);
+    const chartHost = widget.locator('.uplot-chart-host');
+    await chartHost.scrollIntoViewIfNeeded();
+    const box = await chartHost.boundingBox();
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height - 5);
+    const panel = page.locator('.uplot-axis-hover-panel');
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText('Duration');
+    await expect(panel).toContainText('Refresh Rate');
+
+    const durationInput = panel.locator('.uplot-axis-hover-panel-row').filter({ hasText: 'Duration' }).locator('input');
+    await durationInput.fill('9000');
+    await durationInput.press('Enter');
+    await expect(panel).toBeVisible();
+
+    const duration = await page.evaluate(() => {
+      const w = window.freeboard.getLiveModel().panes()[0].widgets()[6];
+      return w.settings().duration;
+    });
+    expect(duration).toBe(9000);
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+test('moving from the axis margin into its panel keeps the panel open (hover bridge)', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+
+    const widget = await plotWidget(page);
+    const chartHost = widget.locator('.uplot-chart-host');
+    await chartHost.scrollIntoViewIfNeeded();
+    const box = await chartHost.boundingBox();
+
+    await page.mouse.move(box.x + 10, box.y + box.height / 2);
+    const panel = page.locator('.uplot-axis-hover-panel');
+    await expect(panel).toBeVisible();
+
+    const panelBox = await panel.boundingBox();
+    await page.mouse.move(panelBox.x + panelBox.width / 2, panelBox.y + panelBox.height / 2);
+    // Give the 200ms hide-debounce time to fire if the bridge were broken.
+    await page.waitForTimeout(400);
+    await expect(panel).toBeVisible();
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+test('hovering the plot area shows the "Add Channel" hint; axis margins show no hint (the panel is the affordance)', async () => {
   const { app, page } = await launchApp();
   try {
     await waitForDashboard(page);
@@ -175,7 +249,8 @@ test('hovering the plot area or axis shows the matching plain-text action hint b
     await expect(hint).toContainText('Add Channel');
 
     await page.mouse.move(box.x + 10, box.y + box.height / 2);
-    await expect(hint).toContainText('Change Axis');
+    await expect(hint).toBeHidden();
+    await expect(page.locator('.uplot-axis-hover-panel')).toBeVisible();
 
     await app.close();
   } catch (e) {
@@ -208,12 +283,12 @@ test('double-clicking a channel\'s readout label renames it', async () => {
     const label = readoutItem.locator('.uplot-readout-label');
     await label.dblclick();
 
-    const input = readoutItem.locator('.uplot-readout-label-input');
+    const input = page.locator('.uplot-floating-input');
     await expect(input).toBeVisible();
     await input.fill('High Side V');
     await input.press('Enter');
 
-    await expect(readoutItem.locator('.uplot-readout-label-input')).toHaveCount(0);
+    await expect(page.locator('.uplot-floating-input')).toHaveCount(0);
     await expect(label).toHaveText('High Side V');
     const savedLabel = await page.evaluate(() => {
       const w = window.freeboard.getLiveModel().panes()[0].widgets()[0];
@@ -236,17 +311,89 @@ test('Escape while renaming a channel cancels without saving', async () => {
 
     const { readoutItem } = await addMeasurementsChannel(page);
     await readoutItem.locator('.uplot-readout-label').dblclick();
-    const input = readoutItem.locator('.uplot-readout-label-input');
+    const input = page.locator('.uplot-floating-input');
     await expect(input).toBeVisible();
     await input.fill('Should Not Save');
     await input.press('Escape');
 
-    await expect(readoutItem.locator('.uplot-readout-label-input')).toHaveCount(0);
+    await expect(page.locator('.uplot-floating-input')).toHaveCount(0);
     const savedLabel = await page.evaluate(() => {
       const w = window.freeboard.getLiveModel().panes()[0].widgets()[0];
       return w.settings().seriesDefs[0].label;
     });
     expect(savedLabel).toBe('');
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+test('renaming a channel survives readout refresh ticks without losing what was typed', async () => {
+  // Regression test: _renderReadouts() used to rebuild the label the input
+  // lived inside on every poll tick (refreshRate: 500ms here), destroying
+  // the input -- and the keystrokes in it -- mid-edit. The floating input
+  // now lives outside readoutHost entirely, so it must survive several
+  // ticks untouched.
+  const { app, page } = await launchApp({ MOCK_THINGSET_MEASUREMENTS: '1' });
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('radial_context_menu_plot.json'));
+
+    const { readoutItem } = await addMeasurementsChannel(page);
+    await readoutItem.locator('.uplot-readout-label').dblclick();
+    const input = page.locator('.uplot-floating-input');
+    await expect(input).toBeVisible();
+    await input.type('Slow ', { delay: 30 });
+
+    // Span several 500ms refresh ticks while sitting mid-edit.
+    await page.waitForTimeout(1300);
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue('Slow ');
+
+    await input.type('Typist');
+    await input.press('Enter');
+
+    await expect(page.locator('.uplot-floating-input')).toHaveCount(0);
+    const savedLabel = await page.evaluate(() => {
+      const w = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+      return w.settings().seriesDefs[0].label;
+    });
+    expect(savedLabel).toBe('Slow Typist');
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+test('double-clicking the chart title renames it', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+
+    const widget = await plotWidget(page);
+    const title = widget.locator('.u-title');
+    await expect(title).toBeVisible();
+    await expect(title).toHaveText('Plot');
+    await title.dblclick();
+
+    const input = page.locator('.uplot-floating-input');
+    await expect(input).toBeVisible();
+    await expect(input).toHaveValue('Plot');
+    await input.fill('Renamed Plot');
+    await input.press('Enter');
+
+    await expect(page.locator('.uplot-floating-input')).toHaveCount(0);
+    const savedTitle = await page.evaluate(() => {
+      const w = window.freeboard.getLiveModel().panes()[0].widgets()[6];
+      return w.settings().title;
+    });
+    expect(savedTitle).toBe('Renamed Plot');
 
     await app.close();
   } catch (e) {

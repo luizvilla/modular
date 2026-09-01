@@ -149,71 +149,130 @@ class TimePlotUPlot {
             this.axisBottomMarginPx = 30;
         }
 
-        // Pilot: a right-click radial menu over three zones -- the plot area
-        // (Channels, a quick-add drill-down), the axis margins (Axis, inline
-        // number/text entry), and the rest of the widget chrome (Datasource,
-        // which still opens the full editor since there's no single "quick"
-        // action for it). A hover hint shows which zone the cursor is over
-        // before the user commits to a right click.
+        // Pilot: right-click the plot area to quick-add a channel (the only
+        // interaction still worth a drill-down); hover either axis margin
+        // for an inline quick-edit panel instead -- Y-axis (Y Label/Min/Max)
+        // on the left margin, X-axis (Duration/Refresh Rate) on the bottom
+        // margin -- since both are just a handful of fixed fields, hovering
+        // straight to them beats right-click, pick "Axis", pick a field.
+        // Double-click a channel's readout label or the chart title to
+        // rename it in place; right-click a channel's color swatch for a
+        // 10-color carrousel.
         _bindRadialContextMenu() {
-            this._bindHoverHint();
-
             this.chartHost.on('contextmenu', (e) => {
                 if (!window.RadialContextMenu) return;
                 e.preventDefault();
                 e.stopPropagation();
-                if (this._chartZoneAt(e.clientX, e.clientY) === 'axis') {
-                    window.RadialContextMenu.show({
-                        x: e.clientX, y: e.clientY,
-                        root: [{
-                            id: 'axis', label: 'Axis',
-                            items: [
-                                {
-                                    id: 'yLabel', label: 'Y Label',
-                                    inlineEdit: { type: 'text', getValue: () => this._settingValue('yLabel') || '', onSubmit: (v) => this._quickSetSetting('yLabel', v) }
-                                },
-                                {
-                                    id: 'yMin', label: 'Y Min',
-                                    inlineEdit: { type: 'number', getValue: () => this._settingValue('yMin'), onSubmit: (v) => this._quickSetSetting('yMin', v === '' ? null : Number(v)) }
-                                },
-                                {
-                                    id: 'yMax', label: 'Y Max',
-                                    inlineEdit: { type: 'number', getValue: () => this._settingValue('yMax'), onSubmit: (v) => this._quickSetSetting('yMax', v === '' ? null : Number(v)) }
-                                }
-                            ]
-                        }]
-                    });
-                } else {
-                    window.RadialContextMenu.show({ x: e.clientX, y: e.clientY, root: this._buildChannelMenuRoot() });
-                }
+                window.RadialContextMenu.show({ x: e.clientX, y: e.clientY, root: this._buildChannelMenuRoot() });
             });
 
+            this._bindChartHover();
             this._bindReadoutInteractions();
+            this._bindTitleRename();
         }
 
-        // Small floating action-name label following the cursor, so the
-        // user knows what a right click will do before committing to it.
-        _bindHoverHint() {
-            if (!this._hoverHintEl) {
-                this._hoverHintEl = $('<div class="uplot-radial-hover-hint"></div>').appendTo(document.body).hide();
-                if (freeboard && typeof freeboard.addStyle === 'function') {
-                    freeboard.addStyle('.uplot-radial-hover-hint', 'position:fixed;z-index:9999;pointer-events:none;background:#20232a;color:#e8e8e8;border:1px solid #454b55;border-radius:4px;padding:2px 8px;font-size:11px;white-space:nowrap;');
-                    freeboard.addStyle('html.theme-light .uplot-radial-hover-hint', 'background:#ffffff;color:#1a1a1a;border-color:#c8c8c8;');
-                    // The system pointer already reads as clickable -- no need
-                    // for a hand glyph in the hint text on top of it.
-                    freeboard.addStyle('.uplot-chart-host, .uplot-widget-shell', 'cursor:pointer;');
-                    freeboard.addStyle('.uplot-readout-label, .uplot-readout-swatch', 'cursor:pointer;');
-                    freeboard.addStyle('.uplot-readout-label-input', 'width:100%;background:#141619;border:1px solid #6a90ff;border-radius:4px;color:#e8e8e8;font-size:inherit;padding:0 2px;');
-                    freeboard.addStyle('html.theme-light .uplot-readout-label-input', 'background:#ffffff;color:#1a1a1a;');
-                }
-            }
-            const showHint = (e, label) => {
-                this._hoverHintEl.text(label).css({ left: (e.clientX + 14) + 'px', top: (e.clientY + 14) + 'px' }).show();
+        _ensureHoverStylesInjected() {
+            if (this._hoverHintEl) return;
+            this._hoverHintEl = $('<div class="uplot-radial-hover-hint"></div>').appendTo(document.body).hide();
+            if (!(freeboard && typeof freeboard.addStyle === 'function')) return;
+            freeboard.addStyle('.uplot-radial-hover-hint', 'position:fixed;z-index:9999;pointer-events:none;background:#20232a;color:#e8e8e8;border:1px solid #454b55;border-radius:4px;padding:2px 8px;font-size:11px;white-space:nowrap;');
+            freeboard.addStyle('html.theme-light .uplot-radial-hover-hint', 'background:#ffffff;color:#1a1a1a;border-color:#c8c8c8;');
+            // The system pointer already reads as clickable -- no need for a
+            // hand glyph in the hint text on top of it.
+            freeboard.addStyle('.uplot-chart-host, .uplot-widget-shell', 'cursor:pointer;');
+            freeboard.addStyle('.uplot-readout-label, .uplot-readout-swatch, .u-title', 'cursor:pointer;');
+            // Shared by the channel-label and title floating rename inputs --
+            // both live in document.body, independent of whatever DOM churn
+            // (readout re-renders, plot resets) is happening underneath them.
+            freeboard.addStyle('.uplot-floating-input', 'z-index:9999;background:#141619;border:1px solid #6a90ff;border-radius:4px;color:#e8e8e8;font-size:inherit;padding:0 2px;text-align:center;');
+            freeboard.addStyle('html.theme-light .uplot-floating-input', 'background:#ffffff;color:#1a1a1a;');
+            freeboard.addStyle('.uplot-axis-hover-panel', 'position:fixed;z-index:9999;background:#20232a;border:1px solid #454b55;border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);');
+            freeboard.addStyle('html.theme-light .uplot-axis-hover-panel', 'background:#ffffff;border-color:#c8c8c8;box-shadow:0 2px 8px rgba(0,0,0,0.15);');
+            freeboard.addStyle('.uplot-axis-hover-panel-row', 'display:flex;align-items:center;gap:6px;font-size:11px;color:#c8c8c8;white-space:nowrap;');
+            freeboard.addStyle('html.theme-light .uplot-axis-hover-panel-row', 'color:#444;');
+            freeboard.addStyle('.uplot-axis-hover-panel-row input', 'width:80px;background:#141619;border:1px solid #454b55;border-radius:4px;color:#e8e8e8;font-size:11px;padding:2px 4px;');
+            freeboard.addStyle('html.theme-light .uplot-axis-hover-panel-row input', 'background:#f5f5f5;color:#1a1a1a;border-color:#c8c8c8;');
+        }
+
+        // Hovering the plot area shows a small "Add Channel" hint (still a
+        // right-click + drill-down, since which channel is genuinely a
+        // choice). Hovering either axis margin shows its quick-edit panel
+        // directly. A short hide delay bridges the gap between the margin
+        // and the panel itself, which sits outside chartHost's own DOM.
+        _bindChartHover() {
+            this._ensureHoverStylesInjected();
+            let hidePanelTimer = null;
+            this._cancelAxisPanelHide = () => { if (hidePanelTimer) { clearTimeout(hidePanelTimer); hidePanelTimer = null; } };
+            this._scheduleAxisPanelHide = () => {
+                this._cancelAxisPanelHide();
+                hidePanelTimer = setTimeout(() => this._hideAxisPanels(), 200);
             };
+
             this.chartHost.on('mousemove', (e) => {
-                showHint(e, this._chartZoneAt(e.clientX, e.clientY) === 'axis' ? 'Change Axis' : 'Add Channel');
+                const zone = this._chartZoneAt(e.clientX, e.clientY);
+                if (zone === 'yAxis') {
+                    this._cancelAxisPanelHide();
+                    this._hoverHintEl.hide();
+                    this._showYAxisPanel();
+                } else if (zone === 'xAxis') {
+                    this._cancelAxisPanelHide();
+                    this._hoverHintEl.hide();
+                    this._showXAxisPanel();
+                } else {
+                    this._scheduleAxisPanelHide();
+                    this._hoverHintEl.text('Add Channel').css({ left: (e.clientX + 14) + 'px', top: (e.clientY + 14) + 'px' }).show();
+                }
             });
-            this.chartHost.on('mouseleave', () => this._hoverHintEl.hide());
+            this.chartHost.on('mouseleave', () => {
+                this._hoverHintEl.hide();
+                this._scheduleAxisPanelHide();
+            });
+        }
+
+        _hideAxisPanels() {
+            if (this._yAxisPanel) { this._yAxisPanel.remove(); this._yAxisPanel = null; }
+            if (this._xAxisPanel) { this._xAxisPanel.remove(); this._xAxisPanel = null; }
+        }
+
+        _axisPanelRow(type, label, value, onCommit) {
+            const row = $('<div class="uplot-axis-hover-panel-row"></div>');
+            const input = $(`<input type="${type === 'number' ? 'number' : 'text'}">`);
+            if (value !== null && value !== undefined) input.val(value);
+            row.append($('<span></span>').text(label), input);
+            input.on('mousedown click', (e) => e.stopPropagation());
+            input.on('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); input.trigger('blur'); }
+            });
+            input.on('blur', () => onCommit(input.val()));
+            return row;
+        }
+
+        _showYAxisPanel() {
+            if (this._yAxisPanel) return;
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const panel = $('<div class="uplot-axis-hover-panel"></div>')
+                .css({ left: (rect.left + 6) + 'px', top: (rect.top + rect.height / 2 - 45) + 'px' })
+                .appendTo(document.body);
+            panel.append(this._axisPanelRow('text', 'Y Label', this._settingValue('yLabel') || '', (v) => this._quickSetSetting('yLabel', v)));
+            panel.append(this._axisPanelRow('number', 'Y Min', this._settingValue('yMin'), (v) => this._quickSetSetting('yMin', v === '' ? null : Number(v))));
+            panel.append(this._axisPanelRow('number', 'Y Max', this._settingValue('yMax'), (v) => this._quickSetSetting('yMax', v === '' ? null : Number(v))));
+            panel.on('mouseenter', () => this._cancelAxisPanelHide());
+            panel.on('mouseleave', () => this._scheduleAxisPanelHide());
+            this._yAxisPanel = panel;
+        }
+
+        _showXAxisPanel() {
+            if (this._xAxisPanel) return;
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const panel = $('<div class="uplot-axis-hover-panel"></div>')
+                .css({ left: (rect.left + rect.width / 2 - 90) + 'px', top: (rect.bottom - 70) + 'px' })
+                .appendTo(document.body);
+            panel.append(this._axisPanelRow('number', 'Duration (ms)', this._settingValue('duration'), (v) => this._quickSetSetting('duration', v === '' ? null : Number(v))));
+            panel.append(this._axisPanelRow('number', 'Refresh Rate (ms)', this._settingValue('refreshRate'), (v) => this._quickSetSetting('refreshRate', v === '' ? null : Number(v))));
+            panel.on('mouseenter', () => this._cancelAxisPanelHide());
+            panel.on('mouseleave', () => this._scheduleAxisPanelHide());
+            this._xAxisPanel = panel;
         }
 
         // Double-click a channel's name in the readout row to rename it;
@@ -235,12 +294,21 @@ class TimePlotUPlot {
             });
         }
 
+        // Double-click the chart's own title (uPlot's .u-title) to rename it.
+        _bindTitleRename() {
+            this.chartHost.on('dblclick', '.u-title', (e) => {
+                e.stopPropagation();
+                this._startRenameTitle(e.currentTarget);
+            });
+        }
+
         _chartZoneAt(clientX, clientY) {
             const rect = this.chartHost[0].getBoundingClientRect();
             const relX = clientX - rect.left;
             const relY = clientY - rect.top;
-            const onAxis = relX < this.axisLeftMarginPx || relY > (rect.height - this.axisBottomMarginPx);
-            return onAxis ? 'axis' : 'channel';
+            if (relX < this.axisLeftMarginPx) return 'yAxis';
+            if (relY > (rect.height - this.axisBottomMarginPx)) return 'xAxis';
+            return 'channel';
         }
 
         _findWidgetModel() {
@@ -310,6 +378,11 @@ class TimePlotUPlot {
 
         // Swaps a channel's readout label for a small text input in place --
         // Enter/blur commits, Escape cancels back to the plain label.
+        // A floating input positioned over the label rather than swapped
+        // into it: _renderReadouts() rebuilds readoutHost's children
+        // wholesale on every poll tick, which was wiping out (and stealing
+        // focus from) an in-place input mid-keystroke. Living in
+        // document.body instead, this survives that churn untouched.
         _startRenameChannel(idx, labelEl) {
             const widgetModel = this._findWidgetModel();
             const shared = window.ModularPlotEditorShared;
@@ -318,23 +391,60 @@ class TimePlotUPlot {
             const def = existing[idx];
             if (!def) return;
 
-            const $label = $(labelEl);
-            const placeholderText = $label.text();
-            const input = $('<input type="text" class="uplot-readout-label-input">')
+            const rect = labelEl.getBoundingClientRect();
+            const placeholderText = $(labelEl).text();
+            const input = $('<input type="text" class="uplot-floating-input">')
                 .val(def.label || '')
-                .attr('placeholder', placeholderText);
-            $label.empty().append(input);
+                .attr('placeholder', placeholderText)
+                .css({ position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: Math.max(rect.width, 60) + 'px', height: rect.height + 'px' })
+                .appendTo(document.body);
 
             let done = false;
             const commit = () => {
                 if (done) return;
                 done = true;
+                input.remove();
                 this._setChannelLabel(idx, input.val());
             };
             const cancel = () => {
                 if (done) return;
                 done = true;
-                this._renderReadouts();
+                input.remove();
+            };
+            input.on('click', (e) => e.stopPropagation());
+            input.on('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); commit(); }
+                else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            });
+            input.on('blur', () => commit());
+            requestAnimationFrame(() => { input.trigger('focus'); input[0].select(); });
+        }
+
+        // Same floating-input approach for the chart's own title (uPlot's
+        // .u-title): title changes don't churn that element the way readout
+        // polling does, but keeping one consistent pattern for "rename in
+        // place, survive whatever re-renders underneath" is simpler than
+        // reasoning about which elements are safe to edit in place.
+        _startRenameTitle(titleEl) {
+            const rect = titleEl.getBoundingClientRect();
+            const current = this._settingValue('title') || '';
+            const input = $('<input type="text" class="uplot-floating-input">')
+                .val(current)
+                .css({ position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: Math.max(rect.width, 80) + 'px', height: rect.height + 'px' })
+                .appendTo(document.body);
+
+            let done = false;
+            const commit = () => {
+                if (done) return;
+                done = true;
+                input.remove();
+                this._quickSetSetting('title', input.val());
+            };
+            const cancel = () => {
+                if (done) return;
+                done = true;
+                input.remove();
             };
             input.on('click', (e) => e.stopPropagation());
             input.on('keydown', (e) => {
