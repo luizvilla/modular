@@ -7,6 +7,7 @@
   "rendererScripts": [
     { "path": "js/activity_toasts.js", "order": 10 },
     { "path": "js/dashboard_control.js", "order": 20 },
+    { "path": "js/radial_context_menu.js", "order": 25 },
     { "path": "plugins/uplot.widget.js", "order": 30 },
     { "path": "plugins/xy_plot.widget.js", "order": 40 },
     { "path": "js/zoom_control.js", "order": 50 },

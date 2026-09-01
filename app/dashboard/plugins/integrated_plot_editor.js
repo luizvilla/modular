@@ -260,7 +260,33 @@
         };
     }
 
-    function openOwntechPlotEditor(widgetModel, shared) {
+    // Scrolls the relevant section into view and focuses/selects the
+    // relevant field when this editor is opened from the radial context
+    // menu's leaf actions -- e.g. right-clicking the Y axis and picking
+    // "Y Min" should land the user directly in that field, not just open
+    // the dialog at its default scroll position.
+    function applyFocusHint(focusHint, refs) {
+        if (!focusHint) return;
+        requestAnimationFrame(() => {
+            let target = null;
+            if (focusHint.section === 'channels' || focusHint.section === 'source') target = refs.channelsSection;
+            else if (focusHint.section === 'display') target = refs.displaySection;
+            if (target && target[0] && typeof target[0].scrollIntoView === 'function') {
+                target[0].scrollIntoView({ block: 'nearest' });
+            }
+            let focusEl = null;
+            if (focusHint.field === 'yLabel') focusEl = refs.yLabelField && refs.yLabelField.input;
+            else if (focusHint.field === 'yMin') focusEl = refs.yMinField && refs.yMinField.input;
+            else if (focusHint.field === 'yMax') focusEl = refs.yMaxField && refs.yMaxField.input;
+            else if (focusHint.field === 'source') focusEl = refs.addSource && refs.addSource.dsSelect;
+            if (focusEl && focusEl.length) {
+                focusEl.trigger('focus');
+                if (typeof focusEl.select === 'function') focusEl.select();
+            }
+        });
+    }
+
+    function openOwntechPlotEditor(widgetModel, shared, focusHint) {
         const settings = widgetModel.settings() || {};
         const sharedFast = shared.getFastFrameShared ? shared.getFastFrameShared() : window.FastFrameShared;
         const form = $('<div class="row g-3 integrated-plot-editor"></div>');
@@ -406,6 +432,7 @@
             applyPalette(shared, updated.colorPalette);
             shared.commitWidgetSettings(widgetModel, updated);
         });
+        applyFocusHint(focusHint, { channelsSection, displaySection, addSource, yLabelField, yMinField, yMaxField });
         return true;
     }
 
@@ -1442,7 +1469,7 @@
     }
 
     window.ModularIntegratedPlotEditor = {
-        open(widgetModel, type, providedShared) {
+        open(widgetModel, type, providedShared, focusHint) {
             const shared = getShared(providedShared);
             if (type === 'state_machine') {
                 if (window.ModularStateMachineEditor) window.ModularStateMachineEditor.open(widgetModel);
@@ -1450,7 +1477,7 @@
             }
             if (!shared || !widgetModel) return false;
             if (type === 'time_plot_uplot') {
-                return openOwntechPlotEditor(widgetModel, shared);
+                return openOwntechPlotEditor(widgetModel, shared, focusHint);
             }
             if (type === 'xy_plot_uplot') {
                 return openXYPlotEditor(widgetModel, shared);

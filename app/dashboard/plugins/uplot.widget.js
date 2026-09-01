@@ -104,6 +104,7 @@ class TimePlotUPlot {
             });
             this.exportBtn.on('click', () => this._exportCsv());
             this.container.append(this.chartHost, this.summaryHost, this.readoutHost, this.controlsRow, this.resizeHandle);
+            this._bindRadialContextMenu();
             this.plot = null;
             this.seriesCount = 0;
             this.dataBuffer = [[], []]; // [timestamps, [series1, series2, ...]]
@@ -144,6 +145,79 @@ class TimePlotUPlot {
             this.selectionBState = { device: null, deviceUid: null };
             this.deviceMeta = {};
             this.deviceMetaB = {};
+        }
+
+        // Pilot: a right-click radial menu over three zones -- the plot area
+        // (Channels), the axis margins (Axis), and the rest of the widget
+        // chrome (Datasource) -- each opening the existing integrated editor
+        // pre-scoped/focused rather than duplicating any settings logic.
+        _bindRadialContextMenu() {
+            const AXIS_LEFT_MARGIN_PX = 56;
+            const AXIS_BOTTOM_MARGIN_PX = 30;
+
+            this.chartHost.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = this.chartHost[0].getBoundingClientRect();
+                const relX = e.clientX - rect.left;
+                const relY = e.clientY - rect.top;
+                const onAxis = relX < AXIS_LEFT_MARGIN_PX || relY > (rect.height - AXIS_BOTTOM_MARGIN_PX);
+                if (onAxis) {
+                    window.RadialContextMenu.show({
+                        x: e.clientX, y: e.clientY,
+                        categories: [{
+                            id: 'axis', label: 'Axis',
+                            items: [
+                                { id: 'yLabel', label: 'Y Label', onSelect: () => this._openEditor({ section: 'display', field: 'yLabel' }) },
+                                { id: 'yMin', label: 'Y Min', onSelect: () => this._openEditor({ section: 'display', field: 'yMin' }) },
+                                { id: 'yMax', label: 'Y Max', onSelect: () => this._openEditor({ section: 'display', field: 'yMax' }) }
+                            ]
+                        }]
+                    });
+                } else {
+                    const channelItems = (Array.isArray(this.seriesDefs) ? this.seriesDefs : []).map((def, idx) => ({
+                        id: `ch${idx}`,
+                        label: (def && (def.label || (def.a && def.a.ds))) || `Channel ${idx + 1}`,
+                        onSelect: () => this._openEditor({ section: 'channels' })
+                    }));
+                    channelItems.push({ id: 'add', label: '+ Add Channel', onSelect: () => this._openEditor({ section: 'channels' }) });
+                    window.RadialContextMenu.show({
+                        x: e.clientX, y: e.clientY,
+                        categories: [{ id: 'channels', label: 'Channels', items: channelItems }]
+                    });
+                }
+            });
+
+            this.container.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    categories: [{
+                        id: 'datasource', label: 'Datasource',
+                        items: [{ id: 'choose', label: 'Choose Datasource', onSelect: () => this._openEditor({ section: 'source', field: 'source' }) }]
+                    }]
+                });
+            });
+        }
+
+        _findWidgetModel() {
+            const model = freeboard.getLiveModel?.();
+            if (!model || typeof model.panes !== 'function') return null;
+            let found = null;
+            model.panes().forEach((pane) => {
+                (pane.widgets ? pane.widgets() : []).forEach((w) => {
+                    if (w.widgetInstance === this) found = w;
+                });
+            });
+            return found;
+        }
+
+        _openEditor(focusHint) {
+            const widgetModel = this._findWidgetModel();
+            if (!widgetModel || !window.ModularIntegratedPlotEditor) return;
+            window.ModularIntegratedPlotEditor.open(widgetModel, 'time_plot_uplot', null, focusHint);
         }
 
         _debugLog(event, payload = {}) {
