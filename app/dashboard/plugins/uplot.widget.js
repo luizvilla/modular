@@ -209,6 +209,7 @@ class TimePlotUPlot {
 
         _showYAxisPanel() {
             if (this._yAxisPanel) return;
+            if (this._xAxisPanel) { this._xAxisPanel.remove(); this._xAxisPanel = null; }
             const kit = window.RadialWidgetKit;
             const rect = this.chartHost[0].getBoundingClientRect();
             const panel = kit.floatingPanel({
@@ -226,6 +227,7 @@ class TimePlotUPlot {
 
         _showXAxisPanel() {
             if (this._xAxisPanel) return;
+            if (this._yAxisPanel) { this._yAxisPanel.remove(); this._yAxisPanel = null; }
             const kit = window.RadialWidgetKit;
             const rect = this.chartHost[0].getBoundingClientRect();
             const panel = kit.floatingPanel({
