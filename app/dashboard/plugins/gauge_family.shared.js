@@ -673,12 +673,109 @@
                 this.container.append(this.offsetControlEl);
                 host.append(this.container);
                 this._built = true;
+                this._bindRadialContextMenu();
             } else {
                 host.append(this.container);
             }
             this._applySettings();
             this._refreshSourceSummary();
             this._restartTimer();
+        }
+
+        // Milestone 6 of docs/GUI/02-navigation_overhaul.md: one
+        // implementation covers all 5 gauge types, since they share this
+        // class. Right-click the gauge body -> Datasource drill, quick-sets
+        // the single sourceDef (gauges have exactly one, unlike the time
+        // plot's list). Right-click the color element specifically (the bar
+        // for vertical/horizontal, the SVG arc/needle for the radial
+        // families) -> the same 10-color carrousel, stopping propagation so
+        // the body's own handler doesn't also fire. Hovering the gauge shows
+        // an inline Min/Max/Units panel. Double-click the title to rename.
+        _bindRadialContextMenu() {
+            const colorEl = this.svgEl || this.trackEl;
+            if (colorEl) {
+                colorEl.on('contextmenu', (e) => {
+                    if (!window.RadialWidgetKit) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.RadialWidgetKit.colorCarrousel(e.clientX, e.clientY, (hex) => this._quickSetSetting('barColor', hex));
+                });
+            }
+
+            this.container.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const kit = window.RadialWidgetKit;
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    root: kit.buildChannelMenuRoot({ onLeafSelect: (def) => this._quickSetSetting('sourceDef', def) })
+                });
+            });
+
+            this.titleEl.on('dblclick', (e) => {
+                e.stopPropagation();
+                window.RadialWidgetKit.floatingInput({
+                    anchorEl: this.titleEl[0],
+                    value: this._settingValue('title') || '',
+                    onCommit: (val) => this._quickSetSetting('title', val)
+                });
+            });
+
+            this._bindGaugeHoverPanel();
+        }
+
+        _bindGaugeHoverPanel() {
+            const kit = window.RadialWidgetKit;
+            kit.ensureStyles();
+            this._hoverBridge = kit.makeHoverBridge(200);
+            this.container.on('mouseenter mousemove', () => {
+                this._hoverBridge.cancel();
+                this._showGaugePanel();
+            });
+            this.container.on('mouseleave', () => {
+                this._hoverBridge.schedule(() => this._hideGaugePanel());
+            });
+        }
+
+        _hideGaugePanel() {
+            if (this._gaugePanel) { this._gaugePanel.remove(); this._gaugePanel = null; }
+        }
+
+        _showGaugePanel() {
+            if (this._gaugePanel) return;
+            const kit = window.RadialWidgetKit;
+            const rect = this.container[0].getBoundingClientRect();
+            // Positioned entirely outside the gauge's own footprint (beside
+            // it, not overlapping) -- unlike the plot widgets' axis margins,
+            // a gauge has no spare margin of its own to host this without
+            // covering the exact area right-click (source drill / color
+            // carrousel) needs to keep reaching underneath.
+            const panel = kit.floatingPanel({
+                position: { left: (rect.right + 8) + 'px', top: rect.top + 'px' },
+                rows: [
+                    kit.panelRow('number', 'Min', this._settingValue('min'), (v) => this._quickSetSetting('min', v === '' ? 0 : Number(v))),
+                    kit.panelRow('number', 'Max', this._settingValue('max'), (v) => this._quickSetSetting('max', v === '' ? 0 : Number(v))),
+                    kit.panelRow('text', 'Units', this._settingValue('units') || '', (v) => this._quickSetSetting('units', v))
+                ]
+            });
+            panel.on('mouseenter mousemove', () => this._hoverBridge.cancel());
+            panel.on('mouseleave', () => this._hoverBridge.schedule(() => this._hideGaugePanel()));
+            this._gaugePanel = panel;
+        }
+
+        _findWidgetModel() {
+            return window.RadialWidgetKit.findWidgetModel(this);
+        }
+
+        _settingValue(name) {
+            const widgetModel = this._findWidgetModel();
+            if (!widgetModel) return resolveSetting(this.settings, name);
+            return window.RadialWidgetKit.settingValue(widgetModel, name);
+        }
+
+        _quickSetSetting(name, value) {
+            window.RadialWidgetKit.quickSetSetting(this._findWidgetModel(), name, value);
         }
 
         onSettingsChanged(newSettings) {
