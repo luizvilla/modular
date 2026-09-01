@@ -590,6 +590,17 @@ if (isMock) {
         if (process.env.MOCK_THINGSET_LEG3 === '1') {
             legGroups.Leg3 = mockLegGroup('Leg3');
         }
+        // Opt-in (MOCK_THINGSET_MEASUREMENTS=1), mirroring the MOCK_THINGSET_LEG3
+        // pattern above: a real Measurements group (confirmed present on real
+        // Core4 hardware) so the radial menu's Measurements/Others split has
+        // something to actually split. Off by default so the existing exact
+        // "22 leaves across 3 groups" sidebar-summary assertion stays intact.
+        const measurementsGroup = process.env.MOCK_THINGSET_MEASUREMENTS === '1' ? {
+            Measurements: {
+                path: '/Measurements',
+                values: { rVHigh_V: 19.8, rIHigh_A: 0.19 }
+            }
+        } : {};
         api.thingsetSerial = {
             detect: async () => ({ port: 'COM_MOCK', node_uid: 'MOCK_UID', node_name: 'Mock' }),
             tree: async () => ({
@@ -601,6 +612,7 @@ if (isMock) {
                     path: '/',
                     values: { rStatus: 1 },
                     children: {
+                        ...measurementsGroup,
                         Config: {
                             path: '/Config',
                             values: { rMode: 1, wMode: 0 },

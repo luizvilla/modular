@@ -1,11 +1,16 @@
 (function () {
-    // Generic two-level radial ("pie") context menu: an outer ring of arc
-    // segments for categories, and -- once a category is picked -- a ring of
-    // circular buttons for that category's leaf actions. Pilot component,
-    // first wired up on the time_plot_uplot widget's right-click zones.
+    // Generic N-level radial ("pie") context menu: rings of arc segments to
+    // drill into nested categories, terminating in a ring of circular leaf
+    // buttons. A node is either a branch ({ id, label, children }) or a leaf
+    // group ({ id, label, items }) -- children/items may be a plain array or
+    // a function returning one (sync or async, for data that needs a live
+    // read before it's known, e.g. a datasource's current tree). A leaf item
+    // is either an action ({ id, label, onSelect }) or an inline editable
+    // value ({ id, label, inlineEdit: { type, getValue, onSubmit } }), which
+    // swaps the circle for a small input instead of navigating away.
     const OUTER_R = 92;
     const INNER_R = 34;
-    const LEAF_R = 110;
+    const LEAF_R_BASE = 110;
     const LEAF_BTN_SIZE = 64;
     const WEDGE_GAP_DEG = 4;
 
@@ -22,8 +27,10 @@
         freeboard.addStyle('.radial-menu-wedge-label', 'fill:#e8e8e8;font-size:12px;font-weight:600;pointer-events:none;text-anchor:middle;dominant-baseline:middle;');
         freeboard.addStyle('.radial-menu-center', 'position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px;border-radius:50%;background:#20232a;border:1px solid #454b55;color:#c8c8c8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;line-height:1;user-select:none;');
         freeboard.addStyle('.radial-menu-center:hover', 'background:#2b2f36;');
-        freeboard.addStyle('.radial-menu-leaf', 'position:absolute;width:' + LEAF_BTN_SIZE + 'px;height:' + LEAF_BTN_SIZE + 'px;margin:-' + (LEAF_BTN_SIZE / 2) + 'px;border-radius:50%;background:#2b2f36;border:1px solid #454b55;color:#e8e8e8;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.15;padding:4px;cursor:pointer;transition:transform 0.12s,background 0.12s;');
+        freeboard.addStyle('.radial-menu-leaf', 'position:absolute;width:' + LEAF_BTN_SIZE + 'px;height:' + LEAF_BTN_SIZE + 'px;margin:-' + (LEAF_BTN_SIZE / 2) + 'px;border-radius:50%;background:#2b2f36;border:1px solid #454b55;color:#e8e8e8;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.15;padding:4px;cursor:pointer;transition:transform 0.12s,background 0.12s;overflow:hidden;');
         freeboard.addStyle('.radial-menu-leaf:hover', 'background:#3a3f48;transform:scale(1.08);');
+        freeboard.addStyle('.radial-menu-leaf-input', 'width:100%;background:#141619;border:1px solid #6a90ff;border-radius:4px;color:#e8e8e8;font-size:11px;text-align:center;padding:2px;');
+        freeboard.addStyle('.radial-menu-loading', 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#c8c8c8;font-size:11px;white-space:nowrap;');
         // Light theme overrides, matching the app's dark-default / html.theme-light convention.
         freeboard.addStyle('html.theme-light .radial-menu-overlay', 'background:rgba(0,0,0,0.08);');
         freeboard.addStyle('html.theme-light .radial-menu-wedge', 'fill:#f2f2f2;stroke:#c8c8c8;');
@@ -33,6 +40,8 @@
         freeboard.addStyle('html.theme-light .radial-menu-center:hover', 'background:#f2f2f2;');
         freeboard.addStyle('html.theme-light .radial-menu-leaf', 'background:#ffffff;border-color:#c8c8c8;color:#1a1a1a;');
         freeboard.addStyle('html.theme-light .radial-menu-leaf:hover', 'background:#f2f2f2;');
+        freeboard.addStyle('html.theme-light .radial-menu-leaf-input', 'background:#ffffff;color:#1a1a1a;');
+        freeboard.addStyle('html.theme-light .radial-menu-loading', 'color:#444;');
     }
 
     function polarToCartesian(radius, angleDeg) {
@@ -83,13 +92,23 @@
         };
     }
 
-    // categories: [{ id, label, items: [{ id, label, onSelect }] }]
-    function show({ x, y, categories }) {
+    async function resolveMaybeAsync(source) {
+        const value = typeof source === 'function' ? source() : source;
+        return Array.isArray(value) ? value : (value && typeof value.then === 'function' ? (await value) || [] : []);
+    }
+
+    function leafRingRadius(count) {
+        const circumference = count * (LEAF_BTN_SIZE + 8);
+        return Math.max(LEAF_R_BASE, circumference / (2 * Math.PI));
+    }
+
+    // root: array of top-level nodes (see file header for node shape).
+    function show({ x, y, root }) {
         injectStylesOnce();
         close();
-        if (!Array.isArray(categories) || !categories.length) return;
+        if (!Array.isArray(root) || !root.length) return;
 
-        const margin = OUTER_R + LEAF_R - OUTER_R + 40; // enough room for the leaf ring too
+        const margin = LEAF_R_BASE + LEAF_BTN_SIZE + 40;
         const pos = clampToViewport(x, y, margin);
 
         overlayEl = document.createElement('div');
@@ -119,64 +138,128 @@
 
         const centerBtn = document.createElement('div');
         centerBtn.className = 'radial-menu-center';
-        centerBtn.textContent = '✕';
-        centerBtn.title = 'Close';
         menu.appendChild(centerBtn);
 
-        function renderLeaves(category) {
+        // view stack: entries are { type: 'branch', nodes } | { type: 'leaves', items }
+        const viewStack = [{ type: 'branch', nodes: root }];
+
+        function goBack() {
+            if (viewStack.length <= 1) { close(); return; }
+            viewStack.pop();
+            render();
+        }
+
+        function showLoading() {
+            svg.style.display = 'none';
+            leafLayer.innerHTML = '<div class="radial-menu-loading">Loading…</div>';
+        }
+
+        async function enterNode(node) {
+            if (node.items !== undefined) {
+                showLoading();
+                const items = await resolveMaybeAsync(node.items);
+                viewStack.push({ type: 'leaves', items });
+                render();
+            } else if (node.children !== undefined) {
+                showLoading();
+                const nodes = await resolveMaybeAsync(node.children);
+                viewStack.push({ type: 'branch', nodes });
+                render();
+            }
+        }
+
+        function renderLeaves(items) {
             svg.style.display = 'none';
             leafLayer.innerHTML = '';
-            const items = category.items || [];
+            if (!items.length) {
+                leafLayer.innerHTML = '<div class="radial-menu-loading">(nothing here)</div>';
+            }
+            const radius = leafRingRadius(items.length);
             const step = 360 / items.length;
             items.forEach((item, i) => {
                 const angle = step * i;
-                const { x: lx, y: ly } = polarToCartesian(LEAF_R, angle);
+                const { x: lx, y: ly } = polarToCartesian(radius, angle);
                 const btn = document.createElement('div');
                 btn.className = 'radial-menu-leaf';
                 btn.style.left = lx + 'px';
                 btn.style.top = ly + 'px';
                 btn.textContent = item.label;
                 btn.title = item.label;
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    close();
-                    if (typeof item.onSelect === 'function') item.onSelect();
-                });
+                if (item.inlineEdit) {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        startInlineEdit(btn, item);
+                    });
+                } else {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        close();
+                        if (typeof item.onSelect === 'function') item.onSelect();
+                    });
+                }
                 leafLayer.appendChild(btn);
             });
             centerBtn.textContent = '←';
             centerBtn.title = 'Back';
-            centerBtn.onclick = (e) => { e.stopPropagation(); renderCategories(); };
+            centerBtn.onclick = (e) => { e.stopPropagation(); goBack(); };
         }
 
-        function renderCategories() {
+        function startInlineEdit(btn, item) {
+            const { type, getValue, onSubmit } = item.inlineEdit;
+            const current = (typeof getValue === 'function' ? getValue() : '');
+            btn.innerHTML = '';
+            const input = document.createElement('input');
+            input.className = 'radial-menu-leaf-input';
+            input.type = type === 'number' ? 'number' : 'text';
+            if (current !== null && current !== undefined) input.value = current;
+            btn.appendChild(input);
+            input.addEventListener('click', (e) => e.stopPropagation());
+            input.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                    close();
+                    if (typeof onSubmit === 'function') onSubmit(input.value);
+                } else if (e.key === 'Escape') {
+                    close();
+                }
+            });
+            requestAnimationFrame(() => { input.focus(); input.select(); });
+        }
+
+        function renderBranch(nodes) {
             svg.style.display = '';
             svgGroup.innerHTML = '';
             leafLayer.innerHTML = '';
-            const n = categories.length;
+            const n = nodes.length;
             const step = 360 / n;
-            categories.forEach((cat, i) => {
+            nodes.forEach((node, i) => {
                 const start = step * i + WEDGE_GAP_DEG / 2;
                 const end = step * (i + 1) - WEDGE_GAP_DEG / 2;
                 const path = svgEl('path', { d: donutSegmentPath(INNER_R, OUTER_R, start, end), class: 'radial-menu-wedge' });
                 path.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    if (cat.items && cat.items.length) renderLeaves(cat);
+                    enterNode(node);
                 });
                 svgGroup.appendChild(path);
                 const midAngle = (start + end) / 2;
                 const labelPos = polarToCartesian((INNER_R + OUTER_R) / 2, midAngle);
                 const text = svgEl('text', { x: labelPos.x, y: labelPos.y, class: 'radial-menu-wedge-label' });
-                text.textContent = cat.label;
+                text.textContent = node.label;
                 text.style.pointerEvents = 'none';
                 svgGroup.appendChild(text);
             });
-            centerBtn.textContent = '✕';
-            centerBtn.title = 'Close';
-            centerBtn.onclick = (e) => { e.stopPropagation(); close(); };
+            centerBtn.textContent = viewStack.length > 1 ? '←' : '✕';
+            centerBtn.title = viewStack.length > 1 ? 'Back' : 'Close';
+            centerBtn.onclick = (e) => { e.stopPropagation(); if (viewStack.length > 1) goBack(); else close(); };
         }
 
-        renderCategories();
+        function render() {
+            const top = viewStack[viewStack.length - 1];
+            if (top.type === 'leaves') renderLeaves(top.items);
+            else renderBranch(top.nodes);
+        }
+
+        render();
         document.body.appendChild(overlayEl);
         document.addEventListener('keydown', onKeyDown, true);
     }

@@ -145,47 +145,46 @@ class TimePlotUPlot {
             this.selectionBState = { device: null, deviceUid: null };
             this.deviceMeta = {};
             this.deviceMetaB = {};
+            this.axisLeftMarginPx = 56;
+            this.axisBottomMarginPx = 30;
         }
 
         // Pilot: a right-click radial menu over three zones -- the plot area
-        // (Channels), the axis margins (Axis), and the rest of the widget
-        // chrome (Datasource) -- each opening the existing integrated editor
-        // pre-scoped/focused rather than duplicating any settings logic.
+        // (Channels, a quick-add drill-down), the axis margins (Axis, inline
+        // number/text entry), and the rest of the widget chrome (Datasource,
+        // which still opens the full editor since there's no single "quick"
+        // action for it). A hover hint shows which zone the cursor is over
+        // before the user commits to a right click.
         _bindRadialContextMenu() {
-            const AXIS_LEFT_MARGIN_PX = 56;
-            const AXIS_BOTTOM_MARGIN_PX = 30;
+            this._bindHoverHint();
 
             this.chartHost.on('contextmenu', (e) => {
                 if (!window.RadialContextMenu) return;
                 e.preventDefault();
                 e.stopPropagation();
-                const rect = this.chartHost[0].getBoundingClientRect();
-                const relX = e.clientX - rect.left;
-                const relY = e.clientY - rect.top;
-                const onAxis = relX < AXIS_LEFT_MARGIN_PX || relY > (rect.height - AXIS_BOTTOM_MARGIN_PX);
-                if (onAxis) {
+                if (this._chartZoneAt(e.clientX, e.clientY) === 'axis') {
                     window.RadialContextMenu.show({
                         x: e.clientX, y: e.clientY,
-                        categories: [{
+                        root: [{
                             id: 'axis', label: 'Axis',
                             items: [
-                                { id: 'yLabel', label: 'Y Label', onSelect: () => this._openEditor({ section: 'display', field: 'yLabel' }) },
-                                { id: 'yMin', label: 'Y Min', onSelect: () => this._openEditor({ section: 'display', field: 'yMin' }) },
-                                { id: 'yMax', label: 'Y Max', onSelect: () => this._openEditor({ section: 'display', field: 'yMax' }) }
+                                {
+                                    id: 'yLabel', label: 'Y Label',
+                                    inlineEdit: { type: 'text', getValue: () => this._settingValue('yLabel') || '', onSubmit: (v) => this._quickSetSetting('yLabel', v) }
+                                },
+                                {
+                                    id: 'yMin', label: 'Y Min',
+                                    inlineEdit: { type: 'number', getValue: () => this._settingValue('yMin'), onSubmit: (v) => this._quickSetSetting('yMin', v === '' ? null : Number(v)) }
+                                },
+                                {
+                                    id: 'yMax', label: 'Y Max',
+                                    inlineEdit: { type: 'number', getValue: () => this._settingValue('yMax'), onSubmit: (v) => this._quickSetSetting('yMax', v === '' ? null : Number(v)) }
+                                }
                             ]
                         }]
                     });
                 } else {
-                    const channelItems = (Array.isArray(this.seriesDefs) ? this.seriesDefs : []).map((def, idx) => ({
-                        id: `ch${idx}`,
-                        label: (def && (def.label || (def.a && def.a.ds))) || `Channel ${idx + 1}`,
-                        onSelect: () => this._openEditor({ section: 'channels' })
-                    }));
-                    channelItems.push({ id: 'add', label: '+ Add Channel', onSelect: () => this._openEditor({ section: 'channels' }) });
-                    window.RadialContextMenu.show({
-                        x: e.clientX, y: e.clientY,
-                        categories: [{ id: 'channels', label: 'Channels', items: channelItems }]
-                    });
+                    window.RadialContextMenu.show({ x: e.clientX, y: e.clientY, root: this._buildChannelMenuRoot() });
                 }
             });
 
@@ -194,12 +193,44 @@ class TimePlotUPlot {
                 e.preventDefault();
                 window.RadialContextMenu.show({
                     x: e.clientX, y: e.clientY,
-                    categories: [{
+                    root: [{
                         id: 'datasource', label: 'Datasource',
                         items: [{ id: 'choose', label: 'Choose Datasource', onSelect: () => this._openEditor({ section: 'source', field: 'source' }) }]
                     }]
                 });
             });
+        }
+
+        // Small floating "🖐 + <zone>" label following the cursor, so the
+        // user knows what a right click will do before committing to it.
+        _bindHoverHint() {
+            if (!this._hoverHintEl) {
+                this._hoverHintEl = $('<div class="uplot-radial-hover-hint"></div>').appendTo(document.body).hide();
+                if (freeboard && typeof freeboard.addStyle === 'function') {
+                    freeboard.addStyle('.uplot-radial-hover-hint', 'position:fixed;z-index:9999;pointer-events:none;background:#20232a;color:#e8e8e8;border:1px solid #454b55;border-radius:4px;padding:2px 8px;font-size:11px;white-space:nowrap;');
+                    freeboard.addStyle('html.theme-light .uplot-radial-hover-hint', 'background:#ffffff;color:#1a1a1a;border-color:#c8c8c8;');
+                }
+            }
+            const showHint = (e, label) => {
+                this._hoverHintEl.text(`🖐 + ${label}`).css({ left: (e.clientX + 14) + 'px', top: (e.clientY + 14) + 'px' }).show();
+            };
+            this.chartHost.on('mousemove', (e) => {
+                showHint(e, this._chartZoneAt(e.clientX, e.clientY) === 'axis' ? 'Axis' : 'Channel');
+            });
+            this.chartHost.on('mouseleave', () => this._hoverHintEl.hide());
+            this.container.on('mousemove', (e) => {
+                if ($(e.target).closest(this.chartHost).length) return; // chartHost's own handler covers this
+                showHint(e, 'Datasource');
+            });
+            this.container.on('mouseleave', () => this._hoverHintEl.hide());
+        }
+
+        _chartZoneAt(clientX, clientY) {
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const relX = clientX - rect.left;
+            const relY = clientY - rect.top;
+            const onAxis = relX < this.axisLeftMarginPx || relY > (rect.height - this.axisBottomMarginPx);
+            return onAxis ? 'axis' : 'channel';
         }
 
         _findWidgetModel() {
@@ -218,6 +249,128 @@ class TimePlotUPlot {
             const widgetModel = this._findWidgetModel();
             if (!widgetModel || !window.ModularIntegratedPlotEditor) return;
             window.ModularIntegratedPlotEditor.open(widgetModel, 'time_plot_uplot', null, focusHint);
+        }
+
+        _settingValue(name) {
+            const widgetModel = this._findWidgetModel();
+            const settings = widgetModel ? (widgetModel.settings() || {}) : this.settings;
+            const raw = settings ? settings[name] : undefined;
+            return typeof raw === 'function' ? raw() : raw;
+        }
+
+        _quickSetSetting(name, value) {
+            const widgetModel = this._findWidgetModel();
+            const shared = window.ModularPlotEditorShared;
+            if (!widgetModel || !shared) return;
+            const settings = widgetModel.settings() || {};
+            shared.commitWidgetSettings(widgetModel, { ...settings, [name]: value });
+        }
+
+        // Adds a channel directly, with no dialog: the next palette color and
+        // the identity ("x") operation, matching the full editor's own
+        // defaults for a freshly-added channel. Anything more specific
+        // (a custom op, color, or label) still goes through the wrench.
+        _quickAddChannel(sourceDef) {
+            const widgetModel = this._findWidgetModel();
+            const shared = window.ModularPlotEditorShared;
+            if (!widgetModel || !shared) return;
+            const settings = widgetModel.settings() || {};
+            const existing = shared.parseSeriesDefs(settings.seriesDefs);
+            const themes = shared.getColorThemes();
+            const paletteName = settings.colorPalette || 'ColorBlind10';
+            const fallback = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc949'];
+            const palette = (Array.isArray(themes[paletteName]) && themes[paletteName].length) ? themes[paletteName] : fallback;
+            const color = palette[existing.length % palette.length];
+            const newDef = { label: '', op: 'identity', param: 0, color, a: sourceDef, b: null };
+            shared.commitWidgetSettings(widgetModel, { ...settings, seriesDefs: [...existing, newDef] });
+        }
+
+        _dsLatestData(dsName) {
+            const live = freeboard.getLiveModel?.();
+            const dsModel = live && typeof live.datasources === 'function'
+                ? live.datasources().find((d) => { try { return d.name() === dsName; } catch (e) { return false; } })
+                : null;
+            return (dsModel && dsModel.latestData) ? (dsModel.latestData() || {}) : {};
+        }
+
+        // Datasource -> (Measurements | Others [-> Config | Calibration | ...])
+        // -> leaf variable names, for ThingSet-type datasources -- their
+        // flat leaf lists otherwise run into the dozens, which isn't fun to
+        // scroll through as a flyout menu. Simple indexed-channel types
+        // (serial, fast-frame, signal generator, CAN) skip straight from the
+        // datasource to their (much shorter) channel list.
+        _buildChannelMenuRoot() {
+            const shared = window.ModularPlotEditorShared;
+            if (!shared) return [];
+            return shared.listDatasources().map((ds) => {
+                const dsType = shared.getDatasourceType(ds.name);
+                const isThingSet = dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
+                return {
+                    id: ds.name, label: ds.name,
+                    ...(isThingSet
+                        ? { children: () => this._buildThingSetCategoryNodes(ds.name, dsType) }
+                        : { items: () => this._buildSimpleLeafItems(ds.name, dsType) })
+                };
+            });
+        }
+
+        _buildThingSetCategoryNodes(dsName, dsType) {
+            const data = this._dsLatestData(dsName);
+            const values = data.values || {};
+            const buckets = {};
+            Object.keys(values).forEach((path) => {
+                const clean = path.replace(/^\/+/, '');
+                if (!clean) return;
+                const segments = clean.split('/');
+                // A single-segment path is a scalar living directly on the
+                // tree root (e.g. rStatus) rather than nested under a real
+                // named group -- there's no meaningful group to bucket it
+                // into, so it's left out of this menu rather than becoming a
+                // fake single-item "group" named after itself.
+                if (segments.length < 2) return;
+                const top = segments[0];
+                const label = segments[segments.length - 1];
+                (buckets[top] = buckets[top] || []).push({ path, label });
+            });
+            const nodes = [];
+            if (buckets.Measurements) {
+                nodes.push({ id: 'Measurements', label: 'Measurements', items: this._leafEntriesToItems(dsName, dsType, buckets.Measurements) });
+            }
+            const otherGroups = Object.keys(buckets).filter((k) => k !== 'Measurements').sort();
+            if (otherGroups.length) {
+                nodes.push({
+                    id: 'Others', label: 'Others',
+                    children: otherGroups.map((group) => ({
+                        id: group, label: group,
+                        items: this._leafEntriesToItems(dsName, dsType, buckets[group])
+                    }))
+                });
+            }
+            return nodes;
+        }
+
+        _leafEntriesToItems(dsName, dsType, entries) {
+            return entries
+                .slice()
+                .sort((a, b) => a.label.localeCompare(b.label))
+                .map((entry) => ({
+                    id: entry.path, label: entry.label,
+                    onSelect: () => this._quickAddChannel({ ds: dsName, type: dsType, device: null, device_uid: null, var: entry.path })
+                }));
+        }
+
+        async _buildSimpleLeafItems(dsName, dsType) {
+            const shared = window.ModularPlotEditorShared;
+            if (!shared || typeof shared.fetchDatasourceVariableOptions !== 'function') return [];
+            const options = await shared.fetchDatasourceVariableOptions(dsName, '');
+            const keepAsString = dsType === 'can_datasource';
+            return options.map((opt) => ({
+                id: String(opt.value), label: opt.label,
+                onSelect: () => this._quickAddChannel({
+                    ds: dsName, type: dsType, device: null, device_uid: null,
+                    var: keepAsString ? opt.value : parseInt(opt.value, 10)
+                })
+            }));
         }
 
         _debugLog(event, payload = {}) {
