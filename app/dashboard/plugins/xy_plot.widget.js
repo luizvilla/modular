@@ -108,6 +108,180 @@
             this.resizeHandle = $('<div class="uplot-resize-handle" title="Drag to resize plot"></div>');
             this.toolbar.append(this.status, this.pauseBtn, this.clearBtn, this.exportBtn);
             this.container.append(this.toolbar, this.chartHost, this.readout, this.resizeHandle);
+            this.axisLeftMarginPx = 56;
+            this.axisBottomMarginPx = 30;
+            this._bindRadialContextMenu();
+        }
+
+        // Milestone 3 of docs/GUI/02-navigation_overhaul.md: the same pattern
+        // piloted on time_plot_uplot, adapted for XY Plot's shape -- exactly
+        // two fixed sources (X, Y) instead of an open-ended channel list, and
+        // two real data axes instead of a time axis. Built entirely on
+        // RadialWidgetKit (Milestone 0), no per-widget copy of the plumbing.
+        _bindRadialContextMenu() {
+            this.chartHost.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const kit = window.RadialWidgetKit;
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    root: [
+                        { id: 'x-source', label: 'X Source', children: () => kit.buildChannelMenuRoot({ onLeafSelect: (def) => this._quickSetSourceDef('xSourceDef', def) }) },
+                        { id: 'y-source', label: 'Y Source', children: () => kit.buildChannelMenuRoot({ onLeafSelect: (def) => this._quickSetSourceDef('ySourceDef', def) }) }
+                    ]
+                });
+            });
+            this._bindChartHover();
+            this._bindReadoutInteractions();
+            this._bindTitleRename();
+        }
+
+        // Hovering the plot area shows an "Add Source" hint; hovering either
+        // axis margin shows its own inline panel directly (Label/Min/Max for
+        // whichever axis), since both are just a handful of fixed fields --
+        // no drill-down needed, same reasoning as the time plot's axis
+        // panels.
+        _bindChartHover() {
+            const kit = window.RadialWidgetKit;
+            kit.ensureStyles();
+            this._axisHoverBridge = kit.makeHoverBridge(200);
+
+            this.chartHost.on('mousemove', (e) => {
+                const zone = this._chartZoneAt(e.clientX, e.clientY);
+                if (zone === 'yAxis') {
+                    this._axisHoverBridge.cancel();
+                    kit.hideHint();
+                    this._showYAxisPanel();
+                } else if (zone === 'xAxis') {
+                    this._axisHoverBridge.cancel();
+                    kit.hideHint();
+                    this._showXAxisPanel();
+                } else {
+                    this._axisHoverBridge.schedule(() => this._hideAxisPanels());
+                    kit.showHint('Add Source', e.clientX, e.clientY);
+                }
+            });
+            this.chartHost.on('mouseleave', () => {
+                kit.hideHint();
+                this._axisHoverBridge.schedule(() => this._hideAxisPanels());
+            });
+        }
+
+        _hideAxisPanels() {
+            if (this._yAxisPanel) { this._yAxisPanel.remove(); this._yAxisPanel = null; }
+            if (this._xAxisPanel) { this._xAxisPanel.remove(); this._xAxisPanel = null; }
+        }
+
+        _showYAxisPanel() {
+            if (this._yAxisPanel) return;
+            if (this._xAxisPanel) { this._xAxisPanel.remove(); this._xAxisPanel = null; }
+            const kit = window.RadialWidgetKit;
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const panel = kit.floatingPanel({
+                position: { left: (rect.left + 6) + 'px', top: (rect.top + rect.height / 2 - 45) + 'px' },
+                rows: [
+                    kit.panelRow('text', 'Y Label', this._settingValue('yLabel') || '', (v) => this._quickSetSetting('yLabel', v)),
+                    kit.panelRow('number', 'Y Min', this._settingValue('yMin'), (v) => this._quickSetSetting('yMin', v === '' ? null : Number(v))),
+                    kit.panelRow('number', 'Y Max', this._settingValue('yMax'), (v) => this._quickSetSetting('yMax', v === '' ? null : Number(v)))
+                ]
+            });
+            panel.on('mouseenter', () => this._axisHoverBridge.cancel());
+            panel.on('mouseleave', () => this._axisHoverBridge.schedule(() => this._hideAxisPanels()));
+            this._yAxisPanel = panel;
+        }
+
+        _showXAxisPanel() {
+            if (this._xAxisPanel) return;
+            if (this._yAxisPanel) { this._yAxisPanel.remove(); this._yAxisPanel = null; }
+            const kit = window.RadialWidgetKit;
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const panel = kit.floatingPanel({
+                position: { left: (rect.left + rect.width / 2 - 90) + 'px', top: (rect.bottom - 90) + 'px' },
+                rows: [
+                    kit.panelRow('text', 'X Label', this._settingValue('xLabel') || '', (v) => this._quickSetSetting('xLabel', v)),
+                    kit.panelRow('number', 'X Min', this._settingValue('xMin'), (v) => this._quickSetSetting('xMin', v === '' ? null : Number(v))),
+                    kit.panelRow('number', 'X Max', this._settingValue('xMax'), (v) => this._quickSetSetting('xMax', v === '' ? null : Number(v)))
+                ]
+            });
+            panel.on('mouseenter', () => this._axisHoverBridge.cancel());
+            panel.on('mouseleave', () => this._axisHoverBridge.schedule(() => this._hideAxisPanels()));
+            this._xAxisPanel = panel;
+        }
+
+        _chartZoneAt(clientX, clientY) {
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const relX = clientX - rect.left;
+            const relY = clientY - rect.top;
+            if (relX < this.axisLeftMarginPx) return 'yAxis';
+            if (relY > (rect.height - this.axisBottomMarginPx)) return 'xAxis';
+            return 'channel';
+        }
+
+        // Double-click the X or Y readout label to rename it -- this writes
+        // the *same* xLabel/yLabel setting the axis hover panel's Label field
+        // edits (one field, one mechanism, not two ways to set the same
+        // thing). Right-click a readout swatch for the 10-color carrousel
+        // against that axis's trail/latest color.
+        _bindReadoutInteractions() {
+            if (!this.readout) return;
+            this.readout.on('dblclick', '.uplot-readout-label', (e) => {
+                const axis = $(e.currentTarget).closest('.uplot-readout-item').attr('data-axis');
+                if (axis) this._startRenameLabel(axis, e.currentTarget);
+            });
+            this.readout.on('contextmenu', '.uplot-readout-swatch', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const axis = $(e.currentTarget).closest('.uplot-readout-item').attr('data-axis');
+                if (axis) window.RadialWidgetKit.colorCarrousel(e.clientX, e.clientY, (hex) => this._setAxisColor(axis, hex));
+            });
+        }
+
+        _bindTitleRename() {
+            this.chartHost.on('dblclick', '.u-title', (e) => {
+                e.stopPropagation();
+                this._startRenameTitle(e.currentTarget);
+            });
+        }
+
+        _startRenameLabel(axis, labelEl) {
+            const settingName = axis === 'x' ? 'xLabel' : 'yLabel';
+            window.RadialWidgetKit.floatingInput({
+                anchorEl: labelEl,
+                value: this._settingValue(settingName) || '',
+                placeholder: $(labelEl).text(),
+                onCommit: (val) => this._quickSetSetting(settingName, val)
+            });
+        }
+
+        _startRenameTitle(titleEl) {
+            window.RadialWidgetKit.floatingInput({
+                anchorEl: titleEl,
+                value: this._settingValue('title') || '',
+                onCommit: (val) => this._quickSetSetting('title', val)
+            });
+        }
+
+        _setAxisColor(axis, hex) {
+            this._quickSetSetting(axis === 'x' ? 'trailColor' : 'latestColor', hex);
+        }
+
+        _findWidgetModel() {
+            return window.RadialWidgetKit.findWidgetModel(this);
+        }
+
+        _settingValue(name) {
+            const widgetModel = this._findWidgetModel();
+            if (!widgetModel) return this._resolveSetting(name);
+            return window.RadialWidgetKit.settingValue(widgetModel, name);
+        }
+
+        _quickSetSetting(name, value) {
+            window.RadialWidgetKit.quickSetSetting(this._findWidgetModel(), name, value);
+        }
+
+        _quickSetSourceDef(settingName, sourceDef) {
+            this._quickSetSetting(settingName, sourceDef);
         }
 
         _resolveSetting(key) {
@@ -474,12 +648,12 @@
                 `<span class="uplot-readout-label">Points</span>` +
                 `<span class="uplot-readout-value">${xs.length}</span>` +
                 `</div>` +
-                `<div class="uplot-readout-item">` +
+                `<div class="uplot-readout-item" data-axis="x">` +
                 `<span class="uplot-readout-swatch" style="border-color:${trailColor};"></span>` +
                 `<span class="uplot-readout-label">${xLabel}</span>` +
                 `<span class="uplot-readout-value">${lastX}</span>` +
                 `</div>` +
-                `<div class="uplot-readout-item">` +
+                `<div class="uplot-readout-item" data-axis="y">` +
                 `<span class="uplot-readout-swatch" style="border-color:${latestColor};"></span>` +
                 `<span class="uplot-readout-label">${yLabel}</span>` +
                 `<span class="uplot-readout-value">${lastY}</span>` +
