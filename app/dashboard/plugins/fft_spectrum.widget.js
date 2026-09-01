@@ -318,6 +318,41 @@
 
             this.chooseButton.on('click', () => this._chooseCsvFile());
             this.refreshButton.on('click', () => this._refresh(true));
+            this._bindRadialContextMenu();
+        }
+
+        // Milestone 5 of docs/GUI/02-navigation_overhaul.md: the lightest of
+        // the plot milestones. All three plots (time domain, spectrum,
+        // harmonics) render the *same* set of channelDefs, so right-clicking
+        // any one of them adds a channel the same way -- a flat list of the
+        // loaded CSV's columns, reusing the exact leaf-ring shape from
+        // fast_frame_plot's own CSV-column menu (Milestone 4), since this
+        // widget shares that CSV-file data model. No axis hover panels: the
+        // frequency/amplitude axes are fully auto-scaled, and the only
+        // per-axis-shaped settings (samplingPeriodUs, fundamentalFreqHz,
+        // maxFreqHz, maxHarmonic) are analysis parameters, not cosmetic axis
+        // fields, so there's nothing that belongs in a hover panel here.
+        _bindRadialContextMenu() {
+            this.plotsHost.on('contextmenu', '.fft-spectrum-chart-host', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    items: (this.availableColumns || []).map((col) => ({
+                        id: col, label: col, onSelect: () => this._quickAddChannel(col)
+                    }))
+                });
+            });
+        }
+
+        // Quick-add: appends the column to channelDefs with no dialog. Color
+        // isn't stored per-def -- _computeAnalysis assigns DEFAULT_COLORS by
+        // index when a def has none, same as every newly quick-added one.
+        _quickAddChannel(column) {
+            const current = normalizeFftChannelDefs(this.settings);
+            const next = [...current, { variable: column }];
+            this._persistSettings({ channelDefs: next });
         }
 
         _createSlot(title, defaultHeight) {
