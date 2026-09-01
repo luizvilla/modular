@@ -85,9 +85,39 @@
                 this.row.append(this.switchEl, this.stateLabel);
                 this.container.append(this.titleElement, this.row);
                 this._built = true;
+                this._bindRadialContextMenu();
             }
             $(containerElement).empty().append(this.container);
             this._applySettings();
+        }
+
+        // Milestone 7 of docs/GUI/02-navigation_overhaul.md: this is a
+        // write-only widget -- the radial's job is picking the write target,
+        // not editing a displayed value. Right-click drills any of the
+        // Buttons-relevant datasource types; picking a leaf sets `datasource`
+        // to that datasource, and additionally `writePath` when it's a
+        // ThingSet type (the only case where a specific leaf variable, not
+        // just the datasource itself, is the actual write target).
+        _bindRadialContextMenu() {
+            this.container.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const kit = window.RadialWidgetKit;
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    root: kit.buildChannelMenuRoot({
+                        includeTypes: ['serialport_datasource', 'fast_frame_datasource', 'thingset_serial_datasource', 'owntech_thingset_datasource'],
+                        onLeafSelect: (def) => this._quickSetWriteTarget(def)
+                    })
+                });
+            });
+        }
+
+        _quickSetWriteTarget(def) {
+            const patch = { datasource: def.ds };
+            if (isThingSetType(def.type)) patch.writePath = def.var;
+            window.RadialWidgetKit.quickSetSettings(window.RadialWidgetKit.findWidgetModel(this), patch);
         }
 
         _applySettings() {

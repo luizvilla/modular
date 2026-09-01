@@ -45,8 +45,66 @@
                 if (this.settings.datasource) this.dsSelect.val(this.settings.datasource);
                 this._renderButtons();
                 this._built = true;
+                this._bindRadialContextMenu();
             }
             $(containerElement).append(this.container);
+        }
+
+        // Milestone 7 of docs/GUI/02-navigation_overhaul.md: narrower scope
+        // than the other Buttons-family widgets -- a button's own target
+        // (path + value, or a raw command) genuinely varies per situation
+        // and stays dialog-only (Design Principle 2). The radial only covers
+        // + Add Button (a blank target in whichever mode -- serial command
+        // or ThingSet path/value -- is currently active) and renaming an
+        // existing button's label in place.
+        _bindRadialContextMenu() {
+            // Bound on the whole widget rather than just btnContainer: an
+            // empty button list collapses to zero height, leaving nothing to
+            // right-click inside it specifically.
+            this.container.on('contextmenu', (e) => {
+                if ($(e.target).is('button') || $(e.target).closest('.input-group').length) return;
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    items: [{ id: 'add-button', label: '+ Add Button', onSelect: () => this._quickAddButton() }]
+                });
+            });
+            this.btnContainer.on('dblclick', 'button', (e) => {
+                e.stopPropagation();
+                const idx = $(e.currentTarget).index();
+                this._startRenameButton(idx, e.currentTarget);
+            });
+        }
+
+        _quickAddButton() {
+            const { mode, rows } = this._activeButtonRows();
+            if (mode === 'thingset') {
+                this._persistSettings({ buttonTargets: [...rows, { path: '', value: '', label: '' }] });
+            } else {
+                this._persistSettings({ buttons: [...rows, { command: '', label: '' }] });
+            }
+        }
+
+        _startRenameButton(idx, btnEl) {
+            const { mode, rows } = this._activeButtonRows();
+            const row = rows[idx];
+            if (!row) return;
+            window.RadialWidgetKit.floatingInput({
+                anchorEl: btnEl,
+                value: row.label || '',
+                placeholder: $(btnEl).text(),
+                onCommit: (val) => {
+                    const key = mode === 'thingset' ? 'buttonTargets' : 'buttons';
+                    const updated = rows.map((r, i) => (i === idx ? { ...r, label: val } : r));
+                    this._persistSettings({ [key]: updated });
+                }
+            });
+        }
+
+        _persistSettings(patch) {
+            window.RadialWidgetKit.quickSetSettings(window.RadialWidgetKit.findWidgetModel(this), patch);
         }
 
         _refreshDatasourceOptions() {

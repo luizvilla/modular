@@ -54,10 +54,111 @@
                 this.valueWrapper.append(this.titleElement, this.valueRow);
                 this.container.append(this.minusBtn, this.valueWrapper, this.plusBtn);
                 this._built = true;
+                this._bindRadialContextMenu();
             }
             $(containerElement).empty().append(this.container);
             this._applySettings();
             this._restartSource();
+        }
+
+        // Milestone 7 of docs/GUI/02-navigation_overhaul.md: this widget both
+        // reads (sourceDef, for the displayed value) and writes (datasource +
+        // writePath/commands, for the +/- presses) -- two different targets
+        // that can legitimately differ, so they get two separate right-click
+        // zones rather than one. Hovering shows the one fixed field this
+        // widget has (Step); double-click the title to rename.
+        _bindRadialContextMenu() {
+            const kit = window.RadialWidgetKit;
+
+            this.valueWrapper.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    root: kit.buildChannelMenuRoot({ onLeafSelect: (def) => this._quickSetSetting('sourceDef', def) })
+                });
+            });
+
+            this.minusBtn.add(this.plusBtn).on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    root: kit.buildChannelMenuRoot({
+                        includeTypes: ['serialport_datasource', 'fast_frame_datasource', 'thingset_serial_datasource', 'owntech_thingset_datasource'],
+                        onLeafSelect: (def) => this._quickSetWriteTarget(def)
+                    })
+                });
+            });
+
+            this.titleElement.on('dblclick', (e) => {
+                e.stopPropagation();
+                kit.floatingInput({
+                    anchorEl: this.titleElement[0],
+                    value: this._settingValue('title') || '',
+                    onCommit: (val) => this._quickSetSetting('title', val)
+                });
+            });
+
+            this._bindHoverPanel();
+        }
+
+        _bindHoverPanel() {
+            const kit = window.RadialWidgetKit;
+            kit.ensureStyles();
+            this._hoverBridge = kit.makeHoverBridge(200);
+            this.container.on('mouseenter mousemove', () => {
+                this._hoverBridge.cancel();
+                this._showStepPanel();
+            });
+            this.container.on('mouseleave', () => {
+                this._hoverBridge.schedule(() => this._hideStepPanel());
+            });
+        }
+
+        _hideStepPanel() {
+            if (this._stepPanel) { this._stepPanel.remove(); this._stepPanel = null; }
+        }
+
+        _showStepPanel() {
+            if (this._stepPanel) return;
+            const kit = window.RadialWidgetKit;
+            const rect = this.container[0].getBoundingClientRect();
+            const panel = kit.floatingPanel({
+                position: { left: (rect.right + 8) + 'px', top: rect.top + 'px' },
+                rows: [
+                    kit.panelRow('number', 'Step', this._settingValue('step'), (v) => this._quickSetSetting('step', v === '' ? 1 : Number(v)))
+                ]
+            });
+            panel.on('mouseenter mousemove', () => this._hoverBridge.cancel());
+            panel.on('mouseleave', () => this._hoverBridge.schedule(() => this._hideStepPanel()));
+            this._stepPanel = panel;
+        }
+
+        _quickSetWriteTarget(def) {
+            const isThingSet = def.type === 'thingset_serial_datasource' || def.type === 'owntech_thingset_datasource';
+            const patch = { datasource: def.ds };
+            if (isThingSet) patch.writePath = def.var;
+            window.RadialWidgetKit.quickSetSettings(this._findWidgetModel(), patch);
+        }
+
+        _findWidgetModel() {
+            return window.RadialWidgetKit.findWidgetModel(this);
+        }
+
+        _settingValue(name) {
+            const widgetModel = this._findWidgetModel();
+            if (!widgetModel) {
+                const raw = this.settings ? this.settings[name] : undefined;
+                return typeof raw === 'function' ? raw() : raw;
+            }
+            return window.RadialWidgetKit.settingValue(widgetModel, name);
+        }
+
+        _quickSetSetting(name, value) {
+            window.RadialWidgetKit.quickSetSetting(this._findWidgetModel(), name, value);
         }
 
         _applySettings() {

@@ -100,6 +100,16 @@
         shared.commitWidgetSettings(widgetModel, { ...settings, [name]: value });
     }
 
+    // Multi-key variant for a single leaf choice that determines more than
+    // one setting at once (e.g. a Buttons-family write target choosing both
+    // `datasource` and `writePath` together) -- one commit, not two.
+    function quickSetSettings(widgetModel, patch) {
+        const shared = window.ModularPlotEditorShared;
+        if (!widgetModel || !shared) return;
+        const settings = widgetModel.settings() || {};
+        shared.commitWidgetSettings(widgetModel, { ...settings, ...patch });
+    }
+
     // Generalizes _startRenameChannel/_startRenameTitle's shared body: a
     // floating input positioned over `anchorEl` via getBoundingClientRect()
     // and appended to document.body, fully decoupled from any container the
@@ -306,6 +316,7 @@
         settingValue,
         quickSetSetting,
         floatingInput,
+        quickSetSettings,
         panelRow,
         floatingPanel,
         makeHoverBridge,
