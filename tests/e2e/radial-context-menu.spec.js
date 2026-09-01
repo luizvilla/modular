@@ -158,38 +158,7 @@ test('right-click near the axis margin sets Y Min inline, with no dialog', async
   }
 });
 
-test('right-click on the widget chrome still opens the full editor for Datasource', async () => {
-  const { app, page } = await launchApp();
-  try {
-    await waitForDashboard(page);
-    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
-
-    const widget = await plotWidget(page);
-    const summaryHost = widget.locator('.uplot-source-summary');
-    await expect(summaryHost).toBeVisible();
-    await summaryHost.scrollIntoViewIfNeeded();
-    const box = await summaryHost.boundingBox();
-
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
-    await expect(radialMenu(page)).toBeVisible();
-    await expect(page.locator('.radial-menu-wedge-label')).toHaveText('Datasource');
-
-    await clickWedgeByLabel(page, 'Datasource');
-    const chooseLeaf = page.locator('.radial-menu-leaf', { hasText: 'Choose Datasource' });
-    await expect(chooseLeaf).toBeVisible();
-    await chooseLeaf.click();
-
-    await expect(page.locator('#modal_overlay').last().locator('header .title')).toHaveText('Edit Widget');
-
-    await page.keyboard.press('Escape');
-    await app.close();
-  } catch (e) {
-    await app.close();
-    throw e;
-  }
-});
-
-test('hovering each zone shows the matching plain-text action hint before right-clicking', async () => {
+test('hovering the plot area or axis shows the matching plain-text action hint before right-clicking', async () => {
   const { app, page } = await launchApp();
   try {
     await waitForDashboard(page);
@@ -203,16 +172,116 @@ test('hovering each zone shows the matching plain-text action hint before right-
     const hint = page.locator('.uplot-radial-hover-hint');
 
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await expect(hint).toContainText('Channel');
+    await expect(hint).toContainText('Add Channel');
 
     await page.mouse.move(box.x + 10, box.y + box.height / 2);
-    await expect(hint).toContainText('Axis');
+    await expect(hint).toContainText('Change Axis');
 
-    const summaryHost = widget.locator('.uplot-source-summary');
-    await summaryHost.scrollIntoViewIfNeeded();
-    const sbox = await summaryHost.boundingBox();
-    await page.mouse.move(sbox.x + sbox.width / 2, sbox.y + sbox.height / 2);
-    await expect(hint).toContainText('Datasource');
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+async function addMeasurementsChannel(page) {
+  const widget = await plotWidget(page, 0, 0);
+  const chartHost = widget.locator('.uplot-chart-host');
+  await chartHost.scrollIntoViewIfNeeded();
+  const box = await chartHost.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+  await clickWedgeByLabel(page, 'MockOwnTechThingSet');
+  await clickWedgeByLabel(page, 'Measurements');
+  await page.locator('.radial-menu-leaf', { hasText: 'rVHigh_V' }).click();
+  const readoutItem = widget.locator('.uplot-readout-item[data-idx="0"]');
+  await expect(readoutItem).toBeVisible({ timeout: 10_000 });
+  return { widget, readoutItem };
+}
+
+test('double-clicking a channel\'s readout label renames it', async () => {
+  const { app, page } = await launchApp({ MOCK_THINGSET_MEASUREMENTS: '1' });
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('radial_context_menu_plot.json'));
+
+    const { readoutItem } = await addMeasurementsChannel(page);
+    const label = readoutItem.locator('.uplot-readout-label');
+    await label.dblclick();
+
+    const input = readoutItem.locator('.uplot-readout-label-input');
+    await expect(input).toBeVisible();
+    await input.fill('High Side V');
+    await input.press('Enter');
+
+    await expect(readoutItem.locator('.uplot-readout-label-input')).toHaveCount(0);
+    await expect(label).toHaveText('High Side V');
+    const savedLabel = await page.evaluate(() => {
+      const w = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+      return w.settings().seriesDefs[0].label;
+    });
+    expect(savedLabel).toBe('High Side V');
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+test('Escape while renaming a channel cancels without saving', async () => {
+  const { app, page } = await launchApp({ MOCK_THINGSET_MEASUREMENTS: '1' });
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('radial_context_menu_plot.json'));
+
+    const { readoutItem } = await addMeasurementsChannel(page);
+    await readoutItem.locator('.uplot-readout-label').dblclick();
+    const input = readoutItem.locator('.uplot-readout-label-input');
+    await expect(input).toBeVisible();
+    await input.fill('Should Not Save');
+    await input.press('Escape');
+
+    await expect(readoutItem.locator('.uplot-readout-label-input')).toHaveCount(0);
+    const savedLabel = await page.evaluate(() => {
+      const w = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+      return w.settings().seriesDefs[0].label;
+    });
+    expect(savedLabel).toBe('');
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+test('right-clicking a channel\'s color swatch opens a 10-color carrousel with no category step', async () => {
+  const { app, page } = await launchApp({ MOCK_THINGSET_MEASUREMENTS: '1' });
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('radial_context_menu_plot.json'));
+
+    const { readoutItem } = await addMeasurementsChannel(page);
+    const swatch = readoutItem.locator('.uplot-readout-swatch');
+    const swatchBox = await swatch.boundingBox();
+    await page.mouse.click(swatchBox.x + swatchBox.width / 2, swatchBox.y + swatchBox.height / 2, { button: 'right' });
+
+    await expect(radialMenu(page)).toBeVisible();
+    // No arcs at all -- straight to the leaf ring, since colors have nothing
+    // to categorize.
+    await expect(page.locator('.radial-menu-wedge')).toHaveCount(0);
+    const leaves = page.locator('.radial-menu-leaf');
+    await expect(leaves).toHaveCount(10);
+
+    const targetColor = await leaves.first().getAttribute('title');
+    await leaves.first().click();
+
+    await expect(radialMenu(page)).toHaveCount(0);
+    const savedColor = await page.evaluate(() => {
+      const w = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+      return w.settings().seriesDefs[0].color;
+    });
+    expect(savedColor.toLowerCase()).toBe(targetColor.toLowerCase());
 
     await app.close();
   } catch (e) {

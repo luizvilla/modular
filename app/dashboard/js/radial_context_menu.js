@@ -102,11 +102,16 @@
         return Math.max(LEAF_R_BASE, circumference / (2 * Math.PI));
     }
 
-    // root: array of top-level nodes (see file header for node shape).
-    function show({ x, y, root }) {
+    // root: array of top-level nodes (see file header for node shape), shown
+    // as category arcs first. items: array of leaf items shown directly as
+    // a circle ring with no arc/category step -- for menus with nothing to
+    // categorize (e.g. a straight color picker). Pass exactly one of the two.
+    function show({ x, y, root, items }) {
         injectStylesOnce();
         close();
-        if (!Array.isArray(root) || !root.length) return;
+        const startAsLeaves = !root && Array.isArray(items);
+        if (!startAsLeaves && (!Array.isArray(root) || !root.length)) return;
+        if (startAsLeaves && !items.length) return;
 
         const margin = LEAF_R_BASE + LEAF_BTN_SIZE + 40;
         const pos = clampToViewport(x, y, margin);
@@ -141,7 +146,7 @@
         menu.appendChild(centerBtn);
 
         // view stack: entries are { type: 'branch', nodes } | { type: 'leaves', items }
-        const viewStack = [{ type: 'branch', nodes: root }];
+        const viewStack = [startAsLeaves ? { type: 'leaves', items } : { type: 'branch', nodes: root }];
 
         function goBack() {
             if (viewStack.length <= 1) { close(); return; }
@@ -183,8 +188,13 @@
                 btn.className = 'radial-menu-leaf';
                 btn.style.left = lx + 'px';
                 btn.style.top = ly + 'px';
-                btn.textContent = item.label;
                 btn.title = item.label;
+                if (item.color) {
+                    btn.style.background = item.color;
+                    btn.style.borderColor = item.color;
+                } else {
+                    btn.textContent = item.label;
+                }
                 if (item.inlineEdit) {
                     btn.addEventListener('click', (e) => {
                         e.stopPropagation();
@@ -199,8 +209,9 @@
                 }
                 leafLayer.appendChild(btn);
             });
-            centerBtn.textContent = '←';
-            centerBtn.title = 'Back';
+            const canGoBack = viewStack.length > 1;
+            centerBtn.textContent = canGoBack ? '←' : '✕';
+            centerBtn.title = canGoBack ? 'Back' : 'Close';
             centerBtn.onclick = (e) => { e.stopPropagation(); goBack(); };
         }
 

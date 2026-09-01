@@ -188,20 +188,10 @@ class TimePlotUPlot {
                 }
             });
 
-            this.container.on('contextmenu', (e) => {
-                if (!window.RadialContextMenu) return;
-                e.preventDefault();
-                window.RadialContextMenu.show({
-                    x: e.clientX, y: e.clientY,
-                    root: [{
-                        id: 'datasource', label: 'Datasource',
-                        items: [{ id: 'choose', label: 'Choose Datasource', onSelect: () => this._openEditor({ section: 'source', field: 'source' }) }]
-                    }]
-                });
-            });
+            this._bindReadoutInteractions();
         }
 
-        // Small floating "🖐 + <zone>" label following the cursor, so the
+        // Small floating action-name label following the cursor, so the
         // user knows what a right click will do before committing to it.
         _bindHoverHint() {
             if (!this._hoverHintEl) {
@@ -212,6 +202,9 @@ class TimePlotUPlot {
                     // The system pointer already reads as clickable -- no need
                     // for a hand glyph in the hint text on top of it.
                     freeboard.addStyle('.uplot-chart-host, .uplot-widget-shell', 'cursor:pointer;');
+                    freeboard.addStyle('.uplot-readout-label, .uplot-readout-swatch', 'cursor:pointer;');
+                    freeboard.addStyle('.uplot-readout-label-input', 'width:100%;background:#141619;border:1px solid #6a90ff;border-radius:4px;color:#e8e8e8;font-size:inherit;padding:0 2px;');
+                    freeboard.addStyle('html.theme-light .uplot-readout-label-input', 'background:#ffffff;color:#1a1a1a;');
                 }
             }
             const showHint = (e, label) => {
@@ -221,11 +214,25 @@ class TimePlotUPlot {
                 showHint(e, this._chartZoneAt(e.clientX, e.clientY) === 'axis' ? 'Change Axis' : 'Add Channel');
             });
             this.chartHost.on('mouseleave', () => this._hoverHintEl.hide());
-            this.container.on('mousemove', (e) => {
-                if ($(e.target).closest(this.chartHost).length) return; // chartHost's own handler covers this
-                showHint(e, 'Add Datasource');
+        }
+
+        // Double-click a channel's name in the readout row to rename it;
+        // right-click its color swatch for a radial carrousel of the 10
+        // ColorBlind10 palette colors to pick a new one from. Bound once via
+        // delegation on readoutHost (a stable parent), since _renderReadouts()
+        // rebuilds its children wholesale on every poll.
+        _bindReadoutInteractions() {
+            if (!this.readoutHost) return;
+            this.readoutHost.on('dblclick', '.uplot-readout-label', (e) => {
+                const idx = parseInt($(e.currentTarget).closest('.uplot-readout-item').attr('data-idx'), 10);
+                if (Number.isFinite(idx)) this._startRenameChannel(idx, e.currentTarget);
             });
-            this.container.on('mouseleave', () => this._hoverHintEl.hide());
+            this.readoutHost.on('contextmenu', '.uplot-readout-swatch', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx = parseInt($(e.currentTarget).closest('.uplot-readout-item').attr('data-idx'), 10);
+                if (Number.isFinite(idx)) this._openColorCarrousel(idx, e.clientX, e.clientY);
+            });
         }
 
         _chartZoneAt(clientX, clientY) {
@@ -246,12 +253,6 @@ class TimePlotUPlot {
                 });
             });
             return found;
-        }
-
-        _openEditor(focusHint) {
-            const widgetModel = this._findWidgetModel();
-            if (!widgetModel || !window.ModularIntegratedPlotEditor) return;
-            window.ModularIntegratedPlotEditor.open(widgetModel, 'time_plot_uplot', null, focusHint);
         }
 
         _settingValue(name) {
@@ -286,6 +287,77 @@ class TimePlotUPlot {
             const color = palette[existing.length % palette.length];
             const newDef = { label: '', op: 'identity', param: 0, color, a: sourceDef, b: null };
             shared.commitWidgetSettings(widgetModel, { ...settings, seriesDefs: [...existing, newDef] });
+        }
+
+        _updateSeriesDefAt(idx, patch) {
+            const widgetModel = this._findWidgetModel();
+            const shared = window.ModularPlotEditorShared;
+            if (!widgetModel || !shared) return;
+            const settings = widgetModel.settings() || {};
+            const existing = shared.parseSeriesDefs(settings.seriesDefs);
+            if (!existing[idx]) return;
+            const updated = existing.map((def, i) => (i === idx ? { ...def, ...patch } : def));
+            shared.commitWidgetSettings(widgetModel, { ...settings, seriesDefs: updated });
+        }
+
+        _setChannelLabel(idx, label) {
+            this._updateSeriesDefAt(idx, { label });
+        }
+
+        _setChannelColor(idx, color) {
+            this._updateSeriesDefAt(idx, { color });
+        }
+
+        // Swaps a channel's readout label for a small text input in place --
+        // Enter/blur commits, Escape cancels back to the plain label.
+        _startRenameChannel(idx, labelEl) {
+            const widgetModel = this._findWidgetModel();
+            const shared = window.ModularPlotEditorShared;
+            if (!widgetModel || !shared) return;
+            const existing = shared.parseSeriesDefs((widgetModel.settings() || {}).seriesDefs);
+            const def = existing[idx];
+            if (!def) return;
+
+            const $label = $(labelEl);
+            const placeholderText = $label.text();
+            const input = $('<input type="text" class="uplot-readout-label-input">')
+                .val(def.label || '')
+                .attr('placeholder', placeholderText);
+            $label.empty().append(input);
+
+            let done = false;
+            const commit = () => {
+                if (done) return;
+                done = true;
+                this._setChannelLabel(idx, input.val());
+            };
+            const cancel = () => {
+                if (done) return;
+                done = true;
+                this._renderReadouts();
+            };
+            input.on('click', (e) => e.stopPropagation());
+            input.on('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); commit(); }
+                else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            });
+            input.on('blur', () => commit());
+            requestAnimationFrame(() => { input.trigger('focus'); input[0].select(); });
+        }
+
+        // A ring of the 10 ColorBlind10 palette colors around the click
+        // point, no category step -- there's nothing to categorize.
+        _openColorCarrousel(idx, clientX, clientY) {
+            const shared = window.ModularPlotEditorShared;
+            if (!shared || !window.RadialContextMenu) return;
+            const themes = shared.getColorThemes();
+            const fallback = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ac'];
+            const palette = (Array.isArray(themes.ColorBlind10) && themes.ColorBlind10.length) ? themes.ColorBlind10 : fallback;
+            window.RadialContextMenu.show({
+                x: clientX, y: clientY,
+                items: palette.map((hex) => ({ id: hex, label: hex, color: hex, onSelect: () => this._setChannelColor(idx, hex) }))
+            });
         }
 
         _dsLatestData(dsName) {
@@ -1125,9 +1197,9 @@ class TimePlotUPlot {
                 const label = _.escape(this._getSeriesLabel(i));
                 const color = _.escape(this._getSeriesColor(i));
                 cards.push(
-                    `<div class="uplot-readout-item">` +
-                    `<span class="uplot-readout-swatch" style="border-color:${color};"></span>` +
-                    `<span class="uplot-readout-label">${label}</span>` +
+                    `<div class="uplot-readout-item" data-idx="${i}">` +
+                    `<span class="uplot-readout-swatch" style="border-color:${color};" title="Right-click to change color"></span>` +
+                    `<span class="uplot-readout-label" title="Double-click to rename">${label}</span>` +
                     `<span class="uplot-readout-value">${this._formatReadoutValue(latest)}</span>` +
                     `</div>`
                 );
