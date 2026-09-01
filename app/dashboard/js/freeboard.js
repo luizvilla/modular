@@ -5638,6 +5638,117 @@ var freeboard = (function()
 		{
 			saveWidgetCategoryConfig(config);
 		},
+		// Read-only access to the loaded plugin catalogs, for callers (e.g. the
+		// dashboard/pane-level radial context menus) that need to enumerate
+		// available types without reimplementing plugin registration.
+		getWidgetPluginTypes: function()
+		{
+			return widgetPlugins;
+		},
+		getDatasourcePluginTypes: function()
+		{
+			return datasourcePlugins;
+		},
+		// Groups the loaded widget plugin types by category, the same way the
+		// widget-picker modal does (getWidgetCategoryForType against the
+		// user's stored/default category config), for the pane-level radial
+		// menu (docs/GUI/02-navigation_overhaul.md, Milestone 2). Ordering
+		// within a category is alphabetical by display name -- a deliberate
+		// simplification versus the modal's own bespoke preferred-order table,
+		// since that's presentation-only and not worth duplicating here.
+		getCategorizedWidgetPlugins: function()
+		{
+			var categoryConfig = getWidgetCategoryConfig();
+			var grouped = {};
+			_.each(widgetPlugins, function(pluginType)
+			{
+				if(pluginType.compatibility_only) return;
+				var category = getWidgetCategoryForType(pluginType.type_name, pluginType, categoryConfig);
+				if(!_.contains(categoryConfig.categories, category))
+				{
+					category = "Other";
+				}
+				(grouped[category] = grouped[category] || []).push(pluginType);
+			});
+			_.each(grouped, function(list)
+			{
+				list.sort(function(a, b)
+				{
+					return (a.display_name || a.type_name).localeCompare(b.display_name || b.type_name);
+				});
+			});
+			var result = [];
+			_.each(categoryConfig.categories, function(category)
+			{
+				if(grouped[category] && grouped[category].length)
+				{
+					result.push({ category: category, plugins: grouped[category] });
+				}
+			});
+			return result;
+		},
+		// Reuses the exact 'add datasource' code path the pluginEditor
+		// knockout binding runs (see ko.bindingHandlers.pluginEditor.init),
+		// but callable directly from a radial-menu leaf instead of a DOM
+		// click. Passing a preset type name already lands createPluginEditor
+		// straight on the settings step, skipping the type-picker grid --
+		// the radial's own arc already served as the type picker.
+		openAddDatasourceEditor: function(presetTypeName)
+		{
+			pluginEditor.createPluginEditor("Datasource", datasourcePlugins, presetTypeName, {}, function(newSettings)
+			{
+				var newViewModel = new DatasourceModel(theFreeboardModel, datasourcePlugins);
+				theFreeboardModel.addDatasource(newViewModel);
+				newViewModel.name(newSettings.settings.name);
+				delete newSettings.settings.name;
+				newViewModel.settings(newSettings.settings);
+				newViewModel.type(newSettings.type);
+			});
+		},
+		// Same idea for widgets, adding to `paneViewModel` directly -- but
+		// unlike the datasource case, a preset currentTypeName would land on
+		// a settings *form* (Design Principle 4 says quick-add should use
+		// defaults, no dialog, for types that already skip the form when
+		// picked from the modal's own type grid). So this still opens in ADD
+		// mode with no preset type (building the real widgetPicker and
+		// binding its normal tile click handlers), then immediately
+		// simulates a click on the one tile for `presetTypeName` -- the exact
+		// DOM event a user picking that tile by hand would fire, including
+		// the picker's own skip-straight-to-add logic for types with no
+		// settings or in the integrated-editor list.
+		openAddWidgetEditor: function(paneViewModel, presetTypeName)
+		{
+			var integratedEditorTypes = ['time_plot_uplot', 'xy_plot_uplot', 'fast_frame_plot', 'fft_spectrum_plot',
+				'vertical_gauge', 'horizontal_gauge', 'radial_arc_gauge', 'radial_needle_gauge', 'donut_gauge', 'plus_minus_button', 'serial_command_buttons'];
+			pluginEditor.createPluginEditor("Widget", widgetPlugins, undefined, {}, function(newSettings)
+			{
+				if(_.isUndefined(newSettings.settings.title) || newSettings.settings.title === "")
+				{
+					var widgetType = widgetPlugins[newSettings.type];
+					if(widgetType && widgetType.display_name)
+					{
+						newSettings.settings.title = widgetType.display_name;
+					}
+				}
+				var newViewModel = new WidgetModel(theFreeboardModel, widgetPlugins);
+				newViewModel.settings(newSettings.settings);
+				newViewModel.type(newSettings.type);
+				if((_.isUndefined(newSettings.settings.title) || newSettings.settings.title === "") && widgetPlugins[newSettings.type] && widgetPlugins[newSettings.type].display_name)
+				{
+					newViewModel.title(widgetPlugins[newSettings.type].display_name);
+				}
+				paneViewModel.widgets.push(newViewModel);
+				freeboardUI.attachWidgetEditIcons($(".sub-section"));
+				if(integratedEditorTypes.indexOf(newSettings.type) > -1)
+				{
+					freeboard.openIntegratedPlotEditor(newViewModel, newSettings.type);
+				}
+			}, true, integratedEditorTypes);
+			if(presetTypeName)
+			{
+				$('#modal_overlay').last().find('.widget-tile[data-type="' + presetTypeName + '"]').trigger('click');
+			}
+		},
 		openIntegratedPlotEditor: function(widgetModel, type)
 		{
 			if(window.ModularIntegratedPlotEditor && _.isFunction(window.ModularIntegratedPlotEditor.open))

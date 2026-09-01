@@ -9,6 +9,7 @@
     { "path": "js/dashboard_control.js", "order": 20 },
     { "path": "js/radial_context_menu.js", "order": 25 },
     { "path": "js/radial_widget_kit.js", "order": 26 },
+    { "path": "js/board_context_menu.js", "order": 27 },
     { "path": "plugins/uplot.widget.js", "order": 30 },
     { "path": "plugins/xy_plot.widget.js", "order": 40 },
     { "path": "js/zoom_control.js", "order": 50 },
