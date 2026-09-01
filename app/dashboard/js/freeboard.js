@@ -5645,6 +5645,23 @@ var freeboard = (function()
 		{
 			return widgetPlugins;
 		},
+		// Same default-icon-per-category map the widget-picker modal itself
+		// uses (M10, docs/GUI/02-navigation_overhaul.md), for a widget-type
+		// plugin that doesn't declare its own `icon`.
+		getWidgetCategoryDefaultIcons: function()
+		{
+			return {
+				"OwnTech": "bolt",
+				"Fast Frame": "chart-area",
+				"Serial": "terminal",
+				"ThingSet": "network-wired",
+				"Plots": "chart-line",
+				"Gauges": "gauge-high",
+				"Controls": "sliders",
+				"Buttons": "toggle-on",
+				"Other": "puzzle-piece"
+			};
+		},
 		getDatasourcePluginTypes: function()
 		{
 			return datasourcePlugins;

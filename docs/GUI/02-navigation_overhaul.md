@@ -181,6 +181,20 @@ Carried over from the pilot, or newly learned from it:
 
 ---
 
+## Milestone 10 — Polish from live user testing (M0-M8 follow-ups)
+
+**Goal:** three fixes reported after using the M0-M8 implementation live, none of them new surface area — all three are corrections to the pilot's own generic infrastructure (`radial_context_menu.js` / `radial_widget_kit.js`), so every widget built on it picks up the fix automatically.
+
+- **Icon-only widget-type leaves.** The pane-level radial's widget-type leaf ring (M2) was showing full display names as text inside a 64px circle, cramped and inconsistent with "icon reads as the affordance" (Design Principle 7's own reasoning, extended to this menu). `RadialContextMenu`'s leaf renderer gained an `item.icon` field (Font Awesome, rendered via `<i class="fa-solid fa-…">`, alongside the existing `item.color` swatch and plain-text cases); `board_context_menu.js` now passes each widget plugin's own `icon`, falling back to `freeboard.getWidgetCategoryDefaultIcons()` (the same per-category defaults the widget-picker modal already uses) and then `puzzle-piece`. The label is still there as the leaf's native `title` tooltip and accessible name — just not painted text.
+- **Duplicate leaf circles for same-named leaves under different groups.** `buildThingSetCategoryNodes()` bucketed only one level deep (top segment → flat leaf ring keyed by the *last* path segment), so a multi-leg board's `/Config/Leg1/wEnable` and `/Config/Leg2/wEnable` both collapsed to a bare "wEnable" leaf — two visually identical circles for genuinely different paths. Replaced with a recursive `levelFor()` that only drills one more level when it would actually resolve a same-label collision (or when entries are more than one segment deeper), and groups a level's non-nested scalars (e.g. `/Config/rMode`, `/Config/wMode`) under one shared "General" wedge rather than each getting its own single-item wedge. A flat single-level group (e.g. `Measurements`) still renders straight to leaves with no extra hop — this only adds structure where duplication would otherwise occur.
+- **Axis/gauge hover panel lingered too long after the mouse left.** `RadialWidgetKit.makeHoverBridge()`'s hide-debounce (bridges the physical gap between a trigger zone and its floating panel, e.g. time plot's Y-axis margin → its Y Label/Min/Max panel) was 200ms, long enough to read as a lag rather than a deliberate grace period. Reduced to 80ms — still enough to move the cursor from the margin into the panel without it flickering shut, but the panel now disappears promptly once the mouse has genuinely left both.
+
+**Files touched:** `app/dashboard/js/radial_context_menu.js` (icon leaf rendering), `app/dashboard/js/board_context_menu.js` (pass `icon` per widget-type leaf), `app/dashboard/js/freeboard.js` (`getWidgetCategoryDefaultIcons()`), `app/dashboard/js/radial_widget_kit.js` (`buildThingSetCategoryNodes()` rewrite, `makeHoverBridge()` default), `app/dashboard/plugins/{uplot,xy_plot,fast_frame_plot,plusminus_button}.widget.js` + `gauge_family.shared.js` (adopt the new hover-bridge default), test additions across `radial-context-menu*.spec.js` and `board-context-menu.spec.js`.
+
+**Dependency:** M0-M8 (fixes to their shared infrastructure, not new milestones of its own).
+
+---
+
 ## Non-Goals / Explicitly Out of Scope (whole plan)
 
 - **Legacy freeboard built-in widgets** (`text_widget`, `gauge` [the old freeboard one, distinct from the new gauge family], `sparkline`, `pointer`, `picture`, `indicator`, `google_map`) and their demo datasources (`JSON`, `openweathermap`) — these predate this app's own widget conventions and aren't part of the OwnTech-relevant surface. No radial adaptation planned, ever, unless explicitly requested later.

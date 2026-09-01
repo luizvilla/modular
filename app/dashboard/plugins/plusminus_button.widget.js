@@ -108,7 +108,7 @@
         _bindHoverPanel() {
             const kit = window.RadialWidgetKit;
             kit.ensureStyles();
-            this._hoverBridge = kit.makeHoverBridge(200);
+            this._hoverBridge = kit.makeHoverBridge();
             this.container.on('mouseenter mousemove', () => {
                 this._hoverBridge.cancel();
                 this._showStepPanel();

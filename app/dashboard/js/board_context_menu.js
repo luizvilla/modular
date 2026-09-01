@@ -40,10 +40,16 @@
 
     function buildWidgetCategoryMenuRoot(paneViewModel) {
         const groups = (window.freeboard && freeboard.getCategorizedWidgetPlugins) ? freeboard.getCategorizedWidgetPlugins() : [];
+        const defaultIcons = (window.freeboard && freeboard.getWidgetCategoryDefaultIcons) ? freeboard.getWidgetCategoryDefaultIcons() : {};
         return groups.map((group) => ({
             id: group.category, label: group.category,
+            // Icon-only circles (M10, docs/GUI/02-navigation_overhaul.md) --
+            // the type name is still available as the leaf's hover tooltip,
+            // it just isn't painted text competing with the icon for space
+            // in a 64px circle.
             items: group.plugins.map((plugin) => ({
                 id: plugin.type_name, label: plugin.display_name || plugin.type_name,
+                icon: plugin.icon || defaultIcons[group.category] || 'puzzle-piece',
                 onSelect: () => freeboard.openAddWidgetEditor(paneViewModel, plugin.type_name)
             }))
         }));

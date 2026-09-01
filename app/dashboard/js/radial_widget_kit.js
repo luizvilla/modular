@@ -180,8 +180,11 @@
     // trigger zone into the panel itself (which lives outside the trigger
     // element's own DOM) shouldn't close it. Call cancel() on
     // mouseenter/mousemove over either the zone or the panel, schedule(fn) on
-    // mouseleave of either.
-    function makeHoverBridge(delayMs = 200) {
+    // mouseleave of either. Short by design (M10, docs/GUI/02-navigation_overhaul.md):
+    // just long enough to bridge the physical gap between the trigger zone
+    // and the panel without the panel visibly lingering once the mouse has
+    // genuinely left both.
+    function makeHoverBridge(delayMs = 80) {
         let timer = null;
         return {
             cancel: () => { if (timer) { clearTimeout(timer); timer = null; } },
@@ -210,7 +213,7 @@
     function buildThingSetCategoryNodes(dsName, dsType, onLeafSelect) {
         const data = dsLatestData(dsName);
         const values = data.values || {};
-        const buckets = {};
+        const entries = [];
         Object.keys(values).forEach((path) => {
             const clean = path.replace(/^\/+/, '');
             if (!clean) return;
@@ -219,29 +222,74 @@
             // root rather than nested under a real named group -- there's no
             // meaningful group to bucket it into.
             if (segments.length < 2) return;
-            const top = segments[0];
-            const label = segments[segments.length - 1];
-            (buckets[top] = buckets[top] || []).push({ path, label });
+            entries.push({ path, segments });
         });
-        const leafItems = (entries) => entries
-            .slice()
-            .sort((a, b) => a.label.localeCompare(b.label))
-            .map((entry) => ({
-                id: entry.path, label: entry.label,
-                onSelect: () => onLeafSelect({ ds: dsName, type: dsType, device: null, device_uid: null, var: entry.path })
-            }));
-        const nodes = [];
-        if (buckets.Measurements) {
-            nodes.push({ id: 'Measurements', label: 'Measurements', items: leafItems(buckets.Measurements) });
+
+        const leafItem = (entry) => ({
+            id: entry.path, label: entry.segments[entry.segments.length - 1],
+            onSelect: () => onLeafSelect({ ds: dsName, type: dsType, device: null, device_uid: null, var: entry.path })
+        });
+
+        // Recursively drills one more level whenever flattening straight to
+        // leaves at this depth would produce same-named siblings -- e.g. a
+        // multi-leg board's /Config/Leg1/wEnable and /Config/Leg2/wEnable
+        // both collapsing to a bare "wEnable" leaf, which used to render as
+        // visually duplicate circles for genuinely different paths. Only
+        // branches when actually needed, so a flat single-level group (like
+        // Measurements) still renders straight to leaves with no extra hop.
+        function levelFor(groupEntries, depth) {
+            const labelOf = (e) => e.segments[e.segments.length - 1];
+            const labels = groupEntries.map(labelOf);
+            const hasDuplicateLabels = new Set(labels).size !== labels.length;
+            const hasDeeperEntries = groupEntries.some((e) => e.segments.length > depth + 1);
+            if (!hasDuplicateLabels && !hasDeeperEntries) {
+                return { items: groupEntries.slice().sort((a, b) => labelOf(a).localeCompare(labelOf(b))).map(leafItem) };
+            }
+            // Entries that end exactly at this depth (no further segments)
+            // share one sentinel bucket ("General") instead of each getting
+            // its own single-item wedge -- e.g. /Config/rMode and
+            // /Config/wMode sitting alongside per-leg /Config/Leg1/wEnable,
+            // /Config/Leg2/wEnable: only the leg entries actually need
+            // disambiguating, so only they get their own named wedge.
+            const DIRECT = ' direct';
+            const buckets = {};
+            const order = [];
+            groupEntries.forEach((e) => {
+                const isDeeper = e.segments.length > depth + 1;
+                const key = isDeeper ? e.segments[depth] : DIRECT;
+                if (!buckets[key]) { buckets[key] = []; order.push(key); }
+                buckets[key].push(e);
+            });
+            // Bucketing by this segment didn't actually separate anything
+            // (every entry shares the same next segment) -- stop drilling
+            // and fall back to flat leaves rather than looping forever.
+            if (order.length === 1) {
+                return { items: groupEntries.slice().sort((a, b) => labelOf(a).localeCompare(labelOf(b))).map(leafItem) };
+            }
+            order.sort();
+            return {
+                children: order.map((key) => ({
+                    id: key, label: key === DIRECT ? 'General' : key,
+                    ...levelFor(buckets[key], depth + 1)
+                }))
+            };
         }
-        const otherGroups = Object.keys(buckets).filter((k) => k !== 'Measurements').sort();
+
+        const topBuckets = {};
+        entries.forEach((e) => {
+            const top = e.segments[0];
+            (topBuckets[top] = topBuckets[top] || []).push(e);
+        });
+
+        const nodes = [];
+        if (topBuckets.Measurements) {
+            nodes.push({ id: 'Measurements', label: 'Measurements', ...levelFor(topBuckets.Measurements, 1) });
+        }
+        const otherGroups = Object.keys(topBuckets).filter((k) => k !== 'Measurements').sort();
         if (otherGroups.length) {
             nodes.push({
                 id: 'Others', label: 'Others',
-                children: otherGroups.map((group) => ({
-                    id: group, label: group,
-                    items: leafItems(buckets[group])
-                }))
+                children: otherGroups.map((group) => ({ id: group, label: group, ...levelFor(topBuckets[group], 1) }))
             });
         }
         return nodes;

@@ -94,7 +94,7 @@
         _bindChartHover() {
             const kit = window.RadialWidgetKit;
             kit.ensureStyles();
-            this._axisHoverBridge = kit.makeHoverBridge(200);
+            this._axisHoverBridge = kit.makeHoverBridge();
 
             this.chartHost.on('mousemove', (e) => {
                 const zone = this._chartZoneAt(e.clientX, e.clientY);

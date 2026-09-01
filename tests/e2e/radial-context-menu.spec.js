@@ -66,6 +66,14 @@ test('right-click on the plot area drills through Others into Config and quick-a
     expect(level3).toEqual(['Config', 'Debug']);
 
     await clickWedgeByLabel(page, 'Config');
+    // Config's own direct scalars (rMode/wMode) share a "General" wedge,
+    // separate from the per-leg groups (Leg1/Leg2) -- M10 fix: their leaf
+    // names (wEnable, wCapa, ...) used to collapse to the same label across
+    // legs, rendering as visually duplicate circles for different paths.
+    const level4 = (await page.locator('.radial-menu-wedge-label').allTextContents()).sort();
+    expect(level4).toEqual(['General', 'Leg1', 'Leg2']);
+
+    await clickWedgeByLabel(page, 'General');
     const leaf = page.locator('.radial-menu-leaf', { hasText: 'rMode' });
     await expect(leaf).toBeVisible();
     await leaf.click();
@@ -76,6 +84,60 @@ test('right-click on the plot area drills through Others into Config and quick-a
     });
     expect(seriesDefs).toHaveLength(1);
     expect(seriesDefs[0].a).toMatchObject({ ds: 'MockOwnTechThingSet', var: '/Config/rMode' });
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+// M10 (docs/GUI/02-navigation_overhaul.md): real per-leg boards (Leg1, Leg2,
+// ...) each have their own identically-named leaves (wEnable, wCapa,
+// wDriver, sFault) -- these used to collapse to the same last-path-segment
+// label regardless of which leg they came from, rendering as visually
+// duplicate circles for genuinely different paths.
+test('same-named leaves under different legs render as distinct circles, not duplicates', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('radial_context_menu_plot.json'));
+
+    const widget = await plotWidget(page, 0, 0);
+    const chartHost = widget.locator('.uplot-chart-host');
+    await chartHost.scrollIntoViewIfNeeded();
+    const box = await chartHost.boundingBox();
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+    await clickWedgeByLabel(page, 'MockOwnTechThingSet');
+    await clickWedgeByLabel(page, 'Others');
+    await clickWedgeByLabel(page, 'Config');
+
+    const configWedges = (await page.locator('.radial-menu-wedge-label').allTextContents()).sort();
+    expect(configWedges).toEqual(['General', 'Leg1', 'Leg2']);
+
+    await clickWedgeByLabel(page, 'Leg1');
+    const leg1Leaves = (await page.locator('.radial-menu-leaf').allTextContents()).sort();
+    expect(leg1Leaves).toEqual(['sFault', 'wCapa', 'wDriver', 'wEnable']);
+    const leg1Leaf = page.locator('.radial-menu-leaf', { hasText: 'wEnable' });
+    await leg1Leaf.click();
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+    await clickWedgeByLabel(page, 'MockOwnTechThingSet');
+    await clickWedgeByLabel(page, 'Others');
+    await clickWedgeByLabel(page, 'Config');
+    await clickWedgeByLabel(page, 'Leg2');
+    const leg2Leaves = (await page.locator('.radial-menu-leaf').allTextContents()).sort();
+    expect(leg2Leaves).toEqual(['sFault', 'wCapa', 'wDriver', 'wEnable']);
+    await page.locator('.radial-menu-leaf', { hasText: 'wEnable' }).click();
+
+    const seriesDefs = await page.evaluate(() => {
+      const w = window.freeboard.getLiveModel().panes()[0].widgets()[0];
+      return w.settings().seriesDefs;
+    });
+    expect(seriesDefs).toHaveLength(2);
+    expect(seriesDefs[0].a).toMatchObject({ var: '/Config/Leg1/wEnable' });
+    expect(seriesDefs[1].a).toMatchObject({ var: '/Config/Leg2/wEnable' });
 
     await app.close();
   } catch (e) {
@@ -127,6 +189,38 @@ test('hovering the Y-axis margin shows an inline quick-edit panel, no right-clic
     await page.mouse.move(freshBox.x + freshBox.width - 10, freshBox.y + freshBox.height / 2);
     await page.waitForTimeout(400);
     await expect(page.locator('.uplot-axis-hover-panel')).toHaveCount(0);
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
+// M10 (docs/GUI/02-navigation_overhaul.md): the hide-debounce used to be
+// 200ms, which read as a noticeable lag between "mouse left the axis" and
+// "panel actually gone." Shortened to 80ms -- this proves it disappears
+// promptly rather than lingering, without asserting an exact timing that'd
+// make the test brittle.
+test('the axis hover panel disappears promptly after the mouse leaves, not with a long lag', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+
+    const widget = await plotWidget(page);
+    const chartHost = widget.locator('.uplot-chart-host');
+    await chartHost.scrollIntoViewIfNeeded();
+    const box = await chartHost.boundingBox();
+
+    await page.mouse.move(box.x + 10, box.y + box.height / 2);
+    const panel = page.locator('.uplot-axis-hover-panel');
+    await expect(panel).toBeVisible();
+
+    await page.mouse.move(box.x + box.width - 10, box.y + box.height / 2);
+    // A short poll window well under the old 200ms delay -- if the fix
+    // regressed back to a long lag, this would time out and fail.
+    await expect(page.locator('.uplot-axis-hover-panel')).toHaveCount(0, { timeout: 200 });
 
     await app.close();
   } catch (e) {
