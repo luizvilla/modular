@@ -209,18 +209,21 @@ class TimePlotUPlot {
                 if (freeboard && typeof freeboard.addStyle === 'function') {
                     freeboard.addStyle('.uplot-radial-hover-hint', 'position:fixed;z-index:9999;pointer-events:none;background:#20232a;color:#e8e8e8;border:1px solid #454b55;border-radius:4px;padding:2px 8px;font-size:11px;white-space:nowrap;');
                     freeboard.addStyle('html.theme-light .uplot-radial-hover-hint', 'background:#ffffff;color:#1a1a1a;border-color:#c8c8c8;');
+                    // The system pointer already reads as clickable -- no need
+                    // for a hand glyph in the hint text on top of it.
+                    freeboard.addStyle('.uplot-chart-host, .uplot-widget-shell', 'cursor:pointer;');
                 }
             }
             const showHint = (e, label) => {
-                this._hoverHintEl.text(`🖐 + ${label}`).css({ left: (e.clientX + 14) + 'px', top: (e.clientY + 14) + 'px' }).show();
+                this._hoverHintEl.text(label).css({ left: (e.clientX + 14) + 'px', top: (e.clientY + 14) + 'px' }).show();
             };
             this.chartHost.on('mousemove', (e) => {
-                showHint(e, this._chartZoneAt(e.clientX, e.clientY) === 'axis' ? 'Axis' : 'Channel');
+                showHint(e, this._chartZoneAt(e.clientX, e.clientY) === 'axis' ? 'Change Axis' : 'Add Channel');
             });
             this.chartHost.on('mouseleave', () => this._hoverHintEl.hide());
             this.container.on('mousemove', (e) => {
                 if ($(e.target).closest(this.chartHost).length) return; // chartHost's own handler covers this
-                showHint(e, 'Datasource');
+                showHint(e, 'Add Datasource');
             });
             this.container.on('mouseleave', () => this._hoverHintEl.hide());
         }

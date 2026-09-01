@@ -189,7 +189,7 @@ test('right-click on the widget chrome still opens the full editor for Datasourc
   }
 });
 
-test('hovering each zone shows the matching hand hint before right-clicking', async () => {
+test('hovering each zone shows the matching plain-text action hint before right-clicking', async () => {
   const { app, page } = await launchApp();
   try {
     await waitForDashboard(page);
