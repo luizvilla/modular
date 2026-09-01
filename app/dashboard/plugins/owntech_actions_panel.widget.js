@@ -82,11 +82,34 @@
                 headerRow.append(this.rescanBtn, this.statusLine);
                 this.container.append(headerRow, this.powerWrap, this.legsWrap);
                 this._built = true;
+                this._bindRadialContextMenu();
             }
             $(el).empty().append(this.container);
             this._subscribeToDatasource();
             this._renderPowerControls();
             this._renderLegs();
+        }
+
+        // Milestone 8 of docs/GUI/02-navigation_overhaul.md (explicitly lower
+        // priority than the plot/gauge/button families -- this widget is
+        // already direct-manipulation, one click per action, with less
+        // "which one of many" friction to remove). The only broadly useful
+        // zone: right-click the datasource summary line to reassign the
+        // linked datasource, a flat leaf list since there's nothing to
+        // categorize among 2-3 ThingSet-serial datasources.
+        _bindRadialContextMenu() {
+            this.statusLine.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    items: getThingSetDatasourceOptions().map((opt) => ({
+                        id: opt.value, label: opt.name,
+                        onSelect: () => window.RadialWidgetKit.quickSetSetting(window.RadialWidgetKit.findWidgetModel(this), 'datasource', opt.value)
+                    }))
+                });
+            });
         }
 
         _dsModel() {

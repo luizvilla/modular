@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "columns": 2,
+  "panes": [
+    {
+      "title": "OwnTech Actions",
+      "width": 1,
+      "row": { "2": 1 },
+      "col": { "2": 1 },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "owntech_actions_panel",
+          "settings": {
+            "title": "Actions",
+            "datasource": "MockOwnTechThingSet",
+            "usePrefix": false,
+            "debug": false
+          }
+        }
+      ]
+    }
+  ],
+  "datasources": [
+    { "name": "MockOwnTechThingSet", "type": "owntech_thingset_datasource", "settings": { "autoDetect": true, "portPath": "COM_MOCK", "baudRate": 115200, "usePrefix": false, "refresh": 1000, "debug": false } },
+    { "name": "MockThingSetSerial", "type": "thingset_serial_datasource", "settings": { "autoDetect": true, "portPath": "COM_MOCK2", "baudRate": 115200, "usePrefix": false, "refresh": 1000, "debug": false } }
+  ]
+}
