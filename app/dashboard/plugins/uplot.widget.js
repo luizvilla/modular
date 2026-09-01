@@ -171,61 +171,34 @@ class TimePlotUPlot {
             this._bindTitleRename();
         }
 
-        _ensureHoverStylesInjected() {
-            if (this._hoverHintEl) return;
-            this._hoverHintEl = $('<div class="uplot-radial-hover-hint"></div>').appendTo(document.body).hide();
-            if (!(freeboard && typeof freeboard.addStyle === 'function')) return;
-            freeboard.addStyle('.uplot-radial-hover-hint', 'position:fixed;z-index:9999;pointer-events:none;background:#20232a;color:#e8e8e8;border:1px solid #454b55;border-radius:4px;padding:2px 8px;font-size:11px;white-space:nowrap;');
-            freeboard.addStyle('html.theme-light .uplot-radial-hover-hint', 'background:#ffffff;color:#1a1a1a;border-color:#c8c8c8;');
-            // The system pointer already reads as clickable -- no need for a
-            // hand glyph in the hint text on top of it.
-            freeboard.addStyle('.uplot-chart-host, .uplot-widget-shell', 'cursor:pointer;');
-            freeboard.addStyle('.uplot-readout-label, .uplot-readout-swatch, .u-title', 'cursor:pointer;');
-            // Shared by the channel-label and title floating rename inputs --
-            // both live in document.body, independent of whatever DOM churn
-            // (readout re-renders, plot resets) is happening underneath them.
-            freeboard.addStyle('.uplot-floating-input', 'z-index:9999;background:#141619;border:1px solid #6a90ff;border-radius:4px;color:#e8e8e8;font-size:inherit;padding:0 2px;text-align:center;');
-            freeboard.addStyle('html.theme-light .uplot-floating-input', 'background:#ffffff;color:#1a1a1a;');
-            freeboard.addStyle('.uplot-axis-hover-panel', 'position:fixed;z-index:9999;background:#20232a;border:1px solid #454b55;border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);');
-            freeboard.addStyle('html.theme-light .uplot-axis-hover-panel', 'background:#ffffff;border-color:#c8c8c8;box-shadow:0 2px 8px rgba(0,0,0,0.15);');
-            freeboard.addStyle('.uplot-axis-hover-panel-row', 'display:flex;align-items:center;gap:6px;font-size:11px;color:#c8c8c8;white-space:nowrap;');
-            freeboard.addStyle('html.theme-light .uplot-axis-hover-panel-row', 'color:#444;');
-            freeboard.addStyle('.uplot-axis-hover-panel-row input', 'width:80px;background:#141619;border:1px solid #454b55;border-radius:4px;color:#e8e8e8;font-size:11px;padding:2px 4px;');
-            freeboard.addStyle('html.theme-light .uplot-axis-hover-panel-row input', 'background:#f5f5f5;color:#1a1a1a;border-color:#c8c8c8;');
-        }
-
         // Hovering the plot area shows a small "Add Channel" hint (still a
         // right-click + drill-down, since which channel is genuinely a
         // choice). Hovering either axis margin shows its quick-edit panel
         // directly. A short hide delay bridges the gap between the margin
         // and the panel itself, which sits outside chartHost's own DOM.
         _bindChartHover() {
-            this._ensureHoverStylesInjected();
-            let hidePanelTimer = null;
-            this._cancelAxisPanelHide = () => { if (hidePanelTimer) { clearTimeout(hidePanelTimer); hidePanelTimer = null; } };
-            this._scheduleAxisPanelHide = () => {
-                this._cancelAxisPanelHide();
-                hidePanelTimer = setTimeout(() => this._hideAxisPanels(), 200);
-            };
+            const kit = window.RadialWidgetKit;
+            kit.ensureStyles();
+            this._axisHoverBridge = kit.makeHoverBridge(200);
 
             this.chartHost.on('mousemove', (e) => {
                 const zone = this._chartZoneAt(e.clientX, e.clientY);
                 if (zone === 'yAxis') {
-                    this._cancelAxisPanelHide();
-                    this._hoverHintEl.hide();
+                    this._axisHoverBridge.cancel();
+                    kit.hideHint();
                     this._showYAxisPanel();
                 } else if (zone === 'xAxis') {
-                    this._cancelAxisPanelHide();
-                    this._hoverHintEl.hide();
+                    this._axisHoverBridge.cancel();
+                    kit.hideHint();
                     this._showXAxisPanel();
                 } else {
-                    this._scheduleAxisPanelHide();
-                    this._hoverHintEl.text('Add Channel').css({ left: (e.clientX + 14) + 'px', top: (e.clientY + 14) + 'px' }).show();
+                    this._axisHoverBridge.schedule(() => this._hideAxisPanels());
+                    kit.showHint('Add Channel', e.clientX, e.clientY);
                 }
             });
             this.chartHost.on('mouseleave', () => {
-                this._hoverHintEl.hide();
-                this._scheduleAxisPanelHide();
+                kit.hideHint();
+                this._axisHoverBridge.schedule(() => this._hideAxisPanels());
             });
         }
 
@@ -234,44 +207,36 @@ class TimePlotUPlot {
             if (this._xAxisPanel) { this._xAxisPanel.remove(); this._xAxisPanel = null; }
         }
 
-        _axisPanelRow(type, label, value, onCommit) {
-            const row = $('<div class="uplot-axis-hover-panel-row"></div>');
-            const input = $(`<input type="${type === 'number' ? 'number' : 'text'}">`);
-            if (value !== null && value !== undefined) input.val(value);
-            row.append($('<span></span>').text(label), input);
-            input.on('mousedown click', (e) => e.stopPropagation());
-            input.on('keydown', (e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') { e.preventDefault(); input.trigger('blur'); }
-            });
-            input.on('blur', () => onCommit(input.val()));
-            return row;
-        }
-
         _showYAxisPanel() {
             if (this._yAxisPanel) return;
+            const kit = window.RadialWidgetKit;
             const rect = this.chartHost[0].getBoundingClientRect();
-            const panel = $('<div class="uplot-axis-hover-panel"></div>')
-                .css({ left: (rect.left + 6) + 'px', top: (rect.top + rect.height / 2 - 45) + 'px' })
-                .appendTo(document.body);
-            panel.append(this._axisPanelRow('text', 'Y Label', this._settingValue('yLabel') || '', (v) => this._quickSetSetting('yLabel', v)));
-            panel.append(this._axisPanelRow('number', 'Y Min', this._settingValue('yMin'), (v) => this._quickSetSetting('yMin', v === '' ? null : Number(v))));
-            panel.append(this._axisPanelRow('number', 'Y Max', this._settingValue('yMax'), (v) => this._quickSetSetting('yMax', v === '' ? null : Number(v))));
-            panel.on('mouseenter', () => this._cancelAxisPanelHide());
-            panel.on('mouseleave', () => this._scheduleAxisPanelHide());
+            const panel = kit.floatingPanel({
+                position: { left: (rect.left + 6) + 'px', top: (rect.top + rect.height / 2 - 45) + 'px' },
+                rows: [
+                    kit.panelRow('text', 'Y Label', this._settingValue('yLabel') || '', (v) => this._quickSetSetting('yLabel', v)),
+                    kit.panelRow('number', 'Y Min', this._settingValue('yMin'), (v) => this._quickSetSetting('yMin', v === '' ? null : Number(v))),
+                    kit.panelRow('number', 'Y Max', this._settingValue('yMax'), (v) => this._quickSetSetting('yMax', v === '' ? null : Number(v)))
+                ]
+            });
+            panel.on('mouseenter', () => this._axisHoverBridge.cancel());
+            panel.on('mouseleave', () => this._axisHoverBridge.schedule(() => this._hideAxisPanels()));
             this._yAxisPanel = panel;
         }
 
         _showXAxisPanel() {
             if (this._xAxisPanel) return;
+            const kit = window.RadialWidgetKit;
             const rect = this.chartHost[0].getBoundingClientRect();
-            const panel = $('<div class="uplot-axis-hover-panel"></div>')
-                .css({ left: (rect.left + rect.width / 2 - 90) + 'px', top: (rect.bottom - 70) + 'px' })
-                .appendTo(document.body);
-            panel.append(this._axisPanelRow('number', 'Duration (ms)', this._settingValue('duration'), (v) => this._quickSetSetting('duration', v === '' ? null : Number(v))));
-            panel.append(this._axisPanelRow('number', 'Refresh Rate (ms)', this._settingValue('refreshRate'), (v) => this._quickSetSetting('refreshRate', v === '' ? null : Number(v))));
-            panel.on('mouseenter', () => this._cancelAxisPanelHide());
-            panel.on('mouseleave', () => this._scheduleAxisPanelHide());
+            const panel = kit.floatingPanel({
+                position: { left: (rect.left + rect.width / 2 - 90) + 'px', top: (rect.bottom - 70) + 'px' },
+                rows: [
+                    kit.panelRow('number', 'Duration (ms)', this._settingValue('duration'), (v) => this._quickSetSetting('duration', v === '' ? null : Number(v))),
+                    kit.panelRow('number', 'Refresh Rate (ms)', this._settingValue('refreshRate'), (v) => this._quickSetSetting('refreshRate', v === '' ? null : Number(v)))
+                ]
+            });
+            panel.on('mouseenter', () => this._axisHoverBridge.cancel());
+            panel.on('mouseleave', () => this._axisHoverBridge.schedule(() => this._hideAxisPanels()));
             this._xAxisPanel = panel;
         }
 
@@ -312,30 +277,20 @@ class TimePlotUPlot {
         }
 
         _findWidgetModel() {
-            const model = freeboard.getLiveModel?.();
-            if (!model || typeof model.panes !== 'function') return null;
-            let found = null;
-            model.panes().forEach((pane) => {
-                (pane.widgets ? pane.widgets() : []).forEach((w) => {
-                    if (w.widgetInstance === this) found = w;
-                });
-            });
-            return found;
+            return window.RadialWidgetKit.findWidgetModel(this);
         }
 
         _settingValue(name) {
             const widgetModel = this._findWidgetModel();
-            const settings = widgetModel ? (widgetModel.settings() || {}) : this.settings;
-            const raw = settings ? settings[name] : undefined;
-            return typeof raw === 'function' ? raw() : raw;
+            if (!widgetModel) {
+                const raw = this.settings ? this.settings[name] : undefined;
+                return typeof raw === 'function' ? raw() : raw;
+            }
+            return window.RadialWidgetKit.settingValue(widgetModel, name);
         }
 
         _quickSetSetting(name, value) {
-            const widgetModel = this._findWidgetModel();
-            const shared = window.ModularPlotEditorShared;
-            if (!widgetModel || !shared) return;
-            const settings = widgetModel.settings() || {};
-            shared.commitWidgetSettings(widgetModel, { ...settings, [name]: value });
+            window.RadialWidgetKit.quickSetSetting(this._findWidgetModel(), name, value);
         }
 
         // Adds a channel directly, with no dialog: the next palette color and
@@ -391,34 +346,12 @@ class TimePlotUPlot {
             const def = existing[idx];
             if (!def) return;
 
-            const rect = labelEl.getBoundingClientRect();
-            const placeholderText = $(labelEl).text();
-            const input = $('<input type="text" class="uplot-floating-input">')
-                .val(def.label || '')
-                .attr('placeholder', placeholderText)
-                .css({ position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: Math.max(rect.width, 60) + 'px', height: rect.height + 'px' })
-                .appendTo(document.body);
-
-            let done = false;
-            const commit = () => {
-                if (done) return;
-                done = true;
-                input.remove();
-                this._setChannelLabel(idx, input.val());
-            };
-            const cancel = () => {
-                if (done) return;
-                done = true;
-                input.remove();
-            };
-            input.on('click', (e) => e.stopPropagation());
-            input.on('keydown', (e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') { e.preventDefault(); commit(); }
-                else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            window.RadialWidgetKit.floatingInput({
+                anchorEl: labelEl,
+                value: def.label || '',
+                placeholder: $(labelEl).text(),
+                onCommit: (val) => this._setChannelLabel(idx, val)
             });
-            input.on('blur', () => commit());
-            requestAnimationFrame(() => { input.trigger('focus'); input[0].select(); });
         }
 
         // Same floating-input approach for the chart's own title (uPlot's
@@ -427,55 +360,17 @@ class TimePlotUPlot {
         // place, survive whatever re-renders underneath" is simpler than
         // reasoning about which elements are safe to edit in place.
         _startRenameTitle(titleEl) {
-            const rect = titleEl.getBoundingClientRect();
-            const current = this._settingValue('title') || '';
-            const input = $('<input type="text" class="uplot-floating-input">')
-                .val(current)
-                .css({ position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: Math.max(rect.width, 80) + 'px', height: rect.height + 'px' })
-                .appendTo(document.body);
-
-            let done = false;
-            const commit = () => {
-                if (done) return;
-                done = true;
-                input.remove();
-                this._quickSetSetting('title', input.val());
-            };
-            const cancel = () => {
-                if (done) return;
-                done = true;
-                input.remove();
-            };
-            input.on('click', (e) => e.stopPropagation());
-            input.on('keydown', (e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') { e.preventDefault(); commit(); }
-                else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            window.RadialWidgetKit.floatingInput({
+                anchorEl: titleEl,
+                value: this._settingValue('title') || '',
+                onCommit: (val) => this._quickSetSetting('title', val)
             });
-            input.on('blur', () => commit());
-            requestAnimationFrame(() => { input.trigger('focus'); input[0].select(); });
         }
 
         // A ring of the 10 ColorBlind10 palette colors around the click
         // point, no category step -- there's nothing to categorize.
         _openColorCarrousel(idx, clientX, clientY) {
-            const shared = window.ModularPlotEditorShared;
-            if (!shared || !window.RadialContextMenu) return;
-            const themes = shared.getColorThemes();
-            const fallback = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ac'];
-            const palette = (Array.isArray(themes.ColorBlind10) && themes.ColorBlind10.length) ? themes.ColorBlind10 : fallback;
-            window.RadialContextMenu.show({
-                x: clientX, y: clientY,
-                items: palette.map((hex) => ({ id: hex, label: hex, color: hex, onSelect: () => this._setChannelColor(idx, hex) }))
-            });
-        }
-
-        _dsLatestData(dsName) {
-            const live = freeboard.getLiveModel?.();
-            const dsModel = live && typeof live.datasources === 'function'
-                ? live.datasources().find((d) => { try { return d.name() === dsName; } catch (e) { return false; } })
-                : null;
-            return (dsModel && dsModel.latestData) ? (dsModel.latestData() || {}) : {};
+            window.RadialWidgetKit.colorCarrousel(clientX, clientY, (hex) => this._setChannelColor(idx, hex));
         }
 
         // Datasource -> (Measurements | Others [-> Config | Calibration | ...])
@@ -485,77 +380,9 @@ class TimePlotUPlot {
         // (serial, fast-frame, signal generator, CAN) skip straight from the
         // datasource to their (much shorter) channel list.
         _buildChannelMenuRoot() {
-            const shared = window.ModularPlotEditorShared;
-            if (!shared) return [];
-            return shared.listDatasources().map((ds) => {
-                const dsType = shared.getDatasourceType(ds.name);
-                const isThingSet = dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
-                return {
-                    id: ds.name, label: ds.name,
-                    ...(isThingSet
-                        ? { children: () => this._buildThingSetCategoryNodes(ds.name, dsType) }
-                        : { items: () => this._buildSimpleLeafItems(ds.name, dsType) })
-                };
+            return window.RadialWidgetKit.buildChannelMenuRoot({
+                onLeafSelect: (sourceDef) => this._quickAddChannel(sourceDef)
             });
-        }
-
-        _buildThingSetCategoryNodes(dsName, dsType) {
-            const data = this._dsLatestData(dsName);
-            const values = data.values || {};
-            const buckets = {};
-            Object.keys(values).forEach((path) => {
-                const clean = path.replace(/^\/+/, '');
-                if (!clean) return;
-                const segments = clean.split('/');
-                // A single-segment path is a scalar living directly on the
-                // tree root (e.g. rStatus) rather than nested under a real
-                // named group -- there's no meaningful group to bucket it
-                // into, so it's left out of this menu rather than becoming a
-                // fake single-item "group" named after itself.
-                if (segments.length < 2) return;
-                const top = segments[0];
-                const label = segments[segments.length - 1];
-                (buckets[top] = buckets[top] || []).push({ path, label });
-            });
-            const nodes = [];
-            if (buckets.Measurements) {
-                nodes.push({ id: 'Measurements', label: 'Measurements', items: this._leafEntriesToItems(dsName, dsType, buckets.Measurements) });
-            }
-            const otherGroups = Object.keys(buckets).filter((k) => k !== 'Measurements').sort();
-            if (otherGroups.length) {
-                nodes.push({
-                    id: 'Others', label: 'Others',
-                    children: otherGroups.map((group) => ({
-                        id: group, label: group,
-                        items: this._leafEntriesToItems(dsName, dsType, buckets[group])
-                    }))
-                });
-            }
-            return nodes;
-        }
-
-        _leafEntriesToItems(dsName, dsType, entries) {
-            return entries
-                .slice()
-                .sort((a, b) => a.label.localeCompare(b.label))
-                .map((entry) => ({
-                    id: entry.path, label: entry.label,
-                    onSelect: () => this._quickAddChannel({ ds: dsName, type: dsType, device: null, device_uid: null, var: entry.path })
-                }));
-        }
-
-        async _buildSimpleLeafItems(dsName, dsType) {
-            const shared = window.ModularPlotEditorShared;
-            if (!shared || typeof shared.fetchDatasourceVariableOptions !== 'function') return [];
-            const options = await shared.fetchDatasourceVariableOptions(dsName, '');
-            const keepAsString = dsType === 'can_datasource';
-            return options.map((opt) => ({
-                id: String(opt.value), label: opt.label,
-                onSelect: () => this._quickAddChannel({
-                    ds: dsName, type: dsType, device: null, device_uid: null,
-                    var: keepAsString ? opt.value : parseInt(opt.value, 10)
-                })
-            }));
         }
 
         _debugLog(event, payload = {}) {
