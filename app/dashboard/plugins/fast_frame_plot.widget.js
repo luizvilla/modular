@@ -64,6 +64,187 @@
             this.channelToggleBtn = null;
             this.channelPanel = null;
             this._buildChannelEditor();
+            this.axisLeftMarginPx = 56;
+            this.axisBottomMarginPx = 30;
+            this._bindRadialContextMenu();
+        }
+
+        // Milestone 4 of docs/GUI/02-navigation_overhaul.md: unlike the pilot
+        // and XY Plot, there's no live datasource to drill through here --
+        // channels come from the loaded CSV's own columns, so right-click
+        // goes straight to a flat list of them (no category arc at all).
+        // Hover panels and rename/recolor otherwise reuse the exact same
+        // RadialWidgetKit-backed pattern.
+        _bindRadialContextMenu() {
+            this.chartHost.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    items: (this.availableColumns || []).map((col) => ({
+                        id: col, label: col, onSelect: () => this._quickAddColumn(col)
+                    }))
+                });
+            });
+            this._bindChartHover();
+            this._bindReadoutInteractions();
+        }
+
+        _bindChartHover() {
+            const kit = window.RadialWidgetKit;
+            kit.ensureStyles();
+            this._axisHoverBridge = kit.makeHoverBridge(200);
+
+            this.chartHost.on('mousemove', (e) => {
+                const zone = this._chartZoneAt(e.clientX, e.clientY);
+                if (zone === 'yAxis') {
+                    this._axisHoverBridge.cancel();
+                    kit.hideHint();
+                    this._showYAxisPanel();
+                } else if (zone === 'xAxis') {
+                    this._axisHoverBridge.cancel();
+                    kit.hideHint();
+                    this._showXAxisPanel();
+                } else {
+                    this._axisHoverBridge.schedule(() => this._hideAxisPanels());
+                    kit.showHint('Add Channel', e.clientX, e.clientY);
+                }
+            });
+            this.chartHost.on('mouseleave', () => {
+                kit.hideHint();
+                this._axisHoverBridge.schedule(() => this._hideAxisPanels());
+            });
+        }
+
+        _hideAxisPanels() {
+            if (this._yAxisPanel) { this._yAxisPanel.remove(); this._yAxisPanel = null; }
+            if (this._xAxisPanel) { this._xAxisPanel.remove(); this._xAxisPanel = null; }
+        }
+
+        _showYAxisPanel() {
+            if (this._yAxisPanel) return;
+            if (this._xAxisPanel) { this._xAxisPanel.remove(); this._xAxisPanel = null; }
+            const kit = window.RadialWidgetKit;
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const panel = kit.floatingPanel({
+                position: { left: (rect.left + 6) + 'px', top: (rect.top + rect.height / 2 - 45) + 'px' },
+                rows: [
+                    kit.panelRow('text', 'Y Label', this._settingValue('yLabel') || '', (v) => this._quickSetSetting('yLabel', v)),
+                    kit.panelRow('number', 'Y Min', this._settingValue('yMin'), (v) => this._quickSetSetting('yMin', v === '' ? null : Number(v))),
+                    kit.panelRow('number', 'Y Max', this._settingValue('yMax'), (v) => this._quickSetSetting('yMax', v === '' ? null : Number(v)))
+                ]
+            });
+            panel.on('mouseenter', () => this._axisHoverBridge.cancel());
+            panel.on('mouseleave', () => this._axisHoverBridge.schedule(() => this._hideAxisPanels()));
+            this._yAxisPanel = panel;
+        }
+
+        _showXAxisPanel() {
+            if (this._xAxisPanel) return;
+            if (this._yAxisPanel) { this._yAxisPanel.remove(); this._yAxisPanel = null; }
+            const kit = window.RadialWidgetKit;
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const panel = kit.floatingPanel({
+                position: { left: (rect.left + rect.width / 2 - 90) + 'px', top: (rect.bottom - 90) + 'px' },
+                rows: [
+                    kit.panelRow('text', 'X Label', this._settingValue('xLabel') || '', (v) => this._quickSetSetting('xLabel', v)),
+                    kit.panelRow('number', 'X Min', this._settingValue('xMin'), (v) => this._quickSetSetting('xMin', v === '' ? null : Number(v))),
+                    kit.panelRow('number', 'X Max', this._settingValue('xMax'), (v) => this._quickSetSetting('xMax', v === '' ? null : Number(v)))
+                ]
+            });
+            panel.on('mouseenter', () => this._axisHoverBridge.cancel());
+            panel.on('mouseleave', () => this._axisHoverBridge.schedule(() => this._hideAxisPanels()));
+            this._xAxisPanel = panel;
+        }
+
+        _chartZoneAt(clientX, clientY) {
+            const rect = this.chartHost[0].getBoundingClientRect();
+            const relX = clientX - rect.left;
+            const relY = clientY - rect.top;
+            if (relX < this.axisLeftMarginPx) return 'yAxis';
+            if (relY > (rect.height - this.axisBottomMarginPx)) return 'xAxis';
+            return 'channel';
+        }
+
+        // Double-click a readout label to rename that channel; right-click
+        // its swatch for the color carrousel. Bound once via delegation on
+        // readoutHost since _renderReadout() rebuilds it wholesale on every
+        // refresh tick.
+        _bindReadoutInteractions() {
+            if (!this.readoutHost) return;
+            this.readoutHost.on('dblclick', '.uplot-readout-label', (e) => {
+                const idx = parseInt($(e.currentTarget).closest('.uplot-readout-item').attr('data-idx'), 10);
+                if (Number.isFinite(idx)) this._startRenameChannel(idx, e.currentTarget);
+            });
+            this.readoutHost.on('contextmenu', '.uplot-readout-swatch', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx = parseInt($(e.currentTarget).closest('.uplot-readout-item').attr('data-idx'), 10);
+                if (Number.isFinite(idx)) {
+                    window.RadialWidgetKit.colorCarrousel(e.clientX, e.clientY, (hex) => this._patchChannelAt(idx, { color: hex }));
+                }
+            });
+        }
+
+        _startRenameChannel(idx, labelEl) {
+            const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns || []);
+            const def = defs[idx];
+            if (!def) return;
+            window.RadialWidgetKit.floatingInput({
+                anchorEl: labelEl,
+                value: def.label || '',
+                placeholder: $(labelEl).text(),
+                onCommit: (val) => this._patchChannelAt(idx, { label: val })
+            });
+        }
+
+        // `defs` (as rendered) is normalizeSeriesDefs()'s filtered view of
+        // settings.seriesDefs -- filtering never reorders, so this maps a
+        // rendered index back to the matching raw entry by its identity
+        // fields (variable, or the math operand triple) rather than
+        // assuming position lines up 1:1 with the raw array.
+        _patchChannelAt(renderedIdx, patch) {
+            const defs = shared.normalizeSeriesDefs(this.settings, this.availableColumns || []);
+            const def = defs[renderedIdx];
+            if (!def) return;
+            const raw = Array.isArray(this.settings.seriesDefs) ? this.settings.seriesDefs : [];
+            const rawIdx = raw.findIndex((d) => {
+                if (!d) return false;
+                if (def.type === 'math') return d.type === 'math' && d.operandA === def.operandA && d.operator === def.operator && String(d.operandB) === String(def.operandB);
+                return d.variable === def.variable;
+            });
+            if (rawIdx === -1) return;
+            const updated = raw.map((d, i) => (i === rawIdx ? { ...d, ...patch } : d));
+            this._updateSeriesDefs(updated);
+        }
+
+        // Quick-add: appends the column with the next palette color, no
+        // dialog -- the full editor's own "Add channel" form stays available
+        // via the ▼ Channels toggle for anything more specific (math
+        // channels, a custom color up front).
+        _quickAddColumn(column) {
+            const currentDefs = Array.isArray(this.settings.seriesDefs) ? [...this.settings.seriesDefs] : [];
+            const color = shared.DEFAULT_COLORS[currentDefs.length % shared.DEFAULT_COLORS.length];
+            currentDefs.push({ variable: column, label: column, color, visible: true });
+            this._updateSeriesDefs(currentDefs);
+        }
+
+        _findWidgetModel() {
+            return window.RadialWidgetKit.findWidgetModel(this);
+        }
+
+        _settingValue(name) {
+            const widgetModel = this._findWidgetModel();
+            if (!widgetModel) {
+                const raw = this.settings ? this.settings[name] : undefined;
+                return typeof raw === 'function' ? raw() : raw;
+            }
+            return window.RadialWidgetKit.settingValue(widgetModel, name);
+        }
+
+        _quickSetSetting(name, value) {
+            window.RadialWidgetKit.quickSetSetting(this._findWidgetModel(), name, value);
         }
 
         render(el) {
@@ -239,7 +420,7 @@
                 const val = lastValues && lastValues[i] != null ? this._formatValue(lastValues[i]) : '---';
                 const color = _.escape(def.color || '#7aa2f7');
                 const label = _.escape(def.label || `Series ${i + 1}`);
-                return `<div class="uplot-readout-item">` +
+                return `<div class="uplot-readout-item" data-idx="${i}">` +
                     `<span class="uplot-readout-swatch" style="border-color:${color};"></span>` +
                     `<span class="uplot-readout-label">${label}</span>` +
                     `<span class="uplot-readout-value">${val}</span>` +
