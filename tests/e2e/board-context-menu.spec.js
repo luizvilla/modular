@@ -121,6 +121,42 @@ test('right-click empty space inside a pane opens widget categories, quick-add c
   }
 });
 
+// M10 (docs/GUI/02-navigation_overhaul.md): "Gauges" was missing from
+// _getDefaultWidgetCategories() even though every gauge widget explicitly
+// declares category:'Gauges' -- they were silently landing under "Other"
+// in this radial (the widget-picker modal never showed the gap since it
+// renders from its own separate, complete category list).
+test('gauge widgets appear under their own "Gauges" category, not lumped into "Other"', async () => {
+  const { app, page } = await launchApp();
+  try {
+    await waitForDashboard(page);
+    await loadDashboard(page, fixturePath('drag_drop_dashboard.json'));
+
+    const section = page.locator('.gs_w').nth(1).locator('.widget-sort-section');
+    await section.scrollIntoViewIfNeeded();
+    const box = await section.boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + 10, { button: 'right' });
+    await expect(radialMenu(page)).toBeVisible();
+
+    const categories = await page.locator('.radial-menu-wedge-label').allTextContents();
+    expect(categories).toContain('Gauges');
+
+    await clickWedgeByLabel(page, 'Gauges');
+    const leaf = page.locator('.radial-menu-leaf[title="Vertical Gauge"]');
+    await expect(leaf).toBeVisible();
+    await leaf.click();
+
+    await expect(radialMenu(page)).toHaveCount(0);
+    const widgets = await page.evaluate(() => window.freeboard.getLiveModel().panes()[1].widgets().map((w) => w.type()));
+    expect(widgets).toEqual(['vertical_gauge']);
+
+    await app.close();
+  } catch (e) {
+    await app.close();
+    throw e;
+  }
+});
+
 test('right-clicking an existing widget does not show the pane or dashboard radial', async () => {
   const { app, page } = await launchApp();
   try {

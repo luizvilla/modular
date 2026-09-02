@@ -2118,7 +2118,14 @@ var WIDGET_CATEGORY_STORAGE_KEY = "freeboard.widget_categories";
 
 function _getDefaultWidgetCategories()
 {
-	return ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Controls", "Buttons", "Other"];
+	// "Gauges" was missing here even though _inferWidgetCategory() infers it
+	// and every gauge widget explicitly declares category:'Gauges' -- the
+	// widget-picker modal never showed the gap because it renders from its
+	// own separate, hardcoded widgetCategoryOrder list (which does include
+	// it), not this one. This list is what getWidgetCategoryConfig() falls
+	// back to, and getCategorizedWidgetPlugins() (the pane-level radial,
+	// M2) uses that -- so gauges were silently landing in "Other" there.
+	return ["OwnTech", "Fast Frame", "Serial", "ThingSet", "Plots", "Gauges", "Controls", "Buttons", "Other"];
 }
 
 function _normalizeCategories(categories)
