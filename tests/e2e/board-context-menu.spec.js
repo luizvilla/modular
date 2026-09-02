@@ -96,12 +96,11 @@ test('right-click empty space inside a pane opens widget categories, quick-add c
     expect(categories).toContain('Plots');
 
     await clickWedgeByLabel(page, 'Plots');
-    // Widget-type leaves are icon-only (M10, docs/GUI/02-navigation_overhaul.md)
-    // -- the display name is still there as the leaf's title/tooltip, just
-    // not painted text.
+    // Widget-type leaves show both icon and name stacked (M10, docs/GUI/02-navigation_overhaul.md).
     const leaf = page.locator('.radial-menu-leaf[title="Time Plot Widget"]');
     await expect(leaf).toBeVisible();
     await expect(leaf.locator('i.fa-chart-line')).toBeVisible();
+    await expect(leaf.locator('.radial-menu-leaf-text')).toHaveText('Time Plot Widget');
     await leaf.click();
 
     // time_plot_uplot is an "integrated editor" type -- quick-added with

@@ -30,6 +30,9 @@
         freeboard.addStyle('.radial-menu-leaf', 'position:absolute;width:' + LEAF_BTN_SIZE + 'px;height:' + LEAF_BTN_SIZE + 'px;margin:-' + (LEAF_BTN_SIZE / 2) + 'px;border-radius:50%;background:#2b2f36;border:1px solid #454b55;color:#e8e8e8;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.15;padding:4px;cursor:pointer;transition:transform 0.12s,background 0.12s;overflow:hidden;');
         freeboard.addStyle('.radial-menu-leaf:hover', 'background:#3a3f48;transform:scale(1.08);');
         freeboard.addStyle('.radial-menu-leaf i', 'font-size:20px;pointer-events:none;');
+        freeboard.addStyle('.radial-menu-leaf-icon-text', 'flex-direction:column;gap:3px;');
+        freeboard.addStyle('.radial-menu-leaf-icon-text i', 'font-size:16px;');
+        freeboard.addStyle('.radial-menu-leaf-text', 'font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;line-height:1.15;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;pointer-events:none;max-width:100%;');
         freeboard.addStyle('.radial-menu-leaf-input', 'width:100%;background:#141619;border:1px solid #6a90ff;border-radius:4px;color:#e8e8e8;font-size:11px;text-align:center;padding:2px;');
         freeboard.addStyle('.radial-menu-loading', 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#c8c8c8;font-size:11px;white-space:nowrap;');
         // Light theme overrides, matching the app's dark-default / html.theme-light convention.
@@ -194,13 +197,17 @@
                     btn.style.background = item.color;
                     btn.style.borderColor = item.color;
                 } else if (item.icon) {
-                    // Icon-only circle -- the label is still the native
-                    // tooltip (btn.title, set above) and the leaf's
-                    // accessible name, just not painted text taking up
-                    // space in a 64px circle alongside the icon.
+                    // Icon above name, both visible -- an icon-only circle
+                    // read as too sparse; this stacks them like the
+                    // widget-picker modal's own tiles do.
+                    btn.classList.add('radial-menu-leaf-icon-text');
                     const iconEl = document.createElement('i');
                     iconEl.className = `fa-solid fa-${item.icon}`;
                     btn.appendChild(iconEl);
+                    const textEl = document.createElement('span');
+                    textEl.className = 'radial-menu-leaf-text';
+                    textEl.textContent = item.label;
+                    btn.appendChild(textEl);
                 } else {
                     btn.textContent = item.label;
                 }
