@@ -30,13 +30,20 @@ test('right-click empty board space opens Pane / Datasource; clicking Pane creat
     const point = await emptyBoardPoint(page);
     await page.mouse.click(point.x, point.y, { button: 'right' });
     await expect(radialMenu(page)).toBeVisible();
+    // Both top-level wedges read as the action, not the category noun
+    // (M10, docs/GUI/02-navigation_overhaul.md).
     const labels = (await page.locator('.radial-menu-wedge-label').allTextContents()).sort();
-    expect(labels).toEqual(['Datasource', 'Pane']);
+    expect(labels).toEqual(['Add Datasource', 'Add Pane']);
+    // Wedges get a native hover tooltip too (an SVG <title> child, not an
+    // HTML title attribute) -- here it matches the label since both already
+    // read as the action.
+    const wedgeTooltips = (await page.locator('.radial-menu-wedge title').allTextContents()).sort();
+    expect(wedgeTooltips).toEqual(['Add Datasource', 'Add Pane']);
 
-    // Pane is a direct-action wedge (M10, docs/GUI/02-navigation_overhaul.md)
-    // -- there's nothing to choose between, so clicking it fires immediately
-    // instead of drilling to a leaf ring with a single circle in it.
-    await clickWedgeByLabel(page, 'Pane');
+    // Pane is a direct-action wedge -- there's nothing to choose between, so
+    // clicking it fires immediately instead of drilling to a leaf ring with
+    // a single circle in it.
+    await clickWedgeByLabel(page, 'Add Pane');
 
     await expect(radialMenu(page)).toHaveCount(0);
     await page.waitForFunction((n) => window.freeboard.getLiveModel().panes().length > n, before);
@@ -58,7 +65,7 @@ test('right-click empty board space, Datasource leaf opens the settings step dir
 
     const point = await emptyBoardPoint(page);
     await page.mouse.click(point.x, point.y, { button: 'right' });
-    await clickWedgeByLabel(page, 'Datasource');
+    await clickWedgeByLabel(page, 'Add Datasource');
 
     // Datasource leaves show icon + name stacked, and the plugin's own
     // description as the hover tooltip -- same as the Add Datasource
@@ -99,6 +106,11 @@ test('right-click empty space inside a pane opens widget categories, quick-add c
 
     const categories = await page.locator('.radial-menu-wedge-label').allTextContents();
     expect(categories).toContain('Plots');
+    // Category wedges get a hover tooltip too (M10, docs/GUI/02-navigation_overhaul.md)
+    // -- categories don't have their own description the way a plugin does,
+    // so this names the action instead of just repeating the visible label.
+    const categoryTooltips = await page.locator('.radial-menu-wedge title').allTextContents();
+    expect(categoryTooltips).toContain('Add a Plots widget');
 
     await clickWedgeByLabel(page, 'Plots');
     // Widget-type leaves show icon + name stacked, and the plugin's own

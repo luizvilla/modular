@@ -37,13 +37,15 @@
     }
 
     function buildDashboardMenuRoot() {
+        // Both top-level wedges read as the action, not the category noun
+        // (M10, docs/GUI/02-navigation_overhaul.md) -- there are exactly two
+        // choices at this first click, each already fully describing what
+        // it does, so "Add Pane" / "Add Datasource" beats "Pane" /
+        // "Datasource" for both the visible label and its (matching, via
+        // the description-falls-back-to-label default) hover tooltip.
         return [
-            // A direct-action wedge (M10, docs/GUI/02-navigation_overhaul.md)
-            // -- adding a pane has nothing to choose between, so it fires on
-            // the wedge click itself instead of drilling to a leaf ring with
-            // a single "+ Add Pane" circle in it.
-            { id: 'pane', label: 'Pane', onSelect: () => freeboard.getLiveModel().createPane() },
-            { id: 'datasource', label: 'Datasource', items: buildDatasourceTypeItems() }
+            { id: 'pane', label: 'Add Pane', onSelect: () => freeboard.getLiveModel().createPane() },
+            { id: 'datasource', label: 'Add Datasource', items: buildDatasourceTypeItems() }
         ];
     }
 
@@ -52,6 +54,10 @@
         const defaultIcons = (window.freeboard && freeboard.getWidgetCategoryDefaultIcons) ? freeboard.getWidgetCategoryDefaultIcons() : {};
         return groups.map((group) => ({
             id: group.category, label: group.category,
+            // Wedge tooltip (M10): categories don't have their own
+            // description the way a plugin does, so this names the action
+            // instead of just repeating the visible category label.
+            description: `Add a ${group.category} widget`,
             // Icon + name stacked (M10, docs/GUI/02-navigation_overhaul.md),
             // matching the widget-picker modal's own tile layout -- and the
             // same description-as-tooltip the modal shows on hover, not

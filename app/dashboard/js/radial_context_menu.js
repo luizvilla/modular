@@ -11,7 +11,9 @@
     // in it. A leaf item is either an action ({ id, label, onSelect }) or an
     // inline editable value ({ id, label, inlineEdit: { type, getValue,
     // onSubmit } }), which swaps the circle for a small input instead of
-    // navigating away.
+    // navigating away. Any wedge node may also carry a `description` --
+    // its native hover tooltip, falling back to the visible `label` when
+    // absent.
     const OUTER_R = 92;
     const INNER_R = 34;
     const LEAF_R_BASE = 110;
@@ -281,6 +283,14 @@
                     e.stopPropagation();
                     enterNode(node);
                 });
+                // Native hover tooltip, same idea as leaf items -- a wedge's
+                // own description (e.g. "Add Pane") if it has one, otherwise
+                // its visible label. An SVG <title> child, not an HTML title
+                // attribute -- the correct way to get a native tooltip on an
+                // SVG shape.
+                const wedgeTitle = svgEl('title', {});
+                wedgeTitle.textContent = node.description || node.label;
+                path.appendChild(wedgeTitle);
                 svgGroup.appendChild(path);
                 const midAngle = (start + end) / 2;
                 const labelPos = polarToCartesian((INNER_R + OUTER_R) / 2, midAngle);
