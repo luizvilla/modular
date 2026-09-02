@@ -192,7 +192,11 @@
                 btn.className = 'radial-menu-leaf';
                 btn.style.left = lx + 'px';
                 btn.style.top = ly + 'px';
-                btn.title = item.label;
+                // The Add-button modals show a plugin's own description as
+                // the tile's tooltip (falling back to nothing if it has
+                // none); this leaf ring only ever showed the plain name.
+                // M10 (docs/GUI/02-navigation_overhaul.md): match the modal.
+                btn.title = item.description || item.label;
                 if (item.color) {
                     btn.style.background = item.color;
                     btn.style.borderColor = item.color;

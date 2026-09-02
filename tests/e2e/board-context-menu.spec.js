@@ -60,11 +60,13 @@ test('right-click empty board space, Datasource leaf opens the settings step dir
     await page.mouse.click(point.x, point.y, { button: 'right' });
     await clickWedgeByLabel(page, 'Datasource');
 
-    // Datasource leaves show icon + name stacked too (M10, docs/GUI/02-navigation_overhaul.md).
-    const leaf = page.locator('.radial-menu-leaf[title="Serial Port Reader"]');
+    // Datasource leaves show icon + name stacked, and the plugin's own
+    // description as the hover tooltip -- same as the Add Datasource
+    // modal's own tiles (M10, docs/GUI/02-navigation_overhaul.md).
+    const leaf = page.locator('.radial-menu-leaf').filter({ has: page.locator('.radial-menu-leaf-text', { hasText: 'Serial Port Reader' }) });
     await expect(leaf).toBeVisible();
     await expect(leaf.locator('i.fa-plug')).toBeVisible();
-    await expect(leaf.locator('.radial-menu-leaf-text')).toHaveText('Serial Port Reader');
+    await expect(leaf).toHaveAttribute('title', 'Reads data from a serial port');
     await leaf.click();
     await expect(radialMenu(page)).toHaveCount(0);
 
@@ -99,11 +101,13 @@ test('right-click empty space inside a pane opens widget categories, quick-add c
     expect(categories).toContain('Plots');
 
     await clickWedgeByLabel(page, 'Plots');
-    // Widget-type leaves show both icon and name stacked (M10, docs/GUI/02-navigation_overhaul.md).
-    const leaf = page.locator('.radial-menu-leaf[title="Time Plot Widget"]');
+    // Widget-type leaves show icon + name stacked, and the plugin's own
+    // description as the hover tooltip -- same as the Add Widget modal's
+    // own tiles (M10, docs/GUI/02-navigation_overhaul.md).
+    const leaf = page.locator('.radial-menu-leaf').filter({ has: page.locator('.radial-menu-leaf-text', { hasText: 'Time Plot Widget' }) });
     await expect(leaf).toBeVisible();
     await expect(leaf.locator('i.fa-chart-line')).toBeVisible();
-    await expect(leaf.locator('.radial-menu-leaf-text')).toHaveText('Time Plot Widget');
+    await expect(leaf).toHaveAttribute('title', 'Realtime uPlot-based chart. Accepts streaming values or a full dataset');
     await leaf.click();
 
     // time_plot_uplot is an "integrated editor" type -- quick-added with
@@ -144,8 +148,9 @@ test('gauge widgets appear under their own "Gauges" category, not lumped into "O
     expect(categories).toContain('Gauges');
 
     await clickWedgeByLabel(page, 'Gauges');
-    const leaf = page.locator('.radial-menu-leaf[title="Vertical Gauge"]');
+    const leaf = page.locator('.radial-menu-leaf').filter({ has: page.locator('.radial-menu-leaf-text', { hasText: 'Vertical Gauge' }) });
     await expect(leaf).toBeVisible();
+    await expect(leaf).toHaveAttribute('title', 'Single-channel vertical gauge with integrated source, zone, and alarm controls');
     await leaf.click();
 
     await expect(radialMenu(page)).toHaveCount(0);

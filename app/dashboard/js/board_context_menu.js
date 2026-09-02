@@ -27,6 +27,10 @@
                 // declares its own icon, so this falls back to the same
                 // per-type map the datasource-picker modal itself uses.
                 icon: plugin.icon || iconMap[typeName] || 'database',
+                // Same description-as-tooltip the Add Datasource modal shows
+                // on its own tiles (M10) -- falls back to the plain name for
+                // any type that doesn't declare one.
+                description: plugin.description,
                 onSelect: () => freeboard.openAddDatasourceEditor(typeName)
             };
         });
@@ -49,13 +53,14 @@
         const defaultIcons = (window.freeboard && freeboard.getWidgetCategoryDefaultIcons) ? freeboard.getWidgetCategoryDefaultIcons() : {};
         return groups.map((group) => ({
             id: group.category, label: group.category,
-            // Icon-only circles (M10, docs/GUI/02-navigation_overhaul.md) --
-            // the type name is still available as the leaf's hover tooltip,
-            // it just isn't painted text competing with the icon for space
-            // in a 64px circle.
+            // Icon + name stacked (M10, docs/GUI/02-navigation_overhaul.md),
+            // matching the widget-picker modal's own tile layout -- and the
+            // same description-as-tooltip the modal shows on hover, not
+            // just the plain name.
             items: group.plugins.map((plugin) => ({
                 id: plugin.type_name, label: plugin.display_name || plugin.type_name,
                 icon: plugin.icon || defaultIcons[group.category] || 'puzzle-piece',
+                description: plugin.description,
                 onSelect: () => freeboard.openAddWidgetEditor(paneViewModel, plugin.type_name)
             }))
         }));
