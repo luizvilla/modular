@@ -1,13 +1,17 @@
 (function () {
     // Generic N-level radial ("pie") context menu: rings of arc segments to
     // drill into nested categories, terminating in a ring of circular leaf
-    // buttons. A node is either a branch ({ id, label, children }) or a leaf
-    // group ({ id, label, items }) -- children/items may be a plain array or
-    // a function returning one (sync or async, for data that needs a live
-    // read before it's known, e.g. a datasource's current tree). A leaf item
-    // is either an action ({ id, label, onSelect }) or an inline editable
-    // value ({ id, label, inlineEdit: { type, getValue, onSubmit } }), which
-    // swaps the circle for a small input instead of navigating away.
+    // buttons. A node (wedge) is a branch ({ id, label, children }), a leaf
+    // group ({ id, label, items }), or a direct action ({ id, label,
+    // onSelect }) -- children/items may be a plain array or a function
+    // returning one (sync or async, for data that needs a live read before
+    // it's known, e.g. a datasource's current tree). The direct-action form
+    // fires immediately on click instead of drilling, for a category that's
+    // really just one option -- no point in a leaf ring with a single circle
+    // in it. A leaf item is either an action ({ id, label, onSelect }) or an
+    // inline editable value ({ id, label, inlineEdit: { type, getValue,
+    // onSubmit } }), which swaps the circle for a small input instead of
+    // navigating away.
     const OUTER_R = 92;
     const INNER_R = 34;
     const LEAF_R_BASE = 110;
@@ -174,6 +178,12 @@
                 const nodes = await resolveMaybeAsync(node.children);
                 viewStack.push({ type: 'branch', nodes });
                 render();
+            } else if (typeof node.onSelect === 'function') {
+                // A wedge with nothing to categorize -- e.g. a category
+                // that's really just one action -- fires directly instead
+                // of drilling into a leaf ring with a single circle in it.
+                close();
+                node.onSelect();
             }
         }
 

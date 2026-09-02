@@ -38,12 +38,11 @@
 
     function buildDashboardMenuRoot() {
         return [
-            {
-                id: 'pane', label: 'Pane',
-                items: [
-                    { id: 'add-pane', label: '+ Add Pane', onSelect: () => freeboard.getLiveModel().createPane() }
-                ]
-            },
+            // A direct-action wedge (M10, docs/GUI/02-navigation_overhaul.md)
+            // -- adding a pane has nothing to choose between, so it fires on
+            // the wedge click itself instead of drilling to a leaf ring with
+            // a single "+ Add Pane" circle in it.
+            { id: 'pane', label: 'Pane', onSelect: () => freeboard.getLiveModel().createPane() },
             { id: 'datasource', label: 'Datasource', items: buildDatasourceTypeItems() }
         ];
     }

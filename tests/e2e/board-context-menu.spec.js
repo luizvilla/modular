@@ -19,7 +19,7 @@ async function emptyBoardPoint(page) {
   });
 }
 
-test('right-click empty board space opens Pane / Datasource, Add Pane creates a pane', async () => {
+test('right-click empty board space opens Pane / Datasource; clicking Pane creates a pane directly', async () => {
   const { app, page } = await launchApp();
   try {
     await waitForDashboard(page);
@@ -33,10 +33,10 @@ test('right-click empty board space opens Pane / Datasource, Add Pane creates a 
     const labels = (await page.locator('.radial-menu-wedge-label').allTextContents()).sort();
     expect(labels).toEqual(['Datasource', 'Pane']);
 
+    // Pane is a direct-action wedge (M10, docs/GUI/02-navigation_overhaul.md)
+    // -- there's nothing to choose between, so clicking it fires immediately
+    // instead of drilling to a leaf ring with a single circle in it.
     await clickWedgeByLabel(page, 'Pane');
-    const leaf = page.locator('.radial-menu-leaf', { hasText: 'Add Pane' });
-    await expect(leaf).toBeVisible();
-    await leaf.click();
 
     await expect(radialMenu(page)).toHaveCount(0);
     await page.waitForFunction((n) => window.freeboard.getLiveModel().panes().length > n, before);
