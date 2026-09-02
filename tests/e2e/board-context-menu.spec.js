@@ -60,8 +60,11 @@ test('right-click empty board space, Datasource leaf opens the settings step dir
     await page.mouse.click(point.x, point.y, { button: 'right' });
     await clickWedgeByLabel(page, 'Datasource');
 
-    const leaf = page.locator('.radial-menu-leaf', { hasText: 'Serial Port Reader' });
+    // Datasource leaves show icon + name stacked too (M10, docs/GUI/02-navigation_overhaul.md).
+    const leaf = page.locator('.radial-menu-leaf[title="Serial Port Reader"]');
     await expect(leaf).toBeVisible();
+    await expect(leaf.locator('i.fa-plug')).toBeVisible();
+    await expect(leaf.locator('.radial-menu-leaf-text')).toHaveText('Serial Port Reader');
     await leaf.click();
     await expect(radialMenu(page)).toHaveCount(0);
 

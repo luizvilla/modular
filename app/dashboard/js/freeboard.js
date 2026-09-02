@@ -5669,6 +5669,23 @@ var freeboard = (function()
 				"Other": "puzzle-piece"
 			};
 		},
+		// Same per-type fallback icon map the datasource-picker modal itself
+		// uses (M10), for a datasource plugin type that doesn't declare its
+		// own `icon` -- none of them currently do. owntech_thingset_datasource
+		// is missing from the modal's own copy of this map too (falls back to
+		// "database" there); added here since this is the one place both the
+		// modal and the radial can now share.
+		getDatasourceIconMap: function()
+		{
+			return {
+				fast_frame_datasource: "bolt",
+				serialport_datasource: "plug",
+				thingset_serial_datasource: "terminal",
+				can_datasource: "network-wired",
+				signal_generator_datasource: "wave-square",
+				owntech_thingset_datasource: "microchip"
+			};
+		},
 		getDatasourcePluginTypes: function()
 		{
 			return datasourcePlugins;

@@ -16,11 +16,17 @@
 
     function buildDatasourceTypeItems() {
         const types = (window.freeboard && freeboard.getDatasourcePluginTypes) ? freeboard.getDatasourcePluginTypes() : {};
+        const iconMap = (window.freeboard && freeboard.getDatasourceIconMap) ? freeboard.getDatasourceIconMap() : {};
         return Object.keys(types).sort().map((typeName) => {
             const plugin = types[typeName];
             return {
                 id: typeName,
                 label: plugin.display_name || typeName,
+                // Icon + name stacked (M10, docs/GUI/02-navigation_overhaul.md),
+                // same as the widget-type leaves -- no datasource plugin
+                // declares its own icon, so this falls back to the same
+                // per-type map the datasource-picker modal itself uses.
+                icon: plugin.icon || iconMap[typeName] || 'database',
                 onSelect: () => freeboard.openAddDatasourceEditor(typeName)
             };
         });
