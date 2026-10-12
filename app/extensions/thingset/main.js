@@ -291,6 +291,9 @@ module.exports = function registerThingSetExtension(context) {
         try {
             await shell.open();
             await shell.enterThingSet();
+            // enterThingSet() is best-effort; walking the tree without a
+            // working shell yields an empty root reported as success.
+            if (!shell.probeSucceeded()) throw new Error(`ThingSet shell did not respond on ${port}`);
             const root = await shell.buildTree();
             const nodeUid = await shell.readNodeUid();
             const nodeName = await shell.readNodeName();

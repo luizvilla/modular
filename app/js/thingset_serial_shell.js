@@ -9,6 +9,24 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// write/drain/flush/close only call back once the device has consumed the
+// bytes. A wedged board never does, and without a bound one stuck call holds
+// the port forever and stalls every later operation queued behind it.
+const IO_TIMEOUT_MS = 2000;
+
+function withIoTimeout(path, label, start) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${path}: ${label} timed out after ${IO_TIMEOUT_MS}ms -- board not responding (try unplugging and replugging it)`));
+    }, IO_TIMEOUT_MS);
+    start((err) => {
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 // Zephyr's shell prefixes/suffixes its echoed input and prompt with ANSI/VT100
 // color codes (e.g. "\x1b[m", "\x1b[1;32m") whose own "[" would otherwise be
 // found by _extractJson()'s bracket search before the real JSON payload's "{",
@@ -209,9 +227,7 @@ class ThingSetSerialShell {
       this._listening = false;
     }
     if (this.ownsPort && this.port.isOpen) {
-      await new Promise((resolve) => {
-        this.port.close(() => resolve());
-      });
+      await withIoTimeout(this.path, 'close', (done) => this.port.close(() => done())).catch(() => {});
     }
   }
 
@@ -275,14 +291,8 @@ class ThingSetSerialShell {
     }
     payload = `${final}${eol}`;
     this._dbg(`TX: ${JSON.stringify(payload)}`);
-    await new Promise((resolve, reject) => {
-      this.port.write(payload, (err) => {
-        if (err) return reject(err);
-        this.port.drain((drainErr) => {
-          if (drainErr) return reject(drainErr);
-          resolve();
-        });
-      });
+    await withIoTimeout(this.path, 'write', (done) => {
+      this.port.write(payload, (err) => (err ? done(err) : this.port.drain(done)));
     });
     const buf = await this._waitForPrompt(readTimeout);
     this._dbgBuf('RX:', buf);
@@ -416,32 +426,29 @@ class ThingSetSerialShell {
     this.prompt = null;
     if (typeof this.port.flush === 'function') {
       try {
-        await new Promise((resolve, reject) => {
-          this.port.flush((err) => (err ? reject(err) : resolve()));
-        });
+        await withIoTimeout(this.path, 'flush', (done) => this.port.flush(done));
       } catch {}
     }
-    const writeRaw = async (data) => new Promise((resolve, reject) => {
-      this.port.write(data, (err) => {
-        if (err) return reject(err);
-        this.port.drain((drainErr) => {
-          if (drainErr) return reject(drainErr);
-          resolve();
-        });
-      });
+    const writeRaw = (data) => withIoTimeout(this.path, 'write', (done) => {
+      this.port.write(data, (err) => (err ? done(err) : this.port.drain(done)));
     });
 
     for (let i = 0; i < 3; i += 1) {
       try {
         await writeRaw('\r\n');
-        await delay(60);
-        const found = this._findPrompt(this.readBuffer);
-        if (found) {
-          this.prompt = this.readBuffer.slice(found.start, found.end);
-          this.readBuffer = this.readBuffer.slice(found.end);
-          break;
-        }
-      } catch {}
+      } catch (err) {
+        // A write that never drains means the board isn't reading this
+        // interface at all; every probe command below would hang the same way.
+        if (/timed out/.test(err?.message || '')) throw err;
+        continue;
+      }
+      await delay(60);
+      const found = this._findPrompt(this.readBuffer);
+      if (found) {
+        this.prompt = this.readBuffer.slice(found.start, found.end);
+        this.readBuffer = this.readBuffer.slice(found.end);
+        break;
+      }
     }
 
     const markSuccess = () => {
@@ -467,10 +474,15 @@ class ThingSetSerialShell {
     };
 
     if (await tryProbe()) return true;
+    // Retry with the opposite prefix choice, in either direction: a probe
+    // that fell back to "select thingset" leaves the shell in that mode, after
+    // which the prefixed form ("thingset ?" -> "thingset thingset ?") silently
+    // fails and only the bare form works.
     const original = this.getCommandPrefix();
-    if (original !== this.autoPrefixCandidate) {
-      this._dbg(`Retrying with '${this.autoPrefixCandidate}' prefix`);
-      this.setCommandPrefix(this.autoPrefixCandidate);
+    const alternative = original ? '' : this.autoPrefixCandidate;
+    {
+      this._dbg(`Retrying with '${alternative}' prefix`);
+      this.setCommandPrefix(alternative);
       const ok = await tryProbe();
       if (ok) return true;
       this.setCommandPrefix(original);
