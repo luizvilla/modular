@@ -17,7 +17,7 @@
           type: 'option',
           options: manualOptions,
           default_value: manualOptions[0]?.value || '',
-          description: 'Shown when auto-detect is disabled; pick a serial device to probe.',
+          description: 'Only used when auto-detect is off; ignored otherwise. On OwnTech boards pick the if02 port -- if00 is the scope data port.',
         },
         { name: 'baudRate', display_name: 'Baud Rate', type: 'number', default_value: 115200 },
         { name: 'usePrefix', display_name: 'Use "thingset" command prefix', type: 'boolean', default_value: false },

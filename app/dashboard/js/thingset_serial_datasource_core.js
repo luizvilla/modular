@@ -102,7 +102,9 @@
     let currentSettings = settings || {};
     let timer = null;
     let detectPromise = null;
-    let detectedPort = manualPort(currentSettings);
+    // In auto mode portPath only records the last detected port; it must not
+    // pin detection to it (a stale or mis-picked if00 would never be escaped).
+    let detectedPort = currentSettings.autoDetect !== false ? null : manualPort(currentSettings);
     let lastMeta = null;
     let lastError = null;
     let pollInFlight = null;
@@ -144,7 +146,7 @@
       if (detectPromise) return detectPromise;
 
       const opts = {
-        port: manualPort(currentSettings) || null,
+        port: null,
         baudRate: effectiveBaudRate(),
         usePrefix: !!currentSettings.usePrefix,
         verbose: !!currentSettings.debug,
@@ -300,7 +302,10 @@
       }
       if (!isAutoMode()) {
         detectedPort = manualPort(currentSettings);
-      } else if (!detectedPort) {
+      } else {
+        // Re-detect on every settings save in auto mode: a previously
+        // detected port may be exactly what the user is trying to get away from.
+        detectedPort = null;
         detectPort(true);
       }
       updateTimer();

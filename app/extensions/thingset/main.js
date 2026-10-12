@@ -95,12 +95,33 @@ module.exports = function registerThingSetExtension(context) {
             .map(({ port }) => port.path);
     }
 
+    // An "-if00" interface is only the scope side-channel when the same USB
+    // device (same serialNumber) also exposes another interface -- the
+    // OwnTech if00 + if02 layout. A single-interface CDC device also reports
+    // "-if00" and is then the shell itself, so it must stay probe-able.
+    function isScopeSidePort(port, ports) {
+        if (!isIf00Candidate(port) || !port.serialNumber) return false;
+        return ports.some((other) => other !== port
+            && other.serialNumber === port.serialNumber
+            && !isIf00Candidate(other));
+    }
+
+    async function listScopeSidePaths() {
+        try {
+            const ports = (await SerialPort.list()) || [];
+            return new Set(ports.filter((p) => p && p.path && isScopeSidePort(p, ports)).map((p) => p.path));
+        } catch {
+            return new Set();
+        }
+    }
+
     async function collectSerialCandidates(explicitPort = null) {
         if (explicitPort) return [explicitPort];
         try {
             const ports = await SerialPort.list();
             if (!ports || !ports.length) return [];
-            return orderSerialCandidates(ports.filter((p) => p && p.path));
+            const usable = ports.filter((p) => p && p.path && !isScopeSidePort(p, ports));
+            return orderSerialCandidates(usable);
         } catch (err) {
             console.warn('Failed to enumerate serial ports for ThingSet detect:', err?.message || err);
             return [];
@@ -151,7 +172,16 @@ module.exports = function registerThingSetExtension(context) {
 
     function runExclusive(port, fn) {
         const prev = portQueues.get(port) || Promise.resolve();
-        const settled = prev.then(fn, fn);
+        // Refuse before a single byte goes out: sending the ThingSet
+        // handshake to the scope side-channel wedges the board's firmware
+        // until it is physically reset (see isScopeSidePort).
+        const guarded = async () => {
+            if ((await listScopeSidePaths()).has(port)) {
+                throw new Error(`${port} is the board's scope data port (if00), not its ThingSet shell -- use the if02 port or enable auto-detect`);
+            }
+            return fn();
+        };
+        const settled = prev.then(guarded, guarded);
         // The stored continuation must never reject -- otherwise one failed
         // operation would permanently wedge every later operation on this
         // port. Callers still get the real result/rejection via `settled`.
