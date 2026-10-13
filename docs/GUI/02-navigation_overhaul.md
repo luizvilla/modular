@@ -398,7 +398,93 @@ Each step: the write (with readback), then the measurements polled (V1, I1, V2, 
 
 1. **The command path is fast and reliable:** 14 actuating writes, all accepted and read back in 127–149 ms through the app's own IPC (the same calls widgets make). The legs switch without `wDriver`. V1/I1 at duty 0.10–0.15 is consistent with the 10 Ω load (V/I ≈ 8–8.3 Ω, about 0.9 × duty × VHigh).
 2. **Watching the result is the slow part, and it's measurable.** Polling 6 values costs ≈ 0.7 s per poll, so nothing can see a change in under ~0.7 s, and the 1.5–2.0 s settle times above are 2–3 polls. A widget that relies on the datasource's full tree walk (Phase 1) sees it after 3–4 s. This is the "voltage changes, but slowly" the user saw. It is a readback problem in the app, not slow switching.
-3. **Enabling a leg showed no output change for ~2.8–3.4 s**, even though the duty readback (`rDuty1`/`rDuty2`) changed at once. This polling can't tell whether the delay is real (a soft start inside `shield.power.start()`?) or in the measurement path. Next step: a scope capture at decimation 100 (10 s window) armed just before the enable write.
-4. **Duty 0.05 produces ~2.6–2.9 V instead of ~1.5 V**, about what 0.10 gives, on both legs, while `rDuty` reports 0.05. Hypothesis: the PWM layer clamps low duty to a minimum around 0.1 and `rDuty` just echoes the requested value. Worth checking in the OwnTech power API before anyone relies on low-duty setpoints.
-5. **A group read (`getValue('Measurements')`) returns a single scalar**, not the group's object, through the app's `ts-serial-get-value`. This blocks the "refresh only the measurements" fix as written; the shell response parsing needs to handle objects first.
-6. **The first operation after the 5 s port-list cache expires pays the ~450 ms list cost again** (a 568 ms read observed). This is minor, but polling that runs more than 5 s apart always pays it.
+3. ~~**Enabling a leg showed no output change for ~2.8–3.4 s.**~~ **Disproved by the scope captures below:** the output responds within one 10 ms sample. The "delay" was a flaw in this test's method: it took its "before" reading ~0.7 s *after* the enable write, by which time the output had already risen, so it only registered later noise as the "first move".
+4. **Duty 0.05 produces ~2.6–2.9 V instead of ~1.5 V**, about what 0.10 gives, on both legs, while `rDuty` reports 0.05. **Confirmed below:** the power library clamps duty to a minimum of 0.1.
+5. **A group read (`getValue('Measurements')`) returns a single scalar**, not the group's object, through the app's `ts-serial-get-value`. (Fixed: `9d1f671`.)
+6. **The first operation after the 5 s port-list cache expires pays the ~450 ms list cost again** (a 568 ms read observed). (Fixed: `72fbb68`.)
+
+### Scope-verified follow-up on findings 3 and 4 (2026-10-13)
+
+Power on, same bench. Scope at decimation 100 (10 ms per sample, 10.24 s window, 2 s pre-trigger). Sequence: leg 1 duty set, Mode POWER_ON, scope armed, 2.5 s wait, `Leg1.wEnable=true`, then `wTrigger` right after. The interlock kept polling until the capture was READY, then: leg off, POWER_OFF, IDLE, duty and decimation restored.
+
+| Run | V1 before | V1 after enable | Response time | V1 / VHigh |
+|---|---|---|---|---|
+| duty 0.10 | 0.70 V | 3.62 V | **within one 10 ms sample** of the enable write | 0.121 |
+| duty 0.05 | 0.79 V | 3.63 V | within one 10 ms sample | **0.121, identical to 0.10** |
+
+- **Finding 3 is resolved:** there is no start-up delay in the power stage. The app's own first poll, 1.26 s after the enable, already read 3.49 V.
+- **Finding 4 is confirmed and located:** the OwnTech HRTIM driver sets a default minimum duty of 0.1 (`Core4/zephyr/modules/owntech_hrtim_driver/zephyr/src/hrtim.c:338-340`, `duty_min_user_float = 0.1`), and `Power.cpp:260` clamps to it. Core4's `rDuty1`/`rDuty2` echo the *requested* duty, so they read 0.05 while 0.1 is applied. This is firmware/library behaviour, outside this repo. Options for Core4: report the applied (clamped) duty in `rDutyN`, or lower the minimum with the power API's `setDutyCycleMin` if the hardware allows it.
+- **I1 read ~0 A in both runs** (mean −0.05 A) while V1 sat at ~3.6 V, the *unloaded* value. In Phase 3, the same duty 0.10 drew 0.33 A at 2.74 V. Either the 10 Ω resistor was disconnected between the runs, or the I1 measurement changed. Not yet checked on the bench.
+- The enable write took 593–657 ms in these runs instead of ~135 ms: the 5 s port-list cache had expired during the wait (fixed in `72fbb68`).
+
+---
+
+## Fixes from the real-hardware findings (2026-10-13)
+
+### Commit sequence
+
+| # | Commit | Fixes |
+|---|---|---|
+| 1 | `9d1f671` fix(thingset): return the whole object from a group read | Phase 3 finding 5 |
+| 2 | `49f7d57` perf(thingset): refresh values with one fetch per group instead of re-walking the tree | Phase 1 "what makes it slow" #1, candidate fix 1 |
+| 3 | `08c0ef4` perf(thingset): keep one handshaken shell session open per port | Phase 1 #2, candidate fix 3 |
+| 4 | `72fbb68` fix(owntech): queue ThingSet and scope operations per board, not per port | Phase 2 finding 1; Phase 3 finding 6 and the 593 ms enable write |
+| 5 | `a1ada7a` fix(owntech): resend the scope probe once before giving up | Phase 2 finding 2 |
+| 6 | `ade9015` fix(owntech): report rejected ThingSet writes and show the readback at once | Phase 1 #3 / candidate fix 2; Phase 2 finding 3 |
+| 7 | `7878234` fix(owntech): name the scope's STREAMING and ERROR states | Phase 2 finding 4 |
+| 8 | this commit: docs(gui): log the fixes and the scope-verified findings | n/a |
+
+Earlier in the same session: `ca22323`, `5539a69` (if00 auto-detect and fail-fast fixes) and `e032400` (port-list cache), plus the doc commits `1bdf482`, `6508b8e`, `13b67a7`.
+
+### What changed
+
+- **`app/js/thingset_serial_shell.js`**: `getValue()` only unwraps a `{leaf: value}` echo, so group reads return the whole object. New `refreshValues(root)` re-reads every value of an already-walked tree with one `?<group>` fetch per group, in place.
+- **`app/extensions/thingset/main.js`**:
+  - `ts-serial-tree` takes `mode: 'values'`. The main process keeps the last full walk per port and refreshes it, falling back to a full walk if any group read fails.
+  - `withShell()` keeps one handshaken session per port, dropped on an I/O error or a port close and closed after 10 s idle. Detect, walks, refreshes and every value operation use it.
+  - Operations queue per board through `serial_board_lock.js`. The scope-port list comes from its cache.
+- **`app/js/serial_board_lock.js`** (new):
+  - A per-board queue keyed by USB serial number, shared by the ThingSet and OwnTech extensions.
+  - A port list served from cache and refreshed in the background once older than 5 s; `fresh: true` for detect.
+- **`app/extensions/owntech/main.js`**: scope probe and download go through the board queue.
+- **`app/extensions/owntech/scope_serial.js`**: `probe()` resends `?` once on the same open link before failing.
+- **`app/dashboard/js/thingset_serial_datasource_core.js`**:
+  - Walks once per port, then refreshes values.
+  - `rescan()` forces a full walk.
+  - `applyWrite(path, value)` shows a just-written value immediately.
+- **`app/dashboard/js/thingset_write.js`** (new, loaded by the ThingSet extension manifest): `ThingSetWrite.write()` checks `ok`, applies the device's readback to the datasource and can follow with a values refresh.
+- **Widgets:**
+  - The Actions panel, scope widget, Toggle, +/- and Push buttons use `ThingSetWrite`.
+  - The Actions panel and scope widget show "Write failed: …".
+  - The +/- button shows the accepted readback.
+  - The Actions panel's Rescan Tree button does a full walk.
+  - The scope widget names STREAMING and ERROR.
+- **Tests:** a `getValue` group/leaf unit test, and a scope probe resend unit test with a fake port.
+
+### Before / after (same board, measured in the live app unless noted)
+
+| Measurement | Before | After |
+|---|---|---|
+| Datasource refresh (what widgets display) | 2.7–3.3 s (full walk) | **147–259 ms**, median 152 ms |
+| Single read | 551 ms → 121 ms (after `e032400`) | **10 ms** |
+| Group read `Measurements` (12 values) | wrong: one scalar | **16 ms**, whole object (Node harness) |
+| Write → value visible in the datasource | write + readback + ~3 s rescan | **41 ms** |
+| Auto Refresh at 2000 ms / 500 ms | real interval 3.5–4.0 s at 2000 ms | **487–518 ms at 500 ms** |
+| Read while Auto Refresh runs | up to 3.5 s | **max 156 ms** |
+| if02 read during an if00 scope download | **failed** (0/6 succeeded) | succeeds after waiting ≤ 1.18 s (0 failures in 3 rounds, Node harness) |
+| Read after the port-list cache went stale | +450 ms | 15 ms (Node harness) |
+
+### Verification
+
+- Unit: `thingset_serial_shell`, `thingset_tree_walk`, `thingset_value_parse` and `scope_serial` all pass.
+- E2E: the OwnTech specs plus `radial-context-menu-owntech` and `radial-context-menu-buttons` (12) pass.
+- In a broader run (`serial`, `widget-picker`, `integrated-plot-editor`, `pane-drag`, `board-context-menu`, `radial-context-menu`, `can-thingset`, OwnTech), 9 plot-editor/axis-hover tests failed with 4 parallel workers. With 1 worker, 24/25 passed. The one remaining (vertical gauge) passes 3/3 when run alone on both this code and `a9ec993` (before this session). These are load-dependent and flaky, not regressions.
+
+### Still open
+
+- **Minimum duty 0.1** (finding 4): fix in Core4 firmware, not here.
+- **Leg 1 current reading ~0 A** in the scope runs: check the 10 Ω resistor connection, or the I1 sensor.
+- **Pane drag stalls** (`Cannot read properties of undefined (reading 'size_x')` from gridster). Reported on 2026-10-12 and not reproduced on a fresh board; needs the user's saved dashboard.
+- **The app holds if00 open after a scope download** until an explicit `owntech-scope-close` (the M7 no-idle-eviction decision). It blocked an external tool from opening the port during testing. Consider an idle timeout like `withShell`'s.
+- **Detect scans all `/dev/ttyS*` ports** after the OwnTech candidates. They're ordered last, so this only costs time when if02 fails.
+- **E2E flakiness under parallel load** in `integrated-plot-editor.spec.js` and the axis-hover test.
