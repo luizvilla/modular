@@ -45,4 +45,21 @@ function runExtractJsonAnsiTests() {
 
 runExtractJsonAnsiTests();
 
-console.log('All thingset_serial_shell tests passed.');
+async function runGetValueGroupTests() {
+    const shell = makeShell();
+    // A leaf read whose response echoes the leaf name is unwrapped to the value.
+    shell.get = async () => ({ statusHex: '85', json: { rV1Low_V: 0.7 } });
+    assert.deepStrictEqual(await shell.getValue('Measurements/rV1Low_V'), { ok: true, value: 0.7 });
+    // A group read is the whole object -- it used to return only its first
+    // value (found against real hardware: getValue('Measurements') gave 0.7).
+    shell.get = async () => ({ statusHex: '85', json: { rV1Low_V: 0.7, rI1Low_A: 0.3 } });
+    assert.deepStrictEqual(await shell.getValue('Measurements'), { ok: true, value: { rV1Low_V: 0.7, rI1Low_A: 0.3 } });
+    // A single-key group whose key isn't the requested leaf stays an object.
+    shell.get = async () => ({ statusHex: '85', json: { wEnable: false } });
+    assert.deepStrictEqual(await shell.getValue('Config/Leg1'), { ok: true, value: { wEnable: false } });
+}
+
+runGetValueGroupTests().then(() => {
+    console.log('All thingset_serial_shell tests passed.');
+}).catch((err) => { console.error(err); process.exit(1); });
+

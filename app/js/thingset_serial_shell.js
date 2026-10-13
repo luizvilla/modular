@@ -632,9 +632,14 @@ class ThingSetSerialShell {
     if (!success) return { ok: false, value: null };
     if (response.json !== null && response.json !== undefined) {
       const js = response.json;
+      // Only unwrap a single-key object that echoes the leaf itself
+      // ({"rV1Low_V": 0.7}); a group read ("?Measurements") is the whole
+      // object, and unwrapping it used to return just its first value.
       if (js && typeof js === 'object' && !Array.isArray(js)) {
-        const vals = Object.values(js);
-        return { ok: true, value: vals.length ? vals[0] : js };
+        const keys = Object.keys(js);
+        const leaf = normalizePath(path).split('/').pop();
+        if (keys.length === 1 && keys[0] === leaf) return { ok: true, value: js[leaf] };
+        return { ok: true, value: js };
       }
       return { ok: true, value: js };
     }
