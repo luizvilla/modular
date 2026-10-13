@@ -375,4 +375,30 @@ Run in the live app over CDP, with the board powered (VHigh ≈ 30 V). Safety ba
 3. **`wArm` / `wTrigger` are one-shot.** The firmware clears them after acting (`scope_capture.cpp`), so a readback of `false` after writing `true` means success, not failure. Anything that checks write success by readback (the Actions panel's write feedback, the radial write-target drill) must not treat these as failed writes.
 4. **The scope widget only names 4 of the firmware's 6 states.** `SCOPE_STATE_NAMES` in `owntech_scope.widget.js` is IDLE/ARMED/TRIGGERED/READY. The firmware also has STREAMING (4) and ERROR (5), which the widget shows as "Unknown".
 
-Phase 3 (actuating) not yet run.
+### Phase 3 results (2026-10-13): switching power, through the app's own IPC
+
+**Bench:** VHigh ≈ 30.2 V. **Leg 1 → 10 Ω resistor; leg 2 → open.** Open-loop duty (`wBuck`/`wBoost` false), with leg 1's duty capped at 0.15 (≈ 2 W in the resistor) since the resistor's rating was unknown. `wDriver`, `wCapa`, frequency and dead times were never written: once `wDriver` is set true, only an MCU reset clears it (known firmware bug, Core4 `automated_test.md`). The interlock tripped immediately on V1/V2 > 8 V, I1 more than 1 A above its idle reading, VHigh > 33 V, or any write/read error. It never tripped. The board ended at Mode IDLE, both `wEnable`/`wDriver` false, duties restored to 0.1.
+
+Each step: the write (with readback), then the measurements polled (V1, I1, V2, VHigh, rDuty1, rDuty2: 6 reads, ≈ 0.7 s per poll) until V was within max(0.6 V, 15%) of duty × VHigh, or 4 s passed.
+
+| Step | Write + readback | Measured after | Expected V | Time to settle |
+|---|---|---|---|---|
+| Mode POWER_ON, legs disabled | 127 ms | V1 0.70, V2 0.01: no movement ✓ | n/a | n/a |
+| Leg 1 enable @ 0.05 | 137 ms | V1 2.60 V, I1 0.27 A | 1.51 | not settled in 4 s; **first change only after ~3.4 s** |
+| Leg 1 duty 0.10 | 149 ms | V1 2.74 V, I1 0.33 A | 3.02 | 1.5 s |
+| Leg 1 duty 0.15 | 138 ms | V1 4.06 V, I1 0.51 A | 4.53 | 2.0 s |
+| Leg 1 duty 0.05 | 139 ms | V1 2.91 V, I1 0.31 A | 1.51 | not settled in 4 s |
+| Leg 1 disable | 135 ms | V1 0.48 V | idle | 1.5 s |
+| Leg 2 enable @ 0.05 (open) | 137 ms | V2 3.08 V | 1.51 | not settled; first change after ~2.8 s |
+| Leg 2 duty 0.10 | 140 ms | V2 2.81 V | 3.02 | 1.5 s |
+| Leg 2 disable | 140 ms | V2 2.18 V, still falling | idle | not settled (no load, so the capacitor discharges slowly) |
+| Mode POWER_OFF → IDLE | 129 ms each | n/a | n/a | n/a |
+
+**Findings:**
+
+1. **The command path is fast and reliable:** 14 actuating writes, all accepted and read back in 127–149 ms through the app's own IPC (the same calls widgets make). The legs switch without `wDriver`. V1/I1 at duty 0.10–0.15 is consistent with the 10 Ω load (V/I ≈ 8–8.3 Ω, about 0.9 × duty × VHigh).
+2. **Watching the result is the slow part, and it's measurable.** Polling 6 values costs ≈ 0.7 s per poll, so nothing can see a change in under ~0.7 s, and the 1.5–2.0 s settle times above are 2–3 polls. A widget that relies on the datasource's full tree walk (Phase 1) sees it after 3–4 s. This is the "voltage changes, but slowly" the user saw. It is a readback problem in the app, not slow switching.
+3. **Enabling a leg showed no output change for ~2.8–3.4 s**, even though the duty readback (`rDuty1`/`rDuty2`) changed at once. This polling can't tell whether the delay is real (a soft start inside `shield.power.start()`?) or in the measurement path. Next step: a scope capture at decimation 100 (10 s window) armed just before the enable write.
+4. **Duty 0.05 produces ~2.6–2.9 V instead of ~1.5 V**, about what 0.10 gives, on both legs, while `rDuty` reports 0.05. Hypothesis: the PWM layer clamps low duty to a minimum around 0.1 and `rDuty` just echoes the requested value. Worth checking in the OwnTech power API before anyone relies on low-duty setpoints.
+5. **A group read (`getValue('Measurements')`) returns a single scalar**, not the group's object, through the app's `ts-serial-get-value`. This blocks the "refresh only the measurements" fix as written; the shell response parsing needs to handle objects first.
+6. **The first operation after the 5 s port-list cache expires pays the ~450 ms list cost again** (a 568 ms read observed). This is minor, but polling that runs more than 5 s apart always pays it.
