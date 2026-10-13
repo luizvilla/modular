@@ -271,23 +271,52 @@ module.exports = function registerThingSetExtension(context) {
     // independent serial handles on the same path and interleaves their
     // command/response traffic — this guard makes the second caller just await
     // the first's in-flight walk instead.
-    const inFlightTreeFetches = new Map(); // port -> Promise
+    const inFlightTreeFetches = new Map(); // "port|mode" -> Promise
 
-    ipcMain.handle('ts-serial-tree', async (_event, { port, baudRate = 115200, usePrefix = false, verbose = false } = {}) => {
+    // Last full walk per port. mode:'values' refreshes its values in place
+    // with one fetch per group (~20 commands) instead of re-walking all ~81
+    // nodes (~2.5s on a Core4 board); the walk itself is only needed to
+    // discover structure, which doesn't change while a board stays connected.
+    const lastTrees = new Map(); // port -> { root, meta }
+
+    ipcMain.handle('ts-serial-tree', async (_event, { port, baudRate = 115200, usePrefix = false, verbose = false, mode = 'full' } = {}) => {
         if (!port) throw new Error('port required');
-        const existing = inFlightTreeFetches.get(port);
+        const key = `${port}|${mode}`;
+        const existing = inFlightTreeFetches.get(key);
         if (existing) {
             tsLog('log', `tree requested for ${port}`, 'a tree fetch is already in flight for this port — awaiting it instead of starting a second one');
             return existing;
         }
-        const attempt = runExclusive(port, () => runSerialTree({ port, baudRate, usePrefix, verbose }));
-        inFlightTreeFetches.set(port, attempt);
+        const run = mode === 'values' && lastTrees.has(port)
+            ? () => runValuesRefresh({ port, baudRate, usePrefix, verbose })
+            : () => runSerialTree({ port, baudRate, usePrefix, verbose });
+        const attempt = runExclusive(port, run);
+        inFlightTreeFetches.set(key, attempt);
         try {
             return await attempt;
         } finally {
-            if (inFlightTreeFetches.get(port) === attempt) inFlightTreeFetches.delete(port);
+            if (inFlightTreeFetches.get(key) === attempt) inFlightTreeFetches.delete(key);
         }
     });
+
+    async function runValuesRefresh({ port, baudRate, usePrefix, verbose }) {
+        const cached = lastTrees.get(port);
+        const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort: getOpenPort(port) });
+        try {
+            await shell.open();
+            await shell.enterThingSet();
+            if (!shell.probeSucceeded()) throw new Error(`ThingSet shell did not respond on ${port}`);
+            await shell.refreshValues(cached.root);
+            return { ...cached.meta, root: cached.root, mode: 'values' };
+        } catch (err) {
+            tsLog('warn', `values refresh failed for ${port}`, `${err?.message || err} — falling back to a full tree walk`);
+            lastTrees.delete(port);
+        } finally {
+            try { await shell.close(); } catch {}
+        }
+        return runSerialTree({ port, baudRate, usePrefix, verbose });
+    }
 
     async function runSerialTree({ port, baudRate, usePrefix, verbose }) {
         tsLog('log', `tree requested for ${port}`);
@@ -337,7 +366,9 @@ module.exports = function registerThingSetExtension(context) {
             }
             tsLog('log', `tree succeeded for ${port}`, addressHex || 'n/a');
             emit({ id: `serial:${port}:tree`, title: port, state: 'done', label: 'ThingSet serial tree', detail: addressHex || 'n/a' });
-            return { node_uid: nodeUid, node_name: nodeName, address_hex: addressHex, node_addr: nodeAddr, root, saved_tree_path: savedTreePath };
+            const meta = { node_uid: nodeUid, node_name: nodeName, address_hex: addressHex, node_addr: nodeAddr, saved_tree_path: savedTreePath };
+            if (root) lastTrees.set(port, { root, meta });
+            return { ...meta, root, mode: 'full' };
         } catch (err) {
             tsLog('error', `tree failed for ${port}`, err?.message || String(err));
             emit({ id: `serial:${port}:tree`, title: port, state: 'error', label: 'ThingSet serial tree', detail: err?.message || String(err) });

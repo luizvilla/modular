@@ -813,6 +813,39 @@ class ThingSetSerialShell {
     return root;
   }
 
+  // Re-reads every value in a tree buildTree() already returned, with one
+  // "?<group>" fetch per group instead of buildTree()'s per-node inspect and
+  // id lookups (measured on a Core4 board: 81 leaves, ~2.5s per walk).
+  // Structure and ids are kept; only values change, in place. Throws if any
+  // group no longer answers with an object, so the caller can fall back to a
+  // full walk (e.g. after a reflash changed the tree).
+  async refreshValues(root) {
+    let groups = 0;
+    const visit = async (node, path) => {
+      const kids = Object.entries(node.children || {});
+      const leaves = kids.filter(([, child]) => !child.children);
+      if (leaves.length || Object.keys(node.values || {}).length) {
+        const resp = await this.get(path);
+        const js = resp && resp.json;
+        if (!this._isSuccessStatus(resp && resp.statusHex) || !js || typeof js !== 'object' || Array.isArray(js)) {
+          throw new Error(`ThingSet group read failed for ${path}`);
+        }
+        groups += 1;
+        for (const [name, child] of leaves) {
+          if (name in js) child.value = sanitize(js[name]);
+        }
+        for (const key of Object.keys(node.values || {})) {
+          if (key in js) node.values[key] = sanitize(js[key]);
+        }
+      }
+      for (const [name, child] of kids) {
+        if (child.children) await visit(child, path === '/' ? `/${name}` : `${path}/${name}`);
+      }
+    };
+    await visit(root, '/');
+    return { root, groups };
+  }
+
   async readNodeUid() {
     const entry = await this.inspect('/pNodeID', { entryCache: new Map(), idCache: new Map() });
     if (entry.scalar != null) return String(entry.scalar);

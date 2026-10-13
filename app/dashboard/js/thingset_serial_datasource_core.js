@@ -108,6 +108,12 @@
     let lastMeta = null;
     let lastError = null;
     let pollInFlight = null;
+    // A full walk discovers the tree; later polls only refresh its values
+    // (mode:'values', ~20 group reads instead of ~2.5s of per-node walking).
+    // A new port, an explicit rescan() or a failed refresh walks again.
+    let walkedPort = null;
+    let fullRequested = false;
+    let lastData = null;
 
     function isAutoMode() {
       return currentSettings.autoDetect !== false;
@@ -189,10 +195,11 @@
       return detectedPort;
     }
 
-    async function fetchTree(port) {
+    async function fetchTree(port, mode) {
       if (!port) return null;
       const payload = {
         port,
+        mode,
         baudRate: effectiveBaudRate(),
         usePrefix: !!currentSettings.usePrefix,
         verbose: !!currentSettings.debug,
@@ -218,7 +225,10 @@
       }
 
       try {
-        const treeRes = await fetchTree(port);
+        const mode = (fullRequested || walkedPort !== port) ? 'full' : 'values';
+        fullRequested = false;
+        const treeRes = await fetchTree(port, mode);
+        walkedPort = port;
         const root = treeRes?.root || null;
         lastMeta = {
           node_uid: treeRes?.node_uid ?? lastMeta?.node_uid ?? null,
@@ -242,12 +252,14 @@
           labels: numericLabels,
         };
         numericValues.forEach((val, idx) => { data[`y${idx + 1}`] = val; });
+        lastData = data;
         updateCallback(data);
         lastError = null;
       } catch (err) {
         lastError = err;
         const detail = err?.message || String(err);
         const data = { ...base, portPath: port, status: 'error', error: detail };
+        walkedPort = null;
         updateCallback(data);
         if (isAutoMode()) {
           detectedPort = null;
@@ -287,6 +299,23 @@
         }
       })();
       return pollInFlight;
+    };
+
+    // Full re-walk (discovers added/removed nodes), e.g. the Rescan button.
+    self.rescan = () => {
+      fullRequested = true;
+      return self.updateNow();
+    };
+
+    // Shows a just-written value immediately, without waiting for the next
+    // poll. `value` should be the device's readback, so one-shot flags the
+    // firmware clears itself (e.g. /Debug/Scope/wArm) show their real state.
+    self.applyWrite = (path, value) => {
+      if (!lastData || !path || value === undefined || value === null) return;
+      const key = String(path).startsWith('/') ? String(path) : `/${path}`;
+      if (!(key in (lastData.values || {}))) return;
+      lastData = { ...lastData, values: { ...lastData.values, [key]: value } };
+      updateCallback(lastData);
     };
 
     self.onDispose = () => {

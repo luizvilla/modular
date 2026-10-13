@@ -62,7 +62,7 @@
             this.powerWrap = $('<div></div>');
             this.legsWrap = $('<div class="d-flex flex-column gap-2"></div>');
 
-            this.rescanBtn.on('click', () => this._rescan());
+            this.rescanBtn.on('click', () => this._rescanFull());
 
             if (freeboard && typeof freeboard.addStyle === 'function') {
                 // Reuses the same class names/markup as twist_control.widget.js's
@@ -140,6 +140,15 @@
         _rescan() {
             const dsModel = this._dsModel();
             if (dsModel && typeof dsModel.updateNow === 'function') dsModel.updateNow();
+        }
+
+        // The datasource normally only refreshes values; the button re-walks
+        // the whole tree so newly added nodes (e.g. after a reflash) appear.
+        _rescanFull() {
+            const dsModel = this._dsModel();
+            const instance = dsModel && dsModel.datasourceInstance;
+            if (instance && typeof instance.rescan === 'function') instance.rescan();
+            else this._rescan();
         }
 
         _latestData() {
