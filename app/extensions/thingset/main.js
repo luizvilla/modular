@@ -106,13 +106,21 @@ module.exports = function registerThingSetExtension(context) {
             && !isIf00Candidate(other));
     }
 
-    async function listScopeSidePaths() {
-        try {
-            const ports = (await SerialPort.list()) || [];
-            return new Set(ports.filter((p) => p && p.path && isScopeSidePort(p, ports)).map((p) => p.path));
-        } catch {
-            return new Set();
+    // SerialPort.list() costs ~450ms on Linux (udev scan) -- measured against a
+    // real board, uncached it was ~80% of every single ts-serial-get-value.
+    // Which path is a scope side-channel only changes on a replug, so a short
+    // TTL is plenty; detect still does its own fresh list.
+    const SCOPE_SIDE_TTL_MS = 5000;
+    let scopeSideCache = null; // { at, promise }
+
+    function listScopeSidePaths() {
+        if (!scopeSideCache || Date.now() - scopeSideCache.at > SCOPE_SIDE_TTL_MS) {
+            const promise = SerialPort.list()
+                .then((ports) => new Set((ports || []).filter((p) => p && p.path && isScopeSidePort(p, ports)).map((p) => p.path)))
+                .catch(() => new Set());
+            scopeSideCache = { at: Date.now(), promise };
         }
+        return scopeSideCache.promise;
     }
 
     async function collectSerialCandidates(explicitPort = null) {
