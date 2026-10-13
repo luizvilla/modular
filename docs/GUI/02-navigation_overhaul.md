@@ -355,4 +355,24 @@ Each milestone should leave the app in a working, visually consistent state, mat
 2. **After a write, read back only the written leaf**, not the whole tree.
 3. **Keep one shell session open per port** and reuse it, so the 112 ms handshake + close is paid once per connection instead of per operation. That brings reads close to the ~10 ms command time.
 
-Phase 2 and 3 not yet run.
+### Phase 2 results (2026-10-13): scope capture, writes to `/Debug/Scope/*` only
+
+Run in the live app over CDP, with the board powered (VHigh ≈ 30 V). Safety baseline before every round and at the end: `Config/Leg1/wEnable` and `Config/Leg2/wEnable` both `false`. No write ever touched `Config/Mode`, `wEnable` or duty/reference.
+
+| Measurement | Result |
+|---|---|
+| `wDecimation=1`, `wPretriggerRatio=0.2` (current values, so no-op writes), write + readback | 142–154 ms each |
+| `wArm` / `wTrigger` write + readback | 133–207 ms each |
+| Arm → trigger → `rState` READY at decimation 1 | 389–465 ms (the capture itself is 102.4 ms) |
+| Download over if00 (1024 samples × 8 channels) | 1.16 s, identical across 3 rounds |
+| Fresh capture each round? | Yes: `rState` 1 after arm, 3 after trigger, `rLastError` 0, final index 126 vs. 433 with different sample data, downloaded final index matches `rFinalIndex` |
+| if00 probe | 6–7 ms, **but the first probe after the app started timed out** (1.5 s), then passed on the very next attempt |
+
+**Findings:**
+
+1. **if02 reads fail while if00 is downloading.** In all 3 rounds, both reads issued during the 1.16 s download came back `{ok:false}` (the first after ~950 ms, the next after ~220 ms). Zero succeeded. The firmware streams 8192 `printk` lines during a download, and the ThingSet shell doesn't answer the per-operation handshake in time. The M8 run (2026-08-31) saw no cross-talk, but it used one long-lived shell instance with no per-operation handshake. In the app today, any widget or Auto Refresh read that lands inside a download fails. Candidate fix: hold `ts-serial-*` operations for a board while a scope download is in flight on its if00, or retry once after it finishes. A persistent shell session (Phase 1 fix 3) may also help.
+2. **The first if00 probe after app start can time out.** Standalone opens with 0/100/500 ms delay before `?` all answered in 10–12 ms (3/3 each), so it isn't simply DTR settling. It matches the "first probe legitimately timed out" note from M8. Candidate fix: resend `?` once on the same open link before giving up. Don't close and reopen immediately: M8 saw a ~1 min lock storm after an immediate reopen.
+3. **`wArm` / `wTrigger` are one-shot.** The firmware clears them after acting (`scope_capture.cpp`), so a readback of `false` after writing `true` means success, not failure. Anything that checks write success by readback (the Actions panel's write feedback, the radial write-target drill) must not treat these as failed writes.
+4. **The scope widget only names 4 of the firmware's 6 states.** `SCOPE_STATE_NAMES` in `owntech_scope.widget.js` is IDLE/ARMED/TRIGGERED/READY. The firmware also has STREAMING (4) and ERROR (5), which the widget shows as "Unknown".
+
+Phase 3 (actuating) not yet run.
