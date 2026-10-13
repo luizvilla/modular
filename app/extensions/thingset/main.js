@@ -1,7 +1,6 @@
 const nodePath = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { SerialPort } = require('serialport');
 
 module.exports = function registerThingSetExtension(context) {
     context.registerManifestContribution();
@@ -17,6 +16,7 @@ module.exports = function registerThingSetExtension(context) {
     const { exploreId } = require('../../js/query_nodes');
     const { flashCanFirmware } = require('../../js/thingset_dfu_can');
     const { ThingSetSerialShell } = require('../../js/thingset_serial_shell');
+    const boardLock = require('../../js/serial_board_lock');
 
     // Internal CAN state — owned entirely by this extension.
     const canBuses = new Map();
@@ -106,27 +106,18 @@ module.exports = function registerThingSetExtension(context) {
             && !isIf00Candidate(other));
     }
 
-    // SerialPort.list() costs ~450ms on Linux (udev scan) -- measured against a
-    // real board, uncached it was ~80% of every single ts-serial-get-value.
-    // Which path is a scope side-channel only changes on a replug, so a short
-    // TTL is plenty; detect still does its own fresh list.
-    const SCOPE_SIDE_TTL_MS = 5000;
-    let scopeSideCache = null; // { at, promise }
-
-    function listScopeSidePaths() {
-        if (!scopeSideCache || Date.now() - scopeSideCache.at > SCOPE_SIDE_TTL_MS) {
-            const promise = SerialPort.list()
-                .then((ports) => new Set((ports || []).filter((p) => p && p.path && isScopeSidePort(p, ports)).map((p) => p.path)))
-                .catch(() => new Set());
-            scopeSideCache = { at: Date.now(), promise };
-        }
-        return scopeSideCache.promise;
+    // Port lists come from the shared, background-refreshed cache in
+    // serial_board_lock.js (a raw SerialPort.list() costs ~450ms on Linux);
+    // detect alone asks for a fresh one.
+    async function listScopeSidePaths() {
+        const ports = await boardLock.listPorts();
+        return new Set(ports.filter((p) => p && p.path && isScopeSidePort(p, ports)).map((p) => p.path));
     }
 
     async function collectSerialCandidates(explicitPort = null) {
         if (explicitPort) return [explicitPort];
         try {
-            const ports = await SerialPort.list();
+            const ports = await boardLock.listPorts({ fresh: true });
             if (!ports || !ports.length) return [];
             const usable = ports.filter((p) => p && p.path && !isScopeSidePort(p, ports));
             return orderSerialCandidates(usable);
@@ -176,10 +167,10 @@ module.exports = function registerThingSetExtension(context) {
     // fully finished, generalizing the same per-port-Promise idea
     // inFlightTreeFetches (below) already used just for concurrent tree
     // fetches to every serial ThingSet operation.
-    const portQueues = new Map(); // port -> Promise (tail of that port's queue)
-
+    // Queued per physical board, not per port (serial_board_lock.js): the
+    // OwnTech extension's scope downloads on the same board's if00 stall this
+    // shell, so they share the queue.
     function runExclusive(port, fn) {
-        const prev = portQueues.get(port) || Promise.resolve();
         // Refuse before a single byte goes out: sending the ThingSet
         // handshake to the scope side-channel wedges the board's firmware
         // until it is physically reset (see isScopeSidePort).
@@ -189,12 +180,7 @@ module.exports = function registerThingSetExtension(context) {
             }
             return fn();
         };
-        const settled = prev.then(guarded, guarded);
-        // The stored continuation must never reject -- otherwise one failed
-        // operation would permanently wedge every later operation on this
-        // port. Callers still get the real result/rejection via `settled`.
-        portQueues.set(port, settled.then(() => {}, () => {}));
-        return settled;
+        return boardLock.runExclusiveOnBoard(port, guarded);
     }
 
     // -------------------------------------------------------------------------

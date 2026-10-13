@@ -11,6 +11,9 @@ module.exports = function registerOwntechExtension(context) {
     // 'serialport' native module, only needed once this extension is
     // actually active in a real Electron main process.
     const { ScopeSerialLink } = require('./scope_serial');
+    // Shared with the ThingSet extension: the board's shell (if02) stops
+    // answering while this port streams a capture, so both queue per board.
+    const boardLock = require('../../js/serial_board_lock');
 
     function emit(evt) {
         if (typeof context.emitActivity === 'function') context.emitActivity(evt);
@@ -52,8 +55,10 @@ module.exports = function registerOwntechExtension(context) {
         if (!port) throw new Error('port required');
         emit({ id: `scope:${port}:probe`, title: port, state: 'start', label: 'OwnTech scope probe' });
         try {
-            const link = await getOrOpenLink(port, baudRate);
-            await link.probe();
+            await boardLock.runExclusiveOnBoard(port, async () => {
+                const link = await getOrOpenLink(port, baudRate);
+                await link.probe();
+            });
             emit({ id: `scope:${port}:probe`, title: port, state: 'done', label: 'OwnTech scope probe' });
             return { ok: true, port };
         } catch (err) {
@@ -67,13 +72,12 @@ module.exports = function registerOwntechExtension(context) {
         if (!port) throw new Error('port required');
         emit({ id: `scope:${port}:download`, title: port, state: 'start', label: 'OwnTech scope download' });
         try {
-            const link = await getOrOpenLink(port, baudRate);
-            const result = await link.download({
+            const result = await boardLock.runExclusiveOnBoard(port, async () => (await getOrOpenLink(port, baudRate)).download({
                 timeoutMs,
                 onProgress: (progress) => {
                     try { event.sender.send('owntech-scope-progress', { port, ...progress }); } catch (e) { /* window may be closing */ }
                 },
-            });
+            }));
             emit({ id: `scope:${port}:download`, title: port, state: 'done', label: 'OwnTech scope download' });
             return result;
         } catch (err) {
