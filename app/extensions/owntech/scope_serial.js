@@ -131,7 +131,25 @@ class ScopeSerialLink {
     // Sends '?', expects a single line exactly "SCOPE-DATA/1 OK". Distinct
     // from (and not to be confused with) ThingSetSerialShell.enterThingSet()
     // -- this is a different port, a different protocol, no relation.
-    async probe(timeoutMs = 1500) {
+    //
+    // The first probe after the link opens can go unanswered -- seen on a
+    // real Core4 board right after app start, answered on the very next
+    // try. It is resent once on the same open link: closing and reopening
+    // right after a timeout caused a ~1 minute "Cannot lock port" storm (M8).
+    async probe(timeoutMs = 1500, attempts = 2) {
+        let lastErr = null;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+            try {
+                return await this._probeOnce(timeoutMs);
+            } catch (err) {
+                lastErr = err;
+                if (!(err instanceof ScopeSerialError) || !/timed out/.test(err.message)) throw err;
+            }
+        }
+        throw lastErr;
+    }
+
+    async _probeOnce(timeoutMs) {
         await this._write('?');
         const deadline = Date.now() + timeoutMs;
         for (let i = 0; i < 32; i += 1) {

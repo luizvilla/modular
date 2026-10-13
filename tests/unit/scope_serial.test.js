@@ -1,5 +1,6 @@
 const assert = require('assert');
-const { parseHexFloat, rotateToChronological, SCOPE_SAMPLE_COUNT, SCOPE_CHANNEL_NAMES } = require('../../app/extensions/owntech/scope_serial.js');
+const { EventEmitter } = require('events');
+const { parseHexFloat, rotateToChronological, ScopeSerialLink, SCOPE_SAMPLE_COUNT, SCOPE_CHANNEL_NAMES } = require('../../app/extensions/owntech/scope_serial.js');
 
 function runParseHexFloatTests() {
     // Known IEEE-754 big-endian single-precision test vectors -- this is
@@ -40,7 +41,37 @@ function runRotateToChronologicalTests() {
     assert.deepStrictEqual(rotateToChronological([], 0), []);
 }
 
+// A port that ignores the first '?' (the real first-contact symptom) and
+// answers every later one.
+function makeLinkIgnoringFirstProbe(answerFrom = 2) {
+    const link = new ScopeSerialLink({ path: '/dev/ttyNONEXISTENT_TEST_ONLY' });
+    const port = new EventEmitter();
+    let probes = 0;
+    port.isOpen = true;
+    port.write = (buf, cb) => {
+        if (buf.toString() === '?') {
+            probes += 1;
+            if (probes >= answerFrom) setTimeout(() => port.emit('data', Buffer.from('SCOPE-DATA/1 OK\n')), 5);
+        }
+        cb();
+    };
+    link.port = port;
+    port.on('data', link._onData);
+    return { link, probeCount: () => probes };
+}
+
+async function runProbeResendTests() {
+    const ok = makeLinkIgnoringFirstProbe(2);
+    await ok.link.probe(200);
+    assert.strictEqual(ok.probeCount(), 2, 'an unanswered first probe is resent once on the same link');
+
+    const dead = makeLinkIgnoringFirstProbe(Infinity);
+    await assert.rejects(() => dead.link.probe(100), /timed out/);
+    assert.strictEqual(dead.probeCount(), 2, 'gives up after the resend');
+}
+
 runParseHexFloatTests();
 runRotateToChronologicalTests();
-
-console.log('All scope_serial tests passed.');
+runProbeResendTests().then(() => {
+    console.log('All scope_serial tests passed.');
+}).catch((err) => { console.error(err); process.exit(1); });
