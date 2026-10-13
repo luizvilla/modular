@@ -198,6 +198,63 @@ module.exports = function registerThingSetExtension(context) {
     }
 
     // -------------------------------------------------------------------------
+    // One open, handshaken shell per port, reused across operations
+    // -------------------------------------------------------------------------
+    // Opening the port, toggling DTR, the ThingSet handshake and closing again
+    // cost ~112ms around a ~10ms command (measured on a Core4 board), on every
+    // single read or write. A session is dropped on any I/O error or when the
+    // port closes (unplug), and closed after SESSION_IDLE_MS of inactivity so
+    // other tools can open the port. Always called inside runExclusive(port).
+    const SESSION_IDLE_MS = 10000;
+    const sessions = new Map(); // port -> { shell, baudRate, idleTimer }
+
+    async function dropSession(port) {
+        const session = sessions.get(port);
+        if (!session) return;
+        sessions.delete(port);
+        clearTimeout(session.idleTimer);
+        try { await session.shell.close(); } catch {}
+    }
+
+    async function withShell(port, { baudRate = 115200, usePrefix = false, verbose = false } = {}, fn) {
+        let session = sessions.get(port);
+        if (session && (session.baudRate !== baudRate || !session.shell.port.isOpen)) {
+            await dropSession(port);
+            session = null;
+        }
+        if (!session) {
+            const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
+            const existingPort = getOpenPort(port);
+            tsLog('log', `opening session on ${port}`, existingPort ? `reusing already-open handle (isOpen=${existingPort.isOpen})` : 'new handle');
+            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
+            try {
+                await shell.open();
+                await shell.enterThingSet();
+                // enterThingSet() is best-effort; working against a dead shell
+                // yields empty trees and null reads reported as success.
+                if (!shell.probeSucceeded()) throw new Error(`ThingSet shell did not respond on ${port}`);
+            } catch (err) {
+                try { await shell.close(); } catch {}
+                throw err;
+            }
+            session = { shell, baudRate, idleTimer: null };
+            sessions.set(port, session);
+        }
+        clearTimeout(session.idleTimer);
+        session.shell.readBuffer = Buffer.alloc(0);
+        try {
+            return await fn(session.shell);
+        } catch (err) {
+            await dropSession(port);
+            throw err;
+        } finally {
+            if (sessions.get(port) === session) {
+                session.idleTimer = setTimeout(() => { runExclusive(port, () => dropSession(port)).catch(() => {}); }, SESSION_IDLE_MS);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // ThingSet serial detect
     // -------------------------------------------------------------------------
     // Same reasoning as inFlightTreeFetches: a scan across every candidate port
@@ -227,25 +284,17 @@ module.exports = function registerThingSetExtension(context) {
         tsLog('log', 'detect requested', `candidates=[${candidates.join(', ')}]`);
         if (!candidates.length) throw new Error('No serial ports found to probe for ThingSet shell');
         const attempts = [];
-        const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
         for (const candidate of candidates) {
             try {
                 const result = await runExclusive(candidate, async () => {
-                    const existingPort = getOpenPort(candidate);
-                    tsLog('log', `probing ${candidate}`, existingPort ? `reusing already-open handle (isOpen=${existingPort.isOpen})` : 'no open handle found — will open a new one');
-                    const shell = new ThingSetSerialShell({ path: candidate, baudRate, usePrefix, verbose: isVerbose, existingPort });
-                    try {
-                        await shell.open();
-                        await shell.enterThingSet();
-                        if (!shell.probeSucceeded()) throw new Error('ThingSet prompt not detected');
+                    tsLog('log', `probing ${candidate}`);
+                    return withShell(candidate, { baudRate, usePrefix, verbose }, async (shell) => {
                         const nodeUid = await shell.readNodeUid().catch(() => null);
                         const nodeName = await shell.readNodeName().catch(() => null);
                         const nodeAddr = await shell.readNodeAddr().catch(() => null);
                         const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
                         return { node_uid: nodeUid, node_name: nodeName, node_addr: nodeAddr, address_hex: addressHex, command_prefix: shell.getCommandPrefix() };
-                    } finally {
-                        try { await shell.close(); } catch {}
-                    }
+                    });
                 });
                 tsLog('log', `probe succeeded on ${candidate}`, result.address_hex || result.node_uid || 'ok');
                 emit({ id: `serial:${candidate}:detect`, title: candidate, state: 'done', label: 'ThingSet serial detect', detail: result.node_uid || result.address_hex || 'ok' });
@@ -301,19 +350,12 @@ module.exports = function registerThingSetExtension(context) {
 
     async function runValuesRefresh({ port, baudRate, usePrefix, verbose }) {
         const cached = lastTrees.get(port);
-        const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
-        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort: getOpenPort(port) });
         try {
-            await shell.open();
-            await shell.enterThingSet();
-            if (!shell.probeSucceeded()) throw new Error(`ThingSet shell did not respond on ${port}`);
-            await shell.refreshValues(cached.root);
+            await withShell(port, { baudRate, usePrefix, verbose }, (shell) => shell.refreshValues(cached.root));
             return { ...cached.meta, root: cached.root, mode: 'values' };
         } catch (err) {
             tsLog('warn', `values refresh failed for ${port}`, `${err?.message || err} — falling back to a full tree walk`);
             lastTrees.delete(port);
-        } finally {
-            try { await shell.close(); } catch {}
         }
         return runSerialTree({ port, baudRate, usePrefix, verbose });
     }
@@ -321,60 +363,51 @@ module.exports = function registerThingSetExtension(context) {
     async function runSerialTree({ port, baudRate, usePrefix, verbose }) {
         tsLog('log', `tree requested for ${port}`);
         emit({ id: `serial:${port}:tree`, title: port, state: 'start', label: 'ThingSet serial tree' });
-        const existingPort = getOpenPort(port);
-        tsLog('log', `${port}`, existingPort ? `reusing already-open handle (isOpen=${existingPort.isOpen})` : 'no open handle found — will open a new one');
-        const isVerbose = Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1';
-        const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: isVerbose, existingPort });
         try {
-            await shell.open();
-            await shell.enterThingSet();
-            // enterThingSet() is best-effort; walking the tree without a
-            // working shell yields an empty root reported as success.
-            if (!shell.probeSucceeded()) throw new Error(`ThingSet shell did not respond on ${port}`);
-            const root = await shell.buildTree();
-            const nodeUid = await shell.readNodeUid();
-            const nodeName = await shell.readNodeName();
-            const nodeAddr = await shell.readNodeAddr();
-            const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
-            let savedTreePath = null;
-            if (Number.isInteger(nodeAddr) && root) {
-                try {
-                    const dir = getThingsetDir();
-                    const hex = nodeAddr.toString(16).toUpperCase().padStart(2, '0');
-                    const payload = { node_uid: nodeUid || null, address: `0x${hex}`, root };
-                    if (nodeName) payload.node_name = nodeName;
-                    const treePath = nodePath.join(dir, `node_${hex}_tree.json`);
-                    await fs.promises.writeFile(treePath, JSON.stringify(payload, null, 2), 'utf8');
-                    savedTreePath = treePath;
-                    if (nodeUid) {
-                        const mappingPath = nodePath.join(dir, 'nodes.json');
-                        let mapping = {};
-                        try { mapping = JSON.parse(await fs.promises.readFile(mappingPath, 'utf8')) || {}; } catch {}
-                        mapping[String(nodeAddr)] = nodeUid;
-                        const ordered = Object.keys(mapping)
-                            .filter((k) => Number.isFinite(Number(k)))
-                            .sort((a, b) => Number(a) - Number(b))
-                            .reduce((acc, key) => { acc[key] = mapping[key]; return acc; }, {});
-                        for (const [key, value] of Object.entries(mapping)) {
-                            if (!Number.isFinite(Number(key))) ordered[key] = value;
+            return await withShell(port, { baudRate, usePrefix, verbose }, async (shell) => {
+                const root = await shell.buildTree();
+                const nodeUid = await shell.readNodeUid();
+                const nodeName = await shell.readNodeName();
+                const nodeAddr = await shell.readNodeAddr();
+                const addressHex = Number.isInteger(nodeAddr) ? `0x${nodeAddr.toString(16).toUpperCase().padStart(2, '0')}` : null;
+                let savedTreePath = null;
+                if (Number.isInteger(nodeAddr) && root) {
+                    try {
+                        const dir = getThingsetDir();
+                        const hex = nodeAddr.toString(16).toUpperCase().padStart(2, '0');
+                        const payload = { node_uid: nodeUid || null, address: `0x${hex}`, root };
+                        if (nodeName) payload.node_name = nodeName;
+                        const treePath = nodePath.join(dir, `node_${hex}_tree.json`);
+                        await fs.promises.writeFile(treePath, JSON.stringify(payload, null, 2), 'utf8');
+                        savedTreePath = treePath;
+                        if (nodeUid) {
+                            const mappingPath = nodePath.join(dir, 'nodes.json');
+                            let mapping = {};
+                            try { mapping = JSON.parse(await fs.promises.readFile(mappingPath, 'utf8')) || {}; } catch {}
+                            mapping[String(nodeAddr)] = nodeUid;
+                            const ordered = Object.keys(mapping)
+                                .filter((k) => Number.isFinite(Number(k)))
+                                .sort((a, b) => Number(a) - Number(b))
+                                .reduce((acc, key) => { acc[key] = mapping[key]; return acc; }, {});
+                            for (const [key, value] of Object.entries(mapping)) {
+                                if (!Number.isFinite(Number(key))) ordered[key] = value;
+                            }
+                            await fs.promises.writeFile(mappingPath, JSON.stringify(ordered, null, 2), 'utf8');
                         }
-                        await fs.promises.writeFile(mappingPath, JSON.stringify(ordered, null, 2), 'utf8');
+                    } catch (persistErr) {
+                        console.warn('Failed to persist ThingSet serial tree:', persistErr?.message || persistErr);
                     }
-                } catch (persistErr) {
-                    console.warn('Failed to persist ThingSet serial tree:', persistErr?.message || persistErr);
                 }
-            }
-            tsLog('log', `tree succeeded for ${port}`, addressHex || 'n/a');
-            emit({ id: `serial:${port}:tree`, title: port, state: 'done', label: 'ThingSet serial tree', detail: addressHex || 'n/a' });
-            const meta = { node_uid: nodeUid, node_name: nodeName, address_hex: addressHex, node_addr: nodeAddr, saved_tree_path: savedTreePath };
-            if (root) lastTrees.set(port, { root, meta });
-            return { ...meta, root, mode: 'full' };
+                tsLog('log', `tree succeeded for ${port}`, addressHex || 'n/a');
+                emit({ id: `serial:${port}:tree`, title: port, state: 'done', label: 'ThingSet serial tree', detail: addressHex || 'n/a' });
+                const meta = { node_uid: nodeUid, node_name: nodeName, address_hex: addressHex, node_addr: nodeAddr, saved_tree_path: savedTreePath };
+                if (root) lastTrees.set(port, { root, meta });
+                return { ...meta, root, mode: 'full' };
+            });
         } catch (err) {
             tsLog('error', `tree failed for ${port}`, err?.message || String(err));
             emit({ id: `serial:${port}:tree`, title: port, state: 'error', label: 'ThingSet serial tree', detail: err?.message || String(err) });
             throw err;
-        } finally {
-            try { await shell.close(); } catch {}
         }
     }
 
@@ -385,16 +418,13 @@ module.exports = function registerThingSetExtension(context) {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
         return runExclusive(port, async () => {
-            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-            try {
-                await shell.open();
-                await shell.enterThingSet();
+            return withShell(port, { baudRate, usePrefix, verbose }, async (shell) => {
                 const coerced = coerceOutputValue(value);
                 const resp = await shell.setValue(targetPath, coerced);
                 let readBack = null;
                 try { const read = await shell.getValue(targetPath); if (read.ok) readBack = read.value; } catch {}
                 return { ok: resp.ok, raw: resp.raw, readBack };
-            } finally { try { await shell.close(); } catch {} }
+            });
         });
     });
 
@@ -402,13 +432,10 @@ module.exports = function registerThingSetExtension(context) {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
         return runExclusive(port, async () => {
-            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-            try {
-                await shell.open();
-                await shell.enterThingSet();
+            return withShell(port, { baudRate, usePrefix, verbose }, async (shell) => {
                 const resp = await shell.getValue(targetPath);
                 return { ok: resp.ok, value: resp.value };
-            } finally { try { await shell.close(); } catch {} }
+            });
         });
     });
 
@@ -416,13 +443,10 @@ module.exports = function registerThingSetExtension(context) {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
         return runExclusive(port, async () => {
-            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-            try {
-                await shell.open();
-                await shell.enterThingSet();
+            return withShell(port, { baudRate, usePrefix, verbose }, async (shell) => {
                 const resp = await shell.create(targetPath, value);
                 return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
-            } finally { try { await shell.close(); } catch {} }
+            });
         });
     });
 
@@ -430,13 +454,10 @@ module.exports = function registerThingSetExtension(context) {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
         return runExclusive(port, async () => {
-            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-            try {
-                await shell.open();
-                await shell.enterThingSet();
+            return withShell(port, { baudRate, usePrefix, verbose }, async (shell) => {
                 const resp = await shell.deleteValue(targetPath, value);
                 return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
-            } finally { try { await shell.close(); } catch {} }
+            });
         });
     });
 
@@ -444,13 +465,10 @@ module.exports = function registerThingSetExtension(context) {
         if (!port) throw new Error('port required');
         if (!targetPath) throw new Error('path required');
         return runExclusive(port, async () => {
-            const shell = new ThingSetSerialShell({ path: port, baudRate, usePrefix, verbose: Boolean(verbose) || process.env.TS_SERIAL_DEBUG === '1', existingPort: getOpenPort(port) });
-            try {
-                await shell.open();
-                await shell.enterThingSet();
+            return withShell(port, { baudRate, usePrefix, verbose }, async (shell) => {
                 const resp = await shell.exec(targetPath, args);
                 return { status: resp.statusHex, ok: shell.isSuccessStatus(resp.statusHex), raw: resp.text, json: resp.json };
-            } finally { try { await shell.close(); } catch {} }
+            });
         });
     });
 
