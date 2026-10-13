@@ -53,7 +53,6 @@
     class OwnTechActionsPanel {
         constructor(settings) {
             this.settings = settings || {};
-            this.tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
             this._dsSubscription = null;
 
             this.container = $('<div class="d-flex flex-column h-100 gap-2 overflow-auto p-2"></div>');
@@ -171,28 +170,14 @@
             else this.statusLine.text('Waiting for data…');
         }
 
-        // Writes, then rescans the linked datasource so the status line (and
-        // any discovered toggle) reflects the new state without the user
-        // having to separately click Rescan Tree -- a plain write success
-        // code alone gave no visible feedback that anything happened.
+        // Writes through the shared ThingSetWrite helper: the readback shows
+        // up at once and a values-only refresh follows, so the status line
+        // (and any discovered toggle) reflects the new state -- and a write
+        // the board rejects is reported instead of looking like a success.
         async _writeValue(path, value) {
-            if (!this.tsSerialApi || !this.tsSerialApi.setValue || !path) return;
-            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
-            if (!dsSettings.portPath) return;
-            try {
-                await this.tsSerialApi.setValue({
-                    port: dsSettings.portPath,
-                    path,
-                    value,
-                    baudRate: Number(dsSettings.baudRate) || 115200,
-                    usePrefix: !!this.settings.usePrefix,
-                    verbose: !!this.settings.debug,
-                });
-                this._rescan();
-            } catch (err) {
-                console.error('ThingSet write failed:', err);
-                this.statusLine.text(`Write failed: ${err?.message || err}`);
-            }
+            if (!path || !window.ThingSetWrite) return;
+            const res = await window.ThingSetWrite.write({ datasource: this.settings.datasource, path, value, refresh: true });
+            if (!res.ok) this.statusLine.text(`Write failed: ${res.error}`);
         }
 
         _renderPowerControls() {

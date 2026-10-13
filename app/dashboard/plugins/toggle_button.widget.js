@@ -146,20 +146,11 @@
         }
 
         _sendThingSetValue(kind) {
-            const tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
             const path = this.settings.writePath;
-            if (!tsSerialApi || !tsSerialApi.setValue || !path) return;
-            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
-            if (!dsSettings.portPath) return;
+            if (!path || !window.ThingSetWrite) return;
             const raw = kind === 'on' ? this.settings.onValue : this.settings.offValue;
             const value = window.ThingSetValueParse ? window.ThingSetValueParse.parseInputValue(raw) : raw;
-            tsSerialApi.setValue({
-                port: dsSettings.portPath,
-                path,
-                value,
-                baudRate: Number(dsSettings.baudRate) || 115200,
-                usePrefix: !!dsSettings.usePrefix,
-            }).catch(err => console.error("ThingSet write failed:", err));
+            window.ThingSetWrite.write({ datasource: this.settings.datasource, path, value });
         }
 
         _sendCommand(command) {

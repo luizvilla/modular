@@ -211,29 +211,15 @@
             });
         }
 
-        // Writes, then rescans the linked datasource so the status line (and
-        // the Download button's enabled state) reflect the new rState without
-        // the user having to separately click Rescan Tree -- previously a
-        // write success code gave no visible feedback that anything happened,
-        // which is exactly what an Arm/Trigger click looked like from the UI.
+        // Writes, then refreshes the linked datasource's values so the status
+        // line (and the Download button's enabled state) reflect the new
+        // rState. wArm/wTrigger are one-shot: the firmware clears them once
+        // acted on, so their readback is false on success -- only the write's
+        // own ok decides failure.
         async _writeScopePath(path, value) {
-            const tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
-            if (!tsSerialApi || !tsSerialApi.setValue || !path) return;
-            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
-            if (!dsSettings.portPath) return;
-            try {
-                await tsSerialApi.setValue({
-                    port: dsSettings.portPath,
-                    path,
-                    value,
-                    baudRate: Number(dsSettings.baudRate) || 115200,
-                });
-                const dsModel = this._dsModel();
-                if (dsModel && typeof dsModel.updateNow === 'function') dsModel.updateNow();
-            } catch (err) {
-                console.error('ThingSet write failed:', err);
-                this.statusLine.text(`Write failed: ${err?.message || err}`);
-            }
+            if (!path || !window.ThingSetWrite) return;
+            const res = await window.ThingSetWrite.write({ datasource: this.settings.datasource, path, value, refresh: true });
+            if (!res.ok) this.statusLine.text(`Write failed: ${res.error}`);
         }
 
         async _download() {

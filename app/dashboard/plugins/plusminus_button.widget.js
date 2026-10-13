@@ -195,11 +195,8 @@
         }
 
         async _sendThingSetDelta(direction) {
-            const tsSerialApi = window.api && window.api.thingsetSerial ? window.api.thingsetSerial : null;
             const path = this.settings.writePath;
-            if (!tsSerialApi || !tsSerialApi.setValue || !path) return;
-            const dsSettings = freeboard.getDatasourceSettings(this.settings.datasource) || {};
-            if (!dsSettings.portPath) return;
+            if (!path || !window.ThingSetWrite) return;
 
             const sourceDef = this._getSourceDef();
             const current = sourceDef ? await this._readInstantValue(sourceDef) : null;
@@ -207,18 +204,10 @@
             const base = Number.isFinite(current) ? current : 0;
             const next = base + direction * (Number.isFinite(step) ? step : 1);
 
-            try {
-                await tsSerialApi.setValue({
-                    port: dsSettings.portPath,
-                    path,
-                    value: next,
-                    baudRate: Number(dsSettings.baudRate) || 115200,
-                    usePrefix: !!dsSettings.usePrefix,
-                });
-                this.valueElement.text(next);
-            } catch (err) {
-                console.error("ThingSet write failed:", err);
-            }
+            // Only show the new value once the board accepted it, and show what
+            // it actually holds (readback), not what was requested.
+            const res = await window.ThingSetWrite.write({ datasource: this.settings.datasource, path, value: next });
+            if (res.ok) this.valueElement.text(res.readBack != null ? res.readBack : next);
         }
 
         _sendCommand(command) {
