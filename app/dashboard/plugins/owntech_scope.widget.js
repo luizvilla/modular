@@ -1,6 +1,8 @@
 (function () {
     const treeWalk = window.ThingSetTreeWalk;
-    const SCOPE_STATE_NAMES = ['IDLE', 'ARMED', 'TRIGGERED', 'READY'];
+    // Mirrors scope_state_t in Core4's scope_capture.h; STREAMING (a download
+    // in progress) and ERROR used to render as "Unknown".
+    const SCOPE_STATE_NAMES = ['IDLE', 'ARMED', 'TRIGGERED', 'READY', 'STREAMING', 'ERROR'];
     const DECIMATIONS = [1, 10, 100];
 
     freeboard.loadWidgetPlugin({
