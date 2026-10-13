@@ -305,3 +305,54 @@ Each milestone should leave the app in a working, visually consistent state, mat
 | `app/extensions/core/manifest.json` | New `rendererScripts` entries for `radial_widget_kit.js` and `board_context_menu.js` |
 | `tests/e2e/radial_menu_helpers.js` | **New** (M3) — `clickWedgeByLabel()` and friends, extracted from `radial-context-menu.spec.js` |
 | `tests/e2e/radial-context-menu-*.spec.js` | New spec files, one per widget from M3 onward |
+
+---
+
+## Real-hardware responsiveness testing (OwnTech extension)
+
+**Why here:** live use of the dashboard on a real board (2026-10-12/13) reported that the hardware *does* respond but the app feels slow: voltage changes show up late, and writes take a while to land. The radial menus only pay off if the widgets underneath them respond quickly, so the extension's responsiveness is tracked alongside this plan.
+
+**Setup:** Core4 Twist v1.4.2 board (`if00` → `/dev/ttyACM0` scope port, `if02` → `/dev/ttyACM1` ThingSet shell, node `0x01`), Core4 firmware `a5b6414`, powered bench. Tests 1–3 drive the real `ts-serial-*` IPC handlers (`app/extensions/thingset/main.js`) from Node, with per-step timing wrapped around `ThingSetSerialShell` methods. Tests 4–5 run inside the live app (started with `--remote-debugging-port=9222`, driven over CDP by Playwright) with `dashboard_test` (one `owntech_thingset_datasource`) loaded.
+
+### Test plan
+
+| Phase | Test | Writes? | Gate |
+|---|---|---|---|
+| 1 | T1: detect + 5 consecutive tree fetches | No | none |
+| 1 | T2: 20× `get-value` on `Measurements/rV1Low_V` and `Config/Leg1/wEnable`, split into open / handshake / command / close | No | none |
+| 1 | T3: one read issued while a tree fetch is in flight | No | none |
+| 1 | T4: in-app: dashboard load → first tree; Auto Refresh's real update rate; reads while Auto Refresh runs | No | none |
+| 1 | T5: in-app `window.api.thingsetSerial.getValue` vs. the Node baseline (IPC/renderer overhead) | No | none |
+| 2 | Scope arm/trigger/download at low decimation, if00 + if02 concurrently | `/Debug/Scope/*` only (inert) | user OK per write |
+| 3 | `Config/Mode` IDLE→POWER_ON→POWER_OFF→IDLE; leg `wEnable`; duty/reference stepping from the lowest setpoint, timing write-accepted → readback → measured voltage change | Actuating | user's explicit go, present at a current-limited bench, value announced before every write, stop on first surprise (same rules as the OwnTech migration's M9) |
+
+### Phase 1 results (2026-10-13)
+
+| Measurement | Result |
+|---|---|
+| T1 detect (auto, lands on `/dev/ttyACM1`) | 1.07 s |
+| T1 tree fetch (81 leaves), ×5 | 2.71–3.20 s, median 2.77 s. Of that: open 1 ms, handshake 75 ms, **walk 2.55 s**, node meta 53 ms, close 35 ms |
+| T2 single read, **before** fix | median **551 ms** (only ~123 ms of it serial work) |
+| T2 single read, **after** fix | median **121 ms**: handshake 75 ms + close 37 ms + **the actual command 10 ms** + open ~1 ms |
+| T3 read issued 200 ms into a tree fetch | completes after **3.0 s**: it waits for the whole walk (per-port queue) |
+| T4 dashboard load → first tree in the app | 4.1 s (detect + walk) |
+| T4 Auto Refresh at the default 2000 ms | data actually updates every **3.5–4.0 s**, and the port is busy walking almost continuously |
+| T4 reads while Auto Refresh runs | 122 ms when the port is free, **2.7–3.5 s** when it lands behind a walk |
+| T5 in-app read (IPC + renderer) | median 125 ms vs. 121 ms from Node: IPC overhead is negligible |
+| Page errors during the run | none |
+
+**Regression found and fixed during the run:** the if00 guard added in `ca22323` called `SerialPort.list()` before every `ts-serial-*` operation, and a list costs ~450 ms on Linux (udev scan). That was ~80% of every read. It now uses a 5 s cache, and detect still lists fresh. The guard still refuses `/dev/ttyACM0` in 1 ms.
+
+### What makes it feel slow
+
+1. **Widgets only see values from full tree walks.** Gauges, buttons and the Actions panel read `latestData().values`, which only changes when the datasource re-walks all 81 leaves (~2.7–3.2 s). With Auto Refresh off (the default) values never update on their own. With it on, they update every 3.5–4 s at best, whatever the configured period.
+2. **Every operation reopens the port and redoes the handshake.** That's 112 ms of fixed cost around a 10 ms command.
+3. **Writes queue behind walks, then trigger another walk.** A write issued during a refresh waits up to ~3.5 s, and the post-write "rescan" (`a087961`) adds another ~3 s before the widget shows the result.
+
+### Candidate fixes, in order of payoff
+
+1. **Refresh only what widgets display.** One `?Measurements` fetch returns every measurement in a single command (~10–20 ms) instead of a 2.5 s walk. Keep the full walk for discovery (first connect, the Rescan button).
+2. **After a write, read back only the written leaf**, not the whole tree.
+3. **Keep one shell session open per port** and reuse it, so the 112 ms handshake + close is paid once per connection instead of per operation. That brings reads close to the ~10 ms command time.
+
+Phase 2 and 3 not yet run.
