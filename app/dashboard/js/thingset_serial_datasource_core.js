@@ -9,7 +9,7 @@
       if (typeof port === 'string') return port;
       const base = String(port.name || port.value || port.path || '');
       if (!port.isOwntech) return base;
-      return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+      return base.includes('OwnTech') ? base : `${base} (OwnTech)`;
   }
 
   async function fetchSerialPortOptions() {
@@ -351,7 +351,24 @@
     }
   }
 
+  // Live port list for the datasource settings form: the form calls the
+  // provider synchronously (and every optionsRefreshMs while open), so it
+  // returns the last list and refreshes it in the background -- a port that
+  // appears after startup (a board plugged in, the demo board switched on)
+  // shows up without restarting the app.
+  let portOptionsCache = [];
+  function refreshPortOptions() {
+    fetchSerialPortOptions().then((list) => { portOptionsCache = list; }).catch(() => {});
+  }
+  function portOptionsProvider() {
+    refreshPortOptions();
+    return [{ name: 'Select a port…', value: '' }, ...portOptionsCache];
+  }
+  refreshPortOptions();
+  if (api && api.demoBoard && typeof api.demoBoard.onChanged === 'function') api.demoBoard.onChanged(refreshPortOptions);
+
   ThingSetSerialDatasource.fetchSerialPortOptions = fetchSerialPortOptions;
+  ThingSetSerialDatasource.portOptionsProvider = portOptionsProvider;
   ThingSetSerialDatasource.formatPortLabel = formatPortLabel;
 
   window.ThingSetSerialDatasourceCore = ThingSetSerialDatasource;

@@ -8,7 +8,7 @@
             if (typeof port === 'string') return port;
             const base = String(port.name || port.value || port.path || '');
             if (!port.isOwntech) return base;
-            return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+            return base.includes('OwnTech') ? base : `${base} (OwnTech)`;
         }
 
 

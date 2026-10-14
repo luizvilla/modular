@@ -95,3 +95,22 @@ test('scope widget arms, triggers and downloads a simulated capture', async () =
     await app.close();
   }
 });
+
+test('the demo board appears in an open Add Datasource form when switched on', async () => {
+  const { app, page } = await launchApp({ MOCK_HW: '0', MODULAR_SIM_ONLY: '1' });
+  try {
+    await waitForDashboard(page);
+    await page.locator('span.table-operation', { hasText: 'ADD' }).first().click();
+    await page.locator('#modal_overlay').last().getByText('OwnTech (ThingSet Serial)', { exact: true }).first().click();
+    const portOptions = () => page.locator('#modal_overlay').last().locator('select').evaluateAll((sels) => {
+      const list = sels.map((s) => [...s.options].map((o) => o.text)).find((l) => l.some((t) => /Select a port/.test(t)));
+      return list || [];
+    });
+    await expect.poll(portOptions).toEqual(['Select a port…']);
+    await page.evaluate(() => window.api.demoBoard.set(true));
+    await expect.poll(portOptions, { timeout: 5_000 }).toEqual(['Select a port…', 'sim://owntech-demo/if02 (Demo OwnTech, simulated) — ThingSet shell']);
+    await page.evaluate(() => window.api.demoBoard.set(false));
+  } finally {
+    await app.close();
+  }
+});

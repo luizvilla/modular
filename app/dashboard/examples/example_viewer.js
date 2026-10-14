@@ -227,7 +227,7 @@
         if (!port) return '';
         const base = String(port.name || port.value || '');
         if (!port.isOwntech) return base;
-        return base.includes('(OwnTech)') ? base : `${base} (OwnTech)`;
+        return base.includes('OwnTech') ? base : `${base} (OwnTech)`;
     }
 
     function resolveAssetUrl(rawUrl, baseDir) {

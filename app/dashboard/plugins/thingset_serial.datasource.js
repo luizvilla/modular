@@ -2,8 +2,6 @@
   const ThingSetSerialDatasource = window.ThingSetSerialDatasourceCore;
 
   async function registerPlugin() {
-    const portOptions = await ThingSetSerialDatasource.fetchSerialPortOptions();
-    const manualOptions = [{ name: 'Select a port…', value: '' }, ...portOptions];
 
 freeboard.loadDatasourcePlugin({
       type_name: 'thingset_serial_datasource',
@@ -15,8 +13,9 @@ freeboard.loadDatasourcePlugin({
           name: 'portPath',
           display_name: 'Port (manual override)',
           type: 'option',
-          options: manualOptions,
-          default_value: manualOptions[0]?.value || '',
+          options: ThingSetSerialDatasource.portOptionsProvider,
+          optionsRefreshMs: 1000,
+          default_value: '',
           description: 'Only used when auto-detect is off; ignored otherwise. On OwnTech boards pick the if02 port -- if00 is the scope data port.',
         },
         { name: 'baudRate', display_name: 'Baud Rate', type: 'number', default_value: 115200 },
