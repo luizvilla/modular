@@ -36,10 +36,19 @@ class ScopePortSim {
         // Fault injection.
         this.stalled = false; // the port stops reading (a wedged firmware task)
         this.dropFirstProbe = false; // force the first-probe failure without a boot log
+        // A ThingSet handshake sent to this port wedged the real firmware's
+        // scope task until a reset (2026-10-12). A stray character only gets
+        // UNKNOWN_COMMAND; a run of foreign input like a shell handshake wedges.
+        this.wedgeAfterUnknown = 8;
+        this.unknownRun = 0;
     }
 
-    // A reboot refills the console buffer with boot log.
-    reboot() { this.bootLogPending = true; }
+    // A reboot refills the console buffer with boot log and un-wedges.
+    reboot() {
+        this.bootLogPending = true;
+        this.stalled = false;
+        this.unknownRun = 0;
+    }
 
     onOpen() {
         if (this.bootLogPending && this.board.bootLog) {
@@ -62,6 +71,12 @@ class ScopePortSim {
     }
 
     _command(ch) {
+        if (ch !== '?' && ch !== 'D') {
+            this.unknownRun += 1;
+            if (this.wedgeAfterUnknown && this.unknownRun >= this.wedgeAfterUnknown) { this.stalled = true; return; }
+        } else {
+            this.unknownRun = 0;
+        }
         if (ch === '?') {
             if (this.dropFirstProbe) { this.dropFirstProbe = false; return; }
             this._emit('SCOPE-DATA/1 OK\r\n');
