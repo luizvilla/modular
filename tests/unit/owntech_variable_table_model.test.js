@@ -75,7 +75,9 @@ function testFormatAndParse() {
     assert.deepStrictEqual(M.parseEditorValue(' 0.25 ', 0.1), { ok: true, value: 0.25 });
     assert.strictEqual(M.parseEditorValue('abc', 0.1).ok, false);
     assert.strictEqual(M.parseEditorValue('', 0.1).ok, false);
-    assert.strictEqual(M.parseEditorValue('1.5', 0).ok, false, 'integer-typed value refuses a fraction');
+    // A float holding 1.0 arrives as 1: the current value can't tell integer
+    // from float, so fractions are always allowed (found on real hardware).
+    assert.deepStrictEqual(M.parseEditorValue('0.5', 1), { ok: true, value: 0.5 });
     assert.deepStrictEqual(M.parseEditorValue('2', 0), { ok: true, value: 2 });
     assert.deepStrictEqual(M.parseEditorValue('V2', 'V1'), { ok: true, value: 'V2' });
     assert.strictEqual(M.parseEditorValue('[1]', []).ok, false, 'records are not editable');

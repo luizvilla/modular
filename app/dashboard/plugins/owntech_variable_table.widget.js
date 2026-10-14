@@ -98,6 +98,19 @@
         s('.ovt-badge-control, .ovt-badge-persistent', 'color:var(--bs-info-text-emphasis);background:rgba(var(--bs-info-rgb),.12);border-color:rgba(var(--bs-info-rgb),.4);');
         s('.ovt-badge-unknown', 'color:var(--bs-secondary-color);border:1px dashed var(--bs-border-color);');
         s('.ovt-empty', 'padding:16px;color:var(--bs-secondary-color);text-align:center;');
+        s('.ovt-unlocked .ovt-editable', 'cursor:text;');
+        s('.ovt-unlocked .ovt-editable:hover', 'outline:1px dashed rgba(var(--bs-primary-rgb),.6);outline-offset:-2px;');
+        s('.ovt-unlocked .ovt-editable.ovt-bool', 'cursor:pointer;');
+        s('.ovt input.ovt-editor', 'width:100%;padding:0 4px;font-family:var(--bs-font-monospace);font-size:12.5px;background:var(--bs-body-bg);color:var(--bs-emphasis-color);border:1px solid var(--bs-primary);border-radius:3px;outline:none;');
+        s('.ovt-editor-error', 'border-color:var(--bs-danger) !important;');
+        s('.ovt-result', 'margin-left:8px;font-family:var(--bs-body-font-family);font-size:11px;');
+        s('.ovt-result-ok', 'color:var(--bs-success-text-emphasis);');
+        s('.ovt-result-fail', 'color:var(--bs-danger-text-emphasis);');
+        s('.ovt-result-note', 'color:var(--bs-warning-text-emphasis);');
+        s('.ovt-lock.ovt-lock-open', 'color:var(--bs-warning-text-emphasis) !important;border-color:rgba(var(--bs-warning-rgb),.6) !important;background:rgba(var(--bs-warning-rgb),.12) !important;');
+        s('.ovt-confirm p', 'margin:0 0 8px;');
+        s('.ovt-confirm code', 'font-size:13px;');
+        s('.ovt-confirm .ovt-confirm-change', 'font-family:var(--bs-font-monospace);font-size:15px;margin:10px 0;');
     }
 
     class OwnTechVariableTable {
@@ -113,6 +126,12 @@
             this.changedPaths = new Set(); // paths whose value changed since the widget opened
             this.rows = [];
             this.structureKey = '';
+            // Writes are off until unlocked from the toolbar; not saved, so a
+            // reload always comes back locked.
+            this.unlocked = false;
+            this.editingPath = null; // value cell with an open editor
+            this.pending = new Set(); // paths with a write in flight
+            this.results = new Map(); // path -> { kind, text, title, at } shown next to the value
             addStyles();
             this._build();
         }
@@ -143,7 +162,9 @@
             const rescan = $('<button type="button" class="btn btn-sm btn-outline-secondary" title="Rescan tree (full walk)"><i class="fa-solid fa-sitemap"></i></button>');
             refresh.on('click', () => { const i = this._dsInstance(); if (i && i.updateNow) i.updateNow(); });
             rescan.on('click', () => { const i = this._dsInstance(); if (i && i.rescan) i.rescan(); else if (i && i.updateNow) i.updateNow(); });
-            this.toolbarRight = $('<div class="d-flex align-items-center gap-1 ms-auto"></div>').append(expandAll, collapseAll, refresh, rescan);
+            this.lockBtn = $('<button type="button" class="btn btn-sm btn-outline-secondary ovt-lock"></button>');
+            this.lockBtn.on('click', () => { this.unlocked = !this.unlocked; this._syncLock(); });
+            this.toolbarRight = $('<div class="d-flex align-items-center gap-1 ms-auto"></div>').append(this.lockBtn, expandAll, collapseAll, refresh, rescan);
             toolbar.append(this.search, chips, this.toolbarRight);
             this.statusLine = $('<div class="ovt-status">—</div>');
             this.scroll = $('<div class="ovt-scroll"></div>');
@@ -157,7 +178,20 @@
                 this.expanded.set(path, !this._isExpanded(path, Number($(e.currentTarget).attr('data-depth'))));
                 this._render(true);
             });
+            this.tbody.on('click', 'td.ovt-editable', (e) => {
+                if (!this.unlocked) return;
+                this._beginEdit($(e.currentTarget).closest('tr').attr('data-path'));
+            });
             this._syncFilterButtons();
+            this._syncLock();
+        }
+
+        _syncLock() {
+            this.lockBtn.toggleClass('ovt-lock-open', this.unlocked)
+                .html(this.unlocked ? '<i class="fa-solid fa-lock-open"></i> Writes on' : '<i class="fa-solid fa-lock"></i> Locked')
+                .attr('title', this.unlocked ? 'Click a writable value to edit it. Click to lock.' : 'Unlock to edit writable values');
+            this.container.toggleClass('ovt-unlocked', this.unlocked);
+            if (!this.unlocked && this.editingPath) this._endEdit();
         }
 
         render(el) {
@@ -209,7 +243,9 @@
             const vars = this.rows.filter((r) => r.kind === 'variable');
             const node = data.node_name || data.address_hex || data.node_uid || '';
             const time = new Date().toLocaleTimeString();
-            return `${data.portPath || ''}${node ? ` · ${node}` : ''} · ${vars.length} variables · ${vars.filter((r) => r.access.editable).length} writable · updated ${time}`;
+            const ds = freeboard.getDatasourceSettings(this.settings.datasource) || {};
+            const live = ds.autoRefresh === true ? `live every ${Number(ds.refresh) || 1000} ms` : 'live updates off (enable Auto Refresh on the datasource, or use Refresh)';
+            return `${data.portPath || ''}${node ? ` · ${node}` : ''} · ${vars.length} variables · ${vars.filter((r) => r.access.editable).length} writable · ${live} · updated ${time}`;
         }
 
         // force: rebuild the rows' DOM (structure, filter or expansion
@@ -221,10 +257,15 @@
             const data = dsModel && dsModel.latestData ? dsModel.latestData() : null;
             const tree = data && data.status === 'ok' ? data.tree : null;
             this.rows = tree ? Model.buildRows(tree, { showInternal: !!this.settings.showInternal }) : [];
+            // The datasource's values map is what a write's readback updates
+            // immediately (ThingSetWrite -> applyWrite), so prefer it.
+            const values = (data && data.values) || {};
+            this.rows.forEach((r) => { if (r.kind === 'variable' && Object.prototype.hasOwnProperty.call(values, r.path)) r.value = values[r.path]; });
             const changed = this._trackChanges();
             this.statusLine.text(this._statusText(data));
             const key = this.rows.map((r) => r.path).join('|');
-            if (force || key !== this.structureKey || this.filter === 'changed') {
+            const editing = !!this.editingPath || this.pending.size > 0;
+            if (force || key !== this.structureKey || (this.filter === 'changed' && !editing)) {
                 this.structureKey = key;
                 this._rebuild();
             } else {
@@ -290,31 +331,142 @@
             if (row.power) name.append($('<i class="fa-solid fa-bolt ovt-power"></i>').attr('title', 'Affects the power stage'));
             if (row.caveat) name.append($('<i class="fa-solid fa-triangle-exclamation ovt-caveat"></i>').attr('title', row.caveat));
             const value = $('<td class="ovt-value"></td>');
-            this._fillValue(value, row.value);
+            const kind = Model.valueKind(row.value);
+            if (row.access.editable && ['bool', 'number', 'string'].includes(kind)) {
+                value.addClass('ovt-editable').toggleClass('ovt-bool', kind === 'bool');
+            }
+            this._fillValue(value, row.value, row.path);
             const unit = $('<td class="ovt-unit"></td>').text(row.unit || '');
             const access = $('<td></td>');
             access.append($(`<span class="ovt-badge ovt-badge-${row.access.key}"></span>`).text(row.access.label));
             return tr.append(name, value, unit, access);
         }
 
-        _fillValue(cell, value) {
+        _fillValue(cell, value, path) {
             const f = Model.formatValue(value);
             cell.empty().toggleClass('ovt-num', f.kind === 'number');
             if (f.kind === 'bool') cell.append($(`<span class="ovt-pill ovt-pill-${value ? 'true' : 'false'}"></span>`).text(f.text));
             else if (f.kind === 'array' || f.kind === 'object') cell.append($('<span class="ovt-chip"></span>').text(f.text).attr('title', JSON.stringify(value)));
             else if (f.kind === 'null') cell.append($('<span class="ovt-muted"></span>').text(f.text));
-            else cell.text(f.text).attr('title', f.kind === 'string' ? f.text : '');
+            else cell.append($('<span></span>').text(f.text)).attr('title', f.kind === 'string' ? f.text : '');
+            if (path && this.pending.has(path)) cell.append('<i class="fa-solid fa-spinner fa-spin ovt-result" title="Writing…"></i>');
+            const res = path && this.results.get(path);
+            if (res && Date.now() - res.at < 8000) {
+                cell.append($(`<span class="ovt-result ovt-result-${res.kind}"></span>`).html(res.html).attr('title', res.title || ''));
+            }
         }
 
         _patchValue(path) {
+            if (path === this.editingPath) return;
             const row = this.rows.find((r) => r.path === path);
             const tr = this.tbody.find(`tr.ovt-var[data-path="${CSS.escape(path)}"]`);
             if (!row || !tr.length) return;
             const cell = tr.children('.ovt-value');
-            this._fillValue(cell, row.value);
+            this._fillValue(cell, row.value, path);
             cell.removeClass('ovt-flash');
             void cell[0].offsetWidth; // restart the animation
             cell.addClass('ovt-flash');
+        }
+
+        _cell(path) {
+            return this.tbody.find(`tr.ovt-var[data-path="${CSS.escape(path)}"]`).children('.ovt-value');
+        }
+
+        _beginEdit(path) {
+            const row = this.rows.find((r) => r.path === path);
+            if (!row || !row.access.editable || this.pending.has(path)) return;
+            if (this.editingPath && this.editingPath !== path) this._endEdit();
+            const kind = Model.valueKind(row.value);
+            // A boolean is a switch: one click proposes the flipped value.
+            if (kind === 'bool') { this._commit(row, !row.value); return; }
+            if (kind !== 'number' && kind !== 'string') return;
+            if (this.editingPath === path) return;
+            this.editingPath = path;
+            const cell = this._cell(path);
+            const input = $('<input type="text" class="ovt-editor" spellcheck="false" autocomplete="off">').val(row.value);
+            cell.empty().append(input);
+            input.trigger('focus').trigger('select');
+            input.on('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this._endEdit(); return; }
+                if (e.key === 'Enter') {
+                    // Stop it here: DialogBox binds Enter on the document to
+                    // confirm, and this keypress must not confirm a write.
+                    e.preventDefault(); e.stopPropagation();
+                    const parsed = Model.parseEditorValue(input.val(), row.value);
+                    if (!parsed.ok) { input.addClass('ovt-editor-error').attr('title', parsed.error); return; }
+                    this._endEdit();
+                    setTimeout(() => this._commit(row, parsed.value), 0);
+                    return;
+                }
+                if (kind === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                    e.preventDefault();
+                    const current = Number(input.val());
+                    if (!Number.isFinite(current)) return;
+                    const step = Number.isInteger(row.value) ? 1 : (Math.abs(current) < 1 ? 0.01 : Math.abs(current) < 10 ? 0.1 : 1);
+                    const next = current + (e.key === 'ArrowUp' ? step : -step);
+                    input.val(Number(next.toPrecision(10))).removeClass('ovt-editor-error');
+                }
+            });
+            input.on('blur', () => { if (this.editingPath === path) this._endEdit(); });
+        }
+
+        _endEdit() {
+            const path = this.editingPath;
+            this.editingPath = null;
+            if (!path) return;
+            const row = this.rows.find((r) => r.path === path);
+            if (row) this._fillValue(this._cell(path), row.value, path);
+        }
+
+        _confirm(row, next) {
+            return new Promise((resolve) => {
+                if (typeof DialogBox !== 'function') { resolve(window.confirm(`Write ${row.path} = ${JSON.stringify(next)}?`)); return; }
+                const ds = freeboard.getDatasourceSettings(this.settings.datasource) || {};
+                const body = $('<div class="ovt-confirm"></div>');
+                body.append($('<p></p>').append('Write ', $('<code></code>').text(row.path), ds.portPath ? ` on ${ds.portPath}?` : '?'));
+                body.append($('<div class="ovt-confirm-change"></div>').text(`${Model.formatValue(row.value).text}  →  ${Model.formatValue(next).text}${row.unit ? ' ' + row.unit : ''}`));
+                body.append($('<p></p>').html('<i class="fa-solid fa-bolt"></i> This changes what the power stage does.'));
+                if (row.caveat) body.append($('<p class="text-warning"></p>').append('<i class="fa-solid fa-triangle-exclamation"></i> ', document.createTextNode(row.caveat)));
+                let settled = false;
+                const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+                new DialogBox(body, 'Confirm write', 'Write', 'Cancel', () => { done(true); });
+                // DialogBox has no cancel callback: Cancel, Escape or closing
+                // it any other way means no write.
+                const watch = setInterval(() => {
+                    if (!document.querySelector('#modal_overlay .ovt-confirm')) { clearInterval(watch); done(false); }
+                }, 100);
+            });
+        }
+
+        async _commit(row, next) {
+            if (row.power && !(await this._confirm(row, next))) return;
+            const path = row.path;
+            this.pending.add(path);
+            this.results.delete(path);
+            this._fillValue(this._cell(path), row.value, path);
+            const res = window.ThingSetWrite
+                ? await window.ThingSetWrite.write({ datasource: this.settings.datasource, path, value: next, refresh: true })
+                : { ok: false, error: 'ThingSet extension not loaded' };
+            this.pending.delete(path);
+            if (!res.ok) {
+                this.results.set(path, { kind: 'fail', html: '<i class="fa-solid fa-xmark"></i> rejected', title: res.error || 'write failed', at: Date.now() });
+            } else if (res.readBack !== undefined && res.readBack !== null && JSON.stringify(res.readBack) !== JSON.stringify(next)) {
+                // Accepted, but the board holds something else: a clamp
+                // (duty < 0.1) or a one-shot flag the firmware cleared.
+                this.results.set(path, { kind: 'note', html: `<i class="fa-solid fa-check"></i> board holds ${$('<i>').text(Model.formatValue(res.readBack).text).html()}`, title: row.caveat || 'The board accepted the write but reads back a different value.', at: Date.now() });
+            } else {
+                this.results.set(path, { kind: 'ok', html: '<i class="fa-solid fa-check"></i>', title: 'Written and read back', at: Date.now() });
+            }
+            const current = this.rows.find((r) => r.path === path);
+            this._fillValue(this._cell(path), current ? current.value : row.value, path);
+            setTimeout(() => {
+                const r = this.results.get(path);
+                if (r && Date.now() - r.at >= 8000) {
+                    this.results.delete(path);
+                    const cur = this.rows.find((x) => x.path === path);
+                    if (cur && path !== this.editingPath) this._fillValue(this._cell(path), cur.value, path);
+                }
+            }, 8100);
         }
 
         onSettingsChanged(newSettings) {

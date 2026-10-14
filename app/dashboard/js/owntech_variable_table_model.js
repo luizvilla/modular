@@ -104,11 +104,9 @@
       if (raw === '') return { ok: false, error: 'expected a number' };
       const num = Number(raw);
       if (!Number.isFinite(num)) return { ok: false, error: 'expected a number' };
-      if (Number.isInteger(currentValue) && !Number.isInteger(num) && /^-?\d+$/.test(String(currentValue))) {
-        // Integer-typed on the board (uint8 Mode, uint16 dead times): don't
-        // silently send 1.5 where the firmware stores an integer.
-        return { ok: false, error: 'expected a whole number' };
-      }
+      // The board's type can't be inferred from the value: a float that
+      // holds 1.0 arrives as 1 (Config/wBlinkPeriod_s). The board accepts
+      // or rejects, and the readback shows what it stored.
       return { ok: true, value: num };
     }
     if (kind === 'string') return { ok: true, value: String(text) };
