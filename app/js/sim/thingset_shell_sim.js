@@ -29,6 +29,7 @@ class ObjectStore {
         this.values = new Map(nodes.filter((n) => n.kind !== 'group').map((n) => [n.path, n.value]));
         this.readers = {};
         this.writeHooks = [];
+        this.afterUpdateHooks = [];
     }
 
     node(path) { return this.nodes.get(path) || null; }
@@ -41,6 +42,10 @@ class ObjectStore {
     set(path, value) { this.values.set(path, value); }
 
     onWrite(fn) { this.writeHooks.push(fn); }
+
+    // Called once per accepted update with the paths written, after the
+    // values are in place (e.g. to re-target the power stage at that instant).
+    afterUpdate(fn) { this.afterUpdateHooks.push(fn); }
 
     // Applies {name: value} to a group like a ThingSet update. All-or-nothing:
     // any unknown or read-only item rejects the whole request.
@@ -63,6 +68,8 @@ class ObjectStore {
             }
             this.values.set(path, next);
         }
+        const paths = Object.keys(obj).map((name) => join(groupPath, name));
+        this.afterUpdateHooks.forEach((fn) => fn(paths));
         return { status: '84' };
     }
 }
