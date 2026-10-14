@@ -303,6 +303,57 @@ Each commit leaves the app working: 3 ships a useful read-only table even before
 
 **Dependency:** the 2026-10-13 fixes (`49f7d57` values refresh, `ade9015` `ThingSetWrite`, `9d1f671` group reads); M1/M2 (pane radial) and M8 (datasource reassign) for navigation.
 
+### M11 delivered (2026-10-14)
+
+| # | Commit | What |
+|---|---|---|
+| 1 | `167669f` | docs(gui): plan the OwnTech variable table widget (M11) |
+| 2 | `b990e45` | feat(owntech): add the variable table model (tree rows, access, units, formatting) |
+| 3 | `3948615` | feat(owntech): add the owntech_variable_table widget: hierarchical read-only view with search and filters |
+| 3a | `6337c57` | fix(thingset): refresh variables the walk returned with empty children (found by step 4, see below) |
+| 4 | `131e252` | feat(owntech): edit writable variables in the variable table, with write lock, confirmation and readback |
+| 5 | `e254194` | feat(owntech): variable table radial menu: copy path, add a bound widget, reassign datasource |
+| 6 | `d7793b9` | test(owntech): e2e coverage for the variable table |
+| 7 | `82e484e` | docs(owntech): document the variable table widget |
+| 8 | this commit | docs(gui): log M11 real-hardware verification |
+
+**Deviations from the plan, found on the board:**
+- **Access prefixes:** the real tree also uses `c` (constants, `THINGSET_ANY_R`) and `z` (the OwnTech CAN control channel, `THINGSET_ANY_RW`). Both are now mapped. `p` turned out not always read-only (`pCANNodeAddr`), so it's "Persistent" and the board decides. `Control/z*` writes ask for confirmation: on firmware that wires them to the power stage, `zStartStop` starts a converter.
+- **Leaf detection:** the walk returns some variables (`Config/Mode`, `Frequency_Hz`, `pNodeID`, `Device/c*`, `Control/z*`) as nodes with empty `children` plus their own `value`. The model treats them as variables. The same shape also broke `refreshValues()` (`49f7d57`): those variables were never refreshed after the first walk, so a confirmed `Mode = 1` read back 1 and then the next refresh restored the stale 0. Fixed in `6337c57`, with a unit test.
+- **No integer guard in the editor:** a float holding 1.0 arrives as `1` (`Config/wBlinkPeriod_s`), so the type can't be inferred from the value. The board accepts or rejects, and the readback shows what it stored.
+- **Step size** (+/− button, arrow keys) comes from the unit: a value with a unit steps by its magnitude (1 s → 0.1), a unitless whole number by 1.
+- **`freeboard.addWidgetToPane()`** was added (step 5): freeboard had no way to add a widget with preset settings without opening the editor.
+
+### M11 real-hardware verification (2026-10-14)
+
+**Bench:** a Spin board running Core4 firmware, with no power stage attached (serial `423250070031003C`; if02 → `/dev/ttyACM1`, node UID `0941809145890E85`). Measurements are meaningless without the power stage (e.g. V1Low −92.2 V, I −10 A), but the tree, access and writes are the real firmware's. Driven in the live app over CDP, with every written value restored afterwards.
+
+| Check | Result |
+|---|---|
+| Tree | 17 groups, 79 variables (54 writable): Calibration I1/I2/IH/V1/V2/VH, Config with Leg1/Leg2 plus Mode/Frequency_Hz/wBlinkPeriod_s, Control, Converter, Debug/Scope, Device, Measurements, Networking, root records and identity |
+| Access | 47 Writable, 19 Read-only, 4 Constant, 3 Persistent, 2 Control, 2 Record, 2 Unknown (`Config/Mode`, `Config/Frequency_Hz`) |
+| Power markers | Mode, Frequency_Hz, every leg Enable/Driver/Capa/DutyCycle/ReferenceValue/Buck/Boost, Control/z* |
+| Search "duty" | Leg1/Leg2 `DutyCycle` and Measurements `Duty1`/`Duty2`, with their groups |
+| Read-only filter | 25 variables |
+| Locked | clicking a value opens nothing |
+| `Config/wBlinkPeriod_s` 1 → 0.5 → 1 | written without confirmation, ✓, board holds 0.5 then 1 (the LED blink rate follows) |
+| `Config/Mode` 0 → 1 → 0 | confirmation shows `0 → 1` and "changes what the power stage does"; Cancel leaves the board at 0; Write sets 1 and the cell stays 1 after the refresh; restored to 0 |
+| `Config/Leg1/wEnable` | confirmation `false → true`; Escape cancels and the board stays false |
+| `Debug/Scope/wArm` | ✓ *board holds false* (one-shot), rState → 1 (ARMED) |
+| `abc` into `wDecimation` | stays in the editor with "expected a number"; nothing sent |
+| Read-only `rVHigh_V` | not editable |
+| Row right-click | Copy path / Add +/− button / Refresh (writable number); Add gauge (read-only number); Add toggle (writable boolean) |
+| Add +/− button for `wBlinkPeriod_s` | bound to `/Config/wBlinkPeriod_s`, step 0.1 |
+| Add gauge for `rVHigh_V` | bound, reads 0.12–0.18 V live |
+| Copy path | `/Config/Leg1/wEnable` on the clipboard |
+| Status-line right-click | lists the ThingSet datasources |
+| Page errors | none |
+| Final board state | Mode 0, blink 1 s, Leg1 `wEnable`/`wDriver` false, decimation 1 (scope left ARMED by the `wArm` check) |
+
+**Tests:** unit `owntech_variable_table_model`, `thingset_serial_shell` (+ `refreshValues`), and the other ThingSet/scope unit tests pass. E2E `owntech-variable-table.spec.js` (4) plus the other OwnTech, OwnTech radial and button radial specs (16 in that run) pass.
+
+**Not run here:** writes that switch power on a board with a power stage. The confirmation dialog and readback were exercised on the Spin; a Twist bench run under the Phase 3 interlock rules is still worth doing before relying on the table for power-stage writes.
+
 ---
 
 ## Non-Goals / Explicitly Out of Scope (whole plan)
