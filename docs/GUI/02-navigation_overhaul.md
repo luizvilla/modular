@@ -379,6 +379,106 @@ It wraps the original `<select>`/`<input>`, so the editors' save code is unchang
 
 ---
 
+## Milestone 12 — Simulated OwnTech board (demo and hardware-free testing)
+
+**Goal:** a virtual OwnTech/Core4 board, inside the app, that behaves enough like the real one to **demo** the OwnTech extension and **test** it without hardware. Unlike `MOCK_HW`, which swaps the renderer's IPC for canned answers, the simulator sits **below** the app's real serial code. Detection, the tree walk, sessions, the per-board queue, the if00 guard, writes and readbacks, and the scope download all run as they do against a board.
+
+**Why:** `MOCK_HW` can't show anything moving: every read is `1`, writes change nothing, and the tree is a small invention. It also never exercises `app/extensions/thingset/main.js`, `thingset_serial_shell.js`, `serial_board_lock.js` or `scope_serial.js`, which is where this week's real bugs were:
+- probing if00 wedged the board;
+- no write timeouts;
+- an empty tree reported as success;
+- the 450 ms port list;
+- if02 reads failing during a download;
+- leaves with empty children never refreshed.
+
+None could have been caught without hardware.
+
+### Design
+
+**Transport.** A small in-process stand-in for `SerialPort` (open/write/drain/flush/close/`data` events, `isOpen`, `path`), selected by path:
+- `ThingSetSerialShell` and `ScopeSerialLink` get it for simulated paths;
+- `serial_board_lock.listPorts()` adds the simulated ports to the real list;
+- `get-serial-ports` labels them like a real board.
+
+Nothing above the transport knows it's simulated. Simulated paths can never collide with a real device: `sim://owntech-demo/if00` and `sim://owntech-demo/if02`, with `pnpId` `…-if00`/`…-if02`, OwnTech VID/PID `2fe3:0100`, and serial number `SIM00000001`. That serial number keeps both interfaces on one board queue.
+
+**The board (`app/js/sim/owntech_board.js`):**
+- **Tree:** loaded from a fixture captured from real hardware (`tests/fixtures/core4_tree.json`, the Twist/Spin Core4 tree: 17 groups, 79 variables), with Core4's real ids and access. `r…`/`c…` writes are rejected with the real status code; `w`/`s`/`z` and the unprefixed `Mode`/`Frequency_Hz` are accepted.
+- **Shell protocol (if02):** Zephyr shell framing as observed on the board:
+  - echo, `\r\n`, the ANSI-colored `uart:~$ ` prompt;
+  - `select thingset` mode, and the `thingset ` prefix;
+  - ThingSet text mode: `?path` → `:85 {…}`, `=path {…}` → `:84`, errors `:A0`/`:A4`.
+
+  It also models the quirks the app now handles: the select-mode prefix trap, one-shot `wArm`/`wTrigger`, leaves returned with empty children by name listings, and about 10 ms per command.
+- **Scope protocol (if00):** `?` → `SCOPE-DATA/1 OK`; `D` → `begin record` / channel header / `# <final index>` / 8192 big-endian hex floats / `end record`. That's the real format `scope_serial.js` parses, with ring-buffer rotation.
+- **State machine:** `Mode` IDLE/POWER_ON/POWER_OFF; legs run only when `Mode == POWER_ON` and `wEnable`. The duty is clamped to ≥ 0.1 like the power library, while `rDutyN` echoes the requested value, also like the real firmware.
+- **Physics (simple, deterministic plus seeded noise), updated every 10 ms:**
+  - VHigh ≈ 30 V (settable for demos);
+  - V_low → duty × VHigh × 0.92 (losses) with a ~20 ms first-order lag;
+  - leg 1 load 10 Ω, leg 2 open (both configurable, matching the 2026-10-13 bench);
+  - I_low = V_low / R;
+  - temperatures drift with dissipated power;
+  - `V1Max`/`V2Max` track like the firmware's.
+- **Scope capture:** arm → ARMED; trigger → TRIGGERED → READY after 102.4 ms × decimation. The buffer samples the physics at the decimated rate, around the trigger, honouring the pre-trigger ratio. A demo shows a real-looking step when a leg is enabled mid-capture.
+- **Fault injection (for tests):** options to drop the first if00 probe, stop answering on if02 during downloads (the real cross-talk), wedge if00 on a ThingSet handshake (the real wedge), add latency, or reject chosen paths. Each reproduces a bug fixed this week as a regression test.
+
+**Turning it on:**
+- `MODULAR_SIM_BOARD=1` (or `=twist,loadOhms=10`) in the environment, for scripts and CI.
+- A *"Add a demo OwnTech board"* toggle in the app (Settings, or the Extensions menu) for demos. Off by default. While on, the port pickers show *Demo OwnTech (SIM00000001) — ThingSet shell / — scope data port* and the status bar says the board is simulated.
+- With `MOCK_HW=1` the simulator is unused; the two stay separate.
+
+### Out of scope
+
+CAN ThingSet; firmware flashing to the simulated board; power-electronics accuracy beyond "plausible demo"; multiple simulated boards (the design allows it via the serial number, but one is enough for now).
+
+### Files
+
+| File | Change |
+|---|---|
+| `app/js/sim/sim_serial_port.js` | **New**: the in-process `SerialPort` stand-in |
+| `app/js/sim/owntech_board.js` | **New**: tree, shell + scope protocols, state machine, physics, fault injection |
+| `app/js/sim/index.js` | **New**: registry; enables from env/setting; `isSimPath()`, `listSimPorts()`, `openSimPort()` |
+| `app/js/serial_board_lock.js` | `listPorts()` adds simulated ports when enabled |
+| `app/js/thingset_serial_shell.js`, `app/extensions/owntech/scope_serial.js` | Construct the transport through one factory that returns the simulator for simulated paths |
+| `app/main.js` | Demo toggle IPC + persisted setting; port labelling for simulated ports |
+| `app/dashboard/…` | The toggle in the UI; a "simulated" badge on the datasource and status line |
+| `tests/fixtures/core4_tree.json` | **New**: the real Core4 tree captured from hardware |
+| `tests/unit/sim_owntech_board.test.js` | **New**: protocol framing, access, one-shots, clamp, physics, scope encoding |
+| `tests/e2e/owntech-sim-*.spec.js` | **New**: the OwnTech flows against the simulator, without `MOCK_HW` |
+
+### Verification
+
+| Level | What |
+|---|---|
+| Unit | Shell framing byte-for-byte against transcripts captured from the real board (prompt/ANSI/echo, select mode); `?`/`=` responses and status codes; r/c writes rejected; one-shots; duty clamp + `rDuty` echo; physics settles to duty × VHigh; scope encoding round-trips through `scope_serial.js`'s parser |
+| Integration (Node, no Electron) | The real `thingset/main.js` + `owntech/main.js` handlers against the simulator: detect lands on if02 and never probes if00; full walk = 79 variables; values refresh matches the walk; group reads; sessions open/idle-close; board queue holds if02 during a download |
+| E2E (simulator, no `MOCK_HW`) | Datasource auto-detects the demo board; variable table shows the real tree; write → readback; Mode + leg enable makes V1 rise in the table and a gauge; scope widget arm/trigger/download shows the step; port pickers label the demo ports |
+| Regression (fault injection) | One test per bug fixed 2026-10-12…14: if00 handshake wedge refused; write timeout surfaces an error; empty tree is an error; first if00 probe dropped → resend works; if02 during download waits instead of failing; leaves with empty children are refreshed |
+| Comparison | The same scripted read-only session against the real Spin/Twist and the simulator gives the same tree, access and protocol behaviour (values aside) |
+
+### Commit sequence
+
+| # | Commit |
+|---|---|
+| 1 | `docs(gui): plan the simulated OwnTech board (M12)` |
+| 2 | `test(owntech): capture the real Core4 tree and shell transcripts as fixtures` |
+| 3 | `feat(sim): add an in-process SerialPort stand-in and the simulated-port registry` |
+| 4 | `feat(sim): simulate an OwnTech board's ThingSet shell (if02): tree, access, protocol framing` + unit tests |
+| 5 | `feat(sim): simulate the board's state machine and power stage physics` + unit tests |
+| 6 | `feat(sim): simulate the scope data port (if00) and captures` + unit tests |
+| 7 | `feat(serial): route simulated ports through the real ThingSet and scope code paths` (transport factory, port list, labels) + Node integration tests |
+| 8 | `feat(owntech): "Add a demo OwnTech board" toggle and simulated-board badges` |
+| 9 | `test(owntech): e2e OwnTech flows against the simulated board` |
+| 10 | `test(owntech): fault-injection regressions for the 2026-10-12…14 hardware bugs` |
+| 11 | `docs(owntech): document the demo board` (user doc: turning it on, what it simulates, limits) |
+| 12 | `docs(gui): log M12 verification, including the real-vs-simulated comparison` |
+
+Each commit leaves the app working; the simulator stays off unless enabled, so commits 3–7 change nothing for real hardware.
+
+**Dependency:** none blocking. Capturing the fixtures (commit 2) needs a real board connected once; the Spin used for M11 is enough.
+
+---
+
 ## Non-Goals / Explicitly Out of Scope (whole plan)
 
 - **Legacy freeboard built-in widgets** (`text_widget`, `gauge` [the old freeboard one, distinct from the new gauge family], `sparkline`, `pointer`, `picture`, `indicator`, `google_map`) and their demo datasources (`JSON`, `openweathermap`) — these predate this app's own widget conventions and aren't part of the OwnTech-relevant surface. No radial adaptation planned, ever, unless explicitly requested later.
@@ -442,6 +542,7 @@ Every milestone needs e2e coverage in the same style as the existing `tests/e2e/
 | M8. OwnTech family radial (lower priority) | 1 widget file + tests | Small |
 | M9. ThingSet/Serial family | Deferred — not scheduled | — |
 | M11. OwnTech Variable Table widget | 1 model file + 1 widget file + tests + docs | Medium–Large |
+| M12. Simulated OwnTech board | 3 new sim files + transport hook + toggle + tests + docs | Large |
 
 Start with M0 — every later milestone's effort estimate above assumes the shared kit exists; skipping it would make M3-M8 each larger and duplicate-prone instead.
 
