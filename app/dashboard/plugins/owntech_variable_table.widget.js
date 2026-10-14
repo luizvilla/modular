@@ -182,8 +182,97 @@
                 if (!this.unlocked) return;
                 this._beginEdit($(e.currentTarget).closest('tr').attr('data-path'));
             });
+            this._bindRadialContextMenu();
             this._syncFilterButtons();
             this._syncLock();
+        }
+
+        // Same patterns as M1-M8: right-click a variable for what to do with
+        // it, right-click the status line to reassign the datasource.
+        _bindRadialContextMenu() {
+            this.tbody.on('contextmenu', 'tr.ovt-var', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const row = this.rows.find((r) => r.path === $(e.currentTarget).attr('data-path'));
+                if (row) window.RadialContextMenu.show({ x: e.clientX, y: e.clientY, items: this._rowMenuItems(row) });
+            });
+            this.statusLine.on('contextmenu', (e) => {
+                if (!window.RadialContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.RadialContextMenu.show({
+                    x: e.clientX, y: e.clientY,
+                    items: getThingSetDatasourceOptions().map((opt) => ({
+                        id: opt.value, label: opt.name, icon: 'database',
+                        onSelect: () => window.RadialWidgetKit.quickSetSetting(window.RadialWidgetKit.findWidgetModel(this), 'datasource', opt.value)
+                    }))
+                });
+            });
+        }
+
+        _rowMenuItems(row) {
+            const items = [{ id: 'copy', label: 'Copy path', icon: 'copy', description: row.path, onSelect: () => this._copyPath(row.path) }];
+            const bound = this._boundWidgetFor(row);
+            if (bound) items.push({ id: 'add', label: bound.label, icon: bound.icon, description: `Add ${bound.label.replace(/^Add /, 'a ')} bound to ${row.path} to this pane`, onSelect: () => this._addBoundWidget(row, bound) });
+            items.push({ id: 'refresh', label: 'Refresh', icon: 'rotate', description: 'Refresh values from the board', onSelect: () => { const i = this._dsInstance(); if (i && i.updateNow) i.updateNow(); } });
+            return items;
+        }
+
+        // Which existing widget to bind: writable number -> +/- button,
+        // writable boolean -> toggle, read-only number -> gauge.
+        _boundWidgetFor(row) {
+            const kind = Model.valueKind(row.value);
+            if (kind === 'number' && row.access.editable) return { type: 'plus_minus_button', label: 'Add +/− button', icon: 'plus-minus' };
+            if (kind === 'bool' && row.access.editable) return { type: 'toggle_button', label: 'Add toggle', icon: 'toggle-on' };
+            if (kind === 'number') return { type: 'vertical_gauge', label: 'Add gauge', icon: 'gauge' };
+            return null;
+        }
+
+        _addBoundWidget(row, bound) {
+            const live = freeboard.getLiveModel ? freeboard.getLiveModel() : null;
+            const me = window.RadialWidgetKit ? window.RadialWidgetKit.findWidgetModel(this) : null;
+            const pane = live && me ? live.panes().find((p) => p.widgets().indexOf(me) >= 0) : null;
+            if (!pane || typeof freeboard.addWidgetToPane !== 'function') return;
+            const ds = this.settings.datasource;
+            const dsType = (this._dsModel() && this._dsModel().type && this._dsModel().type()) || 'owntech_thingset_datasource';
+            const sourceDef = { ds, type: dsType, device: null, device_uid: null, var: row.path };
+            const title = row.label + (row.unit ? ` (${row.unit})` : '');
+            let settings;
+            if (bound.type === 'plus_minus_button') {
+                const step = Model.stepFor(row.value, row.unit);
+                settings = { title, units: row.unit || '', datasource: ds, writePath: row.path, step, sourceDef };
+            } else if (bound.type === 'toggle_button') {
+                settings = { title, datasource: ds, writePath: row.path, onValue: 'true', offValue: 'false', onCommand: '', offCommand: '' };
+            } else {
+                const span = Math.max(1, Math.abs(Number(row.value)) * 2);
+                settings = { title, min: Number(row.value) < 0 ? -Math.ceil(span) : 0, max: Math.ceil(span), barColor: 'blue', alarmEnabled: false, refreshRate: 200, sourceDef };
+            }
+            freeboard.addWidgetToPane(pane, bound.type, settings);
+            this._flashStatus(`Added ${bound.label.replace(/^Add /, '')} for ${row.path}`);
+        }
+
+        _copyPath(path) {
+            const done = () => this._flashStatus(`Copied ${path}`);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(path).then(done, () => this._copyFallback(path, done));
+            } else {
+                this._copyFallback(path, done);
+            }
+        }
+
+        _copyFallback(path, done) {
+            const ta = $('<textarea style="position:fixed;left:-9999px"></textarea>').val(path).appendTo(document.body);
+            ta[0].select();
+            try { document.execCommand('copy'); done(); } catch (e) { /* nothing to copy into */ }
+            ta.remove();
+        }
+
+        _flashStatus(text) {
+            this._statusHoldUntil = Date.now() + 2500;
+            this.statusLine.text(text);
+            clearTimeout(this._statusTimer);
+            this._statusTimer = setTimeout(() => this._render(false), 2500);
         }
 
         _syncLock() {
@@ -262,7 +351,7 @@
             const values = (data && data.values) || {};
             this.rows.forEach((r) => { if (r.kind === 'variable' && Object.prototype.hasOwnProperty.call(values, r.path)) r.value = values[r.path]; });
             const changed = this._trackChanges();
-            this.statusLine.text(this._statusText(data));
+            if (!(this._statusHoldUntil > Date.now())) this.statusLine.text(this._statusText(data));
             const key = this.rows.map((r) => r.path).join('|');
             const editing = !!this.editingPath || this.pending.size > 0;
             if (force || key !== this.structureKey || (this.filter === 'changed' && !editing)) {
@@ -402,7 +491,7 @@
                     e.preventDefault();
                     const current = Number(input.val());
                     if (!Number.isFinite(current)) return;
-                    const step = Number.isInteger(row.value) ? 1 : (Math.abs(current) < 1 ? 0.01 : Math.abs(current) < 10 ? 0.1 : 1);
+                    const step = Model.stepFor(current, row.unit);
                     const next = current + (e.key === 'ArrowUp' ? step : -step);
                     input.val(Number(next.toPrecision(10))).removeClass('ovt-editor-error');
                 }

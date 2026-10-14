@@ -5790,6 +5790,18 @@ var freeboard = (function()
 				$('#modal_overlay').last().find('.widget-tile[data-type="' + presetTypeName + '"]').trigger('click');
 			}
 		},
+		// Adds a widget with preset settings, no editor -- e.g. the OwnTech
+		// variable table's "add a widget bound to this variable" (M11).
+		addWidgetToPane: function(paneViewModel, typeName, settings)
+		{
+			if(!paneViewModel || !widgetPlugins[typeName]) return null;
+			var newViewModel = new WidgetModel(theFreeboardModel, widgetPlugins);
+			newViewModel.settings(settings || {});
+			newViewModel.type(typeName);
+			paneViewModel.widgets.push(newViewModel);
+			freeboardUI.attachWidgetEditIcons($(".sub-section"));
+			return newViewModel;
+		},
 		openIntegratedPlotEditor: function(widgetModel, type)
 		{
 			if(window.ModularIntegratedPlotEditor && _.isFunction(window.ModularIntegratedPlotEditor.open))

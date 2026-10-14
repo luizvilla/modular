@@ -113,6 +113,18 @@
     return { ok: false, error: 'this value type is not editable here' };
   }
 
+  // Step for +/- and arrow keys. A value with a physical unit steps by its
+  // magnitude (1 s -> 0.1, 30 V -> 1); a unitless whole number (Mode, an
+  // index) steps by 1 so a fraction is never proposed for an integer.
+  function stepFor(value, unit) {
+    const v = Math.abs(Number(value));
+    if (!Number.isFinite(v)) return 1;
+    if (!unit && Number.isInteger(Number(value))) return 1;
+    if (v >= 10) return 1;
+    if (v >= 1) return 0.1;
+    return 0.01;
+  }
+
   // Writes that change what the power stage does: they ask for confirmation.
   const POWER_PATTERNS = [
     /^\/Config\/Mode$/,
@@ -244,7 +256,7 @@
   }
 
   return {
-    inferAccess, parseUnit, displayName, valueKind, formatValue, parseEditorValue,
+    inferAccess, parseUnit, displayName, valueKind, formatValue, parseEditorValue, stepFor,
     isPowerPath, caveatFor, buildRows, groupSummary, rowMatches, visibleRows,
   };
 });

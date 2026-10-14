@@ -83,6 +83,15 @@ function testFormatAndParse() {
     assert.strictEqual(M.parseEditorValue('[1]', []).ok, false, 'records are not editable');
 }
 
+function testStep() {
+    assert.strictEqual(M.stepFor(1, 's'), 0.1, 'a 1 s period steps by 0.1, not 1');
+    assert.strictEqual(M.stepFor(30.2, 'V'), 1);
+    assert.strictEqual(M.stepFor(0.1, ''), 0.01, 'duty cycle');
+    assert.strictEqual(M.stepFor(0, ''), 1, 'unitless whole number (Mode) steps by 1');
+    assert.strictEqual(M.stepFor(100, 'ns'), 1);
+    assert.strictEqual(M.stepFor(NaN, ''), 1);
+}
+
 function testPowerAndCaveats() {
     for (const p of ['/Config/Mode', '/Config/Frequency_Hz', '/Config/Leg1/wEnable', '/Config/Leg2/wDutyCycle', '/Config/Leg3/wDriver', '/Config/Leg1/wReferenceValue', '/Control/zStartStop', '/Control/zCtrlReference']) {
         assert.ok(M.isPowerPath(p), `${p} is a power path`);
@@ -151,6 +160,7 @@ testAccess();
 testUnitsAndNames();
 testFormatAndParse();
 testPowerAndCaveats();
+testStep();
 testBuildRows();
 testFilters();
 
