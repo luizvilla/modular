@@ -5,6 +5,7 @@
   "name": "ThingSet Node",
   "addr": 1
  },
+ "if00_boot_log": "***** delaying boot 1500ms (per build configuration) *****\r\n*** Booting Zephyr OS build zephyr-v40000 (delayed boot 1500ms) ***\r\nUnable to find calibration values for ADC 1 channel 1 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 1 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 1 channel 6 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 6 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 1 channel 9 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 9 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 1 channel 2 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 2 in persistent storage. Default values will be used.\r\nUnable to find calibration values for A",
  "nodes": [
   {
    "path": "/",

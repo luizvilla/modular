@@ -115,6 +115,19 @@ class ThingSetShellSim {
         // wedged firmware); the transport's drain() also never completes.
         this.stalled = false;
         this.silent = false;
+        // While held (the firmware busy streaming a scope capture on if00),
+        // input waits and is answered afterwards -- late, like the board.
+        this.held = false;
+        this.heldInput = [];
+    }
+
+    hold(on) {
+        this.held = !!on;
+        if (!this.held && this.heldInput.length) {
+            const pending = this.heldInput.join('');
+            this.heldInput = [];
+            for (const ch of pending) this._char(ch);
+        }
     }
 
     // --- SimSerialPort device API ---
@@ -132,6 +145,7 @@ class ThingSetShellSim {
 
     onData(port, buf) {
         if (this.stalled || this.silent) return;
+        if (this.held) { this.heldInput.push(buf.toString('utf8')); return; }
         for (const ch of buf.toString('utf8')) this._char(ch);
     }
 

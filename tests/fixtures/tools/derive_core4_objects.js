@@ -63,6 +63,9 @@ visit('/');
 const out = {
   source: 'Captured from a Spin board running Core4 (tests/fixtures/core4_shell_transcript.json, ' + t.captured_at + ')',
   node: t.if02.node,
+  // What if00 delivers on the first open after boot: the console's 1024-byte
+  // buffer of boot log, cut mid-line -- the next reply lands on that line.
+  if00_boot_log: t.if00.raw_probe.includes('SCOPE-DATA/1') ? t.if00.raw_probe.slice(0, t.if00.raw_probe.indexOf('SCOPE-DATA/1')) : t.if00.raw_probe,
   nodes,
 };
 fs.writeFileSync(dst, JSON.stringify(out, null, 1) + '\n');
