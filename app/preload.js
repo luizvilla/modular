@@ -114,6 +114,12 @@ const api = {
         stopCsvRecord: (path) => ipcRenderer.invoke('stop-csv-record', { path }),
         saveFastCsv: (payload) => ipcRenderer.invoke('save-fast-csv', payload)
     },
+    // Demo OwnTech board (M12): a simulated board listed like hardware.
+    demoBoard: {
+        get: () => ipcRenderer.invoke('demo-board-get'),
+        set: (enabled) => ipcRenderer.invoke('demo-board-set', { enabled }),
+        onChanged: (cb) => ipcRenderer.on('demo-board-changed', (_e, payload) => cb(payload)),
+    },
     thingsetSerial: {
         detect: (payload) => ipcRenderer.invoke('ts-serial-detect', payload),
         tree: (payload) => ipcRenderer.invoke('ts-serial-tree', payload),

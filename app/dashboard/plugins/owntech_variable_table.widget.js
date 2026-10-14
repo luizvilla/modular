@@ -334,7 +334,8 @@
             const time = new Date().toLocaleTimeString();
             const ds = freeboard.getDatasourceSettings(this.settings.datasource) || {};
             const live = ds.autoRefresh === true ? `live every ${Number(ds.refresh) || 1000} ms` : 'live updates off (enable Auto Refresh on the datasource, or use Refresh)';
-            return `${data.portPath || ''}${node ? ` · ${node}` : ''} · ${vars.length} variables · ${vars.filter((r) => r.access.editable).length} writable · ${live} · updated ${time}`;
+            const simulated = String(data.portPath || '').startsWith('sim://') ? ' (simulated)' : '';
+            return `${data.portPath || ''}${simulated}${node ? ` · ${node}` : ''} · ${vars.length} variables · ${vars.filter((r) => r.access.editable).length} writable · ${live} · updated ${time}`;
         }
 
         // force: rebuild the rows' DOM (structure, filter or expansion

@@ -2367,6 +2367,39 @@ ipcMain.handle('extensions-manager-disable', (_event, { id } = {}) => {
 
 // ──────────────────────────────────────────────────────────────────────────────
 
+// Demo OwnTech board (M12): a simulated Core4 board listed like hardware, for
+// demos and hardware-free testing. Persisted across restarts; the
+// MODULAR_SIM_BOARD environment variable also enables it.
+function demoBoardSettingPath() {
+    return path.join(app.getPath('userData'), 'demo-board.json');
+}
+
+function setDemoBoardEnabled(enabled, { persist = true } = {}) {
+    const sim = require('./js/sim');
+    if (enabled) sim.enableDemoBoard();
+    else sim.disableDemoBoard();
+    if (persist) {
+        try { fs.writeFileSync(demoBoardSettingPath(), JSON.stringify({ enabled: !!enabled })); } catch (e) { /* not critical */ }
+    }
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('demo-board-changed', { enabled: !!sim.demoBoard() });
+    }
+    setAppMenu();
+}
+
+function restoreDemoBoardSetting() {
+    try {
+        const saved = JSON.parse(fs.readFileSync(demoBoardSettingPath(), 'utf8'));
+        if (saved && saved.enabled) setDemoBoardEnabled(true, { persist: false });
+    } catch (e) { /* no saved setting */ }
+}
+
+ipcMain.handle('demo-board-get', () => ({ enabled: !!require('./js/sim').demoBoard() }));
+ipcMain.handle('demo-board-set', (_event, { enabled } = {}) => {
+    setDemoBoardEnabled(!!enabled);
+    return { enabled: !!require('./js/sim').demoBoard() };
+});
+
 function setAppMenu() {
     const widgetExtensionsMenu = buildWidgetExtensionsMenuItems();
     const owntechExamplesMenu = buildExamplesMenuItems('owntech-examples');
@@ -2428,6 +2461,12 @@ function setAppMenu() {
                             mainWindow.webContents.send('activity-toggle', { enabled: activityEnabled });
                         }
                     }
+                },
+                {
+                    label: 'Demo OwnTech Board (simulated)',
+                    type: 'checkbox',
+                    checked: !!require('./js/sim').demoBoard(),
+                    click: (item) => setDemoBoardEnabled(!!item.checked),
                 },
                 { type: 'separator' },
                 {
@@ -3342,7 +3381,7 @@ ipcMain.handle('load-dashboard-from-path', async (_event, { dashboardPath } = {}
     }
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => { restoreDemoBoardSetting(); createWindow(); });
 // Send each port's registered shutdown command so boards are not left running
 // unattended after the app closes.  Ports with no registered command are skipped.
 async function sendIdleToAllPorts() {

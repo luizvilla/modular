@@ -4808,7 +4808,8 @@ var freeboard = (function()
 			els.badge.attr('class', 'thingset-shell-badge ' + badgeClass).text(badgeText);
 
 			var metaParts = [];
-			if(data.portPath) metaParts.push('Port: ' + data.portPath);
+			// A sim:// port is the demo board (M12), never hardware.
+			if(data.portPath) metaParts.push('Port: ' + data.portPath + (String(data.portPath).indexOf('sim://') === 0 ? ' (simulated demo board)' : ''));
 			if(data.node_name) metaParts.push('Node: ' + data.node_name);
 			if(data.node_uid) metaParts.push('UID: ' + data.node_uid);
 			if(data.address_hex) metaParts.push('Addr: ' + data.address_hex);

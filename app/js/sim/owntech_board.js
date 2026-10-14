@@ -99,7 +99,9 @@ class OwnTechSimBoard {
         set('/Measurements/rIHigh_A', 0);
         set('/Measurements/rTemp1_degC', 25);
         set('/Measurements/rTemp2_degC', 25);
-        set('/pNodeID', `SIM${this.options.serialNumber.replace(/\W/g, '').slice(-13).padStart(13, '0')}`);
+        // 16 characters like a real node ID ("0941809145890E85"); "DE" for demo.
+        const digits = this.options.serialNumber.replace(/\D/g, '').slice(-12);
+        set('/pNodeID', `DE00${digits.padStart(12, '0')}`);
         set('/pNodeName', `${this.options.label}`);
         set('/Converter/wSerialNumber', this.options.serialNumber);
     }
