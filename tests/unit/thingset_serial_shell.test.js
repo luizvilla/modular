@@ -59,7 +59,34 @@ async function runGetValueGroupTests() {
     assert.deepStrictEqual(await shell.getValue('Config/Leg1'), { ok: true, value: { wEnable: false } });
 }
 
-runGetValueGroupTests().then(() => {
+async function runRefreshValuesTests() {
+    const shell = makeShell();
+    const board = {
+        '/': { Config: null, pNodeID: 'ABC' },
+        '/Config': { Mode: 1, wBlinkPeriod_s: 0.5, Leg1: null },
+        '/Config/Leg1': { wEnable: true },
+    };
+    const asked = [];
+    shell.get = async (path) => { asked.push(path); return { statusHex: '85', json: board[path] }; };
+    // Shape of a real walk: Mode and pNodeID come back with empty children.
+    const root = { values: {}, children: {
+        Config: { values: {}, children: {
+            Mode: { values: {}, children: {}, value: 0 },
+            wBlinkPeriod_s: { value: 1 },
+            Leg1: { values: {}, children: { wEnable: { value: false } } },
+        } },
+        pNodeID: { values: {}, children: {}, value: 'OLD' },
+    } };
+    const { groups } = await shell.refreshValues(root);
+    assert.strictEqual(root.children.Config.children.Mode.value, 1, 'a leaf with empty children is refreshed');
+    assert.strictEqual(root.children.pNodeID.value, 'ABC');
+    assert.strictEqual(root.children.Config.children.wBlinkPeriod_s.value, 0.5);
+    assert.strictEqual(root.children.Config.children.Leg1.children.wEnable.value, true);
+    assert.deepStrictEqual(asked, ['/', '/Config', '/Config/Leg1'], 'one fetch per group, none per leaf');
+    assert.strictEqual(groups, 3);
+}
+
+runGetValueGroupTests().then(runRefreshValuesTests).then(() => {
     console.log('All thingset_serial_shell tests passed.');
 }).catch((err) => { console.error(err); process.exit(1); });
 

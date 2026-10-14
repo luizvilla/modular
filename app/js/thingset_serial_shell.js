@@ -821,9 +821,14 @@ class ThingSetSerialShell {
   // full walk (e.g. after a reflash changed the tree).
   async refreshValues(root) {
     let groups = 0;
+    // The walk returns some variables (Core4's Config/Mode, pNodeID,
+    // Device/c*) as nodes with an empty `children` object and their own
+    // `value`; they are leaves too, or they would never be refreshed.
+    const isLeaf = (child) => !child.children
+      || (Object.keys(child.children).length === 0 && Object.prototype.hasOwnProperty.call(child, 'value'));
     const visit = async (node, path) => {
       const kids = Object.entries(node.children || {});
-      const leaves = kids.filter(([, child]) => !child.children);
+      const leaves = kids.filter(([, child]) => isLeaf(child));
       if (leaves.length || Object.keys(node.values || {}).length) {
         const resp = await this.get(path);
         const js = resp && resp.json;
@@ -839,7 +844,7 @@ class ThingSetSerialShell {
         }
       }
       for (const [name, child] of kids) {
-        if (child.children) await visit(child, path === '/' ? `/${name}` : `${path}/${name}`);
+        if (!isLeaf(child)) await visit(child, path === '/' ? `/${name}` : `${path}/${name}`);
       }
     };
     await visit(root, '/');
