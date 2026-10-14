@@ -1,0 +1,829 @@
+{
+ "source": "Captured from a Spin board running Core4 (tests/fixtures/core4_shell_transcript.json, 2026-10-14T11:25:00.882Z)",
+ "node": {
+  "uid": "0941809145890E85",
+  "name": "ThingSet Node",
+  "addr": 1
+ },
+ "nodes": [
+  {
+   "path": "/",
+   "kind": "group",
+   "children": [
+    "Measurements",
+    "Config",
+    "Converter",
+    "Calibration",
+    "Debug",
+    "pNodeID",
+    "pNodeName",
+    "Networking",
+    "_Reporting",
+    "mLive",
+    "mCAN",
+    "Device",
+    "Control"
+   ]
+  },
+  {
+   "path": "/Measurements",
+   "kind": "group",
+   "children": [
+    "rV1Low_V",
+    "rV2Low_V",
+    "rVHigh_V",
+    "rI1Low_A",
+    "rI2Low_A",
+    "rIHigh_A",
+    "rTemp1_degC",
+    "rTemp2_degC",
+    "rV1Max_V",
+    "rV2Max_V",
+    "rDuty1",
+    "rDuty2"
+   ]
+  },
+  {
+   "path": "/Measurements/rV1Low_V",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": -92.2
+  },
+  {
+   "path": "/Measurements/rV2Low_V",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": -92.2
+  },
+  {
+   "path": "/Measurements/rVHigh_V",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": 0.06
+  },
+  {
+   "path": "/Measurements/rI1Low_A",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": -10
+  },
+  {
+   "path": "/Measurements/rI2Low_A",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": -10
+  },
+  {
+   "path": "/Measurements/rIHigh_A",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": -10
+  },
+  {
+   "path": "/Measurements/rTemp1_degC",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": 43.42
+  },
+  {
+   "path": "/Measurements/rTemp2_degC",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": -273.15
+  },
+  {
+   "path": "/Measurements/rV1Max_V",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": 0
+  },
+  {
+   "path": "/Measurements/rV2Max_V",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "r",
+   "value": 0
+  },
+  {
+   "path": "/Measurements/rDuty1",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 3,
+   "access": "r",
+   "value": 0
+  },
+  {
+   "path": "/Measurements/rDuty2",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 3,
+   "access": "r",
+   "value": 0
+  },
+  {
+   "path": "/Config",
+   "kind": "group",
+   "children": [
+    "wBlinkPeriod_s",
+    "Mode",
+    "Frequency_Hz",
+    "Leg1",
+    "Leg2"
+   ]
+  },
+  {
+   "path": "/Config/wBlinkPeriod_s",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 2,
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Config/Mode",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Config/Frequency_Hz",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 200000
+  },
+  {
+   "path": "/Config/Leg1",
+   "kind": "group",
+   "children": [
+    "wEnable",
+    "wBuck",
+    "wBoost",
+    "wDutyCycle",
+    "wReferenceValue",
+    "wTrackingVar",
+    "wCapa",
+    "wDriver",
+    "wPhaseShift",
+    "wDeadTimeRising_ns",
+    "wDeadTimeFalling_ns"
+   ]
+  },
+  {
+   "path": "/Config/Leg1/wEnable",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg1/wBuck",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg1/wBoost",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg1/wDutyCycle",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 3,
+   "access": "rw",
+   "value": 0.1
+  },
+  {
+   "path": "/Config/Leg1/wReferenceValue",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 3,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Config/Leg1/wTrackingVar",
+   "kind": "leaf",
+   "type": "string",
+   "access": "rw",
+   "value": "V1"
+  },
+  {
+   "path": "/Config/Leg1/wCapa",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg1/wDriver",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg1/wPhaseShift",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Config/Leg1/wDeadTimeRising_ns",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 100
+  },
+  {
+   "path": "/Config/Leg1/wDeadTimeFalling_ns",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 100
+  },
+  {
+   "path": "/Config/Leg2",
+   "kind": "group",
+   "children": [
+    "wEnable",
+    "wBuck",
+    "wBoost",
+    "wDutyCycle",
+    "wReferenceValue",
+    "wTrackingVar",
+    "wCapa",
+    "wDriver",
+    "wPhaseShift",
+    "wDeadTimeRising_ns",
+    "wDeadTimeFalling_ns"
+   ]
+  },
+  {
+   "path": "/Config/Leg2/wEnable",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg2/wBuck",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg2/wBoost",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg2/wDutyCycle",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 3,
+   "access": "rw",
+   "value": 0.1
+  },
+  {
+   "path": "/Config/Leg2/wReferenceValue",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 3,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Config/Leg2/wTrackingVar",
+   "kind": "leaf",
+   "type": "string",
+   "access": "rw",
+   "value": "V2"
+  },
+  {
+   "path": "/Config/Leg2/wCapa",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg2/wDriver",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Config/Leg2/wPhaseShift",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Config/Leg2/wDeadTimeRising_ns",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 100
+  },
+  {
+   "path": "/Config/Leg2/wDeadTimeFalling_ns",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 100
+  },
+  {
+   "path": "/Converter",
+   "kind": "group",
+   "children": [
+    "wBoardVersion",
+    "wSerialNumber"
+   ]
+  },
+  {
+   "path": "/Converter/wBoardVersion",
+   "kind": "leaf",
+   "type": "string",
+   "access": "rw",
+   "value": "8.8.8"
+  },
+  {
+   "path": "/Converter/wSerialNumber",
+   "kind": "leaf",
+   "type": "string",
+   "access": "rw",
+   "value": "SHLD000000001"
+  },
+  {
+   "path": "/Calibration",
+   "kind": "group",
+   "children": [
+    "V1",
+    "V2",
+    "VH",
+    "I1",
+    "I2",
+    "IH"
+   ]
+  },
+  {
+   "path": "/Calibration/V1",
+   "kind": "group",
+   "children": [
+    "wGain",
+    "wOffset",
+    "wStore"
+   ]
+  },
+  {
+   "path": "/Calibration/V1/wGain",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Calibration/V1/wOffset",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Calibration/V1/wStore",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Calibration/V2",
+   "kind": "group",
+   "children": [
+    "wGain",
+    "wOffset",
+    "wStore"
+   ]
+  },
+  {
+   "path": "/Calibration/V2/wGain",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Calibration/V2/wOffset",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Calibration/V2/wStore",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Calibration/VH",
+   "kind": "group",
+   "children": [
+    "wGain",
+    "wOffset",
+    "wStore"
+   ]
+  },
+  {
+   "path": "/Calibration/VH/wGain",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Calibration/VH/wOffset",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Calibration/VH/wStore",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Calibration/I1",
+   "kind": "group",
+   "children": [
+    "wGain",
+    "wOffset",
+    "wStore"
+   ]
+  },
+  {
+   "path": "/Calibration/I1/wGain",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Calibration/I1/wOffset",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Calibration/I1/wStore",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Calibration/I2",
+   "kind": "group",
+   "children": [
+    "wGain",
+    "wOffset",
+    "wStore"
+   ]
+  },
+  {
+   "path": "/Calibration/I2/wGain",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Calibration/I2/wOffset",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Calibration/I2/wStore",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Calibration/IH",
+   "kind": "group",
+   "children": [
+    "wGain",
+    "wOffset",
+    "wStore"
+   ]
+  },
+  {
+   "path": "/Calibration/IH/wGain",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Calibration/IH/wOffset",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 6,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Calibration/IH/wStore",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Debug",
+   "kind": "group",
+   "children": [
+    "Scope"
+   ]
+  },
+  {
+   "path": "/Debug/Scope",
+   "kind": "group",
+   "children": [
+    "wArm",
+    "wTrigger",
+    "wPretriggerRatio",
+    "wDecimation",
+    "rState",
+    "rSampleCount",
+    "rChannelCount",
+    "rSamplePeriod_us",
+    "rCaptureDuration_ms",
+    "rFinalIndex",
+    "rLastError"
+   ]
+  },
+  {
+   "path": "/Debug/Scope/wArm",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Debug/Scope/wTrigger",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  },
+  {
+   "path": "/Debug/Scope/wPretriggerRatio",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 3,
+   "access": "rw",
+   "value": 0.2
+  },
+  {
+   "path": "/Debug/Scope/wDecimation",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/Debug/Scope/rState",
+   "kind": "leaf",
+   "type": "int",
+   "access": "r",
+   "value": 0
+  },
+  {
+   "path": "/Debug/Scope/rSampleCount",
+   "kind": "leaf",
+   "type": "int",
+   "access": "r",
+   "value": 1024
+  },
+  {
+   "path": "/Debug/Scope/rChannelCount",
+   "kind": "leaf",
+   "type": "int",
+   "access": "r",
+   "value": 8
+  },
+  {
+   "path": "/Debug/Scope/rSamplePeriod_us",
+   "kind": "leaf",
+   "type": "int",
+   "access": "r",
+   "value": 100
+  },
+  {
+   "path": "/Debug/Scope/rCaptureDuration_ms",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 1,
+   "access": "r",
+   "value": 102.4
+  },
+  {
+   "path": "/Debug/Scope/rFinalIndex",
+   "kind": "leaf",
+   "type": "int",
+   "access": "r",
+   "value": 0
+  },
+  {
+   "path": "/Debug/Scope/rLastError",
+   "kind": "leaf",
+   "type": "int",
+   "access": "r",
+   "value": 0
+  },
+  {
+   "path": "/pNodeID",
+   "kind": "leaf",
+   "type": "string",
+   "access": "r",
+   "value": "0941809145890E85"
+  },
+  {
+   "path": "/pNodeName",
+   "kind": "leaf",
+   "type": "string",
+   "access": "r",
+   "value": "ThingSet Node"
+  },
+  {
+   "path": "/Networking",
+   "kind": "group",
+   "children": [
+    "pCANNodeAddr"
+   ]
+  },
+  {
+   "path": "/Networking/pCANNodeAddr",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/_Reporting",
+   "kind": "group",
+   "children": [
+    "mLive"
+   ]
+  },
+  {
+   "path": "/_Reporting/mLive",
+   "kind": "group",
+   "children": [
+    "sEnable",
+    "sPeriod_s"
+   ]
+  },
+  {
+   "path": "/_Reporting/mLive/sEnable",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": true
+  },
+  {
+   "path": "/_Reporting/mLive/sPeriod_s",
+   "kind": "leaf",
+   "type": "int",
+   "access": "rw",
+   "value": 1
+  },
+  {
+   "path": "/mLive",
+   "kind": "record",
+   "type": "array",
+   "access": "rw",
+   "value": []
+  },
+  {
+   "path": "/mCAN",
+   "kind": "record",
+   "type": "array",
+   "access": "rw",
+   "value": []
+  },
+  {
+   "path": "/Device",
+   "kind": "group",
+   "children": [
+    "cManufacturer",
+    "cType",
+    "cHardwareVersion",
+    "cFirmwareVersion"
+   ]
+  },
+  {
+   "path": "/Device/cManufacturer",
+   "kind": "leaf",
+   "type": "string",
+   "access": "r",
+   "value": "OwnTech Technologies"
+  },
+  {
+   "path": "/Device/cType",
+   "kind": "leaf",
+   "type": "string",
+   "access": "r",
+   "value": "TWIST"
+  },
+  {
+   "path": "/Device/cHardwareVersion",
+   "kind": "leaf",
+   "type": "string",
+   "access": "r",
+   "value": "v1.4.2"
+  },
+  {
+   "path": "/Device/cFirmwareVersion",
+   "kind": "leaf",
+   "type": "string",
+   "access": "r",
+   "value": "1.0.0"
+  },
+  {
+   "path": "/Control",
+   "kind": "group",
+   "children": [
+    "zCtrlReference",
+    "zStartStop"
+   ]
+  },
+  {
+   "path": "/Control/zCtrlReference",
+   "kind": "leaf",
+   "type": "float",
+   "decimals": 1,
+   "access": "rw",
+   "value": 0
+  },
+  {
+   "path": "/Control/zStartStop",
+   "kind": "leaf",
+   "type": "bool",
+   "access": "rw",
+   "value": false
+  }
+ ]
+}
