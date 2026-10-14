@@ -10,7 +10,8 @@
 // migration plan had flagged as unconfirmed pending hardware/firmware
 // access; both are now available in this environment and confirm big-endian.
 
-const { SerialPort } = require('serialport');
+// Real port, or the simulated board's for a sim:// path (M12).
+const { createSerialPort } = require('../../js/sim');
 
 const SCOPE_BAUDRATE = 115200;
 const SCOPE_SAMPLE_COUNT = 1024;
@@ -48,7 +49,7 @@ class ScopeSerialLink {
         if (!path) throw new Error('scope port path required');
         this.path = path;
         this.baudRate = baudRate;
-        this.port = new SerialPort({ path, baudRate, autoOpen: false });
+        this.port = createSerialPort({ path, baudRate, autoOpen: false });
         this.readBuffer = Buffer.alloc(0);
         this._onData = this._onData.bind(this);
         this._listening = false;

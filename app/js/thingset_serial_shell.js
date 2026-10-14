@@ -1,6 +1,7 @@
 'use strict';
 
-const { SerialPort } = require('serialport');
+// Real port, or the simulated board's for a sim:// path (M12).
+const { createSerialPort } = require('./sim');
 
 const PROMPT_RE = /([A-Za-z0-9_-]+):~\$\s/;
 const DEFAULT_PREFIX = 'thingset ';
@@ -157,7 +158,7 @@ class ThingSetSerialShell {
     this.usePrefix = Boolean(this.commandPrefix);
     this.verbose = verbose;
     this.ownsPort = !existingPort;
-    this.port = existingPort || new SerialPort({ path: this.path, baudRate, autoOpen: false });
+    this.port = existingPort || createSerialPort({ path: this.path, baudRate, autoOpen: false });
     this.readBuffer = Buffer.alloc(0);
     this.prompt = null;
     this._onData = this._onData.bind(this);

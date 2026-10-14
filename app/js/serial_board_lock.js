@@ -21,14 +21,21 @@ let refreshing = null;
 function refreshPorts() {
     if (!refreshing) {
         refreshing = SerialPort.list()
+            .catch(() => [])
             .then((ports) => {
-                cache = { at: Date.now(), ports: ports || [] };
+                // Simulated boards (M12) are listed like hardware.
+                cache = { at: Date.now(), ports: (ports || []).concat(require('./sim').listSimPorts()) };
                 return cache.ports;
             })
             .catch(() => (cache ? cache.ports : []))
             .finally(() => { refreshing = null; });
     }
     return refreshing;
+}
+
+// Drops the cached list, e.g. when a simulated board is added or removed.
+function invalidatePorts() {
+    cache = null;
 }
 
 async function listPorts({ fresh = false } = {}) {
@@ -81,4 +88,4 @@ function isShellResponding(path) {
     return respondingShells.has(path);
 }
 
-module.exports = { listPorts, isPhantomPort, boardKey, runExclusiveOnBoard, markShellResponding, isShellResponding };
+module.exports = { listPorts, invalidatePorts, isPhantomPort, boardKey, runExclusiveOnBoard, markShellResponding, isShellResponding };

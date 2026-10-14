@@ -86,6 +86,9 @@ module.exports = function registerThingSetExtension(context) {
             const p = String(port?.path || '');
             if (isIf00Candidate(port)) return 2;
             if (preferRe.test(p)) return 0;
+            // A simulated board (M12) after real USB serial devices, but
+            // before unrelated ports, which only cost probe timeouts.
+            if (p.startsWith('sim://')) return 0.5;
             return 1;
         };
         return ports

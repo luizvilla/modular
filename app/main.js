@@ -7,6 +7,8 @@ const { flashFirmware, cancelFlash } = require('./flasher');
 const { spawn, spawnSync } = require('child_process');
 const { buildExtensionRuntime, readInstalledState } = require('./extensions/runtime');
 const boardLock = require('./js/serial_board_lock');
+// MODULAR_SIM_BOARD=1 adds a simulated OwnTech board at startup (M12).
+require('./js/sim').enableFromEnv();
 const {
     DEFAULT_PLATFORMIO_HOME,
     DEFAULT_PLATFORMIO_VENV_PATH,
@@ -3448,7 +3450,7 @@ ipcMain.handle('get-serial-ports', async () => {
 		const pid = String(port.productId || '').toLowerCase();
 		const isOwntech = vid === '2fe3' && pid === '0100';
 		const { role, roleLabel } = describeSerialPortRole(port, ports, isOwntech);
-		const maker = isOwntech ? ' (OwnTech)' : (port.manufacturer ? ` (${port.manufacturer})` : '');
+		const maker = port.simulated ? ' (Demo OwnTech, simulated)' : (isOwntech ? ' (OwnTech)' : (port.manufacturer ? ` (${port.manufacturer})` : ''));
 		return {
 			name: `${port.path}${maker}${roleLabel ? ` — ${roleLabel}` : ''}`,
 			value: port.path,
@@ -3464,6 +3466,7 @@ ipcMain.handle('get-serial-ports', async () => {
 			// auto-detect ordering, without duplicating a path-based guess.
 			pnpId: port.pnpId || null,
 			isOwntech,
+			simulated: !!port.simulated,
 		};
 	});
 });
