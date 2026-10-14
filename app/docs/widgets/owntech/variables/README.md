@@ -74,6 +74,9 @@ Known firmware caveats (also shown as tooltips):
   reports the requested value, not the applied one.
 - `Config/Frequency_Hz`: writing it is a known firmware issue.
 
+No board at hand? **Edit → Demo OwnTech Board (simulated)** adds a simulated
+Core4 board to try the table on — see [Demo OwnTech Board](../demo-board/README.md).
+
 ## Right-click
 
 - **On a variable:** *Copy path*; *Add +/− button* (writable number), *Add

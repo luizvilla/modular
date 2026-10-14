@@ -55,9 +55,14 @@ these methods instead of `window.require` or direct Node/Electron APIs.
 - `onProgress(cb)`
 - `onComplete(cb)`
 
+## demoBoard
+- `get()` → `{ enabled }`: whether the simulated OwnTech board is present.
+- `set(enabled)` → `{ enabled }`: add or remove it (same as Edit → Demo OwnTech Board; persisted).
+- `onChanged(cb)`: called with `{ enabled }` when it's added or removed.
+
 ## thingsetSerial
 - `detect(payload)`
-- `tree(payload)`
+- `tree(payload)`: `{ port, mode }`; `mode: 'values'` refreshes the values of the last full walk instead of walking again.
 - `getValue(payload)`
 - `setValue(payload)`
 - `create(payload)`
