@@ -644,5 +644,5 @@ Earlier in the same session: `ca22323`, `5539a69` (if00 auto-detect and fail-fas
 - **Leg 1 current reading ~0 A** in the scope runs: check the 10 Ω resistor connection, or the I1 sensor.
 - **Pane drag stalls** (`Cannot read properties of undefined (reading 'size_x')` from gridster). Reported on 2026-10-12 and not reproduced on a fresh board; needs the user's saved dashboard.
 - **The app holds if00 open after a scope download** until an explicit `owntech-scope-close` (the M7 no-idle-eviction decision). It blocked an external tool from opening the port during testing. Consider an idle timeout like `withShell`'s.
-- **Detect scans all `/dev/ttyS*` ports** after the OwnTech candidates. They're ordered last, so this only costs time when if02 fails.
+- ~~**Detect scans all `/dev/ttyS*` ports** after the OwnTech candidates.~~ Fixed 2026-10-14 (`feat(serial): list only real serial ports on Linux and label OwnTech port roles`): empty legacy UART slots are dropped from every port picker and from auto-detect (34 → 3 ports here), and pickers label an OwnTech board's ports as *scope data port* / *ThingSet shell* (*· responding* once a handshake succeeded). The ThingSet datasources no longer offer the scope port.
 - **E2E flakiness under parallel load** in `integrated-plot-editor.spec.js` and the axis-hover test.
