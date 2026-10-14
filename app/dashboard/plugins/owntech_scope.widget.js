@@ -124,7 +124,11 @@
 
             this.downloadBtn = $('<button type="button" class="btn btn-primary btn-sm" disabled>Download</button>');
             this.saveCsvBtn = $('<button type="button" class="btn btn-outline-secondary btn-sm" disabled>Save CSV</button>');
-            this.downloadRow = $('<div class="d-flex align-items-center gap-2"></div>').append(this.downloadBtn, this.saveCsvBtn);
+            // The download's outcome has its own line: the status line above is
+            // rewritten on every datasource refresh (every 500 ms with Auto
+            // Refresh), which used to wipe "Downloaded ..." almost at once.
+            this.downloadInfo = $('<span class="small text-muted"></span>');
+            this.downloadRow = $('<div class="d-flex align-items-center gap-2"></div>').append(this.downloadBtn, this.saveCsvBtn, this.downloadInfo);
 
             this.plotHost = $('<div class="flex-fill" style="min-height:180px"></div>');
 
@@ -233,10 +237,11 @@
             if (!this.scopeApi || typeof this.scopeApi.download !== 'function' || this._downloading) return;
             const port = this.settings.scopeSerialPort;
             if (!port) {
-                this.statusLine.text('Select a Scope Data Port (if00) in the widget settings.');
+                this.downloadInfo.text('Select a Scope Data Port (if00) in the widget settings.');
                 return;
             }
             this._downloading = true;
+            this.downloadInfo.text('');
             this.downloadBtn.prop('disabled', true).text('Downloading…');
             if (typeof this.scopeApi.onProgress === 'function') {
                 this._progressUnsub = this.scopeApi.onProgress((progress) => {
@@ -251,9 +256,9 @@
                 this._lastCapture = result;
                 this._renderPlot(result);
                 this.saveCsvBtn.prop('disabled', false);
-                this.statusLine.text(`Downloaded ${result.samples.length} samples across ${result.channels.length} channels.`);
+                this.downloadInfo.text(`Downloaded ${result.samples.length} samples across ${result.channels.length} channels.`);
             } catch (err) {
-                this.statusLine.text(`Download failed: ${err?.message || err}`);
+                this.downloadInfo.text(`Download failed: ${err?.message || err}`);
             } finally {
                 this._downloading = false;
                 this.downloadBtn.text('Download');
