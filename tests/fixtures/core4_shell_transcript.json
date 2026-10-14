@@ -1,0 +1,1787 @@
+{
+ "captured_at": "2026-10-14T11:25:00.882Z",
+ "board": "Spin running Core4 (no power stage)",
+ "if02": {
+  "on_open": "\u001b[m\r\n\u001b[1;32muart:~$ \u001b[m",
+  "raw_enter": "\r\n\u001b[1;32muart:~$ \u001b[m",
+  "raw_unknown_command": "foo\r\n\u001b[1;31mfoo: command not found\r\n\u001b[m\u001b[1;32muart:~$ \u001b[m",
+  "raw_thingset_prefixed_root": "thingset ?\r\n:85 {\"Measurements\":null,\"Config\":null,\"Converter\":null,\"Calibration\":null,\"Debug\":null,\"pNodeID\":\"0941809145890E85\",\"pNodeName\":\"ThingSet Node\",\"Networking\":null,\"_Reporting\":null,\"mLive\":[],\"mCAN\":[],\"Device\":null,\"Control\":null}\r\n\u001b[1;32muart:~$ \u001b[m",
+  "raw_select": "select thingset\r\n\u001b[1;32muart:~$ \u001b[m",
+  "raw_select_mode_bare": "?\r\n:85 {\"Measurements\":null,\"Config\":null,\"Converter\":null,\"Calibration\":null,\"Debug\":null,\"pNodeID\":\"0941809145890E85\",\"pNodeName\":\"ThingSet Node\",\"Networking\":null,\"_Reporting\":null,\"mLive\":[],\"mCAN\":[],\"Device\":null,\"Control\":null}\r\n\u001b[1;32muart:~$ \u001b[m",
+  "raw_select_mode_prefixed": "thingset ?\r\n\u001b[1;32muart:~$ \u001b[m",
+  "raw_alt_r": "\u001b[8D\u001b[J\u001b[1;33mRestored default root commands\r\n\u001b[m\u001b[1;32muart:~$ \u001b[m",
+  "probe_succeeded": true,
+  "prefix_after_probe": "",
+  "node": {
+   "uid": "0941809145890E85",
+   "name": "ThingSet Node",
+   "addr": 1
+  },
+  "set_Config_wBlinkPeriod_s_0_5": {
+   "ok": true,
+   "raw": "\u001b[m=Config {\\\"wBlinkPeriod_s\\\":0.5}\r\n:84\r\n\u001b[1;32muart:~$ ",
+   "status": "84",
+   "json": null
+  },
+  "set_Config_wBlinkPeriod_s_1": {
+   "ok": true,
+   "raw": "\u001b[m=Config {\\\"wBlinkPeriod_s\\\":1}\r\n:84\r\n\u001b[1;32muart:~$ ",
+   "status": "84",
+   "json": null
+  },
+  "set_Config_Leg1_wDutyCycle_0_1": {
+   "ok": true,
+   "raw": "\u001b[m=Config/Leg1 {\\\"wDutyCycle\\\":0.1}\r\n:84\r\n\u001b[1;32muart:~$ ",
+   "status": "84",
+   "json": null
+  },
+  "set_Config_Leg1_wTrackingVar_V1": {
+   "ok": true,
+   "raw": "\u001b[m=Config/Leg1 {\\\"wTrackingVar\\\":\\\"V1\\\"}\r\n:84\r\n\u001b[1;32muart:~$ ",
+   "status": "84",
+   "json": null
+  },
+  "set_Debug_Scope_wDecimation_1": {
+   "ok": true,
+   "raw": "\u001b[m=Debug/Scope {\\\"wDecimation\\\":1}\r\n:84\r\n\u001b[1;32muart:~$ ",
+   "status": "84",
+   "json": null
+  },
+  "set_Measurements_rVHigh_V_1": {
+   "ok": false,
+   "raw": "\u001b[m=Measurements {\\\"rVHigh_V\\\":1}\r\n:A3 \"Item rVHigh_V is read-only\"\r\n\u001b[1;32muart:~$ ",
+   "status": "A3",
+   "json": "Item rVHigh_V is read-only"
+  },
+  "set_Device_cFirmwareVersion_x": {
+   "ok": false,
+   "raw": "\u001b[m=Device {\\\"cFirmwareVersion\\\":\\\"x\\\"}\r\n:A3 \"Item cFirmwareVersion is read-only\"\r\n\u001b[1;32muart:~$ ",
+   "status": "A3",
+   "json": "Item cFirmwareVersion is read-only"
+  },
+  "set_Nope_wMissing_1": {
+   "ok": false,
+   "raw": "\u001b[m=Nope {\\\"wMissing\\\":1}\r\n:A4 \"Invalid endpoint\"\r\n\u001b[1;32muart:~$ ",
+   "status": "A4",
+   "json": "Invalid endpoint"
+  },
+  "set_Config_Leg1_wDutyCycle_2": {
+   "ok": true,
+   "raw": "\u001b[m=Config/Leg1 {\\\"wDutyCycle\\\":2}\r\n:84\r\n\u001b[1;32muart:~$ ",
+   "status": "84",
+   "json": null
+  },
+  "scope_states": [
+   1,
+   3
+  ],
+  "transcript": [
+   {
+    "phase": "enterThingSet",
+    "cmd": "?",
+    "prefix": "",
+    "response": "\u001b[m?\r\n\u001b[1;31m?: command not found\r\n\u001b[m\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "enterThingSet",
+    "cmd": "ls /",
+    "prefix": "",
+    "response": "\u001b[mls /\r\n\u001b[1;31mls: command not found\r\n\u001b[m\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "enterThingSet",
+    "cmd": "select thingset",
+    "prefix": "",
+    "response": "\u001b[mselect thingset\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "enterThingSet",
+    "cmd": "?",
+    "prefix": "",
+    "response": "\u001b[m?\r\n:85 {\"Measurements\":null,\"Config\":null,\"Converter\":null,\"Calibration\":null,\"Debug\":null,\"pNodeID\":\"0941809145890E85\",\"pNodeName\":\"ThingSet Node\",\"Networking\":null,\"_Reporting\":null,\"mLive\":[],\"mCAN\":[],\"Device\":null,\"Control\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "? null",
+    "prefix": "",
+    "response": "\u001b[m? null\r\n:85 [\"Measurements\",\"Config\",\"Converter\",\"Calibration\",\"Debug\",\"pNodeID\",\"pNodeName\",\"Networking\",\"_Reporting\",\"mLive\",\"mCAN\",\"Device\",\"Control\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements null",
+    "prefix": "",
+    "response": "\u001b[m?Measurements null\r\n:85 [\"rV1Low_V\",\"rV2Low_V\",\"rVHigh_V\",\"rI1Low_A\",\"rI2Low_A\",\"rIHigh_A\",\"rTemp1_degC\",\"rTemp2_degC\",\"rV1Max_V\",\"rV2Max_V\",\"rDuty1\",\"rDuty2\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config null",
+    "prefix": "",
+    "response": "\u001b[m?Config null\r\n:85 [\"wBlinkPeriod_s\",\"Mode\",\"Frequency_Hz\",\"Leg1\",\"Leg2\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Mode null",
+    "prefix": "",
+    "response": "\u001b[m?Config/Mode null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Frequency_Hz null",
+    "prefix": "",
+    "response": "\u001b[m?Config/Frequency_Hz null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1 null",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1 null\r\n:85 [\"wEnable\",\"wBuck\",\"wBoost\",\"wDutyCycle\",\"wReferenceValue\",\"wTrackingVar\",\"wCapa\",\"wDriver\",\"wPhaseShift\",\"wDeadTimeRising_ns\",\"wDeadTimeFalling_ns\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2 null",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2 null\r\n:85 [\"wEnable\",\"wBuck\",\"wBoost\",\"wDutyCycle\",\"wReferenceValue\",\"wTrackingVar\",\"wCapa\",\"wDriver\",\"wPhaseShift\",\"wDeadTimeRising_ns\",\"wDeadTimeFalling_ns\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Converter null",
+    "prefix": "",
+    "response": "\u001b[m?Converter null\r\n:85 [\"wBoardVersion\",\"wSerialNumber\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration null",
+    "prefix": "",
+    "response": "\u001b[m?Calibration null\r\n:85 [\"V1\",\"V2\",\"VH\",\"I1\",\"I2\",\"IH\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V1 null",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V1 null\r\n:85 [\"wGain\",\"wOffset\",\"wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V2 null",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V2 null\r\n:85 [\"wGain\",\"wOffset\",\"wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/VH null",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/VH null\r\n:85 [\"wGain\",\"wOffset\",\"wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I1 null",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I1 null\r\n:85 [\"wGain\",\"wOffset\",\"wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I2 null",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I2 null\r\n:85 [\"wGain\",\"wOffset\",\"wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/IH null",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/IH null\r\n:85 [\"wGain\",\"wOffset\",\"wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug null",
+    "prefix": "",
+    "response": "\u001b[m?Debug null\r\n:85 [\"Scope\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope null",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope null\r\n:85 [\"wArm\",\"wTrigger\",\"wPretriggerRatio\",\"wDecimation\",\"rState\",\"rSampleCount\",\"rChannelCount\",\"rSamplePeriod_us\",\"rCaptureDuration_ms\",\"rFinalIndex\",\"rLastError\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?pNodeID null",
+    "prefix": "",
+    "response": "\u001b[m?pNodeID null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?pNodeName null",
+    "prefix": "",
+    "response": "\u001b[m?pNodeName null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Networking null",
+    "prefix": "",
+    "response": "\u001b[m?Networking null\r\n:85 [\"pCANNodeAddr\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Networking/pCANNodeAddr null",
+    "prefix": "",
+    "response": "\u001b[m?Networking/pCANNodeAddr null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?_Reporting null",
+    "prefix": "",
+    "response": "\u001b[m?_Reporting null\r\n:85 [\"mLive\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?_Reporting/mLive null",
+    "prefix": "",
+    "response": "\u001b[m?_Reporting/mLive null\r\n:85 [\"sEnable\",\"sPeriod_s\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?mLive null",
+    "prefix": "",
+    "response": "\u001b[m?mLive null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?mCAN null",
+    "prefix": "",
+    "response": "\u001b[m?mCAN null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device null",
+    "prefix": "",
+    "response": "\u001b[m?Device null\r\n:85 [\"cManufacturer\",\"cType\",\"cHardwareVersion\",\"cFirmwareVersion\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cManufacturer null",
+    "prefix": "",
+    "response": "\u001b[m?Device/cManufacturer null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cType null",
+    "prefix": "",
+    "response": "\u001b[m?Device/cType null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cHardwareVersion null",
+    "prefix": "",
+    "response": "\u001b[m?Device/cHardwareVersion null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cFirmwareVersion null",
+    "prefix": "",
+    "response": "\u001b[m?Device/cFirmwareVersion null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Control null",
+    "prefix": "",
+    "response": "\u001b[m?Control null\r\n:85 [\"zCtrlReference\",\"zStartStop\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Control/zCtrlReference null",
+    "prefix": "",
+    "response": "\u001b[m?Control/zCtrlReference null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Control/zStartStop null",
+    "prefix": "",
+    "response": "\u001b[m?Control/zStartStop null\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?",
+    "prefix": "",
+    "response": "\u001b[m?\r\n:85 {\"Measurements\":null,\"Config\":null,\"Converter\":null,\"Calibration\":null,\"Debug\":null,\"pNodeID\":\"0941809145890E85\",\"pNodeName\":\"ThingSet Node\",\"Networking\":null,\"_Reporting\":null,\"mLive\":[],\"mCAN\":[],\"Device\":null,\"Control\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?_Reporting",
+    "prefix": "",
+    "response": "\u001b[m?_Reporting\r\n:85 {\"mLive\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"_Reporting\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"_Reporting\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration",
+    "prefix": "",
+    "response": "\u001b[m?Calibration\r\n:85 {\"V1\":null,\"V2\":null,\"VH\":null,\"I1\":null,\"I2\":null,\"IH\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config",
+    "prefix": "",
+    "response": "\u001b[m?Config\r\n:85 {\"wBlinkPeriod_s\":1.00,\"Mode\":0,\"Frequency_Hz\":200000,\"Leg1\":null,\"Leg2\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Control",
+    "prefix": "",
+    "response": "\u001b[m?Control\r\n:85 {\"zCtrlReference\":0.0,\"zStartStop\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Control\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Control\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Converter",
+    "prefix": "",
+    "response": "\u001b[m?Converter\r\n:85 {\"wBoardVersion\":\"8.8.8\",\"wSerialNumber\":\"SHLD000000001\"}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Converter\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Converter\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug",
+    "prefix": "",
+    "response": "\u001b[m?Debug\r\n:85 {\"Scope\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device",
+    "prefix": "",
+    "response": "\u001b[m?Device\r\n:85 {\"cManufacturer\":\"OwnTech Technologies\",\"cType\":\"TWIST\",\"cHardwareVersion\":\"v1.4.2\",\"cFirmwareVersion\":\"1.0.0\"}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Device\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Device\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?mCAN",
+    "prefix": "",
+    "response": "\u001b[m?mCAN\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"mCAN\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"mCAN\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements",
+    "prefix": "",
+    "response": "\u001b[m?Measurements\r\n:85 {\"rV1Low_V\":-92.20,\"rV2Low_V\":-92.20,\"rVHigh_V\":0.06,\"rI1Low_A\":-10.00,\"rI2Low_A\":-10.00,\"rIHigh_A\":-10.00,\"rTemp1_degC\":43.42,\"rTemp2_degC\":-273.15,\"rV1Max_V\":0.00,\"rV2Max_V\":0.00,\"rDuty1\":0.000,\"rDuty2\":0.000}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?mLive",
+    "prefix": "",
+    "response": "\u001b[m?mLive\r\n:85 []\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"mLive\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"mLive\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Networking",
+    "prefix": "",
+    "response": "\u001b[m?Networking\r\n:85 {\"pCANNodeAddr\":1}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Networking\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Networking\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?pNodeID",
+    "prefix": "",
+    "response": "\u001b[m?pNodeID\r\n:85 \"0941809145890E85\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"pNodeID\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"pNodeID\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?pNodeName",
+    "prefix": "",
+    "response": "\u001b[m?pNodeName\r\n:85 \"ThingSet Node\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"pNodeName\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"pNodeName\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?_Reporting/mLive",
+    "prefix": "",
+    "response": "\u001b[m?_Reporting/mLive\r\n:85 {\"sEnable\":true,\"sPeriod_s\":1}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"_Reporting/mLive\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"_Reporting/mLive\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I1",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I1\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I1\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I1\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I2",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I2\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I2\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I2\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/IH",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/IH\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/IH\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/IH\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V1",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V1\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V1\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V1\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V2",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V2\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V2\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V2\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/VH",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/VH\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/VH\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/VH\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Frequency_Hz",
+    "prefix": "",
+    "response": "\u001b[m?Config/Frequency_Hz\r\n:85 200000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Frequency_Hz\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Frequency_Hz\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1\r\n:85 {\"wEnable\":false,\"wBuck\":false,\"wBoost\":false,\"wDutyCycle\":0.100,\"wReferenceValue\":0.000,\"wTrackingVar\":\"V1\",\"wCapa\":false,\"wDriver\":false,\"wPhaseShift\":0,\"wDeadTimeRising_ns\":100,\"wDeadTimeFalling_ns\":100}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2\r\n:85 {\"wEnable\":false,\"wBuck\":false,\"wBoost\":false,\"wDutyCycle\":0.100,\"wReferenceValue\":0.000,\"wTrackingVar\":\"V2\",\"wCapa\":false,\"wDriver\":false,\"wPhaseShift\":0,\"wDeadTimeRising_ns\":100,\"wDeadTimeFalling_ns\":100}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Mode",
+    "prefix": "",
+    "response": "\u001b[m?Config/Mode\r\n:85 0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Mode\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Mode\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Control/zCtrlReference",
+    "prefix": "",
+    "response": "\u001b[m?Control/zCtrlReference\r\n:85 0.0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Control/zCtrlReference\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Control/zCtrlReference\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Control/zStartStop",
+    "prefix": "",
+    "response": "\u001b[m?Control/zStartStop\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Control/zStartStop\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Control/zStartStop\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope\r\n:85 {\"wArm\":false,\"wTrigger\":false,\"wPretriggerRatio\":0.200,\"wDecimation\":1,\"rState\":0,\"rSampleCount\":1024,\"rChannelCount\":8,\"rSamplePeriod_us\":100,\"rCaptureDuration_ms\":102.4,\"rFinalIndex\":0,\"rLastError\":0}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cFirmwareVersion",
+    "prefix": "",
+    "response": "\u001b[m?Device/cFirmwareVersion\r\n:85 \"1.0.0\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Device/cFirmwareVersion\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Device/cFirmwareVersion\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cHardwareVersion",
+    "prefix": "",
+    "response": "\u001b[m?Device/cHardwareVersion\r\n:85 \"v1.4.2\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Device/cHardwareVersion\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Device/cHardwareVersion\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cManufacturer",
+    "prefix": "",
+    "response": "\u001b[m?Device/cManufacturer\r\n:85 \"OwnTech Technologies\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Device/cManufacturer\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Device/cManufacturer\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Device/cType",
+    "prefix": "",
+    "response": "\u001b[m?Device/cType\r\n:85 \"TWIST\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Device/cType\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Device/cType\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Networking/pCANNodeAddr",
+    "prefix": "",
+    "response": "\u001b[m?Networking/pCANNodeAddr\r\n:85 1\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Networking/pCANNodeAddr\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Networking/pCANNodeAddr\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/wBlinkPeriod_s",
+    "prefix": "",
+    "response": "\u001b[m?Config/wBlinkPeriod_s\r\n:85 1.00\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/wBlinkPeriod_s\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/wBlinkPeriod_s\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Converter/wBoardVersion",
+    "prefix": "",
+    "response": "\u001b[m?Converter/wBoardVersion\r\n:85 \"8.8.8\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Converter/wBoardVersion\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Converter/wBoardVersion\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Converter/wSerialNumber",
+    "prefix": "",
+    "response": "\u001b[m?Converter/wSerialNumber\r\n:85 \"SHLD000000001\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Converter/wSerialNumber\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Converter/wSerialNumber\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rDuty1",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rDuty1\r\n:85 0.000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rDuty1\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rDuty1\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rDuty2",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rDuty2\r\n:85 0.000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rDuty2\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rDuty2\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rI1Low_A",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rI1Low_A\r\n:85 -10.00\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rI1Low_A\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rI1Low_A\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rI2Low_A",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rI2Low_A\r\n:85 -10.00\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rI2Low_A\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rI2Low_A\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rIHigh_A",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rIHigh_A\r\n:85 -10.00\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rIHigh_A\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rIHigh_A\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rTemp1_degC",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rTemp1_degC\r\n:85 43.26\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rTemp1_degC\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rTemp1_degC\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rTemp2_degC",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rTemp2_degC\r\n:85 -273.15\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rTemp2_degC\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rTemp2_degC\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rV1Low_V",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rV1Low_V\r\n:85 -92.20\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rV1Low_V\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rV1Low_V\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rV1Max_V",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rV1Max_V\r\n:85 0.00\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rV1Max_V\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rV1Max_V\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rV2Low_V",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rV2Low_V\r\n:85 -92.20\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rV2Low_V\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rV2Low_V\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rV2Max_V",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rV2Max_V\r\n:85 0.00\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rV2Max_V\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rV2Max_V\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Measurements/rVHigh_V",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rVHigh_V\r\n:85 0.00\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Measurements/rVHigh_V\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Measurements/rVHigh_V\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?_Reporting/mLive/sEnable",
+    "prefix": "",
+    "response": "\u001b[m?_Reporting/mLive/sEnable\r\n:85 true\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"_Reporting/mLive/sEnable\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"_Reporting/mLive/sEnable\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?_Reporting/mLive/sPeriod_s",
+    "prefix": "",
+    "response": "\u001b[m?_Reporting/mLive/sPeriod_s\r\n:85 1\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"_Reporting/mLive/sPeriod_s\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"_Reporting/mLive/sPeriod_s\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I1/wGain",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I1/wGain\r\n:85 1.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I1/wGain\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I1/wGain\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I1/wOffset",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I1/wOffset\r\n:85 0.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I1/wOffset\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I1/wOffset\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I1/wStore",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I1/wStore\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I1/wStore\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I1/wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I2/wGain",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I2/wGain\r\n:85 1.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I2/wGain\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I2/wGain\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I2/wOffset",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I2/wOffset\r\n:85 0.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I2/wOffset\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I2/wOffset\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/I2/wStore",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I2/wStore\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/I2/wStore\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/I2/wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/IH/wGain",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/IH/wGain\r\n:85 1.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/IH/wGain\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/IH/wGain\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/IH/wOffset",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/IH/wOffset\r\n:85 0.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/IH/wOffset\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/IH/wOffset\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/IH/wStore",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/IH/wStore\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/IH/wStore\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/IH/wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V1/wGain",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V1/wGain\r\n:85 1.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V1/wGain\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V1/wGain\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V1/wOffset",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V1/wOffset\r\n:85 0.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V1/wOffset\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V1/wOffset\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V1/wStore",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V1/wStore\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V1/wStore\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V1/wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V2/wGain",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V2/wGain\r\n:85 1.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V2/wGain\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V2/wGain\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V2/wOffset",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V2/wOffset\r\n:85 0.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V2/wOffset\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V2/wOffset\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/V2/wStore",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V2/wStore\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/V2/wStore\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/V2/wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/VH/wGain",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/VH/wGain\r\n:85 1.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/VH/wGain\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/VH/wGain\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/VH/wOffset",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/VH/wOffset\r\n:85 0.000000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/VH/wOffset\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/VH/wOffset\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Calibration/VH/wStore",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/VH/wStore\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Calibration/VH/wStore\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Calibration/VH/wStore\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wBoost",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wBoost\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wBoost\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wBoost\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wBuck",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wBuck\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wBuck\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wBuck\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wCapa",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wCapa\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wCapa\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wCapa\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wDeadTimeFalling_ns",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wDeadTimeFalling_ns\r\n:85 100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wDeadTimeFalling_ns\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wDeadTimeFalling_ns\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wDeadTimeRising_ns",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wDeadTimeRising_ns\r\n:85 100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wDeadTimeRising_ns\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wDeadTimeRising_ns\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wDriver",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wDriver\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wDriver\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wDriver\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wDutyCycle",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wDutyCycle\r\n:85 0.100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wDutyCycle\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wDutyCycle\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wEnable",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wEnable\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wEnable\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wEnable\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wPhaseShift",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wPhaseShift\r\n:85 0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wPhaseShift\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wPhaseShift\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wReferenceValue",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wReferenceValue\r\n:85 0.000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wReferenceValue\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wReferenceValue\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg1/wTrackingVar",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wTrackingVar\r\n:85 \"V1\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg1/wTrackingVar\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg1/wTrackingVar\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wBoost",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wBoost\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wBoost\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wBoost\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wBuck",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wBuck\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wBuck\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wBuck\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wCapa",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wCapa\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wCapa\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wCapa\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wDeadTimeFalling_ns",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wDeadTimeFalling_ns\r\n:85 100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wDeadTimeFalling_ns\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wDeadTimeFalling_ns\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wDeadTimeRising_ns",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wDeadTimeRising_ns\r\n:85 100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wDeadTimeRising_ns\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wDeadTimeRising_ns\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wDriver",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wDriver\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wDriver\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wDriver\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wDutyCycle",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wDutyCycle\r\n:85 0.100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wDutyCycle\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wDutyCycle\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wEnable",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wEnable\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wEnable\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wEnable\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wPhaseShift",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wPhaseShift\r\n:85 0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wPhaseShift\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wPhaseShift\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wReferenceValue",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wReferenceValue\r\n:85 0.000\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wReferenceValue\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wReferenceValue\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Config/Leg2/wTrackingVar",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2/wTrackingVar\r\n:85 \"V2\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Config/Leg2/wTrackingVar\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Leg2/wTrackingVar\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/rCaptureDuration_ms",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rCaptureDuration_ms\r\n:85 102.4\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/rCaptureDuration_ms\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/rCaptureDuration_ms\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/rChannelCount",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rChannelCount\r\n:85 8\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/rChannelCount\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/rChannelCount\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/rFinalIndex",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rFinalIndex\r\n:85 0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/rFinalIndex\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/rFinalIndex\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/rLastError",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rLastError\r\n:85 0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/rLastError\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/rLastError\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/rSampleCount",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rSampleCount\r\n:85 1024\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/rSampleCount\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/rSampleCount\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/rSamplePeriod_us",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rSamplePeriod_us\r\n:85 100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/rSamplePeriod_us\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/rSamplePeriod_us\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/rState",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rState\r\n:85 0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/rState\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/rState\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/wArm",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/wArm\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/wArm\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/wArm\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/wDecimation",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/wDecimation\r\n:85 1\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/wDecimation\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/wDecimation\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/wPretriggerRatio",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/wPretriggerRatio\r\n:85 0.200\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/wPretriggerRatio\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/wPretriggerRatio\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "?Debug/Scope/wTrigger",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/wTrigger\r\n:85 false\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "buildTree",
+    "cmd": "fetch 0x16 [\"Debug/Scope/wTrigger\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Debug/Scope/wTrigger\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "nodeMeta",
+    "cmd": "?pNodeID",
+    "prefix": "",
+    "response": "\u001b[m?pNodeID\r\n:85 \"0941809145890E85\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "nodeMeta",
+    "cmd": "fetch 0x16 [\"pNodeID\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"pNodeID\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "nodeMeta",
+    "cmd": "?pNodeName",
+    "prefix": "",
+    "response": "\u001b[m?pNodeName\r\n:85 \"ThingSet Node\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "nodeMeta",
+    "cmd": "fetch 0x16 [\"pNodeName\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"pNodeName\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "nodeMeta",
+    "cmd": "?Networking/pCANNodeAddr",
+    "prefix": "",
+    "response": "\u001b[m?Networking/pCANNodeAddr\r\n:85 1\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "nodeMeta",
+    "cmd": "fetch 0x16 [\"Networking/pCANNodeAddr\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Networking/pCANNodeAddr\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?",
+    "prefix": "",
+    "response": "\u001b[m?\r\n:85 {\"Measurements\":null,\"Config\":null,\"Converter\":null,\"Calibration\":null,\"Debug\":null,\"pNodeID\":\"0941809145890E85\",\"pNodeName\":\"ThingSet Node\",\"Networking\":null,\"_Reporting\":null,\"mLive\":[],\"mCAN\":[],\"Device\":null,\"Control\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?_Reporting/mLive",
+    "prefix": "",
+    "response": "\u001b[m?_Reporting/mLive\r\n:85 {\"sEnable\":true,\"sPeriod_s\":1}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Calibration/I1",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I1\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Calibration/I2",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/I2\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Calibration/IH",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/IH\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Calibration/V1",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V1\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Calibration/V2",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/V2\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Calibration/VH",
+    "prefix": "",
+    "response": "\u001b[m?Calibration/VH\r\n:85 {\"wGain\":1.000000,\"wOffset\":0.000000,\"wStore\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Config",
+    "prefix": "",
+    "response": "\u001b[m?Config\r\n:85 {\"wBlinkPeriod_s\":1.00,\"Mode\":0,\"Frequency_Hz\":200000,\"Leg1\":null,\"Leg2\":null}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Config/Leg1",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1\r\n:85 {\"wEnable\":false,\"wBuck\":false,\"wBoost\":false,\"wDutyCycle\":0.100,\"wReferenceValue\":0.000,\"wTrackingVar\":\"V1\",\"wCapa\":false,\"wDriver\":false,\"wPhaseShift\":0,\"wDeadTimeRising_ns\":100,\"wDeadTimeFalling_ns\":100}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Config/Leg2",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg2\r\n:85 {\"wEnable\":false,\"wBuck\":false,\"wBoost\":false,\"wDutyCycle\":0.100,\"wReferenceValue\":0.000,\"wTrackingVar\":\"V2\",\"wCapa\":false,\"wDriver\":false,\"wPhaseShift\":0,\"wDeadTimeRising_ns\":100,\"wDeadTimeFalling_ns\":100}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Control",
+    "prefix": "",
+    "response": "\u001b[m?Control\r\n:85 {\"zCtrlReference\":0.0,\"zStartStop\":false}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Converter",
+    "prefix": "",
+    "response": "\u001b[m?Converter\r\n:85 {\"wBoardVersion\":\"8.8.8\",\"wSerialNumber\":\"SHLD000000001\"}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Debug/Scope",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope\r\n:85 {\"wArm\":false,\"wTrigger\":false,\"wPretriggerRatio\":0.200,\"wDecimation\":1,\"rState\":0,\"rSampleCount\":1024,\"rChannelCount\":8,\"rSamplePeriod_us\":100,\"rCaptureDuration_ms\":102.4,\"rFinalIndex\":0,\"rLastError\":0}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Device",
+    "prefix": "",
+    "response": "\u001b[m?Device\r\n:85 {\"cManufacturer\":\"OwnTech Technologies\",\"cType\":\"TWIST\",\"cHardwareVersion\":\"v1.4.2\",\"cFirmwareVersion\":\"1.0.0\"}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Measurements",
+    "prefix": "",
+    "response": "\u001b[m?Measurements\r\n:85 {\"rV1Low_V\":-92.20,\"rV2Low_V\":-92.20,\"rVHigh_V\":0.18,\"rI1Low_A\":-10.00,\"rI2Low_A\":-10.00,\"rIHigh_A\":-10.00,\"rTemp1_degC\":43.26,\"rTemp2_degC\":-273.15,\"rV1Max_V\":0.00,\"rV2Max_V\":0.00,\"rDuty1\":0.000,\"rDuty2\":0.000}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "refreshValues",
+    "cmd": "?Networking",
+    "prefix": "",
+    "response": "\u001b[m?Networking\r\n:85 {\"pCANNodeAddr\":1}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "getValue",
+    "cmd": "?Measurements/rVHigh_V",
+    "prefix": "",
+    "response": "\u001b[m?Measurements/rVHigh_V\r\n:85 0.18\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "getValue",
+    "cmd": "?Config/Mode",
+    "prefix": "",
+    "response": "\u001b[m?Config/Mode\r\n:85 0\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "getValue",
+    "cmd": "?Config/Leg1/wDutyCycle",
+    "prefix": "",
+    "response": "\u001b[m?Config/Leg1/wDutyCycle\r\n:85 0.100\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "getValue",
+    "cmd": "?Device/cFirmwareVersion",
+    "prefix": "",
+    "response": "\u001b[m?Device/cFirmwareVersion\r\n:85 \"1.0.0\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "getValue",
+    "cmd": "?Measurements",
+    "prefix": "",
+    "response": "\u001b[m?Measurements\r\n:85 {\"rV1Low_V\":-92.20,\"rV2Low_V\":-92.20,\"rVHigh_V\":0.12,\"rI1Low_A\":-10.00,\"rI2Low_A\":-10.00,\"rIHigh_A\":-10.00,\"rTemp1_degC\":43.26,\"rTemp2_degC\":-273.15,\"rV1Max_V\":0.00,\"rV2Max_V\":0.00,\"rDuty1\":0.000,\"rDuty2\":0.000}\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "getValue",
+    "cmd": "?Nope/Missing",
+    "prefix": "",
+    "response": "\u001b[m?Nope/Missing\r\n:A4 \"Invalid endpoint\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Config {\\\"wBlinkPeriod_s\\\":0.5}",
+    "prefix": "",
+    "response": "\u001b[m=Config {\\\"wBlinkPeriod_s\\\":0.5}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Config {\\\"wBlinkPeriod_s\\\":1}",
+    "prefix": "",
+    "response": "\u001b[m=Config {\\\"wBlinkPeriod_s\\\":1}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Config/Leg1 {\\\"wDutyCycle\\\":0.1}",
+    "prefix": "",
+    "response": "\u001b[m=Config/Leg1 {\\\"wDutyCycle\\\":0.1}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Config/Leg1 {\\\"wTrackingVar\\\":\\\"V1\\\"}",
+    "prefix": "",
+    "response": "\u001b[m=Config/Leg1 {\\\"wTrackingVar\\\":\\\"V1\\\"}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Debug/Scope {\\\"wDecimation\\\":1}",
+    "prefix": "",
+    "response": "\u001b[m=Debug/Scope {\\\"wDecimation\\\":1}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Measurements {\\\"rVHigh_V\\\":1}",
+    "prefix": "",
+    "response": "\u001b[m=Measurements {\\\"rVHigh_V\\\":1}\r\n:A3 \"Item rVHigh_V is read-only\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Device {\\\"cFirmwareVersion\\\":\\\"x\\\"}",
+    "prefix": "",
+    "response": "\u001b[m=Device {\\\"cFirmwareVersion\\\":\\\"x\\\"}\r\n:A3 \"Item cFirmwareVersion is read-only\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Nope {\\\"wMissing\\\":1}",
+    "prefix": "",
+    "response": "\u001b[m=Nope {\\\"wMissing\\\":1}\r\n:A4 \"Invalid endpoint\"\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "setValue",
+    "cmd": "=Config/Leg1 {\\\"wDutyCycle\\\":2}",
+    "prefix": "",
+    "response": "\u001b[m=Config/Leg1 {\\\"wDutyCycle\\\":2}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "scopeArm",
+    "cmd": "=Debug/Scope {\\\"wArm\\\":true}",
+    "prefix": "",
+    "response": "\u001b[m=Debug/Scope {\\\"wArm\\\":true}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "scopeArm",
+    "cmd": "?Debug/Scope/rState",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rState\r\n:85 1\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "scopeArm",
+    "cmd": "=Debug/Scope {\\\"wTrigger\\\":true}",
+    "prefix": "",
+    "response": "\u001b[m=Debug/Scope {\\\"wTrigger\\\":true}\r\n:84\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "scopeArm",
+    "cmd": "?Debug/Scope/rState",
+    "prefix": "",
+    "response": "\u001b[m?Debug/Scope/rState\r\n:85 3\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "misc",
+    "cmd": "ls /",
+    "prefix": "",
+    "response": "\u001b[mls /\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "misc",
+    "cmd": "?Config null",
+    "prefix": "",
+    "response": "\u001b[m?Config null\r\n:85 [\"wBlinkPeriod_s\",\"Mode\",\"Frequency_Hz\",\"Leg1\",\"Leg2\"]\r\n\u001b[1;32muart:~$ "
+   },
+   {
+    "phase": "misc",
+    "cmd": "fetch 0x16 [\"Config/Mode\"]",
+    "prefix": "",
+    "response": "\u001b[mfetch 0x16 [\"Config/Mode\"]\r\n\u001b[1;32muart:~$ "
+   }
+  ]
+ },
+ "if00": {
+  "raw_probe": "***** delaying boot 1500ms (per build configuration) *****\r\n*** Booting Zephyr OS build zephyr-v40000 (delayed boot 1500ms) ***\r\nUnable to find calibration values for ADC 1 channel 1 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 1 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 1 channel 6 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 6 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 1 channel 9 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 9 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 1 channel 2 in persistent storage. Default values will be used.\r\nUnable to find calibration values for ADC 2 channel 2 in persistent storage. Default values will be used.\r\nUnable to find calibration values for A",
+  "raw_unknown": "SCOPE-DATA/1 ERROR UNKNOWN_COMMAND\r\n",
+  "download_head": "begin record\r\n#V1Low_V,V2Low_V,VHigh_V,I1Low_A,I2Low_A,IHigh_A,Duty1,Duty2,\r\n# 8\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r",
+  "download_tail": "00000000\r\n00000000\r\nend record\r\n",
+  "download_line_count": 8197,
+  "raw_download_when_not_ready": "begin record\r\n#V1Low_V,V2Low_V,VHigh_V,I1Low_A,I2Low_A,IHigh_A,Duty1,Duty2,\r\n# 8\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e56c82e\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e56c82e\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e56c82e\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e56c82e\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e56c82e\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e56c82e\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3cf57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n00000000\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e38194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3e196a6a\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3df57710\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3db8194c\r\nc1200000\r\nc1200000\r\nc1200000\r\n00000000\r\n00000000\r\nc2b867f0\r\nc2b867f0\r\n3d757710\r\nc1200000\r\nc1200000\r\n"
+ }
+}

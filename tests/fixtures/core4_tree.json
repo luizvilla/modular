@@ -1,0 +1,578 @@
+{
+ "captured_at": "2026-10-14T11:25:00.882Z",
+ "node": {
+  "uid": "0941809145890E85",
+  "name": "ThingSet Node",
+  "addr": 1
+ },
+ "root": {
+  "id": "0x00",
+  "values": {},
+  "children": {
+   "_Reporting": {
+    "id": null,
+    "path": "_Reporting",
+    "values": {},
+    "children": {
+     "mLive": {
+      "id": null,
+      "path": "_Reporting/mLive",
+      "values": {},
+      "children": {
+       "sEnable": {
+        "id": null,
+        "path": "_Reporting/mLive/sEnable",
+        "value": true
+       },
+       "sPeriod_s": {
+        "id": null,
+        "path": "_Reporting/mLive/sPeriod_s",
+        "value": 1
+       }
+      }
+     }
+    }
+   },
+   "Calibration": {
+    "id": null,
+    "path": "Calibration",
+    "values": {},
+    "children": {
+     "I1": {
+      "id": null,
+      "path": "Calibration/I1",
+      "values": {},
+      "children": {
+       "wGain": {
+        "id": null,
+        "path": "Calibration/I1/wGain",
+        "value": 1
+       },
+       "wOffset": {
+        "id": null,
+        "path": "Calibration/I1/wOffset",
+        "value": 0
+       },
+       "wStore": {
+        "id": null,
+        "path": "Calibration/I1/wStore",
+        "value": false
+       }
+      }
+     },
+     "I2": {
+      "id": null,
+      "path": "Calibration/I2",
+      "values": {},
+      "children": {
+       "wGain": {
+        "id": null,
+        "path": "Calibration/I2/wGain",
+        "value": 1
+       },
+       "wOffset": {
+        "id": null,
+        "path": "Calibration/I2/wOffset",
+        "value": 0
+       },
+       "wStore": {
+        "id": null,
+        "path": "Calibration/I2/wStore",
+        "value": false
+       }
+      }
+     },
+     "IH": {
+      "id": null,
+      "path": "Calibration/IH",
+      "values": {},
+      "children": {
+       "wGain": {
+        "id": null,
+        "path": "Calibration/IH/wGain",
+        "value": 1
+       },
+       "wOffset": {
+        "id": null,
+        "path": "Calibration/IH/wOffset",
+        "value": 0
+       },
+       "wStore": {
+        "id": null,
+        "path": "Calibration/IH/wStore",
+        "value": false
+       }
+      }
+     },
+     "V1": {
+      "id": null,
+      "path": "Calibration/V1",
+      "values": {},
+      "children": {
+       "wGain": {
+        "id": null,
+        "path": "Calibration/V1/wGain",
+        "value": 1
+       },
+       "wOffset": {
+        "id": null,
+        "path": "Calibration/V1/wOffset",
+        "value": 0
+       },
+       "wStore": {
+        "id": null,
+        "path": "Calibration/V1/wStore",
+        "value": false
+       }
+      }
+     },
+     "V2": {
+      "id": null,
+      "path": "Calibration/V2",
+      "values": {},
+      "children": {
+       "wGain": {
+        "id": null,
+        "path": "Calibration/V2/wGain",
+        "value": 1
+       },
+       "wOffset": {
+        "id": null,
+        "path": "Calibration/V2/wOffset",
+        "value": 0
+       },
+       "wStore": {
+        "id": null,
+        "path": "Calibration/V2/wStore",
+        "value": false
+       }
+      }
+     },
+     "VH": {
+      "id": null,
+      "path": "Calibration/VH",
+      "values": {},
+      "children": {
+       "wGain": {
+        "id": null,
+        "path": "Calibration/VH/wGain",
+        "value": 1
+       },
+       "wOffset": {
+        "id": null,
+        "path": "Calibration/VH/wOffset",
+        "value": 0
+       },
+       "wStore": {
+        "id": null,
+        "path": "Calibration/VH/wStore",
+        "value": false
+       }
+      }
+     }
+    }
+   },
+   "Config": {
+    "id": null,
+    "path": "Config",
+    "values": {},
+    "children": {
+     "Frequency_Hz": {
+      "id": null,
+      "path": "Config/Frequency_Hz",
+      "values": {},
+      "children": {},
+      "value": 200000
+     },
+     "Leg1": {
+      "id": null,
+      "path": "Config/Leg1",
+      "values": {},
+      "children": {
+       "wBoost": {
+        "id": null,
+        "path": "Config/Leg1/wBoost",
+        "value": false
+       },
+       "wBuck": {
+        "id": null,
+        "path": "Config/Leg1/wBuck",
+        "value": false
+       },
+       "wCapa": {
+        "id": null,
+        "path": "Config/Leg1/wCapa",
+        "value": false
+       },
+       "wDeadTimeFalling_ns": {
+        "id": null,
+        "path": "Config/Leg1/wDeadTimeFalling_ns",
+        "value": 100
+       },
+       "wDeadTimeRising_ns": {
+        "id": null,
+        "path": "Config/Leg1/wDeadTimeRising_ns",
+        "value": 100
+       },
+       "wDriver": {
+        "id": null,
+        "path": "Config/Leg1/wDriver",
+        "value": false
+       },
+       "wDutyCycle": {
+        "id": null,
+        "path": "Config/Leg1/wDutyCycle",
+        "value": 0.1
+       },
+       "wEnable": {
+        "id": null,
+        "path": "Config/Leg1/wEnable",
+        "value": false
+       },
+       "wPhaseShift": {
+        "id": null,
+        "path": "Config/Leg1/wPhaseShift",
+        "value": 0
+       },
+       "wReferenceValue": {
+        "id": null,
+        "path": "Config/Leg1/wReferenceValue",
+        "value": 0
+       },
+       "wTrackingVar": {
+        "id": null,
+        "path": "Config/Leg1/wTrackingVar",
+        "value": "V1"
+       }
+      }
+     },
+     "Leg2": {
+      "id": null,
+      "path": "Config/Leg2",
+      "values": {},
+      "children": {
+       "wBoost": {
+        "id": null,
+        "path": "Config/Leg2/wBoost",
+        "value": false
+       },
+       "wBuck": {
+        "id": null,
+        "path": "Config/Leg2/wBuck",
+        "value": false
+       },
+       "wCapa": {
+        "id": null,
+        "path": "Config/Leg2/wCapa",
+        "value": false
+       },
+       "wDeadTimeFalling_ns": {
+        "id": null,
+        "path": "Config/Leg2/wDeadTimeFalling_ns",
+        "value": 100
+       },
+       "wDeadTimeRising_ns": {
+        "id": null,
+        "path": "Config/Leg2/wDeadTimeRising_ns",
+        "value": 100
+       },
+       "wDriver": {
+        "id": null,
+        "path": "Config/Leg2/wDriver",
+        "value": false
+       },
+       "wDutyCycle": {
+        "id": null,
+        "path": "Config/Leg2/wDutyCycle",
+        "value": 0.1
+       },
+       "wEnable": {
+        "id": null,
+        "path": "Config/Leg2/wEnable",
+        "value": false
+       },
+       "wPhaseShift": {
+        "id": null,
+        "path": "Config/Leg2/wPhaseShift",
+        "value": 0
+       },
+       "wReferenceValue": {
+        "id": null,
+        "path": "Config/Leg2/wReferenceValue",
+        "value": 0
+       },
+       "wTrackingVar": {
+        "id": null,
+        "path": "Config/Leg2/wTrackingVar",
+        "value": "V2"
+       }
+      }
+     },
+     "Mode": {
+      "id": null,
+      "path": "Config/Mode",
+      "values": {},
+      "children": {},
+      "value": 0
+     },
+     "wBlinkPeriod_s": {
+      "id": null,
+      "path": "Config/wBlinkPeriod_s",
+      "value": 1
+     }
+    }
+   },
+   "Control": {
+    "id": null,
+    "path": "Control",
+    "values": {},
+    "children": {
+     "zCtrlReference": {
+      "id": null,
+      "path": "Control/zCtrlReference",
+      "values": {},
+      "children": {},
+      "value": 0
+     },
+     "zStartStop": {
+      "id": null,
+      "path": "Control/zStartStop",
+      "values": {},
+      "children": {},
+      "value": false
+     }
+    }
+   },
+   "Converter": {
+    "id": null,
+    "path": "Converter",
+    "values": {},
+    "children": {
+     "wBoardVersion": {
+      "id": null,
+      "path": "Converter/wBoardVersion",
+      "value": "8.8.8"
+     },
+     "wSerialNumber": {
+      "id": null,
+      "path": "Converter/wSerialNumber",
+      "value": "SHLD000000001"
+     }
+    }
+   },
+   "Debug": {
+    "id": null,
+    "path": "Debug",
+    "values": {},
+    "children": {
+     "Scope": {
+      "id": null,
+      "path": "Debug/Scope",
+      "values": {},
+      "children": {
+       "rCaptureDuration_ms": {
+        "id": null,
+        "path": "Debug/Scope/rCaptureDuration_ms",
+        "value": 102.4
+       },
+       "rChannelCount": {
+        "id": null,
+        "path": "Debug/Scope/rChannelCount",
+        "value": 8
+       },
+       "rFinalIndex": {
+        "id": null,
+        "path": "Debug/Scope/rFinalIndex",
+        "value": 0
+       },
+       "rLastError": {
+        "id": null,
+        "path": "Debug/Scope/rLastError",
+        "value": 0
+       },
+       "rSampleCount": {
+        "id": null,
+        "path": "Debug/Scope/rSampleCount",
+        "value": 1024
+       },
+       "rSamplePeriod_us": {
+        "id": null,
+        "path": "Debug/Scope/rSamplePeriod_us",
+        "value": 100
+       },
+       "rState": {
+        "id": null,
+        "path": "Debug/Scope/rState",
+        "value": 0
+       },
+       "wArm": {
+        "id": null,
+        "path": "Debug/Scope/wArm",
+        "value": false
+       },
+       "wDecimation": {
+        "id": null,
+        "path": "Debug/Scope/wDecimation",
+        "value": 1
+       },
+       "wPretriggerRatio": {
+        "id": null,
+        "path": "Debug/Scope/wPretriggerRatio",
+        "value": 0.2
+       },
+       "wTrigger": {
+        "id": null,
+        "path": "Debug/Scope/wTrigger",
+        "value": false
+       }
+      }
+     }
+    }
+   },
+   "Device": {
+    "id": null,
+    "path": "Device",
+    "values": {},
+    "children": {
+     "cFirmwareVersion": {
+      "id": null,
+      "path": "Device/cFirmwareVersion",
+      "values": {},
+      "children": {},
+      "value": "1.0.0"
+     },
+     "cHardwareVersion": {
+      "id": null,
+      "path": "Device/cHardwareVersion",
+      "values": {},
+      "children": {},
+      "value": "v1.4.2"
+     },
+     "cManufacturer": {
+      "id": null,
+      "path": "Device/cManufacturer",
+      "values": {},
+      "children": {},
+      "value": "OwnTech Technologies"
+     },
+     "cType": {
+      "id": null,
+      "path": "Device/cType",
+      "values": {},
+      "children": {},
+      "value": "TWIST"
+     }
+    }
+   },
+   "mCAN": {
+    "id": null,
+    "path": "mCAN",
+    "values": {},
+    "children": {},
+    "value": []
+   },
+   "Measurements": {
+    "id": null,
+    "path": "Measurements",
+    "values": {},
+    "children": {
+     "rDuty1": {
+      "id": null,
+      "path": "Measurements/rDuty1",
+      "value": 0
+     },
+     "rDuty2": {
+      "id": null,
+      "path": "Measurements/rDuty2",
+      "value": 0
+     },
+     "rI1Low_A": {
+      "id": null,
+      "path": "Measurements/rI1Low_A",
+      "value": -10
+     },
+     "rI2Low_A": {
+      "id": null,
+      "path": "Measurements/rI2Low_A",
+      "value": -10
+     },
+     "rIHigh_A": {
+      "id": null,
+      "path": "Measurements/rIHigh_A",
+      "value": -10
+     },
+     "rTemp1_degC": {
+      "id": null,
+      "path": "Measurements/rTemp1_degC",
+      "value": 43.26
+     },
+     "rTemp2_degC": {
+      "id": null,
+      "path": "Measurements/rTemp2_degC",
+      "value": -273.15
+     },
+     "rV1Low_V": {
+      "id": null,
+      "path": "Measurements/rV1Low_V",
+      "value": -92.2
+     },
+     "rV1Max_V": {
+      "id": null,
+      "path": "Measurements/rV1Max_V",
+      "value": 0
+     },
+     "rV2Low_V": {
+      "id": null,
+      "path": "Measurements/rV2Low_V",
+      "value": -92.2
+     },
+     "rV2Max_V": {
+      "id": null,
+      "path": "Measurements/rV2Max_V",
+      "value": 0
+     },
+     "rVHigh_V": {
+      "id": null,
+      "path": "Measurements/rVHigh_V",
+      "value": 0.18
+     }
+    }
+   },
+   "mLive": {
+    "id": null,
+    "path": "mLive",
+    "values": {},
+    "children": {},
+    "value": []
+   },
+   "Networking": {
+    "id": null,
+    "path": "Networking",
+    "values": {},
+    "children": {
+     "pCANNodeAddr": {
+      "id": null,
+      "path": "Networking/pCANNodeAddr",
+      "values": {},
+      "children": {},
+      "value": 1
+     }
+    }
+   },
+   "pNodeID": {
+    "id": null,
+    "path": "pNodeID",
+    "values": {},
+    "children": {},
+    "value": "0941809145890E85"
+   },
+   "pNodeName": {
+    "id": null,
+    "path": "pNodeName",
+    "values": {},
+    "children": {},
+    "value": "ThingSet Node"
+   }
+  }
+ }
+}
