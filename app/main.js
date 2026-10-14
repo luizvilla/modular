@@ -6,6 +6,7 @@ const fs = require('fs');
 const { flashFirmware, cancelFlash } = require('./flasher');
 const { spawn, spawnSync } = require('child_process');
 const { buildExtensionRuntime, readInstalledState } = require('./extensions/runtime');
+const boardLock = require('./js/serial_board_lock');
 const {
     DEFAULT_PLATFORMIO_HOME,
     DEFAULT_PLATFORMIO_VENV_PATH,
@@ -3421,14 +3422,37 @@ app.on('before-quit', async (event) => {
 });
 
 // 🔌 List serial ports
+// What a port is, where that's knowable without probing it: an OwnTech
+// board exposes its scope data port on USB interface 0 and its ThingSet
+// shell on another interface; any port where a ThingSet handshake succeeded
+// this session is a shell. Never probes -- sending the ThingSet handshake to
+// the scope port wedges the board.
+function describeSerialPortRole(port, ports, isOwntech) {
+	const iface = (/-if(\d+)$/i.exec(String(port.pnpId || '')) || [])[1];
+	const hasSibling = !!port.serialNumber && ports.some((o) => o !== port && o.serialNumber === port.serialNumber);
+	const responding = boardLock.isShellResponding(port.path);
+	if (isOwntech && hasSibling && iface === '00') return { role: 'scope', roleLabel: 'scope data port' };
+	if ((isOwntech && hasSibling) || responding) {
+		return { role: 'shell', roleLabel: responding ? 'ThingSet shell · responding' : 'ThingSet shell' };
+	}
+	return { role: null, roleLabel: null };
+}
+
 ipcMain.handle('get-serial-ports', async () => {
-	const ports = await SerialPort.list();
+	// Cached and refreshed in the background (serial_board_lock.js): pickers
+	// re-query every second or so, and a fresh list costs ~450ms on Linux.
+	// Linux's empty legacy UART slots (/dev/ttyS*) are left out.
+	const ports = (await boardLock.listPorts()).filter((port) => port && port.path && !boardLock.isPhantomPort(port));
 	return ports.map(port => {
 		const vid = String(port.vendorId || '').toLowerCase();
 		const pid = String(port.productId || '').toLowerCase();
+		const isOwntech = vid === '2fe3' && pid === '0100';
+		const { role, roleLabel } = describeSerialPortRole(port, ports, isOwntech);
+		const maker = isOwntech ? ' (OwnTech)' : (port.manufacturer ? ` (${port.manufacturer})` : '');
 		return {
-			name: port.path,
+			name: `${port.path}${maker}${roleLabel ? ` — ${roleLabel}` : ''}`,
 			value: port.path,
+			role,
 			path: port.path,
 			vendorId: port.vendorId || null,
 			productId: port.productId || null,
@@ -3439,7 +3463,7 @@ ipcMain.handle('get-serial-ports', async () => {
 			// classification thingset/main.js's isIf00Candidate() uses for
 			// auto-detect ordering, without duplicating a path-based guess.
 			pnpId: port.pnpId || null,
-			isOwntech: vid === '2fe3' && pid === '0100',
+			isOwntech,
 		};
 	});
 });

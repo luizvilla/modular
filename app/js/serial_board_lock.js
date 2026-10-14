@@ -37,6 +37,15 @@ async function listPorts({ fresh = false } = {}) {
     return cache.ports;
 }
 
+// On Linux, SerialPort.list() also returns every legacy UART slot the kernel
+// reserves (/dev/ttyS0..31) whether or not there is hardware behind it --
+// 31 of 34 entries on a typical laptop. Those report nothing at all; a real
+// device has at least a vendor, product, PnP id, manufacturer or serial.
+function isPhantomPort(port) {
+    if (process.platform !== 'linux' || !port) return false;
+    return !port.vendorId && !port.productId && !port.pnpId && !port.manufacturer && !port.serialNumber;
+}
+
 async function boardKey(path) {
     const ports = await listPorts();
     const match = ports.find((p) => p && p.path === path);
@@ -58,4 +67,18 @@ async function runExclusiveOnBoard(path, fn) {
     return runExclusive(await boardKey(path), fn);
 }
 
-module.exports = { listPorts, boardKey, runExclusiveOnBoard };
+// Ports where a ThingSet shell answered the handshake this session, so port
+// pickers can say so. Set by the ThingSet extension's sessions, cleared when
+// an operation on the port fails.
+const respondingShells = new Set();
+
+function markShellResponding(path, responding) {
+    if (responding) respondingShells.add(path);
+    else respondingShells.delete(path);
+}
+
+function isShellResponding(path) {
+    return respondingShells.has(path);
+}
+
+module.exports = { listPorts, isPhantomPort, boardKey, runExclusiveOnBoard, markShellResponding, isShellResponding };

@@ -119,7 +119,7 @@ module.exports = function registerThingSetExtension(context) {
         try {
             const ports = await boardLock.listPorts({ fresh: true });
             if (!ports || !ports.length) return [];
-            const usable = ports.filter((p) => p && p.path && !isScopeSidePort(p, ports));
+            const usable = ports.filter((p) => p && p.path && !isScopeSidePort(p, ports) && !boardLock.isPhantomPort(p));
             return orderSerialCandidates(usable);
         } catch (err) {
             console.warn('Failed to enumerate serial ports for ThingSet detect:', err?.message || err);
@@ -221,16 +221,19 @@ module.exports = function registerThingSetExtension(context) {
                 if (!shell.probeSucceeded()) throw new Error(`ThingSet shell did not respond on ${port}`);
             } catch (err) {
                 try { await shell.close(); } catch {}
+                boardLock.markShellResponding(port, false);
                 throw err;
             }
             session = { shell, baudRate, idleTimer: null };
             sessions.set(port, session);
+            boardLock.markShellResponding(port, true);
         }
         clearTimeout(session.idleTimer);
         session.shell.readBuffer = Buffer.alloc(0);
         try {
             return await fn(session.shell);
         } catch (err) {
+            boardLock.markShellResponding(port, false);
             await dropSession(port);
             throw err;
         } finally {

@@ -19,7 +19,11 @@
         ? await serialApi.listPorts()
         : await ipc.invoke('get-serial-ports');
       if (Array.isArray(ports) && ports.length) {
-        return ports.map((p) => ({ name: formatPortLabel(p), value: p.value || p.name || p.path || String(p) }));
+        // A board's scope data port is never a ThingSet shell (the main
+        // process refuses ThingSet operations on it), so it isn't offered.
+        return ports
+          .filter((p) => !(p && p.role === 'scope'))
+          .map((p) => ({ name: formatPortLabel(p), value: p.value || p.name || p.path || String(p) }));
       }
     } catch (err) {
       console.warn('ThingSet Serial: failed to list serial ports', err);

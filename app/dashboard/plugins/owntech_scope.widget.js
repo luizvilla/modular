@@ -72,6 +72,9 @@
     // exactly like the datasource/pnpId-style pickers elsewhere in this
     // codebase read a live, already-populated in-memory source synchronously.
     let scopeSerialPortCache = [];
+    function isScopePort(p) {
+        return p && (p.role === 'scope' || (!p.role && isIf00Port(p)));
+    }
     function refreshScopeSerialPortCache() {
         const serialApi = window.api && window.api.serial ? window.api.serial : null;
         if (!serialApi || typeof serialApi.listPorts !== 'function') return;
@@ -79,10 +82,12 @@
             const list = Array.isArray(ports) ? ports : [];
             scopeSerialPortCache = list
                 .map((p, index) => ({ p, index }))
-                .sort((a, b) => (Number(isIf00Port(b.p)) - Number(isIf00Port(a.p))) || (a.index - b.index))
+                .sort((a, b) => (Number(isScopePort(b.p)) - Number(isScopePort(a.p))) || (a.index - b.index))
                 .map(({ p }) => {
                     const value = p.value || p.name || p.path || String(p);
-                    const label = isIf00Port(p) ? `${p.name || value} (likely if00)` : (p.name || value);
+                    // get-serial-ports already names a known scope port
+                    // ("— scope data port"); only guess for unknown boards.
+                    const label = !p.role && isIf00Port(p) ? `${p.name || value} (likely if00)` : (p.name || value);
                     return { name: label, value };
                 });
         }).catch(() => { /* keep last-known-good cache on failure */ });
