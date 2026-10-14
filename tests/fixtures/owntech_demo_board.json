@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "columns": 3,
+  "datasources": [
+    {
+      "name": "Demo",
+      "type": "owntech_thingset_datasource",
+      "settings": {
+        "autoDetect": true,
+        "portPath": "",
+        "baudRate": 115200,
+        "usePrefix": false,
+        "autoRefresh": true,
+        "refresh": 500,
+        "debug": false
+      }
+    }
+  ],
+  "panes": [
+    {
+      "title": "Variables",
+      "width": 2,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "owntech_variable_table",
+          "settings": {
+            "title": "Variables",
+            "datasource": "Demo",
+            "showInternal": false
+          }
+        }
+      ]
+    },
+    {
+      "title": "Scope",
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 3
+      },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "owntech_scope_capture",
+          "settings": {
+            "title": "Scope",
+            "datasource": "Demo",
+            "scopeSerialPort": "sim://owntech-demo/if00"
+          }
+        },
+        {
+          "type": "vertical_gauge",
+          "settings": {
+            "title": "V1",
+            "min": 0,
+            "max": 10,
+            "barColor": "blue",
+            "alarmEnabled": false,
+            "refreshRate": 200,
+            "sourceDef": {
+              "ds": "Demo",
+              "type": "owntech_thingset_datasource",
+              "device": null,
+              "device_uid": null,
+              "var": "/Measurements/rV1Low_V"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

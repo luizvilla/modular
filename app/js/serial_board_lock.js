@@ -20,7 +20,10 @@ let refreshing = null;
 
 function refreshPorts() {
     if (!refreshing) {
-        refreshing = SerialPort.list()
+        // MODULAR_SIM_ONLY=1 hides hardware, for deterministic tests and demos
+        // on a machine with boards attached.
+        const hardware = process.env.MODULAR_SIM_ONLY === '1' ? Promise.resolve([]) : SerialPort.list();
+        refreshing = hardware
             .catch(() => [])
             .then((ports) => {
                 // Simulated boards (M12) are listed like hardware.
