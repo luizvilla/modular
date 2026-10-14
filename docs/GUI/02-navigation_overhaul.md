@@ -356,6 +356,29 @@ Each commit leaves the app working: 3 ships a useful read-only table even before
 
 ---
 
+## Milestone 11 follow-up — nested ThingSet path picker in widget editors (2026-10-14)
+
+**Problem (user report):** in widget editors, the **Variable** dropdown for a ThingSet datasource was a flat, alphabetical list of every path (`wGain - /Calibration/I1/wGain`, … ~80 entries), and **ThingSet Write Path** (+/− button, Push Buttons, Toggle) had to be typed by hand.
+
+**Change:** `app/dashboard/js/thingset_path_picker.js` (ThingSet extension) replaces both with a field that shows the variable as a breadcrumb (`Config › Leg1 › DutyCycle`) and opens the board's tree:
+- groups expand and collapse (the top level and the current value's groups start open);
+- each variable shows its live value, unit and R/W access;
+- search matches every word, in any order;
+- keyboard: arrows, Enter, Esc;
+- write pickers only offer writable variables;
+- a path not in the tree can still be typed.
+
+It wraps the original `<select>`/`<input>`, so the editors' save code is unchanged. It's used by:
+- the shared Variable select (`buildSourceControls`), for every gauge, plot and +/− button;
+- the +/− button's and Push Buttons' write path;
+- any generic-form text setting marked `thingset_path: 'read' | 'write'`, currently the Toggle button's `writePath`.
+
+**Found while testing on the Spin board:** clicking a group closed the panel. Redrawing removed the clicked row from the DOM, so the document's outside-click handler treated it as outside. Fixed before commit. Search now matches each word separately, which the variable table's search uses too.
+
+**Tests:** `tests/e2e/thingset-path-picker.spec.js` (2) and the model's multi-word search unit test. 40 OwnTech/button/gauge/picker e2e pass. In `integrated-plot-editor.spec.js`, 10/11 passed in one serial run. The failure (`radial_arc_gauge`, MockSerial, so no ThingSet picker involved) passes 3/3 alone, the same flakiness as before.
+
+---
+
 ## Non-Goals / Explicitly Out of Scope (whole plan)
 
 - **Legacy freeboard built-in widgets** (`text_widget`, `gauge` [the old freeboard one, distinct from the new gauge family], `sparkline`, `pointer`, `picture`, `indicator`, `google_map`) and their demo datasources (`JSON`, `openweathermap`) — these predate this app's own widget conventions and aren't part of the OwnTech-relevant surface. No radial adaptation planned, ever, unless explicitly requested later.
