@@ -37,7 +37,14 @@ module.exports = function registerOwntechExtension(context) {
 
     async function getOrOpenLink(port, baudRate) {
         const existing = scopeLinks.get(port);
-        if (existing) return existing;
+        // A cached link whose port closed underneath it (board unplugged and
+        // replugged) can't be reused: every later write fails "Port is not
+        // open". Replace it with a fresh one.
+        if (existing && existing.port && existing.port.isOpen) return existing;
+        if (existing) {
+            scopeLinks.delete(port);
+            try { await existing.close(); } catch (e) { /* already closed */ }
+        }
         const link = new ScopeSerialLink({ path: port, baudRate });
         await link.open();
         scopeLinks.set(port, link);
