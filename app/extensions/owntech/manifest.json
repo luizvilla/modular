@@ -7,9 +7,11 @@
   "mainEntry": "main.js",
   "rendererScripts": [
     { "path": "js/thingset_tree_walk.js", "order": 10 },
+    { "path": "js/owntech_variable_table_model.js", "order": 11 },
     { "path": "plugins/owntech_thingset.datasource.js", "order": 200 },
     { "path": "plugins/owntech_actions_panel.widget.js", "order": 210 },
-    { "path": "plugins/owntech_scope.widget.js", "order": 220 }
+    { "path": "plugins/owntech_scope.widget.js", "order": 220 },
+    { "path": "plugins/owntech_variable_table.widget.js", "order": 230 }
   ],
   "preloadFlags": {
     "owntech": true

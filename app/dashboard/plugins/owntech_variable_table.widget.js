@@ -1,0 +1,336 @@
+(function () {
+    // Milestone 11 of docs/GUI/02-navigation_overhaul.md: every variable the
+    // board exposes, as its ThingSet hierarchy. Rendered from the linked
+    // datasource's already-walked tree (no serial traffic of its own); the
+    // model (owntech_variable_table_model.js) owns naming conventions,
+    // formatting and filtering.
+    const Model = window.OwntechVariableTableModel;
+
+    freeboard.loadWidgetPlugin({
+        type_name: 'owntech_variable_table',
+        display_name: 'OwnTech Variable Table',
+        description: 'Every variable the board exposes, grouped as its ThingSet tree, with live values, units and access.',
+        icon: 'table-list',
+        category: 'OwnTech',
+        settings: [
+            { name: 'title', display_name: 'Title', type: 'text' },
+            {
+                name: 'datasource',
+                display_name: 'Datasource Name',
+                type: 'option',
+                options: getThingSetDatasourceOptions,
+                optionsRefreshMs: 1000
+            },
+            { name: 'showInternal', display_name: 'Show internal (_) nodes', type: 'boolean', default_value: false }
+        ],
+        newInstance: function (settings, newInstanceCallback) {
+            newInstanceCallback(new OwnTechVariableTable(settings));
+        }
+    });
+
+    function getThingSetDatasourceOptions() {
+        const live = freeboard.getLiveModel?.();
+        if (!live || typeof live.datasources !== 'function') return [];
+        const options = [];
+        live.datasources().forEach((ds) => {
+            try {
+                const type = ds.type && ds.type();
+                if (type === 'thingset_serial_datasource' || type === 'owntech_thingset_datasource') {
+                    const name = ds.name();
+                    options.push({ name, value: name });
+                }
+            } catch (e) { /* ignore */ }
+        });
+        return options;
+    }
+
+    const FILTERS = [
+        { id: 'all', label: 'All' },
+        { id: 'writable', label: 'Writable' },
+        { id: 'readonly', label: 'Read-only' },
+        { id: 'changed', label: 'Changed' },
+    ];
+    const FLASH_MS = 900;
+
+    let stylesAdded = false;
+    function addStyles() {
+        if (stylesAdded || !freeboard || typeof freeboard.addStyle !== 'function') return;
+        stylesAdded = true;
+        const s = (sel, css) => freeboard.addStyle(sel, css);
+        s('.ovt', 'display:flex;flex-direction:column;height:100%;min-height:0;font-size:13px;');
+        s('.ovt-toolbar', 'flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--bs-border-color);');
+        // The app's Bootstrap overrides size inputs/buttons for forms; the
+        // table's toolbar is denser.
+        s('.ovt .btn', 'padding:1px 8px;font-size:12px;line-height:1.6;min-width:0 !important;min-height:0 !important;width:auto !important;height:24px !important;');
+        s('.ovt input.ovt-search', 'flex:1 1 140px;min-width:120px;max-width:260px;padding:2px 8px;font-size:12px;height:24px !important;');
+        s('.ovt-status', 'flex:0 0 auto;padding:3px 8px;color:var(--bs-secondary-color);font-size:11px;border-bottom:1px solid var(--bs-border-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;');
+        s('.ovt-scroll', 'flex:1 1 auto;min-height:0;overflow:auto;');
+        s('.ovt-table', 'width:100%;border-collapse:collapse;table-layout:fixed;');
+        s('.ovt-table th', 'position:sticky;top:0;z-index:1;background:var(--bs-tertiary-bg);color:var(--bs-secondary-color);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:4px 8px;text-align:left;border-bottom:1px solid var(--bs-border-color);');
+        s('.ovt-table td', 'padding:3px 8px;border-bottom:1px solid var(--bs-border-color-translucent);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;');
+        s('.ovt-col-value', 'width:34%;');
+        s('.ovt-col-unit', 'width:56px;');
+        s('.ovt-col-access', 'width:96px;');
+        s('.ovt-group', 'cursor:pointer;background:var(--bs-tertiary-bg);');
+        s('.ovt-group:hover', 'background:var(--bs-secondary-bg);');
+        s('.ovt-group .ovt-name', 'font-weight:600;color:var(--bs-emphasis-color);');
+        s('.ovt-group[data-depth="0"] .ovt-name', 'text-transform:none;font-size:13.5px;');
+        s('.ovt-summary', 'color:var(--bs-secondary-color);font-size:11px;font-weight:400;margin-left:8px;');
+        s('.ovt-chevron', 'display:inline-block;width:14px;color:var(--bs-secondary-color);transition:transform .12s;');
+        s('.ovt-group.ovt-collapsed .ovt-chevron', 'transform:rotate(-90deg);');
+        s('.ovt-var:hover', 'background:var(--bs-secondary-bg);');
+        s('.ovt-var .ovt-name', 'color:var(--bs-body-color);');
+        s('.ovt-caveat', 'color:var(--bs-warning);margin-left:6px;font-size:11px;');
+        s('.ovt-power', 'color:var(--bs-warning-text-emphasis);margin-left:6px;font-size:10px;opacity:.8;');
+        s('.ovt-value', 'font-family:var(--bs-font-monospace);color:var(--bs-emphasis-color);');
+        s('.ovt-value.ovt-num', 'font-variant-numeric:tabular-nums;');
+        s('.ovt-value .ovt-muted', 'color:var(--bs-secondary-color);');
+        s('.ovt-pill', 'display:inline-block;padding:0 7px;border-radius:9px;font-size:11px;font-family:var(--bs-body-font-family);border:1px solid var(--bs-border-color);');
+        s('.ovt-pill-true', 'background:rgba(var(--bs-success-rgb),.18);border-color:rgba(var(--bs-success-rgb),.55);color:var(--bs-success-text-emphasis);');
+        s('.ovt-pill-false', 'color:var(--bs-secondary-color);');
+        s('.ovt-chip', 'display:inline-block;padding:0 6px;border-radius:4px;background:var(--bs-secondary-bg);color:var(--bs-secondary-color);font-size:11px;');
+        s('.ovt-flash', 'animation:ovt-flash ' + FLASH_MS + 'ms ease-out;');
+        s('@keyframes ovt-flash', '0%{background:rgba(var(--bs-info-rgb),.35);}100%{background:transparent;}');
+        s('.ovt-unit', 'color:var(--bs-secondary-color);');
+        s('.ovt-badge', 'display:inline-block;padding:1px 6px;border-radius:4px;font-size:10.5px;font-weight:600;border:1px solid transparent;');
+        s('.ovt-badge-read, .ovt-badge-constant, .ovt-badge-record, .ovt-badge-function, .ovt-badge-internal', 'color:var(--bs-secondary-color);border-color:var(--bs-border-color);');
+        s('.ovt-badge-write, .ovt-badge-stored', 'color:var(--bs-primary-text-emphasis);background:rgba(var(--bs-primary-rgb),.15);border-color:rgba(var(--bs-primary-rgb),.45);');
+        s('.ovt-badge-control, .ovt-badge-persistent', 'color:var(--bs-info-text-emphasis);background:rgba(var(--bs-info-rgb),.12);border-color:rgba(var(--bs-info-rgb),.4);');
+        s('.ovt-badge-unknown', 'color:var(--bs-secondary-color);border:1px dashed var(--bs-border-color);');
+        s('.ovt-empty', 'padding:16px;color:var(--bs-secondary-color);text-align:center;');
+    }
+
+    class OwnTechVariableTable {
+        constructor(settings) {
+            this.settings = settings || {};
+            this._dsSubscription = null;
+            this.query = '';
+            this.filter = 'all';
+            // Top-level groups start open, deeper ones closed; the user's
+            // toggles then win. A search or filter shows every match.
+            this.expanded = new Map(); // group path -> bool
+            this.prevValues = new Map(); // path -> last rendered value
+            this.changedPaths = new Set(); // paths whose value changed since the widget opened
+            this.rows = [];
+            this.structureKey = '';
+            addStyles();
+            this._build();
+        }
+
+        _build() {
+            this.container = $('<div class="ovt"></div>');
+            const toolbar = $('<div class="ovt-toolbar"></div>');
+            this.search = $('<input type="search" class="form-control form-control-sm ovt-search" placeholder="Search name or path…" aria-label="Search variables">');
+            this.search.on('input', () => { this.query = this.search.val(); this._render(true); });
+            // bootstrap-overrides.css forces input heights with !important.
+            ['height:24px', 'padding:2px 8px', 'font-size:12px'].forEach((d) => {
+                const [prop, val] = d.split(':');
+                this.search[0].style.setProperty(prop, val, 'important');
+            });
+            const chips = $('<div class="btn-group btn-group-sm" role="group" aria-label="Filter"></div>');
+            this.filterButtons = {};
+            FILTERS.forEach((f) => {
+                const b = $(`<button type="button" class="btn btn-outline-secondary"></button>`).text(f.label).attr('data-filter', f.id);
+                b.on('click', () => { this.filter = f.id; this._syncFilterButtons(); this._render(true); });
+                this.filterButtons[f.id] = b;
+                chips.append(b);
+            });
+            const expandAll = $('<button type="button" class="btn btn-sm btn-outline-secondary" title="Expand all"><i class="fa-solid fa-angles-down"></i></button>');
+            const collapseAll = $('<button type="button" class="btn btn-sm btn-outline-secondary" title="Collapse all"><i class="fa-solid fa-angles-up"></i></button>');
+            expandAll.on('click', () => this._setAllExpanded(true));
+            collapseAll.on('click', () => this._setAllExpanded(false));
+            const refresh = $('<button type="button" class="btn btn-sm btn-outline-secondary" title="Refresh values"><i class="fa-solid fa-rotate"></i></button>');
+            const rescan = $('<button type="button" class="btn btn-sm btn-outline-secondary" title="Rescan tree (full walk)"><i class="fa-solid fa-sitemap"></i></button>');
+            refresh.on('click', () => { const i = this._dsInstance(); if (i && i.updateNow) i.updateNow(); });
+            rescan.on('click', () => { const i = this._dsInstance(); if (i && i.rescan) i.rescan(); else if (i && i.updateNow) i.updateNow(); });
+            this.toolbarRight = $('<div class="d-flex align-items-center gap-1 ms-auto"></div>').append(expandAll, collapseAll, refresh, rescan);
+            toolbar.append(this.search, chips, this.toolbarRight);
+            this.statusLine = $('<div class="ovt-status">—</div>');
+            this.scroll = $('<div class="ovt-scroll"></div>');
+            this.table = $('<table class="ovt-table"><colgroup><col><col class="ovt-col-value"><col class="ovt-col-unit"><col class="ovt-col-access"></colgroup><thead><tr><th>Name</th><th>Value</th><th>Unit</th><th>Access</th></tr></thead><tbody></tbody></table>');
+            this.tbody = this.table.find('tbody');
+            this.emptyNote = $('<div class="ovt-empty"></div>');
+            this.scroll.append(this.table, this.emptyNote);
+            this.container.append(toolbar, this.statusLine, this.scroll);
+            this.tbody.on('click', 'tr.ovt-group', (e) => {
+                const path = $(e.currentTarget).attr('data-path');
+                this.expanded.set(path, !this._isExpanded(path, Number($(e.currentTarget).attr('data-depth'))));
+                this._render(true);
+            });
+            this._syncFilterButtons();
+        }
+
+        render(el) {
+            $(el).empty().append(this.container);
+            this._subscribeToDatasource();
+            this._render(true);
+        }
+
+        _syncFilterButtons() {
+            Object.entries(this.filterButtons).forEach(([id, b]) => b.toggleClass('active', id === this.filter));
+        }
+
+        _dsModel() {
+            const live = typeof freeboard !== 'undefined' && freeboard.getLiveModel ? freeboard.getLiveModel() : null;
+            if (!live || typeof live.datasources !== 'function') return null;
+            return live.datasources().find((d) => {
+                try { return d.name() === this.settings.datasource; } catch (e) { return false; }
+            }) || null;
+        }
+
+        _dsInstance() {
+            const m = this._dsModel();
+            return m ? m.datasourceInstance : null;
+        }
+
+        _subscribeToDatasource() {
+            if (this._dsSubscription) { this._dsSubscription.dispose(); this._dsSubscription = null; }
+            const dsModel = this._dsModel();
+            if (dsModel && dsModel.latestData && dsModel.latestData.subscribe) {
+                this._dsSubscription = dsModel.latestData.subscribe(() => this._render(false));
+            }
+        }
+
+        _isExpanded(path, depth) {
+            return this.expanded.has(path) ? this.expanded.get(path) : depth === 0;
+        }
+
+        _setAllExpanded(open) {
+            this.rows.filter((r) => r.kind === 'group').forEach((r) => this.expanded.set(r.path, open));
+            this._render(true);
+        }
+
+        _statusText(data) {
+            if (!this.settings.datasource) return 'Select an OwnTech ThingSet datasource in the widget settings.';
+            if (!data) return 'Waiting for data…';
+            if (data.status === 'no-port') return 'Shell not detected.';
+            if (data.status === 'error') return `Error: ${data.error || 'unknown'}`;
+            if (data.status !== 'ok') return 'Waiting for data…';
+            const vars = this.rows.filter((r) => r.kind === 'variable');
+            const node = data.node_name || data.address_hex || data.node_uid || '';
+            const time = new Date().toLocaleTimeString();
+            return `${data.portPath || ''}${node ? ` · ${node}` : ''} · ${vars.length} variables · ${vars.filter((r) => r.access.editable).length} writable · updated ${time}`;
+        }
+
+        // force: rebuild the rows' DOM (structure, filter or expansion
+        // changed). Otherwise only changed value cells are patched, so a
+        // values refresh every ~150ms never disturbs scrolling or an open
+        // editor.
+        _render(force) {
+            const dsModel = this._dsModel();
+            const data = dsModel && dsModel.latestData ? dsModel.latestData() : null;
+            const tree = data && data.status === 'ok' ? data.tree : null;
+            this.rows = tree ? Model.buildRows(tree, { showInternal: !!this.settings.showInternal }) : [];
+            const changed = this._trackChanges();
+            this.statusLine.text(this._statusText(data));
+            const key = this.rows.map((r) => r.path).join('|');
+            if (force || key !== this.structureKey || this.filter === 'changed') {
+                this.structureKey = key;
+                this._rebuild();
+            } else {
+                changed.forEach((path) => this._patchValue(path));
+            }
+        }
+
+        _trackChanges() {
+            const changed = [];
+            for (const row of this.rows) {
+                if (row.kind !== 'variable') continue;
+                const next = JSON.stringify(row.value);
+                if (this.prevValues.has(row.path) && this.prevValues.get(row.path) !== next) {
+                    changed.push(row.path);
+                    this.changedPaths.add(row.path);
+                }
+                this.prevValues.set(row.path, next);
+            }
+            return changed;
+        }
+
+        _rebuild() {
+            const scrollTop = this.scroll.scrollTop();
+            this.tbody.empty();
+            const searching = String(this.query || '').trim() || this.filter !== 'all';
+            const visible = Model.visibleRows(this.rows, { query: this.query, filter: this.filter, changedPaths: this.changedPaths });
+            const collapsedUnder = [];
+            const frag = document.createDocumentFragment();
+            for (const row of visible) {
+                // Skip rows under a collapsed ancestor (ignored while searching).
+                while (collapsedUnder.length && !row.path.startsWith(collapsedUnder[collapsedUnder.length - 1] + '/')) collapsedUnder.pop();
+                if (collapsedUnder.length && !searching) continue;
+                if (row.kind === 'group') {
+                    const open = searching || this._isExpanded(row.path, row.depth);
+                    frag.appendChild(this._groupRow(row, open)[0]);
+                    if (!open) collapsedUnder.push(row.path);
+                } else {
+                    frag.appendChild(this._variableRow(row)[0]);
+                }
+            }
+            this.tbody[0].appendChild(frag);
+            this.emptyNote.toggle(!visible.length).text(this.rows.length ? 'No variables match.' : (this.settings.datasource ? 'No tree yet — waiting for the datasource.' : 'Select a datasource in the widget settings.'));
+            this.scroll.scrollTop(scrollTop);
+        }
+
+        _indent(depth, isGroup) {
+            return `${8 + depth * 16 + (isGroup ? 0 : 14)}px`;
+        }
+
+        _groupRow(row, open) {
+            const tr = $('<tr class="ovt-group"></tr>').attr({ 'data-path': row.path, 'data-depth': row.depth, title: row.path }).toggleClass('ovt-collapsed', !open);
+            const td = $('<td colspan="4"></td>').css('padding-left', this._indent(row.depth, true));
+            td.append('<span class="ovt-chevron"><i class="fa-solid fa-chevron-down fa-xs"></i></span>');
+            td.append($('<span class="ovt-name"></span>').text(row.label));
+            td.append($('<span class="ovt-summary"></span>').text(Model.groupSummary(row)));
+            return tr.append(td);
+        }
+
+        _variableRow(row) {
+            const tr = $('<tr class="ovt-var"></tr>').attr({ 'data-path': row.path, 'data-depth': row.depth });
+            const name = $('<td class="ovt-name-cell"></td>').css('padding-left', this._indent(row.depth, false)).attr('title', `${row.path}\n(${row.name})`);
+            name.append($('<span class="ovt-name"></span>').text(row.label));
+            if (row.power) name.append($('<i class="fa-solid fa-bolt ovt-power"></i>').attr('title', 'Affects the power stage'));
+            if (row.caveat) name.append($('<i class="fa-solid fa-triangle-exclamation ovt-caveat"></i>').attr('title', row.caveat));
+            const value = $('<td class="ovt-value"></td>');
+            this._fillValue(value, row.value);
+            const unit = $('<td class="ovt-unit"></td>').text(row.unit || '');
+            const access = $('<td></td>');
+            access.append($(`<span class="ovt-badge ovt-badge-${row.access.key}"></span>`).text(row.access.label));
+            return tr.append(name, value, unit, access);
+        }
+
+        _fillValue(cell, value) {
+            const f = Model.formatValue(value);
+            cell.empty().toggleClass('ovt-num', f.kind === 'number');
+            if (f.kind === 'bool') cell.append($(`<span class="ovt-pill ovt-pill-${value ? 'true' : 'false'}"></span>`).text(f.text));
+            else if (f.kind === 'array' || f.kind === 'object') cell.append($('<span class="ovt-chip"></span>').text(f.text).attr('title', JSON.stringify(value)));
+            else if (f.kind === 'null') cell.append($('<span class="ovt-muted"></span>').text(f.text));
+            else cell.text(f.text).attr('title', f.kind === 'string' ? f.text : '');
+        }
+
+        _patchValue(path) {
+            const row = this.rows.find((r) => r.path === path);
+            const tr = this.tbody.find(`tr.ovt-var[data-path="${CSS.escape(path)}"]`);
+            if (!row || !tr.length) return;
+            const cell = tr.children('.ovt-value');
+            this._fillValue(cell, row.value);
+            cell.removeClass('ovt-flash');
+            void cell[0].offsetWidth; // restart the animation
+            cell.addClass('ovt-flash');
+        }
+
+        onSettingsChanged(newSettings) {
+            this.settings = newSettings || {};
+            this.prevValues.clear();
+            this.changedPaths.clear();
+            this._subscribeToDatasource();
+            this._render(true);
+        }
+
+        onDispose() {
+            if (this._dsSubscription) { this._dsSubscription.dispose(); this._dsSubscription = null; }
+        }
+
+        getHeight() {
+            return 10;
+        }
+    }
+})();
