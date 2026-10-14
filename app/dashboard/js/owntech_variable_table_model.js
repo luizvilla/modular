@@ -232,9 +232,13 @@
     if (filter === 'writable' && !row.access.editable) return false;
     if (filter === 'readonly' && row.access.editable) return false;
     if (filter === 'changed' && !(changedPaths && changedPaths.has(row.path))) return false;
-    const q = String(query || '').trim().toLowerCase();
-    if (!q) return true;
-    return row.path.toLowerCase().includes(q) || row.label.toLowerCase().includes(q);
+    // Every word must match the path or the label, in any order:
+    // "leg2 enable" finds /Config/Leg2/wEnable.
+    const terms = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return true;
+    const path = row.path.toLowerCase();
+    const label = row.label.toLowerCase();
+    return terms.every((t) => path.includes(t) || label.includes(t));
   }
 
   // Which rows to show: matching variables plus every ancestor group of one,

@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "columns": 2,
+  "datasources": [
+    {
+      "name": "MockOwnTechThingSet",
+      "type": "owntech_thingset_datasource",
+      "settings": {
+        "autoDetect": true,
+        "portPath": "COM_MOCK",
+        "baudRate": 115200,
+        "usePrefix": false,
+        "refresh": 1000,
+        "debug": false
+      }
+    }
+  ],
+  "panes": [
+    {
+      "title": "Picker",
+      "width": 1,
+      "row": {
+        "2": 1
+      },
+      "col": {
+        "2": 1
+      },
+      "col_width": 1,
+      "widgets": [
+        {
+          "type": "plus_minus_button",
+          "settings": {
+            "title": "PM",
+            "datasource": "MockOwnTechThingSet",
+            "writePath": "",
+            "step": 1,
+            "sourceDef": {
+              "ds": "MockOwnTechThingSet",
+              "type": "owntech_thingset_datasource",
+              "device": null,
+              "device_uid": null,
+              "var": "/Config/rMode"
+            }
+          }
+        },
+        {
+          "type": "toggle_button",
+          "settings": {
+            "title": "T",
+            "datasource": "MockOwnTechThingSet",
+            "writePath": "",
+            "onValue": "true",
+            "offValue": "false",
+            "onCommand": "",
+            "offCommand": ""
+          }
+        }
+      ]
+    }
+  ]
+}

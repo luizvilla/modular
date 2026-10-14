@@ -154,6 +154,8 @@ function testFilters() {
     assert.ok(paths({ filter: 'writable' }).includes('/Config/Mode'), 'unknown access counts as writable');
     assert.deepStrictEqual(paths({ filter: 'changed', changedPaths: new Set(['/Measurements/rV1Low_V']) }), ['/Measurements', '/Measurements/rV1Low_V']);
     assert.deepStrictEqual(paths({ query: 'nothing-matches' }), []);
+    assert.deepStrictEqual(paths({ query: 'leg1 enable' }), ['/Config', '/Config/Leg1', '/Config/Leg1/wEnable'], 'each word matches, any order');
+    assert.deepStrictEqual(paths({ query: 'enable  LEG1' }), ['/Config', '/Config/Leg1', '/Config/Leg1/wEnable']);
 }
 
 testAccess();

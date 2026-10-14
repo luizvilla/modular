@@ -66,11 +66,26 @@
         return select.val() || '';
     }
 
+    function isThingSetType(dsType) {
+        return dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
+    }
+
+    // ThingSet paths get the nested tree picker instead of a flat list;
+    // other datasources keep the plain select.
+    function syncThingSetPicker(element, getDsName, mode, enabled) {
+        if (!window.ThingSetPathPicker) return;
+        if (enabled) window.ThingSetPathPicker.attach(element, { mode, getDatasource: getDsName });
+        else window.ThingSetPathPicker.detach(element);
+    }
+
     async function refreshVariableSelect(shared, dsName, deviceValue, select, selectedVar) {
         const options = await shared.fetchDatasourceVariableOptions(dsName, deviceValue);
         select.empty();
+        const thingset = isThingSetType(shared.getDatasourceType(dsName));
+        syncThingSetPicker(select, () => dsName, 'read', thingset);
         if (!options.length) {
             select.append('<option value="">No variables</option>');
+            if (thingset && window.ThingSetPathPicker) window.ThingSetPathPicker.attach(select, { mode: 'read', getDatasource: () => dsName }).refresh();
             return;
         }
         options.forEach((option) => {
@@ -78,7 +93,9 @@
         });
         const normalized = selectedVar === undefined || selectedVar === null ? '' : String(selectedVar);
         if (normalized && select.find(`option[value="${normalized}"]`).length) select.val(normalized);
+        else if (thingset && normalized) select.append($('<option></option>').attr('value', normalized).text(normalized)).val(normalized);
         else select.val(select.find('option').first().val());
+        if (thingset && window.ThingSetPathPicker) window.ThingSetPathPicker.attach(select, { mode: 'read', getDatasource: () => dsName }).refresh();
     }
 
     function applyPalette(shared, paletteName) {
@@ -1240,11 +1257,12 @@
 
         function syncCommandFieldVisibility() {
             const dsType = shared.getDatasourceType(commandDsField.select.val());
-            const isThingSet = dsType === 'thingset_serial_datasource' || dsType === 'owntech_thingset_datasource';
+            const isThingSet = isThingSetType(dsType);
             plusField.row.toggle(!isThingSet);
             minusField.row.toggle(!isThingSet);
             writePathField.row.toggle(isThingSet);
             stepField.row.toggle(isThingSet);
+            syncThingSetPicker(writePathField.input, () => commandDsField.select.val(), 'write', isThingSet);
         }
         commandDsField.select.on('change', syncCommandFieldVisibility);
         syncCommandFieldVisibility();
@@ -1335,6 +1353,7 @@
             commandField.row.toggle(!thingset);
             pathField.row.toggle(thingset);
             valueField.row.toggle(thingset);
+            syncThingSetPicker(pathField.input, () => dsField.select.val(), 'write', thingset);
             renderButtonList();
         }
         dsField.select.on('change', syncFieldVisibility);
@@ -1346,7 +1365,7 @@
                 const path = pathField.input.val().trim();
                 if (!path) return;
                 state.buttonTargets.push({ label: label || path, path, value: valueField.input.val() });
-                pathField.input.val('');
+                pathField.input.val('').trigger('change');
                 valueField.input.val('');
             } else {
                 const command = commandField.input.val().trim();

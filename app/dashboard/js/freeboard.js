@@ -3008,6 +3008,23 @@ PluginEditor = function(jsEditor, valueEditor)
 								input.val(currentSettingsValues[settingDef.name]);
 							}
 
+							// Opt-in nested ThingSet path picker ('read' | 'write'),
+							// fed by the datasource chosen in another setting of
+							// the same form (thingset_path_datasource, default
+							// "datasource"). Plain text stays the fallback.
+							if(settingDef.thingset_path && window.ThingSetPathPicker)
+							{
+								var dsSettingName = settingDef.thingset_path_datasource || "datasource";
+								window.ThingSetPathPicker.attach(input, {
+									mode: settingDef.thingset_path,
+									getDatasource: function()
+									{
+										var chosen = newSettings.settings[dsSettingName];
+										return chosen !== undefined ? chosen : currentSettingsValues[dsSettingName];
+									}
+								});
+							}
+
 							if(typeaheadSource && settingDef.typeahead_data_field){
 								input.addClass('typeahead_data_field-' + settingDef.typeahead_data_field);
 							}

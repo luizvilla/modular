@@ -9,7 +9,7 @@
             { name: "title", display_name: "Title", type: "text" },
             { name: "onCommand", display_name: "ON Command", type: "text", description: "Sent as a raw serial command. Ignored when the datasource above is a ThingSet type -- use ON/OFF Value below instead." },
             { name: "offCommand", display_name: "OFF Command", type: "text", description: "Sent as a raw serial command. Ignored when the datasource above is a ThingSet type -- use ON/OFF Value below instead." },
-            { name: "writePath", display_name: "ThingSet Write Path", type: "text", description: "Only used when the datasource above is a ThingSet type, e.g. /Config/Leg1/wEnable." },
+            { name: "writePath", display_name: "ThingSet Write Path", type: "text", thingset_path: "write", description: "Only used when the datasource above is a ThingSet type, e.g. /Config/Leg1/wEnable." },
             { name: "onValue", display_name: "ThingSet ON Value", type: "text", default_value: "true", description: "Parsed as JSON/boolean/number when possible, otherwise sent as a string." },
             { name: "offValue", display_name: "ThingSet OFF Value", type: "text", default_value: "false", description: "Parsed as JSON/boolean/number when possible, otherwise sent as a string." },
             {
