@@ -477,6 +477,54 @@ Each commit leaves the app working; the simulator stays off unless enabled, so c
 
 **Dependency:** none blocking. Capturing the fixtures (commit 2) needs a real board connected once; the Spin used for M11 is enough.
 
+### M12 delivered (2026-10-14)
+
+| # | Commit | What |
+|---|---|---|
+| 1 | `ddc7ff8` | docs(gui): plan the simulated OwnTech board (M12) |
+| 2 | `4b15074` | test(owntech): capture the real Core4 tree and shell transcripts as fixtures |
+| 3 | `da515ea` | feat(sim): in-process SerialPort stand-in and simulated-port registry |
+| 4 | `738d6e8` | feat(sim): the ThingSet shell (if02): tree, access, protocol framing |
+| 5 | `1fdfd57` | feat(sim): the board's state machine and power stage physics |
+| 6 | `36129c4` | feat(sim): the scope data port (if00) and captures |
+| 7 | `29f3ba7` | feat(serial): route simulated ports through the real ThingSet and scope code paths |
+| 8 | `80236cf` | feat(owntech): "Demo OwnTech Board" toggle and simulated-board badges |
+| 9 | `829af70` | test(owntech): e2e OwnTech flows against the simulated board |
+| 9a | `ea96be2` | fix(owntech): reopen a cached scope link whose port has closed (found by step 10) |
+| 10 | `6306b4c` | test(owntech): fault-injection regressions for the 2026-10-12..14 hardware bugs |
+| 11 | `59fbb7a` | docs(owntech): document the demo board |
+| 12 | this commit | docs(gui): log M12 verification |
+
+**Found while building it:**
+- **Why the first scope probe times out** (Phase 2 finding 2, open since 2026-10-13). On the first open after boot, if00 delivers the console's buffered boot log: exactly **1024 bytes**, cut mid-line (`…calibration values for A`). The reply to the first `?` is appended to that unfinished line, so it never equals `SCOPE-DATA/1 OK`. The probe resend (`a1ada7a`) was the right fix; the simulator now reproduces the cause.
+- **A cached scope link was reused after its port closed** (unplug and replug): every later probe or download failed with "Port is not open". Fixed in `ea96be2`; found because the regression suite re-creates the board between tests.
+- **Core4's `fetch 0x16 [...]` returns nothing**, so node ids in the walked tree are always `null` on this firmware. The simulator matches that.
+- **An out-of-range duty is accepted** (`:84`) and then reverted by the firmware callback, so only the readback shows it. Several other parameters behave the same way; the simulator reproduces this.
+
+**Deviations from the plan:**
+- **The toggle** is in the **Edit menu** (next to *Toggle Activity*). It's persisted in `userData/demo-board.json`.
+- **`MODULAR_SIM_ONLY=1`** (not planned) hides real serial ports. The e2e specs need it to be deterministic while a real board is plugged in, and it helps demos on such a machine.
+- **The simulated if00 wedges after a run of foreign input**, as the real firmware did; only `reboot()` clears it. That's what makes the if00-guard regression meaningful.
+- **Physics constants** come from the bench measurements: ×0.9 loaded and ×1.2 open, a 2 ms time constant, an open leg discharging over ~6 s. They aren't derived from component values.
+
+### M12 verification (2026-10-14)
+
+| Check | Result |
+|---|---|
+| Simulator vs. transcript (`sim_thingset_shell.test.js`) | Raw shell behaviour: prompt on open, unknown command, prefix at root, select mode and its prefix trap, Alt+R. Plus 276 recorded app↔board exchanges. All **byte-identical** (measurement numbers masked) |
+| Real Spin vs. simulator, same read-only session through `ThingSetSerialShell` | **126/126 responses identical** after normalizing values to their format (int / float with N decimals) and masking identity strings: every group's names, every group and leaf read, unknown path, read-only and unknown-endpoint writes |
+| Physics (`sim_owntech_board.test.js`) | Leg needs POWER_ON + enable; 2.7 V / 0.27 A at duty 0.1 on 10 Ω; 4.05 V at 0.15 within 10 ms; open leg 3.6 V, then 1–3 V four seconds after stopping; duty 0.05 → same as 0.1, `rDuty` echoes 0.05; firmware reverts; temperatures, input current, v_max |
+| Scope (`sim_scope_port.test.js`) | Real boot log byte for byte, then the probe resend recovers; arm/trigger/READY timing; locked settings; `NOT_READY IDLE`; a leg enabled at the trigger appears as a 0 → 5.4 V step at the trigger in the downloaded capture; the download takes ~1.15 s, the shell is held meanwhile and answers afterwards |
+| Real handlers on the simulator (`sim_integration.test.js`) | Detect lands on if02 and if00 only ever sees `?` / `D`; 81-variable walk = values refresh; reads, group read, write readback, rejected and reverted writes; POWER_ON + leg 1 → 2.7 V via read and values refresh; an if02 read during a download waits ~1 s and succeeds |
+| Regressions (`sim_regressions.test.js`, 10) | One per hardware bug fixed 2026-10-12..14, plus the stale scope link: all pass |
+| E2E against the simulator (`owntech-sim.spec.js`, MOCK_HW off) | Auto-detect + labelled ports; table writes drive the power stage (5.4 V / 0.54 A in the table and a gauge); scope widget arm/trigger/download of 1024 × 8 |
+| In the app (Spin board also attached) | Demo board listed next to the Spin; variable table on it; V1 5.41 V, I1 0.54 A, VHigh 30.03 V at duty 0.2; sidebar card "(simulated demo board)" |
+| Real hardware unchanged | Detect / walk / values refresh / reads / guard / idle close rechecked on the Spin after routing through the factory |
+| Unit tests | All 17 files pass |
+| Full e2e suite (`--workers=2`) | 152 passed, 32 failed. **31 of the 32 fail identically on `ddc7ff8` (before M12)**: `state-machine.spec.js` (20, its widget is in the disabled-by-default `owntech-legacy` extension), the tutorial happy paths (7), `courseware`, `error-cases` "invalid dashboard json" (already logged in M7 of the OwnTech migration), and `fast-frame` "follow latest csv". The 32nd, `integrated-plot-editor` vertical gauge, is the load-dependent flake from 2026-10-14 (3/3 alone, old and new code). **No regressions from M12.** |
+
+**Still open after M12:** the pre-existing e2e failures above deserve their own triage; none of them involve the OwnTech/ThingSet code paths.
+
 ---
 
 ## Non-Goals / Explicitly Out of Scope (whole plan)
