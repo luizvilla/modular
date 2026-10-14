@@ -199,6 +199,112 @@ Carried over from the pilot, or newly learned from it:
 
 ---
 
+## Milestone 11 — OwnTech Variable Table widget (`owntech_variable_table`)
+
+**Goal:** a table showing **every variable the board exposes**, laid out as its ThingSet hierarchy. Read-only variables are shown live; writable ones can be edited in place, and each edit sends one write to the board. Today the only overview of a walked tree is the generic `thingset_serial_device_ui` widget: a list of nested `<details>` blocks that fetches its own copy of the tree, with no columns, filtering, units or write safety. This milestone gives the OwnTech extension a proper "manual mode" view of the target.
+
+### What it shows
+
+- **A tree-table**, one row per node, built from the linked `owntech_thingset_datasource`'s tree. It adds no serial traffic of its own: it re-renders on every datasource update (values-only refreshes, ~150 ms on a Core4 board since `49f7d57`).
+  - **Group rows** (`Config`, `Leg1`, `Measurements`…) have an expand/collapse chevron, indentation by depth, bold names and a summary, e.g. `Leg1 · 11 variables · 9 writable`. Top-level groups start expanded; deeper ones start collapsed.
+  - **Variable rows**, in columns:
+    - **Name**: indented, with the ThingSet prefix de-emphasized so `wDutyCycle` reads as "DutyCycle".
+    - **Value**, formatted by type: boolean as a pill (true/false), number to sensible precision, string as text, array or record as a compact chip.
+    - **Unit**, parsed from the name suffix: `_V`, `_A`, `_s`, `_ms`, `_us`, `_ns`, `_Hz`, `_degC`, `_W`.
+    - **Access** badge (see below).
+    - **Full path**, shown on hover, with copy on click.
+  - Values that changed since the previous update flash briefly, so it's obvious what's live.
+- **Access badges**, from the ThingSet naming prefix, since the serial shell exposes no access metadata:
+  - `r` → **Read-only**
+  - `w` → **Writable**
+  - `s` → **Stored setting** (writable, persisted)
+  - `p` → node identity (read-only)
+  - `m` → subset/record (read-only here)
+  - `_` → internal, hidden unless "Show internal" is on
+  - **No prefix** (e.g. `Config/Mode`, `Config/Frequency_Hz`) → **Unknown**: editable, and the board decides. A rejected write is shown inline (`ade9015`).
+- **Toolbar:**
+  - search box (matches name and path) and filter chips: *All · Writable · Read-only · Changed*
+  - Expand all / Collapse all
+  - **Refresh** (values) and **Rescan** (full walk, `rescan()`)
+  - last-update time and the datasource's port/node
+  - the **write lock** (below)
+
+### Editing
+
+- **The write lock is on by default.** The table opens read-only, and an explicit "Unlock writes" toggle in the toolbar enables editing. The toggle is per widget instance and not saved, so a reload always comes back locked.
+- **Typed inline editors**, opened by clicking a writable value:
+  - boolean → switch
+  - number → numeric input (Enter writes, Esc cancels, the arrow keys step)
+  - string → text input
+  - Records and arrays are not editable in this milestone.
+- **Each write** goes through `ThingSetWrite.write()`. The cell shows a spinner, then:
+  - ✓ with the board's **readback**;
+  - or ✗ with the error, on hover.
+
+  If the readback differs from what was written, the cell says so. For example: "board holds 0.1".
+- **Writes that affect power ask for confirmation**, showing the current and new value: `Config/Mode`, `*/wEnable`, `*/wDriver`, `*/wCapa`, `*/wDutyCycle`, `*/wReferenceValue`, `*/wBuck`, `*/wBoost`, `Config/Frequency_Hz`.
+- **Known-firmware caveats shown inline** next to the affected variables (from the 2026-10-13 hardware runs and Core4's own test log):
+  - `wDriver`: once true, only an MCU reset clears it.
+  - `wDutyCycle`: values below 0.1 are clamped to 0.1 by the power library, and `rDutyN` echoes the requested value.
+  - `Debug/Scope/wArm` / `wTrigger`: one-shot, they read back `false` after success.
+  - `Frequency_Hz`: writes are a known firmware issue; Core4's own tests never write it.
+
+### Navigation (radial menus, same patterns as M1–M8)
+
+- **Pane right-click → OwnTech category** lists the widget automatically (category `OwnTech`, its own icon and description), like the other OwnTech widgets.
+- **Right-click a variable row** → a small radial:
+  - **Copy path**
+  - **Add widget bound to it**: a gauge for a number, a toggle for a boolean, via the existing quick-add path
+  - **Refresh**
+- **Right-click the header/status line** → reassign the linked datasource (M8's flat-leaf pattern).
+
+### Out of scope
+
+- Editing records/arrays, creating or deleting nodes (`ts-serial-create`/`-delete`), executing functions (`e…`).
+- CAN ThingSet (same rule as M9).
+- Retiring `thingset_serial_device_ui`: decide after M11 has been used.
+
+### Files
+
+- `app/dashboard/js/owntech_variable_table_model.js` (**new**, pure and unit-testable, loadable from Node like `thingset_value_parse.js`):
+  - tree → flat row list (depth, parent, group summaries);
+  - access inference from the prefix;
+  - unit parsing from the suffix;
+  - value formatting and editor-value parsing;
+  - the power-path list and caveats.
+- `app/dashboard/plugins/owntech_variable_table.widget.js` (**new**): rendering, filter/search, expand state, live updates, editing, radial wiring.
+- `app/extensions/owntech/manifest.json`: two new `rendererScripts` entries.
+- `app/preload.js` (MOCK_HW only): an opt-in way to make mocked writes fail, so the rejected-write path is testable.
+- `docs/widgets/…` + `index.owntech.json`: widget doc.
+- `tests/unit/owntech_variable_table_model.test.js`, `tests/e2e/owntech-variable-table.spec.js`.
+
+### Verification
+
+| Level | What |
+|---|---|
+| Unit | Flattening keeps the hierarchy and order; group summaries count correctly; every prefix maps to the right access; units parse; formatting/parsing round-trips; power paths are matched by pattern (`/Config/Leg2/wEnable`, a 3rd leg too) |
+| E2E (MOCK_HW) | Renders groups + variables from the mocked tree; expand/collapse; search and filter chips; write lock blocks editing; editing a number calls `setValue` with the parsed value and shows the readback; a rejected write shows ✗; a power path asks for confirmation and Cancel sends nothing; the widget is listed under the pane radial's OwnTech category; row right-click → Copy path / Add widget |
+| Real hardware (Core4 board) | **Read-only:** all values and groups shown and updating live. **Inert writes:** `Config/wBlinkPeriod_s` 1 → 0.5 → 1 (the LED visibly changes), `Debug/Scope/wDecimation`. **Writes that switch power, only with the user at the bench** under the Phase 3 interlock rules: Mode, leg 1 `wEnable` at duty 0.1, confirming the confirmation dialog appears and the readback is shown |
+
+### Commit sequence
+
+| # | Commit |
+|---|---|
+| 1 | `docs(gui): plan the OwnTech variable table widget (M11)` |
+| 2 | `feat(owntech): add the variable table model (tree rows, access, units, formatting)` + unit tests |
+| 3 | `feat(owntech): add the owntech_variable_table widget: hierarchical read-only view with search and filters` |
+| 4 | `feat(owntech): edit writable variables in the variable table, with write lock, confirmation and readback` |
+| 5 | `feat(owntech): variable table radial menu: copy path, add a bound widget, reassign datasource` |
+| 6 | `test(owntech): e2e coverage for the variable table` (+ the MOCK_HW rejected-write hook) |
+| 7 | `docs(owntech): document the variable table widget` |
+| 8 | `docs(gui): log M11 real-hardware verification` |
+
+Each commit leaves the app working: 3 ships a useful read-only table even before 4 adds editing.
+
+**Dependency:** the 2026-10-13 fixes (`49f7d57` values refresh, `ade9015` `ThingSetWrite`, `9d1f671` group reads); M1/M2 (pane radial) and M8 (datasource reassign) for navigation.
+
+---
+
 ## Non-Goals / Explicitly Out of Scope (whole plan)
 
 - **Legacy freeboard built-in widgets** (`text_widget`, `gauge` [the old freeboard one, distinct from the new gauge family], `sparkline`, `pointer`, `picture`, `indicator`, `google_map`) and their demo datasources (`JSON`, `openweathermap`) — these predate this app's own widget conventions and aren't part of the OwnTech-relevant surface. No radial adaptation planned, ever, unless explicitly requested later.
@@ -261,6 +367,7 @@ Every milestone needs e2e coverage in the same style as the existing `tests/e2e/
 | M7. Buttons family radial | 3 widget files + tests | Medium |
 | M8. OwnTech family radial (lower priority) | 1 widget file + tests | Small |
 | M9. ThingSet/Serial family | Deferred — not scheduled | — |
+| M11. OwnTech Variable Table widget | 1 model file + 1 widget file + tests + docs | Medium–Large |
 
 Start with M0 — every later milestone's effort estimate above assumes the shared kit exists; skipping it would make M3-M8 each larger and duplicate-prone instead.
 
