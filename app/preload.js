@@ -641,9 +641,14 @@ if (isMock) {
                 }
             }),
             getValue: async () => ({ ok: true, value: 1 }),
+            // Like the real handler, an accepted write reads back the value.
+            // MOCK_THINGSET_REJECT_PATHS (comma-separated) makes writes to
+            // those paths fail, so rejected-write UI is testable.
             setValue: async (opts) => {
                 thingsetSerialSetValueCalls.push(opts);
-                return { ok: true };
+                const rejected = String(process.env.MOCK_THINGSET_REJECT_PATHS || '').split(',').map((x) => x.trim()).filter(Boolean);
+                if (opts && rejected.includes(opts.path)) return { ok: false, raw: ':A0 Bad Request', readBack: null };
+                return { ok: true, readBack: opts ? opts.value : undefined };
             },
             create: async () => ({ ok: true }),
             delete: async () => ({ ok: true }),

@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "allow_edit": true,
+  "plugins": [],
+  "columns": 3,
+  "datasources": [
+    {
+      "name": "MockOwnTechThingSet",
+      "type": "owntech_thingset_datasource",
+      "settings": {
+        "autoDetect": true,
+        "portPath": "COM_MOCK",
+        "baudRate": 115200,
+        "usePrefix": false,
+        "refresh": 1000,
+        "debug": false
+      }
+    }
+  ],
+  "panes": [
+    {
+      "title": "Variables",
+      "width": 2,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 1
+      },
+      "col_width": 2,
+      "widgets": [
+        {
+          "type": "owntech_variable_table",
+          "settings": {
+            "title": "Variables",
+            "datasource": "MockOwnTechThingSet",
+            "showInternal": false
+          }
+        }
+      ]
+    },
+    {
+      "title": "Empty",
+      "width": 1,
+      "row": {
+        "3": 1
+      },
+      "col": {
+        "3": 3
+      },
+      "col_width": 1,
+      "widgets": []
+    }
+  ]
+}
