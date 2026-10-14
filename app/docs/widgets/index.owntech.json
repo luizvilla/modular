@@ -15,6 +15,14 @@
       "icon": "wave-square",
       "preferredOrder": 1,
       "doc": "owntech/scope/README.md"
+    },
+    {
+      "type": "owntech_variable_table",
+      "title": "OwnTech Variable Table",
+      "category": "OwnTech",
+      "icon": "table-list",
+      "preferredOrder": 2,
+      "doc": "owntech/variables/README.md"
     }
   ]
 }

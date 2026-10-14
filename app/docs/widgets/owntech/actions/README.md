@@ -28,10 +28,11 @@ third leg shows up here automatically, with no widget changes.
   protocol knowledge here, since the enum's meaning doesn't vary with leg
   count.
 - **Leg toggles** write straight to the discovered leaf's own path (e.g.
-  `/Config/Leg1/wEnable`) via `setValue` — the toggle reflects your click
-  immediately, but a successful ThingSet status code only confirms the
-  shell accepted the write syntactically. Use **Rescan Tree** on the
-  linked datasource's sidebar entry to confirm the board's actual state.
+  `/Config/Leg1/wEnable`). After each write the panel shows the value the
+  board reads back, and refreshes the datasource's values; a write the
+  board rejects is reported in the status line as *Write failed*.
+- **Rescan Tree** re-walks the board's whole tree (e.g. after a reflash
+  adds or removes legs).
 - No auto-refresh timer: the panel re-renders whenever the linked
-  datasource's own data updates (its own poll cycle, or an explicit
-  rescan) — it never issues its own extra tree-walk IPC calls.
+  datasource's own data updates (its own poll cycle, a write, or a
+  rescan) — it never issues its own tree-walk calls.
